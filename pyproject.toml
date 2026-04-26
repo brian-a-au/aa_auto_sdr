@@ -1,0 +1,71 @@
+[project]
+name = "aa-auto-sdr"
+dynamic = ["version"]
+description = "Adobe Analytics SDR Generator with snapshot diffing (API 2.0 only)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.14"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Documentation",
+]
+dependencies = [
+    "aanalytics2>=0.4.0",
+    "pandas>=2.3.3,<3",
+    "xlsxwriter>=3.2.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/brian-a-au/aa_auto_sdr"
+Repository = "https://github.com/brian-a-au/aa_auto_sdr"
+
+[project.scripts]
+aa_auto_sdr = "aa_auto_sdr.__main__:main"
+"aa-auto-sdr" = "aa_auto_sdr.__main__:main"
+
+[project.optional-dependencies]
+env = ["python-dotenv>=1.0.0"]
+completion = ["argcomplete>=3.0.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/aa_auto_sdr/core/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aa_auto_sdr"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "pyproject.toml", "README.md", "LICENSE"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-cov>=4.1.0",
+    "openpyxl>=3.1.0",
+    "ruff>=0.9.0",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --cov=aa_auto_sdr --cov-report=term-missing --cov-fail-under=70"
+markers = [
+    "unit: fast unit tests with no I/O",
+    "integration: end-to-end with mocked SDK",
+    "smoke: subprocess CLI smoke tests",
+    "e2e: real-API tests, gated by env var",
+]
