@@ -101,6 +101,40 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     raise ReportSuiteNotFoundError(f"Report suite '{rsid}' not found")
 
 
+def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
+    """Resolve a user-supplied identifier to one or more canonical RSIDs.
+
+    Resolution order (matches cja_auto_sdr convention):
+      1. RSID exact match against the rsid field. RSIDs are distinct, so this
+         returns exactly one result. Returns ([rsid], False).
+      2. Name exact match (case-insensitive) against the name field. Names are
+         NOT guaranteed unique, so multiple suites may match. Returns the
+         RSIDs of all matches as ([rsid_1, rsid_2, ...], True). The caller
+         (CLI generate command) generates an SDR per RSID.
+      3. ReportSuiteNotFoundError otherwise.
+
+    Returns (rsids, was_name_lookup). `rsids` is always a non-empty list.
+    """
+    suites = _records(client.handle.getReportSuites(extended_info=True))
+
+    # 1) Exact RSID match — RSIDs are distinct
+    for raw in suites:
+        if raw.get("rsid") == identifier:
+            return [identifier], False
+
+    # 2) Case-insensitive exact name match — may match multiple suites
+    target = identifier.casefold()
+    name_matches = [
+        str(raw["rsid"]) for raw in suites if raw.get("name") is not None and str(raw["name"]).casefold() == target
+    ]
+    if name_matches:
+        return name_matches, True
+
+    raise ReportSuiteNotFoundError(
+        f"report suite '{identifier}' not found (matched neither rsid nor name)",
+    )
+
+
 def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     raws = _records(
         client.handle.getDimensions(rsid=rsid, description=True, tags=True),

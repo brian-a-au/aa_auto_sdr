@@ -9,10 +9,15 @@ from aa_auto_sdr.sdr.document import SdrDocument
 
 
 class Writer(Protocol):
-    """Renders an SdrDocument to a file (or stdout)."""
+    """Renders an SdrDocument to one or more files (or stdout in v0.3+)."""
 
     extension: str
 
-    def write(self, doc: SdrDocument, output_path: Path) -> Path:
-        """Write `doc` to `output_path` (or a derived path). Return the actual path written."""
+    def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
+        """Write `doc` and return every path written.
+
+        Single-file writers (json, excel, html, markdown) return a one-element
+        list. Multi-file writers (csv) return one entry per file produced.
+        Always non-empty.
+        """
         ...

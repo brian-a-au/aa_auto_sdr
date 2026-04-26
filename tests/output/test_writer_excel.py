@@ -42,7 +42,7 @@ def test_excel_extension() -> None:
 def test_excel_writer_creates_file(doc, tmp_path: Path) -> None:
     target = tmp_path / "sdr.xlsx"
     actual = ExcelWriter().write(doc, target)
-    assert actual == target
+    assert actual == [target]
     assert target.exists()
 
 
