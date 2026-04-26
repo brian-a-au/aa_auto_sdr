@@ -11,6 +11,7 @@ from aa_auto_sdr.cli.parser import build_parser
 
 _EXIT_USAGE = 2
 _EXIT_NOT_IMPLEMENTED = 1
+_EXIT_OUTPUT = 15
 
 
 def run(argv: list[str]) -> int:
@@ -81,6 +82,23 @@ def run(argv: list[str]) -> int:
                 sort_field=ns.sort,
                 limit=ns.limit,
             )
+
+    # Batch (v0.5) — sequential multi-RSID generation
+    if ns.batch:
+        if ns.output == "-":
+            print(
+                "error: --output - is ambiguous for --batch (multiple SDRs cannot share a single stream); use --output-dir instead",
+                flush=True,
+            )
+            return _EXIT_OUTPUT
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        return batch_cmd.run(
+            rsids=ns.batch,
+            output_dir=ns.output_dir,
+            format_name=ns.format or "excel",
+            profile=ns.profile,
+        )
 
     # Generate (positional RSID) — default --format to "excel" if omitted
     if not ns.rsid:
