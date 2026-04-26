@@ -128,3 +128,11 @@ def test_diff_routes_to_commands_diff(tmp_path: Path, capsys) -> None:
     rc = run(["--diff", str(a), str(b)])
     assert rc == 0
     assert "SDR DIFF" in capsys.readouterr().out
+
+
+def test_diff_with_positional_rsid_returns_2(capsys) -> None:
+    """`--diff a b extra-rsid` is a usage error, not a silent ignore."""
+    rc = run(["--diff", "a.json", "b.json", "extra-rsid"])
+    assert rc == 2
+    err = capsys.readouterr().out
+    assert "positional" in err.lower() or "diff" in err.lower()

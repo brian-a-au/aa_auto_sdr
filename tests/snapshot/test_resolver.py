@@ -116,3 +116,18 @@ def test_resolve_invalid_envelope_raises_schema_error(tmp_path: Path) -> None:
     bad.write_text('{"schema": "aa-sdr-snapshot/v999"}')
     with pytest.raises(SnapshotSchemaError):
         resolve_snapshot(str(bad), profile_snapshot_dir=None, repo_root=None)
+
+
+def test_resolve_directory_path_raises_resolve_error(tmp_path: Path) -> None:
+    """Passing a directory must surface as SnapshotResolveError, not a stack trace."""
+    with pytest.raises(SnapshotResolveError, match=r"directory"):
+        resolve_snapshot(str(tmp_path), profile_snapshot_dir=None, repo_root=None)
+
+
+def test_resolve_bare_token_uses_spec_message(tmp_path: Path) -> None:
+    """Spec §4: bare tokens that match no form get a multi-form error message."""
+    with pytest.raises(
+        SnapshotResolveError,
+        match=r"could not interpret 'nonsense'",
+    ):
+        resolve_snapshot("nonsense", profile_snapshot_dir=None, repo_root=None)

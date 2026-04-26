@@ -99,3 +99,17 @@ def test_save_snapshot_overwrites_existing_file_at_same_timestamp(tmp_path: Path
     save_snapshot(_stub_doc(), snapshot_dir=tmp_path)
     out = save_snapshot(_stub_doc(), snapshot_dir=tmp_path)
     assert out.exists()
+
+
+def test_save_snapshot_wraps_oserror_in_output_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Spec §3: snapshot-write failures must raise OutputError so run_batch can fold
+    them into BatchFailure instead of aborting the whole batch."""
+    from aa_auto_sdr.core.exceptions import OutputError
+    from aa_auto_sdr.snapshot import store
+
+    def _boom(*_a, **_kw):
+        raise PermissionError("disk on fire")
+
+    monkeypatch.setattr(store, "write_json", _boom)
+    with pytest.raises(OutputError, match="snapshot write failed"):
+        save_snapshot(_stub_doc(), snapshot_dir=tmp_path)

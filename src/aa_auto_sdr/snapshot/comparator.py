@@ -108,11 +108,15 @@ def _diff_component_list(
 
 
 def _diff_dict(a: dict[str, Any], b: dict[str, Any], *, parent_field: str) -> list[FieldDelta]:
-    """Walk two dicts and emit FieldDelta for each leaf inequality, after normalization."""
+    """Walk two dicts and emit FieldDelta for each leaf inequality, after normalization.
+
+    `id` and `rsid` are identity fields; mismatches surface via the parent
+    DiffReport's added/removed lists or `rsid_mismatch` flag, so we skip them
+    here to avoid emitting redundant deltas."""
     deltas: list[FieldDelta] = []
     keys = sorted(a.keys() | b.keys())
     for key in keys:
-        if key == "id":
+        if key in ("id", "rsid"):
             continue
         path = f"{parent_field}.{key}" if parent_field else key
         a_val = a.get(key)

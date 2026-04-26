@@ -85,6 +85,9 @@ def run(argv: list[str]) -> int:
 
     # Diff (v0.7) — snapshot comparison
     if ns.diff:
+        if ns.rsid:
+            print("error: --diff cannot be combined with a positional RSID", flush=True)
+            return _EXIT_USAGE
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
         return diff_cmd.run(

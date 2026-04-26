@@ -35,7 +35,16 @@ def resolve_snapshot(
         return _resolve_git(token, repo_root=repo_root)
     if "@" in token and not _looks_like_path(token):
         return _resolve_rsid_at(token, profile_snapshot_dir=profile_snapshot_dir)
-    return _resolve_path(Path(token).expanduser())
+    path = Path(token).expanduser()
+    if path.exists():
+        return _resolve_path(path)
+    # Token doesn't match any known form. Use the spec §4 message when the token
+    # has no path-shape signals; otherwise surface the path-not-found error.
+    if not _looks_like_path(token):
+        raise SnapshotResolveError(
+            f"could not interpret '{token}' as snapshot path, <rsid>@<spec>, or git:<ref>:<path>",
+        )
+    raise SnapshotResolveError(f"snapshot file not found: {path}")
 
 
 def _looks_like_path(token: str) -> bool:
@@ -48,10 +57,14 @@ def _looks_like_path(token: str) -> bool:
 def _resolve_path(path: Path) -> dict[str, Any]:
     if not path.exists():
         raise SnapshotResolveError(f"snapshot file not found: {path}")
+    if path.is_dir():
+        raise SnapshotResolveError(f"expected snapshot file but got directory: {path}")
     try:
         env = read_json(path)
     except json.JSONDecodeError as exc:
         raise SnapshotResolveError(f"snapshot file {path} is not valid JSON: {exc}") from exc
+    except OSError as exc:
+        raise SnapshotResolveError(f"could not read snapshot file {path}: {exc}") from exc
     validate_envelope(env)
     return env
 
