@@ -87,7 +87,8 @@ def run(argv: list[str]) -> int:
     if ns.batch:
         if ns.output == "-":
             print(
-                "error: --output - is ambiguous for --batch (multiple SDRs cannot share a single stream); use --output-dir instead",
+                "error: --output - is ambiguous for --batch "
+                "(multiple SDRs cannot share a single stream); use --output-dir instead",
                 flush=True,
             )
             return _EXIT_OUTPUT
