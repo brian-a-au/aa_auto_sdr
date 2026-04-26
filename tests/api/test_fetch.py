@@ -84,6 +84,51 @@ def test_fetch_metrics_passes_richer_info_flags(mock_client: AaClient) -> None:
     assert "dataGroup" not in kwargs
 
 
+def test_fetch_metrics_handles_missing_dataGroup_column() -> None:
+    """Regression test for the v0.1.1 fix.
+
+    Real Adobe Analytics report suites often return metrics with no `dataGroup`
+    column at all (the column only appears when `getMetrics(dataGroup=True)` is
+    requested AND the RS supports it). This test simulates that real-API shape:
+    records have no `dataGroup` key. fetch_metrics must produce valid Metric
+    instances with data_group=None — never raise KeyError."""
+    handle = MagicMock()
+    handle.getMetrics.return_value = _df(
+        [
+            {
+                "id": "metrics/pageviews",
+                "name": "Page Views",
+                "type": "int",
+                "category": "Traffic",
+                "precision": 0,
+                "segmentable": True,
+                "description": "Total page views",
+                "tags": [],
+            },
+            {
+                "id": "metrics/visits",
+                "name": "Visits",
+                "type": "int",
+                "category": "Traffic",
+                "precision": 0,
+                "segmentable": True,
+                "description": None,
+                "tags": [],
+            },
+        ]
+    )
+    client = AaClient(handle=handle, company_id="testco")
+
+    mets = fetch.fetch_metrics(client, "demo.prod")
+
+    assert len(mets) == 2
+    assert all(isinstance(m, models.Metric) for m in mets)
+    assert all(m.data_group is None for m in mets)
+    by_id = {m.id: m for m in mets}
+    assert by_id["metrics/pageviews"].category == "Traffic"
+    assert by_id["metrics/pageviews"].segmentable is True
+
+
 def test_fetch_segments_includes_definition(mock_client: AaClient) -> None:
     segs = fetch.fetch_segments(mock_client, "demo.prod")
     assert len(segs) == 2
@@ -138,3 +183,56 @@ def test_fetch_classification_datasets_returns_list(mock_client: AaClient) -> No
 def test_fetch_classification_datasets_calls_correct_method(mock_client: AaClient) -> None:
     fetch.fetch_classification_datasets(mock_client, "demo.prod")
     mock_client.handle.getClassificationDatasets.assert_called_once_with(rsid="demo.prod")
+
+
+def test_fetch_classification_datasets_tolerates_dataSetId_keys() -> None:
+    """Regression test for the v0.1.1 fix.
+
+    The classifications API response shape varies by org/RS — some records
+    use `dataSetId`/`displayName` instead of `id`/`name`. fetch_classification_datasets
+    must tolerate either shape."""
+    handle = MagicMock()
+    handle.getClassificationDatasets.return_value = _df(
+        [
+            {"dataSetId": "ds_a", "displayName": "Campaign Owner", "rsid": "demo.prod"},
+            {"datasetId": "ds_b", "displayName": "Campaign Type", "rsid": "demo.prod"},
+        ]
+    )
+    client = AaClient(handle=handle, company_id="testco")
+
+    cs = fetch.fetch_classification_datasets(client, "demo.prod")
+
+    assert len(cs) == 2
+    assert {c.id for c in cs} == {"ds_a", "ds_b"}
+    assert {c.name for c in cs} == {"Campaign Owner", "Campaign Type"}
+
+
+def test_fetch_classification_datasets_skips_records_without_id_keys() -> None:
+    """If a record has none of the recognized id keys, skip it rather than crash."""
+    handle = MagicMock()
+    handle.getClassificationDatasets.return_value = _df(
+        [
+            {"id": "ds_keep", "name": "Keeper", "rsid": "demo.prod"},
+            {"unrelatedKey": "junk", "rsid": "demo.prod"},  # no id-like key — skip
+        ]
+    )
+    client = AaClient(handle=handle, company_id="testco")
+
+    cs = fetch.fetch_classification_datasets(client, "demo.prod")
+
+    assert len(cs) == 1
+    assert cs[0].id == "ds_keep"
+
+
+def test_fetch_classification_datasets_returns_empty_on_wrapper_error(capsys) -> None:
+    """If the SDK call itself raises, return [] with a stderr warning rather
+    than breaking the entire SDR pipeline (classifications are best-effort)."""
+    handle = MagicMock()
+    handle.getClassificationDatasets.side_effect = KeyError("['id'] not in index")
+    client = AaClient(handle=handle, company_id="testco")
+
+    cs = fetch.fetch_classification_datasets(client, "demo.prod")
+
+    assert cs == []
+    captured = capsys.readouterr()
+    assert "classifications fetch failed" in captured.err

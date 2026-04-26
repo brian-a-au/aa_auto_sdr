@@ -277,10 +277,18 @@ _CLASSIFICATION_NAME_KEYS = ("name", "displayName", "display_name")
 
 
 def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    """Return the first non-empty stringable value among `keys` in `d`.
+
+    Filters None, empty string, AND pandas NaN (float-NaN appears after a
+    DataFrame.to_dict() when a row is missing a column other rows have)."""
     for k in keys:
         v = d.get(k)
-        if v not in (None, ""):
-            return str(v)
+        if v is None or v == "":
+            continue
+        # pandas yields float-NaN for missing cells; NaN is the only float != itself
+        if isinstance(v, float) and v != v:
+            continue
+        return str(v)
     return None
 
 
