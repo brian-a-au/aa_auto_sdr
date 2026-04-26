@@ -93,8 +93,11 @@ class TestSelectForDeletion:
         )
         assert deleted == [self._file("2026-04-20T10-00-00+00-00")]
 
-    def test_combined_keep_last_and_keep_since_union(self) -> None:
-        # A file dropped by either rule is dropped overall (set-union semantics).
+    def test_combined_policy_is_set_union_when_both_set(self) -> None:
+        """Internal contract: when both rules are set on the dataclass, dropped
+        files are the set-union of each rule's drops. The CLI rejects
+        `--keep-last + --keep-since` at argparse so users can't reach this path,
+        but the model remains flexible for any future internal use."""
         now = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
         files = [
             self._file("2026-04-20T10-00-00+00-00"),
@@ -114,8 +117,10 @@ class TestSelectForDeletion:
             self._file("2026-04-21T10-00-00+00-00"),
         ]
 
-    def test_malformed_filename_treated_as_ancient(self) -> None:
-        # _restore_iso returns datetime.min on bad shape — should be flagged for delete by keep_since
+    def test_malformed_filename_is_kept_not_deleted(self) -> None:
+        """A stem that doesn't match _TS_RE returns datetime.max → never older
+        than any cutoff → never flagged by keep_since. Fail-closed default
+        prevents silent deletion of unrecognized filename shapes."""
         now = datetime(2026, 4, 26, tzinfo=UTC)
         files = [
             self._file("not-a-timestamp"),
@@ -123,4 +128,18 @@ class TestSelectForDeletion:
         ]
         policy = RetentionPolicy(keep_since=timedelta(days=1))
         deleted = select_for_deletion(files, policy, now=now)
-        assert deleted == [self._file("not-a-timestamp")]
+        # Only the parseable file is checked; it's < 1 day old → kept.
+        # The malformed file returns datetime.max → kept.
+        assert deleted == []
+
+    def test_z_suffix_filename_parses_correctly(self) -> None:
+        """Filenames with `Z` UTC suffix (alternate ISO form accepted by schema)
+        must parse to a real datetime, not the fail-closed `datetime.max`."""
+        now = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
+        files = [
+            self._file("2026-04-20T10-00-00Z"),  # 6 days old — should be deleted
+            self._file("2026-04-25T10-00-00Z"),  # 1 day old — should be kept
+        ]
+        policy = RetentionPolicy(keep_since=timedelta(days=3))
+        deleted = select_for_deletion(files, policy, now=now)
+        assert deleted == [self._file("2026-04-20T10-00-00Z")]

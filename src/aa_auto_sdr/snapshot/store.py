@@ -1,4 +1,4 @@
-"""Snapshot save/load. Filesystem layer over snapshot/schema.py.
+"""Snapshot save/load + list/prune. Filesystem layer over snapshot/schema.py.
 
 Path convention (called by CLI commands with the per-profile snapshot dir):
     <snapshot_dir>/<rsid>/<captured_at-fs-safe>.json
@@ -99,6 +99,7 @@ def prune_snapshots(
 
 
 def _list_rsids(snapshot_dir: Path) -> list[str]:
+    """List RSID subdirectories under `snapshot_dir`. Returns [] if missing."""
     if not snapshot_dir.exists():
         return []
     return sorted(p.name for p in snapshot_dir.iterdir() if p.is_dir())

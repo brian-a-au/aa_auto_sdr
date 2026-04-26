@@ -16,7 +16,7 @@ from aa_auto_sdr.core.exceptions import ConfigError
 _DURATION_RE = re.compile(r"^(\d+)([hdw])$")
 _UNIT_TO_HOURS = {"h": 1, "d": 24, "w": 24 * 7}
 _TS_RE = re.compile(
-    r"^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})([+-]\d{2})-(\d{2})$",
+    r"^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(Z|[+-]\d{2}-\d{2})$",
 )
 
 
@@ -77,12 +77,21 @@ def select_for_deletion(
 
 
 def _restore_iso(stem: str) -> datetime:
-    """`2026-04-26T17-29-01+00-00` → datetime(2026,4,26,17,29,1,tzinfo=+00:00).
+    """`2026-04-26T17-29-01+00-00` or `2026-04-26T17-29-01Z` → datetime.
 
-    Returns datetime.min(UTC) for unparseable stems so they sort earliest
-    (which causes keep_since policies to flag them for deletion)."""
+    Returns datetime.max(UTC) for unparseable stems so they sort latest
+    (never older than any cutoff — a fail-closed default that prevents
+    silently deleting snapshots whose filenames don't match the expected
+    shape, e.g. after a future filename-format change)."""
     m = _TS_RE.match(stem)
     if not m:
-        return datetime.min.replace(tzinfo=UTC)
-    iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}{m.group(5)}:{m.group(6)}"
+        return datetime.max.replace(tzinfo=UTC)
+    suffix = m.group(5)
+    if suffix == "Z":
+        iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}+00:00"
+    else:
+        # suffix is +HH-MM or -HH-MM; replace the hyphen with a colon
+        sign_and_hours = suffix[:3]  # +HH or -HH
+        minutes = suffix[4:]  # MM (after the hyphen)
+        iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}{sign_and_hours}:{minutes}"
     return datetime.fromisoformat(iso)
