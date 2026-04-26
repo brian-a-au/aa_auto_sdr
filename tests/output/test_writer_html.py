@@ -7,9 +7,9 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-from aa_auto_sdr.output.writers.html import HtmlWriter
 
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.output.writers.html import HtmlWriter
 from aa_auto_sdr.sdr.builder import build_sdr
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_rs.json"

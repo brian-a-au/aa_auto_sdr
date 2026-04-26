@@ -1,4 +1,4 @@
-"""Argparse surface for v0.1: positional RSID, profile, format, output-dir, profile-add, show-config."""
+"""Argparse surface for v0.3: action flags, filter/exclude/sort/limit, format, output."""
 
 import pytest
 
@@ -11,23 +11,10 @@ def test_positional_rsid() -> None:
     assert ns.rsid == "demo.prod"
 
 
-def test_format_default_is_excel() -> None:
+def test_format_default_is_none() -> None:
     p = build_parser()
     ns = p.parse_args(["demo.prod"])
-    assert ns.format == "excel"
-
-
-def test_format_accepts_aliases() -> None:
-    p = build_parser()
-    for fmt in ("excel", "json", "all", "data", "ci", "reports"):
-        ns = p.parse_args(["demo.prod", "--format", fmt])
-        assert ns.format == fmt
-
-
-def test_format_rejects_unknown() -> None:
-    p = build_parser()
-    with pytest.raises(SystemExit):
-        p.parse_args(["demo.prod", "--format", "nonsense"])
+    assert ns.format is None
 
 
 def test_output_dir_default_is_dot() -> None:
@@ -60,3 +47,91 @@ def test_profile_flag() -> None:
     p = build_parser()
     ns = p.parse_args(["demo.prod", "--profile", "prod"])
     assert ns.profile == "prod"
+
+
+def test_list_reportsuites_flag_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--list-reportsuites"])
+    assert ns.list_reportsuites is True
+    assert ns.rsid is None
+
+
+def test_list_virtual_reportsuites_flag_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--list-virtual-reportsuites"])
+    assert ns.list_virtual_reportsuites is True
+
+
+def test_describe_reportsuite_with_arg_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--describe-reportsuite", "demo.prod"])
+    assert ns.describe_reportsuite == "demo.prod"
+
+
+def test_list_metrics_with_arg_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--list-metrics", "demo.prod"])
+    assert ns.list_metrics == "demo.prod"
+
+
+def test_list_dimensions_segments_calcmetrics_classifications_parse() -> None:
+    p = build_parser()
+    for flag, attr in [
+        ("--list-dimensions", "list_dimensions"),
+        ("--list-segments", "list_segments"),
+        ("--list-calculated-metrics", "list_calculated_metrics"),
+        ("--list-classification-datasets", "list_classification_datasets"),
+    ]:
+        ns = p.parse_args([flag, "demo.prod"])
+        assert getattr(ns, attr) == "demo.prod"
+
+
+def test_filter_exclude_sort_limit_parse() -> None:
+    p = build_parser()
+    ns = p.parse_args(
+        [
+            "--list-metrics",
+            "demo.prod",
+            "--filter",
+            "page",
+            "--exclude",
+            "test",
+            "--sort",
+            "name",
+            "--limit",
+            "10",
+        ]
+    )
+    assert ns.filter == "page"
+    assert ns.exclude == "test"
+    assert ns.sort == "name"
+    assert ns.limit == 10
+
+
+def test_output_flag_parses_dash() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--list-metrics", "demo.prod", "--output", "-"])
+    assert ns.output == "-"
+
+
+def test_output_flag_parses_path() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--list-metrics", "demo.prod", "--output", "/tmp/out.json"])
+    assert ns.output == "/tmp/out.json"
+
+
+def test_action_flags_mutually_exclusive() -> None:
+    """Two action flags in one invocation should error out."""
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--list-reportsuites", "--show-config"])
+
+
+def test_format_flag_accepts_any_string_at_parse_time() -> None:
+    """The parser doesn't restrict --format choices — handlers do, since
+    different actions have different allowlists."""
+    p = build_parser()
+    ns = p.parse_args(["--list-metrics", "demo.prod", "--format", "json"])
+    assert ns.format == "json"
+    ns = p.parse_args(["demo.prod", "--format", "excel"])
+    assert ns.format == "excel"
