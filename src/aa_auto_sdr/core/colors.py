@@ -14,6 +14,7 @@ _RESET = "\033[0m"
 _BOLD = "\033[1m"
 _GREEN = "\033[32m"
 _RED = "\033[31m"
+_YELLOW = "\033[33m"
 
 
 def _enabled() -> bool:
@@ -38,6 +39,10 @@ def success(text: str) -> str:
 
 def error(text: str) -> str:
     return _wrap(text, _RED)
+
+
+def warn(text: str) -> str:
+    return _wrap(text, _YELLOW)
 
 
 def status(ok: bool, text: str) -> str:
