@@ -67,3 +67,24 @@ def test_exit_codes_outputs_full_table() -> None:
     assert "Code" in result.stdout
     for code in (0, 10, 11, 12, 13, 14, 15, 16):
         assert str(code) in result.stdout
+
+
+def test_completion_does_not_import_aanalytics2() -> None:
+    result = subprocess.run(
+        [sys.executable, "-X", "importtime", "-m", "aa_auto_sdr", "--completion", "bash"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "aanalytics2" not in result.stderr
+    assert "pandas" not in result.stderr
+
+
+def test_completion_bash_outputs_script() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--completion", "bash"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "complete -F" in result.stdout

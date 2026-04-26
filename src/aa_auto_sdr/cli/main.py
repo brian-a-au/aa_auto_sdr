@@ -30,6 +30,10 @@ def run(argv: list[str]) -> int:
         from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
 
         return run_explain_exit_code(ns.explain_exit_code)
+    if ns.completion:
+        from aa_auto_sdr.cli.commands.completion import run_completion
+
+        return run_completion(ns.completion)
 
     # Discovery + inspect actions (handlers added in later tasks; stub for now)
     if ns.list_reportsuites:

@@ -61,6 +61,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: '{args[1]}' is not a valid exit code (must be int)", flush=True)
             return 2
         return run_explain_exit_code(code)
+    if args and args[0] == "--completion":
+        from aa_auto_sdr.cli.commands.completion import run_completion
+
+        if len(args) < 2:
+            print("error: --completion requires a SHELL argument (bash, zsh, or fish)", flush=True)
+            return 2
+        return run_completion(args[1])
     from aa_auto_sdr.cli.main import run
 
     return run(args)

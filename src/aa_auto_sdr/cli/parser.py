@@ -108,6 +108,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the meaning, likely causes, and remediation for an exit code",
     )
     actions.add_argument(
+        "--completion",
+        choices=("bash", "zsh", "fish"),
+        default=None,
+        help="Emit a shell completion script (redirect to your shell's completion dir)",
+    )
+    actions.add_argument(
         "--profile-add",
         metavar="NAME",
         default=None,
