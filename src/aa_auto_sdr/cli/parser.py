@@ -168,4 +168,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use a named credentials profile from ~/.aa/orgs/<name>/",
     )
 
+    # Snapshot persistence (v0.7)
+    p.add_argument(
+        "--snapshot",
+        action="store_true",
+        help="Persist the built SdrDocument to ~/.aa/orgs/<profile>/snapshots/<RSID>/<ts>.json (requires --profile)",
+    )
+
     return p

@@ -70,6 +70,7 @@ def run_batch(
     tool_version: str,
     progress_callback: Callable[[int, int, str], None] | None = None,
     failure_callback: Callable[[int, int, str, str], None] | None = None,
+    snapshot_dir: Path | None = None,
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -99,6 +100,7 @@ def run_batch(
                 output_dir=output_dir,
                 captured_at=captured_at,
                 tool_version=tool_version,
+                snapshot_dir=snapshot_dir,
             )
         except AaAutoSdrError as exc:
             message = str(exc)

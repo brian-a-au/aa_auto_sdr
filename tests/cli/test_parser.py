@@ -169,3 +169,23 @@ def test_batch_with_format_and_output_dir() -> None:
     assert ns.batch == ["rs1", "rs2"]
     assert ns.format == "json"
     assert str(ns.output_dir) == "/tmp/out"
+
+
+def test_snapshot_flag_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["demo.prod", "--snapshot"])
+    assert ns.snapshot is True
+
+
+def test_snapshot_default_false() -> None:
+    p = build_parser()
+    ns = p.parse_args(["demo.prod"])
+    assert ns.snapshot is False
+
+
+def test_snapshot_with_batch() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--batch", "rs1", "rs2", "--snapshot", "--profile", "prod"])
+    assert ns.snapshot is True
+    assert ns.batch == ["rs1", "rs2"]
+    assert ns.profile == "prod"
