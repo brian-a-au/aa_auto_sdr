@@ -28,5 +28,5 @@ def run_single(
     for fmt in formats:
         writer = registry.get_writer(fmt)
         target = output_dir / f"{rsid}{writer.extension}"
-        paths.append(writer.write(doc, target))
+        paths.extend(writer.write(doc, target))
     return RunResult(rsid=rsid, success=True, outputs=paths)
