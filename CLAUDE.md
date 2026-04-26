@@ -20,7 +20,9 @@ The architectural patterns called out below (SDK isolation, writer-protocol outp
 - **Package manager:** `uv`. All commands are `uv run …`.
 - **Build backend:** `hatchling` with dynamic version sourced from `src/aa_auto_sdr/core/version.py`.
 - **AA SDK:** [`aanalytics2`](https://github.com/pitchmuc/adobe-analytics-api-2.0) (PyPI: `aanalytics2`). This is the AA equivalent of `cjapy` in the sister project — wrap it in our own client module so the rest of the codebase never imports it directly.
-- **Adobe Analytics API:** **2.0 only.** Do not call, wrap, or fall back to the legacy 1.4 API under any circumstance. If `aanalytics2` exposes a 1.4 path, it is off-limits — pin SDK calls to 2.0 endpoints and document the constraint in `api/client.py`. Features that exist only in 1.4 (e.g. some classification import flows, legacy data warehouse) are out of scope; surface a clear error rather than degrading to 1.4.
+- **Adobe Analytics API:** **2.0 only, READ-ONLY.** Two hard constraints, both non-negotiable:
+  1. **No legacy 1.4 API.** Do not call, wrap, or fall back to it. Features that exist only in 1.4 (some classification import flows, legacy data warehouse) are out of scope — surface a `UnsupportedByApi20` error rather than degrading.
+  2. **No write operations against AA, ever.** This tool reads. It never creates, updates, or deletes anything in a customer's Adobe Analytics environment — no segments, no calculated metrics, no classifications, no anything. The only methods called on the SDK handle are `getX` / list / describe / search / fetch shapes. Calls like `createSegment`, `updateCalculatedMetric`, `deleteVirtualReportSuite` etc. are forbidden in this codebase. A meta-test scans `src/aa_auto_sdr/api/` for forbidden method-name patterns and fails the suite if found. (Local writes — snapshot files, output files, `~/.aa/orgs/` profiles — are unrelated to this rule and are fine.)
 - **Auth:** Adobe OAuth Server-to-Server (`ORG_ID`, `CLIENT_ID`, `SECRET`, `SCOPES`). Same env-var contract as `cja_auto_sdr`. JWT auth via `aanalytics2` is legacy — prefer OAuth S2S.
 - **Output deps:** `pandas`, `xlsxwriter`. Avoid scipy/clustering at the start.
 
