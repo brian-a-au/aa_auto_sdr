@@ -19,10 +19,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output._helpers import stringify_cell
-
-_EXIT_OK = 0
-_EXIT_OUTPUT = 15
 
 
 def render_records(
@@ -45,11 +43,11 @@ def render_records(
                 file=sys.stderr,
                 flush=True,
             )
-            return _EXIT_OUTPUT
+            return ExitCode.OUTPUT.value
         _print_table(records, cols)
         if not records:
             print("# 0 records", file=sys.stderr, flush=True)
-        return _EXIT_OK
+        return ExitCode.OK.value
 
     if format_name == "json":
         body = json.dumps([_project(r, cols) for r in records], indent=2, default=str)
@@ -60,7 +58,7 @@ def render_records(
             print(body, flush=True)
         if not records:
             print("# 0 records", file=sys.stderr, flush=True)
-        return _EXIT_OK
+        return ExitCode.OK.value
 
     if format_name == "csv":
         body = _format_csv(records, cols)
@@ -73,10 +71,10 @@ def render_records(
             sys.stdout.flush()
         if not records:
             print("# 0 records", file=sys.stderr, flush=True)
-        return _EXIT_OK
+        return ExitCode.OK.value
 
     print(f"error: unknown format {format_name!r}", file=sys.stderr, flush=True)
-    return _EXIT_OUTPUT
+    return ExitCode.OUTPUT.value
 
 
 def _derive_columns(records: list[dict[str, Any]]) -> list[str]:

@@ -25,14 +25,7 @@ from aa_auto_sdr.core.exceptions import (
     ConfigError,
     ReportSuiteNotFoundError,
 )
-
-_EXIT_OK = 0
-_EXIT_GENERIC = 1
-_EXIT_USAGE = 2
-_EXIT_CONFIG = 10
-_EXIT_AUTH = 11
-_EXIT_API = 12
-_EXIT_NOT_FOUND = 13
+from aa_auto_sdr.core.exit_codes import ExitCode
 
 _METRIC_COLS = [
     "id",
@@ -111,14 +104,14 @@ def _bootstrap(profile: str | None) -> tuple[AaClient | None, int]:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         print(f"error: {e}", flush=True)
-        return None, _EXIT_CONFIG
+        return None, ExitCode.CONFIG.value
 
     try:
         client = AaClient.from_credentials(creds)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
-        return None, _EXIT_AUTH
-    return client, _EXIT_OK
+        return None, ExitCode.AUTH.value
+    return client, ExitCode.OK.value
 
 
 def _list_per_component(
@@ -145,10 +138,10 @@ def _list_per_component(
         canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
     except ReportSuiteNotFoundError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_NOT_FOUND
+        return ExitCode.NOT_FOUND.value
     except ApiError as e:
         print(f"api error: {e}", flush=True)
-        return _EXIT_API
+        return ExitCode.API.value
 
     multi = len(canonical_rsids) > 1
     if multi:
@@ -167,10 +160,10 @@ def _list_per_component(
             items = fetcher(client, canonical_rsid)
         except ApiError as e:
             print(f"api error: {e}", flush=True)
-            return _EXIT_API
+            return ExitCode.API.value
         except AaAutoSdrError as e:
             print(f"error: {e}", flush=True)
-            return _EXIT_GENERIC
+            return ExitCode.GENERIC.value
         for item in items:
             row = asdict(item)
             if multi:
@@ -189,7 +182,7 @@ def _list_per_component(
         )
     except ValueError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_USAGE
+        return ExitCode.USAGE.value
 
     return render_records(
         filtered,
@@ -260,10 +253,10 @@ def run_describe_reportsuite(
         canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
     except ReportSuiteNotFoundError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_NOT_FOUND
+        return ExitCode.NOT_FOUND.value
     except ApiError as e:
         print(f"api error: {e}", flush=True)
-        return _EXIT_API
+        return ExitCode.API.value
 
     records: list[dict[str, Any]] = []
     for canonical_rsid in canonical_rsids:
@@ -277,10 +270,10 @@ def run_describe_reportsuite(
             cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid)
         except ApiError as e:
             print(f"api error: {e}", flush=True)
-            return _EXIT_API
+            return ExitCode.API.value
         except AaAutoSdrError as e:
             print(f"error: {e}", flush=True)
-            return _EXIT_GENERIC
+            return ExitCode.GENERIC.value
 
         records.append(
             {

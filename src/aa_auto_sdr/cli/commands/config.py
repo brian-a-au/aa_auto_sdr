@@ -6,9 +6,7 @@ from pathlib import Path
 
 from aa_auto_sdr.core import credentials, profiles
 from aa_auto_sdr.core.exceptions import ConfigError
-
-_EXIT_OK = 0
-_EXIT_CONFIG = 10
+from aa_auto_sdr.core.exit_codes import ExitCode
 
 
 def profile_add(name: str, *, base: Path | None = None) -> int:
@@ -29,7 +27,7 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
     }
     path = profiles.write_profile(name, data, base=base)
     print(f"profile written: {path}")
-    return _EXIT_OK
+    return ExitCode.OK.value
 
 
 def show_config(*, profile: str | None, profiles_base: Path | None = None) -> int:
@@ -38,10 +36,10 @@ def show_config(*, profile: str | None, profiles_base: Path | None = None) -> in
         creds = credentials.resolve(profile=profile, profiles_base=profiles_base)
     except ConfigError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_CONFIG
+        return ExitCode.CONFIG.value
 
     print(f"source:    {creds.source}")
     print(f"org_id:    {creds.org_id}")
     print(f"client_id: {creds.client_id[:4]}…{creds.client_id[-4:] if len(creds.client_id) > 8 else ''}")
     print(f"sandbox:   {creds.sandbox or '(none)'}")
-    return _EXIT_OK
+    return ExitCode.OK.value

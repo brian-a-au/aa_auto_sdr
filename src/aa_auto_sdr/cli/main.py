@@ -8,10 +8,7 @@ from pathlib import Path
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
 from aa_auto_sdr.cli.parser import build_parser
-
-_EXIT_USAGE = 2
-_EXIT_NOT_IMPLEMENTED = 1
-_EXIT_OUTPUT = 15
+from aa_auto_sdr.core.exit_codes import ExitCode
 
 
 def run(argv: list[str]) -> int:
@@ -87,7 +84,7 @@ def run(argv: list[str]) -> int:
     if ns.diff:
         if ns.rsid:
             print("error: --diff cannot be combined with a positional RSID", flush=True)
-            return _EXIT_USAGE
+            return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
         return diff_cmd.run(
@@ -106,7 +103,7 @@ def run(argv: list[str]) -> int:
                 "(multiple SDRs cannot share a single stream); use --output-dir instead",
                 flush=True,
             )
-            return _EXIT_OUTPUT
+            return ExitCode.OUTPUT.value
         from aa_auto_sdr.cli.commands import batch as batch_cmd
 
         return batch_cmd.run(
@@ -120,7 +117,7 @@ def run(argv: list[str]) -> int:
     # Generate (positional RSID) — default --format to "excel" if omitted
     if not ns.rsid:
         parser.print_usage(sys.stderr)
-        return _EXIT_USAGE
+        return ExitCode.USAGE.value
 
     output_dir: Path = Path("-") if ns.output == "-" else ns.output_dir
     return generate_cmd.run(
@@ -134,4 +131,4 @@ def run(argv: list[str]) -> int:
 
 def _stub_action(name: str) -> int:
     print(f"error: {name} not yet implemented in this build", flush=True)
-    return _EXIT_NOT_IMPLEMENTED
+    return ExitCode.GENERIC.value

@@ -21,13 +21,7 @@ from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
 
-_EXIT_OK = 0
-_EXIT_GENERIC = 1
-_EXIT_CONFIG = 10
-_EXIT_AUTH = 11
-_EXIT_API = 12
-_EXIT_NOT_FOUND = 13
-_EXIT_OUTPUT = 15
+from aa_auto_sdr.core.exit_codes import ExitCode
 
 
 def run(
@@ -44,7 +38,7 @@ def run(
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_CONFIG
+        return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
     if snapshot:
@@ -53,7 +47,7 @@ def run(
                 "error: --snapshot requires --profile (snapshots are profile-scoped)",
                 flush=True,
             )
-            return _EXIT_CONFIG
+            return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
 
         snapshot_dir = default_base() / "orgs" / profile / "snapshots"
@@ -65,14 +59,14 @@ def run(
         formats = registry.resolve_formats(format_name)
     except KeyError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_GENERIC
+        return ExitCode.GENERIC.value
 
     if is_pipe and (len(formats) != 1 or formats[0] != "json"):
         print(
             f"error: format {format_name!r} cannot be piped to stdout; use --output-dir <DIR> instead",
             flush=True,
         )
-        return _EXIT_OUTPUT
+        return ExitCode.OUTPUT.value
 
     # Vestigial pre-flight (every concrete format has a writer in v0.2+)
     registry.bootstrap()
@@ -84,22 +78,22 @@ def run(
                 f"error: format '{fmt}' is not available in this build",
                 flush=True,
             )
-            return _EXIT_OUTPUT
+            return ExitCode.OUTPUT.value
 
     try:
         client = AaClient.from_credentials(creds)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
-        return _EXIT_AUTH
+        return ExitCode.AUTH.value
 
     try:
         canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
     except ReportSuiteNotFoundError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_NOT_FOUND
+        return ExitCode.NOT_FOUND.value
     except ApiError as e:
         print(f"api error: {e}", flush=True)
-        return _EXIT_API
+        return ExitCode.API.value
 
     if not is_pipe:
         if was_name_lookup and len(canonical_rsids) > 1:
@@ -128,10 +122,10 @@ def run(
                 )
             except ReportSuiteNotFoundError as e:
                 print(f"error: {e}", flush=True)
-                return _EXIT_NOT_FOUND
+                return ExitCode.NOT_FOUND.value
             except ApiError as e:
                 print(f"api error: {e}", flush=True)
-                return _EXIT_API
+                return ExitCode.API.value
             docs.append(doc.to_dict())
             if snapshot_dir is not None:
                 from aa_auto_sdr.snapshot.store import save_snapshot
@@ -144,7 +138,7 @@ def run(
         payload = docs[0] if total == 1 else docs
         _sys.stdout.write(_json.dumps(payload, indent=2, default=str) + "\n")
         _sys.stdout.flush()
-        return _EXIT_OK
+        return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
     for index, canonical_rsid in enumerate(canonical_rsids, start=1):
@@ -162,18 +156,18 @@ def run(
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
-            return _EXIT_NOT_FOUND
+            return ExitCode.NOT_FOUND.value
         except ApiError as e:
             print(f"api error: {e}", flush=True)
-            return _EXIT_API
+            return ExitCode.API.value
         except OutputError as e:
             print(f"output error: {e}", flush=True)
-            return _EXIT_OUTPUT
+            return ExitCode.OUTPUT.value
         except AaAutoSdrError as e:
             print(f"error: {e}", flush=True)
-            return _EXIT_GENERIC
+            return ExitCode.GENERIC.value
 
         for path in result.outputs:
             print(f"wrote: {path}")
 
-    return _EXIT_OK
+    return ExitCode.OK.value
