@@ -55,9 +55,8 @@ def test_generate_returns_output_error_when_format_writer_unavailable(
     handle = _build_handle(raw)
     mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
 
-    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="data", profile=None)
-    # data alias = csv + json; v0.1 only ships json (csv arrives in v0.3)
-    # so this run should report a missing-writer error (exit 15) rather than crash
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="html", profile=None)
+    # html / markdown writers are not yet registered; expect a missing-writer error (exit 15)
     assert rc == 15
 
 
