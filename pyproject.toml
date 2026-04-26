@@ -62,7 +62,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --cov=aa_auto_sdr --cov-report=term-missing --cov-fail-under=0"
+addopts = "-q --cov=aa_auto_sdr --cov-report=term-missing --cov-fail-under=70"
 markers = [
     "unit: fast unit tests with no I/O",
     "integration: end-to-end with mocked SDK",
