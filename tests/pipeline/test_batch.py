@@ -24,10 +24,21 @@ def _df(records: list[dict]) -> pd.DataFrame:
 
 @pytest.fixture
 def mock_client() -> AaClient:
-    """A mock client whose handle returns the same fixture for any RSID lookup."""
+    """A mock client whose handle returns fixture data for every RSID used in this suite."""
     raw = json.loads(FIXTURE.read_text())
+    base = raw["report_suite"]
+    # fetch_report_suite() looks up rsid in this list; include every rsid the
+    # tests reference so each per-RSID build can resolve.
+    rs_records = [
+        base,  # demo.prod / Demo Production
+        {**base, "rsid": "demo.staging", "name": "Demo Staging"},
+        {**base, "rsid": "demo.dev", "name": "Demo Dev"},
+        {**base, "rsid": "a.rs", "name": "A"},
+        {**base, "rsid": "b.rs", "name": "B"},
+        {**base, "rsid": "c.rs", "name": "C"},
+    ]
     handle = MagicMock()
-    handle.getReportSuites.return_value = _df([raw["report_suite"]])
+    handle.getReportSuites.return_value = _df(rs_records)
     handle.getDimensions.return_value = _df(raw["dimensions"])
     handle.getMetrics.return_value = _df(raw["metrics"])
     handle.getSegments.return_value = _df(raw["segments"])
