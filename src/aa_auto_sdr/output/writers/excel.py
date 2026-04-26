@@ -19,7 +19,7 @@ from aa_auto_sdr.sdr.document import SdrDocument
 class ExcelWriter:
     extension = ".xlsx"
 
-    def write(self, doc: SdrDocument, output_path: Path) -> Path:
+    def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
 
         import pandas as pd
@@ -60,7 +60,7 @@ class ExcelWriter:
                 for col_idx, col in enumerate(df.columns):
                     width = max(len(str(col)), int(df[col].astype(str).str.len().max() or 10))
                     ws.set_column(col_idx, col_idx, min(width + 2, 60))
-        return target
+        return [target]
 
 
 def _component_df(rows: list[dict[str, Any]]):
