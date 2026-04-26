@@ -172,4 +172,4 @@ uv run ruff format src/ tests/
 
 ## Roadmap
 
-v1.0.0 = PyPI publish via trusted publishing; macOS + Windows CI matrix; final docs polish; coverage gate 85→90.
+v1.0.0 = PyPI publish via trusted publishing; macOS + Windows CI matrix; final docs polish.

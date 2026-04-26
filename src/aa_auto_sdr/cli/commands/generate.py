@@ -23,6 +23,26 @@ from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
 
 
+def _emit_pipe_or_print(
+    *,
+    is_pipe: bool,
+    exc: BaseException | None,
+    message: str,
+    exit_code: int,
+) -> None:
+    """Pipe-aware error emitter. On pipe path, write JSON envelope to stderr;
+    otherwise print human-readable message to stdout. Master spec §6.2: pipe-path
+    failures must keep stdout silent so downstream `jq` etc. sees empty input."""
+    if is_pipe:
+        from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+        # Synthesize an exception when only a string message is available
+        # (e.g. format-rejection paths that don't have an exception object).
+        emit_error_envelope(exc if exc is not None else RuntimeError(message), exit_code)
+    else:
+        print(message, flush=True)
+
+
 def run(
     *,
     rsid: str,
@@ -36,16 +56,14 @@ def run(
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
-        print(f"error: {e}", flush=True)
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.CONFIG.value)
         return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
     if snapshot:
         if not profile:
-            print(
-                "error: --snapshot requires --profile (snapshots are profile-scoped)",
-                flush=True,
-            )
+            msg = "error: --snapshot requires --profile (snapshots are profile-scoped)"
+            _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.CONFIG.value)
             return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
 
@@ -57,14 +75,12 @@ def run(
     try:
         formats = registry.resolve_formats(format_name)
     except KeyError as e:
-        print(f"error: {e}", flush=True)
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.GENERIC.value)
         return ExitCode.GENERIC.value
 
     if is_pipe and (len(formats) != 1 or formats[0] != "json"):
-        print(
-            f"error: format {format_name!r} cannot be piped to stdout; use --output-dir <DIR> instead",
-            flush=True,
-        )
+        msg = f"error: format {format_name!r} cannot be piped to stdout; use --output-dir <DIR> instead"
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
         return ExitCode.OUTPUT.value
 
     # Vestigial pre-flight (every concrete format has a writer in v0.2+)
@@ -73,25 +89,23 @@ def run(
         try:
             registry.get_writer(fmt)
         except KeyError:
-            print(
-                f"error: format '{fmt}' is not available in this build",
-                flush=True,
-            )
+            msg = f"error: format '{fmt}' is not available in this build"
+            _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
             return ExitCode.OUTPUT.value
 
     try:
         client = AaClient.from_credentials(creds)
     except AuthError as e:
-        print(f"auth error: {e}", flush=True)
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"auth error: {e}", exit_code=ExitCode.AUTH.value)
         return ExitCode.AUTH.value
 
     try:
         canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
     except ReportSuiteNotFoundError as e:
-        print(f"error: {e}", flush=True)
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.NOT_FOUND.value)
         return ExitCode.NOT_FOUND.value
     except ApiError as e:
-        print(f"api error: {e}", flush=True)
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"api error: {e}", exit_code=ExitCode.API.value)
         return ExitCode.API.value
 
     if not is_pipe:

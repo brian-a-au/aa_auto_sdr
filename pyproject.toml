@@ -93,7 +93,7 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --cov=aa_auto_sdr --cov-report=term-missing --cov-fail-under=85"
+addopts = "-q --cov=aa_auto_sdr --cov-report=term-missing --cov-fail-under=90"
 markers = [
     "unit: fast unit tests with no I/O",
     "integration: end-to-end with mocked SDK",

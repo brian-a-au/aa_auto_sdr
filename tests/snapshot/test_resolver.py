@@ -131,3 +131,11 @@ def test_resolve_bare_token_uses_spec_message(tmp_path: Path) -> None:
         match=r"could not interpret 'nonsense'",
     ):
         resolve_snapshot("nonsense", profile_snapshot_dir=None, repo_root=None)
+
+
+def test_resolve_git_token_missing_path_part_raises(tmp_path: Path) -> None:
+    """`git:HEAD:` (empty path) and `git::path` (empty ref) parse as malformed."""
+    with pytest.raises(SnapshotResolveError, match="git:"):
+        resolve_snapshot("git:HEAD:", profile_snapshot_dir=None, repo_root=tmp_path)
+    with pytest.raises(SnapshotResolveError, match="git:"):
+        resolve_snapshot("git::path.json", profile_snapshot_dir=None, repo_root=tmp_path)

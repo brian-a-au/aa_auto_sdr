@@ -295,3 +295,150 @@ def test_generate_snapshot_without_profile_returns_10(
         snapshot=True,
     )
     assert rc == 10
+
+
+# ---------------------------------------------------------------------------
+# Pipe-path error envelope tests (v0.9 review fix #1)
+# ---------------------------------------------------------------------------
+
+
+def test_generate_pipe_no_creds_emits_envelope_to_stderr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    """ConfigError on pipe path must JSON-envelope to stderr; stdout must stay empty."""
+    for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    rc = cmd.run(rsid="demo.prod", output_dir=Path("-"), format_name="json", profile=None)
+    assert rc == 10
+    captured = capsys.readouterr()
+    assert captured.out == ""  # stdout silent
+    payload = json.loads(captured.err.strip())
+    assert payload["error"]["code"] == 10
+    assert payload["error"]["type"] == "ConfigError"
+
+
+def test_generate_non_pipe_no_creds_prints_to_stdout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    """Non-pipe path keeps the legacy human-readable error on stdout."""
+    for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 10
+    captured = capsys.readouterr()
+    assert "error:" in captured.out
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_auth_error_emits_envelope(mock_client_cls, env_creds, capsys) -> None:
+    """AuthError on pipe path → envelope on stderr, stdout silent."""
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("bad client_id")
+    rc = cmd.run(rsid="demo.prod", output_dir=Path("-"), format_name="json", profile=None)
+    assert rc == 11
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    payload = json.loads(captured.err.strip())
+    assert payload["error"]["code"] == 11
+    assert payload["error"]["type"] == "AuthError"
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_non_pipe_auth_error_prints_to_stdout(mock_client_cls, env_creds, tmp_path, capsys) -> None:
+    """Non-pipe path keeps the legacy `auth error: ...` on stdout."""
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("bad client_id")
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 11
+    captured = capsys.readouterr()
+    assert "auth error" in captured.out
+
+
+def test_generate_pipe_snapshot_without_profile_emits_envelope(env_creds, capsys) -> None:
+    """`--snapshot` without `--profile` on pipe path must still emit envelope."""
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="json",
+        profile=None,
+        snapshot=True,
+    )
+    assert rc == 10
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    payload = json.loads(captured.err.strip())
+    assert payload["error"]["code"] == 10
+    assert "snapshot" in payload["error"]["message"].lower() or "profile" in payload["error"]["message"].lower()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_unknown_rsid_emits_envelope(mock_client_cls, env_creds, capsys) -> None:
+    """ReportSuiteNotFoundError on pipe path → envelope (already covered, but
+    confirms the post-build path also stays envelope-correct)."""
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = cmd.run(rsid="never-exists", output_dir=Path("-"), format_name="json", profile=None)
+    assert rc == 13
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    payload = json.loads(captured.err.strip())
+    assert payload["error"]["code"] == 13
+    assert payload["error"]["type"] == "ReportSuiteNotFoundError"
+
+
+# ---------------------------------------------------------------------------
+# Non-pipe error-path tests (v0.9 coverage gate to 90%)
+# ---------------------------------------------------------------------------
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_non_pipe_unknown_rsid_returns_13(mock_client_cls, env_creds, tmp_path, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    rc = cmd.run(rsid="never-exists", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 13
+    assert "error:" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_non_pipe_runsingle_apierror(
+    mock_client_cls, env_creds, tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """ApiError inside the single.run_single loop on the file-output path → exit 12."""
+    from aa_auto_sdr.core.exceptions import ApiError
+    from aa_auto_sdr.pipeline import single
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    def boom(**_kw):
+        raise ApiError("rate limit")
+
+    monkeypatch.setattr(single, "run_single", boom)
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 12
+    assert "api error" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_non_pipe_runsingle_outputerror(
+    mock_client_cls, env_creds, tmp_path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    """OutputError inside the single.run_single loop → exit 15."""
+    from aa_auto_sdr.core.exceptions import OutputError
+    from aa_auto_sdr.pipeline import single
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    def boom(**_kw):
+        raise OutputError("disk full")
+
+    monkeypatch.setattr(single, "run_single", boom)
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 15

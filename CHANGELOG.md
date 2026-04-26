@@ -16,15 +16,17 @@ All notable changes to this project will be documented in this file. Format foll
 - User-facing docs: `docs/QUICKSTART.md` (90-second onboarding), `docs/CLI_REFERENCE.md` (full flag table).
 
 ### Changed
-- **Coverage gate:** 70% → 85% in `pyproject.toml`. v0.9 spec §11 targeted 90%; deferred to v1.0.0 as the gap is error-path coverage in pre-existing modules. v0.9 still represents a 70→85 jump.
+- **Coverage gate:** 70% → 90% in `pyproject.toml` (per spec §11). Achieved by adding ~20 error-path tests across `cli/commands/{generate,discovery,inspect}.py` and `cli/main.py` slow-path dispatch.
 - **Ruff rule set** expanded from 7 to 41 rule families (CJA-equivalent profile) with per-file-ignores for legitimate CLI `print`, intentional Unicode in docstrings, and test-only assertion patterns.
 - All `_EXIT_*` integer constants in `cli/`, `pipeline/` migrated to `ExitCode.X.value` references. Wire-level behavior unchanged.
+
+### Fixed
+- `generate.py` pipe-path errors (`--output -` with `--format json`) now correctly emit a JSON error envelope to stderr for ConfigError / AuthError / ApiError / ReportSuiteNotFoundError surfaces — previously these printed to stdout, violating master spec §6.2.
 
 ### Out of scope (v1.0.0)
 - macOS + Windows CI matrix.
 - `release-gate.yml` and `publish.yml` (PyPI trusted publishing).
 - `docs/CONFIGURATION.md`, `docs/SNAPSHOT_DIFF.md`, `docs/OUTPUT_FORMATS.md`.
-- Coverage gate raise from 85% → 90%.
 
 ## [0.7.0] — 2026-04-26
 
