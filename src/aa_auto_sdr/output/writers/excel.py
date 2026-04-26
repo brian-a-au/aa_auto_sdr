@@ -11,17 +11,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.output._helpers import stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
-
-
-def _stringify(v: Any) -> Any:
-    """Coerce dict/list values to str for Excel cell-friendliness."""
-    if isinstance(v, (dict, list)):
-        import json as _json
-
-        return _json.dumps(v, sort_keys=True)
-    return v
 
 
 class ExcelWriter:
@@ -77,7 +69,7 @@ def _component_df(rows: list[dict[str, Any]]):
 
     if not rows:
         return pd.DataFrame()
-    flat = [{k: _stringify(v) for k, v in r.items()} for r in rows]
+    flat = [{k: stringify_cell(v) for k, v in r.items()} for r in rows]
     return pd.DataFrame(flat)
 
 
