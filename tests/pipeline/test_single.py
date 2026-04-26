@@ -61,3 +61,18 @@ def test_run_single_default_filename_uses_rsid(mock_client: AaClient, tmp_path: 
     )
     [path] = result.outputs
     assert path.name == "demo.prod.json"
+
+
+def test_run_single_populates_report_suite_name(mock_client: AaClient, tmp_path: Path) -> None:
+    """The summary banner needs the friendly name; pipeline/single.py is the
+    single source of truth (it's already built the SdrDocument)."""
+    result = single.run_single(
+        client=mock_client,
+        rsid="demo.prod",
+        formats=["json"],
+        output_dir=tmp_path,
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="0.5.0",
+    )
+    # The fixture's report_suite has name="Demo Production".
+    assert result.report_suite_name == "Demo Production"
