@@ -82,6 +82,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="List classification datasets for one report suite",
     )
     actions.add_argument(
+        "--batch",
+        nargs="+",
+        metavar="RSID_OR_NAME",
+        default=None,
+        help="Generate SDRs for multiple report suites sequentially (continue on error)",
+    )
+    actions.add_argument(
         "--profile-add",
         metavar="NAME",
         default=None,
