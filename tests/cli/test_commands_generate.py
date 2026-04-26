@@ -48,16 +48,26 @@ def test_generate_writes_excel_default(mock_client_cls, env_creds, tmp_path: Pat
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
-def test_generate_returns_output_error_when_format_writer_unavailable(
-    mock_client_cls, env_creds, tmp_path: Path
+def test_generate_format_data_alias_writes_csv_and_json(
+    mock_client_cls,
+    env_creds,
+    tmp_path: Path,
 ) -> None:
+    """`data` alias = csv + json. Both writers are present in v0.2; this run
+    succeeds and produces both output sets (one csv per component + one json)."""
     raw = json.loads(FIXTURE.read_text())
     handle = _build_handle(raw)
-    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
 
-    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="html", profile=None)
-    # html / markdown writers are not yet registered; expect a missing-writer error (exit 15)
-    assert rc == 15
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="data", profile=None)
+    assert rc == 0
+    # CSV produces 7 files; JSON produces 1
+    csv_files = sorted(p.name for p in tmp_path.glob("demo.prod.*.csv"))
+    assert len(csv_files) == 7
+    assert (tmp_path / "demo.prod.json").exists()
 
 
 def test_generate_returns_config_error_when_no_creds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
