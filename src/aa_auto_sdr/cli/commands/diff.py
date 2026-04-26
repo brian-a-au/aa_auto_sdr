@@ -16,14 +16,13 @@ import sys
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import SnapshotError
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.profiles import default_base
 from aa_auto_sdr.output.diff_renderers.console import render_console
 from aa_auto_sdr.output.diff_renderers.json import render_json
 from aa_auto_sdr.output.diff_renderers.markdown import render_markdown
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.resolver import resolve_snapshot
-
-from aa_auto_sdr.core.exit_codes import ExitCode
 
 _VALID_FORMATS = ("console", "json", "markdown")
 

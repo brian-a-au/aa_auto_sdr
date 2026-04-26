@@ -54,7 +54,7 @@ def test_html_contains_doctype_and_charset(doc, tmp_path: Path) -> None:
     target = tmp_path / "sdr.html"
     HtmlWriter().write(doc, target)
     content = target.read_text(encoding="utf-8")
-    assert content.startswith("<!doctype html>") or content.startswith("<!DOCTYPE html>")
+    assert content.startswith(("<!doctype html>", "<!DOCTYPE html>"))
     assert 'charset="utf-8"' in content.lower()
 
 

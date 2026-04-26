@@ -16,12 +16,11 @@ from aa_auto_sdr.core.exceptions import (
     OutputError,
     ReportSuiteNotFoundError,
 )
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
-
-from aa_auto_sdr.core.exit_codes import ExitCode
 
 
 def run(

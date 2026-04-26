@@ -18,7 +18,9 @@ def test_default_format_prints_fixed_width_table_to_stdout(capsys) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     # Header line and at least one data line
-    assert "id" in out and "name" in out and "type" in out
+    assert "id" in out
+    assert "name" in out
+    assert "type" in out
     assert "evar1" in out
     assert "User ID" in out
 
@@ -85,7 +87,8 @@ def test_empty_records_prints_header_and_stderr_note(capsys) -> None:
     rc = render_records([], format_name=None, output=None, columns=["id", "name"])
     assert rc == 0
     captured = capsys.readouterr()
-    assert "id" in captured.out and "name" in captured.out
+    assert "id" in captured.out
+    assert "name" in captured.out
     assert "0 records" in captured.err
 
 

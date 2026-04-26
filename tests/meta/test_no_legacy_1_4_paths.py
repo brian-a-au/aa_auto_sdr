@@ -22,10 +22,7 @@ def test_no_legacy_1_4_endpoint_strings() -> None:
     violations: list[str] = []
     for py in API.rglob("*.py"):
         text = py.read_text(encoding="utf-8")
-        for pattern in _LEGACY_PATTERNS:
-            if pattern in text:
-                violations.append(f"{py.name}: {pattern!r}")
+        violations.extend(f"{py.name}: {pattern!r}" for pattern in _LEGACY_PATTERNS if pattern in text)
     assert not violations, (
-        f"1.4 API references in api/: {violations}\n"
-        "Use only API 2.0; raise UnsupportedByApi20 for missing surface."
+        f"1.4 API references in api/: {violations}\nUse only API 2.0; raise UnsupportedByApi20 for missing surface."
     )

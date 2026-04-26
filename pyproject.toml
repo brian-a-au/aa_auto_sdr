@@ -56,9 +56,40 @@ dev = [
 [tool.ruff]
 target-version = "py314"
 line-length = 120
+src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+select = [
+    "E", "W", "F", "I", "UP", "B", "SIM", "RUF",
+    "PERF", "DTZ", "RET", "S", "C4", "PT", "PIE", "ISC",
+    "TID", "A", "PLE", "RSE", "PLW", "T", "LOG", "ARG",
+    "FURB", "FLY", "FA", "YTT", "PD", "SLOT", "ICN",
+    "EXE", "INT", "INP", "ERA", "Q", "COM", "TCH",
+]
+ignore = [
+    "E501",    # line too long (formatter handles)
+    "SIM108",  # ternary operator (readability preference)
+    "S101",    # assert (used in tests + invariant checks)
+    "S603",    # subprocess call (legitimate in snapshot/git.py)
+    "S607",    # subprocess partial path ('git' on PATH is fine)
+    "COM812",  # trailing-comma-missing (formatter handles)
+    "ISC001",  # implicit string concat (formatter handles)
+    "RUF002",  # ambiguous unicode in docstrings (we use § for spec refs)
+    "RUF003",  # ambiguous unicode in comments (same)
+    "TC001",   # type-checking imports (we use `from __future__ import annotations` instead)
+    "TC002",
+    "TC003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/aa_auto_sdr/__main__.py"          = ["T201"]
+"src/aa_auto_sdr/cli/main.py"          = ["T201"]
+"src/aa_auto_sdr/cli/commands/*.py"    = ["T201"]
+"src/aa_auto_sdr/cli/list_output.py"   = ["T201"]
+"src/aa_auto_sdr/output/diff_renderers/console.py" = ["T201"]
+"src/aa_auto_sdr/api/fetch.py"         = ["T201"]   # warning: stderr print for classifications fallback
+"tests/**/*.py"                        = ["S101", "S105", "S106", "S108", "ARG001", "ARG002", "PLR2004", "T201", "PT004", "PT011", "A002"]
+"scripts/*.py"                         = ["T201"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

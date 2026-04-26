@@ -87,10 +87,8 @@ def _render_component(buf: StringIO, cd: ComponentDiff) -> None:
         f"~{len(cd.modified)} modified, {cd.unchanged_count} unchanged"
     )
     buf.write(f"{label}: {summary}\n")
-    for item in cd.added:
-        buf.write(f"  {colors.success('+')} {item.id} — {item.name}\n")
-    for item in cd.removed:
-        buf.write(f"  {colors.error('-')} {item.id} — {item.name}\n")
+    buf.writelines(f"  {colors.success('+')} {item.id} — {item.name}\n" for item in cd.added)
+    buf.writelines(f"  {colors.error('-')} {item.id} — {item.name}\n" for item in cd.removed)
     for item in cd.modified:
         _render_modified_item(buf, item)
     if cd.added or cd.removed or cd.modified:
@@ -99,5 +97,6 @@ def _render_component(buf: StringIO, cd: ComponentDiff) -> None:
 
 def _render_modified_item(buf: StringIO, item: ModifiedItem) -> None:
     buf.write(f"  {colors.warn('~')} {item.id} — {item.name}\n")
-    for delta in item.deltas:
-        buf.write(f"      {delta.field}: {_fmt_value(delta.before)} → {_fmt_value(delta.after)}\n")
+    buf.writelines(
+        f"      {delta.field}: {_fmt_value(delta.before)} → {_fmt_value(delta.after)}\n" for delta in item.deltas
+    )

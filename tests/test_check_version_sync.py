@@ -35,9 +35,7 @@ def test_check_version_sync_detects_mismatch(tmp_path: Path) -> None:
         '[project]\nname = "aa-auto-sdr"\ndynamic = ["version"]\n'
         '[tool.hatch.version]\npath = "src/aa_auto_sdr/core/version.py"\n'
     )
-    (tmp_path / "CHANGELOG.md").write_text(
-        "# Changelog\n\n## [0.0.1] — 2026-04-26\n\nOld stuff.\n"
-    )
+    (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## [0.0.1] — 2026-04-26\n\nOld stuff.\n")
     (tmp_path / "README.md").write_text("> **Status:** v0.0\n")
     result = _run(tmp_path)
     assert result.returncode != 0

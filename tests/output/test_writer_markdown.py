@@ -88,7 +88,8 @@ def test_markdown_segments_definition_inline_as_json_in_backticks(doc, tmp_path:
     # Segment s_111 has a non-empty definition. Should appear as `{...}` in a cell.
     assert "s_111" in content
     # Look for backtick-wrapped JSON containing 'container'
-    assert "`{" in content and "container" in content
+    assert "`{" in content
+    assert "container" in content
 
 
 def test_markdown_empty_section_renders_none_marker(tmp_path: Path) -> None:

@@ -45,15 +45,14 @@ def compare(a: dict[str, Any], b: dict[str, Any]) -> DiffReport:
         parent_field="",
     )
 
-    components: list[ComponentDiff] = []
-    for ctype in _COMPONENT_TYPES:
-        components.append(
-            _diff_component_list(
-                ctype,
-                a_components.get(ctype, []),
-                b_components.get(ctype, []),
-            ),
+    components: list[ComponentDiff] = [
+        _diff_component_list(
+            ctype,
+            a_components.get(ctype, []),
+            b_components.get(ctype, []),
         )
+        for ctype in _COMPONENT_TYPES
+    ]
 
     return DiffReport(
         a_rsid=a["rsid"],

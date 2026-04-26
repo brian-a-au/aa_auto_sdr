@@ -233,6 +233,7 @@ def test_diff_rsid_mismatch_warning_in_output(tmp_path: Path, capsys) -> None:
 def test_diff_json_pipe_failure_writes_envelope_to_stderr(tmp_path, capsys) -> None:
     """When --format json --output - and resolve fails, stderr gets a JSON envelope."""
     import json as _json
+
     from aa_auto_sdr.cli.commands import diff as diff_cmd
 
     rc = diff_cmd.run(

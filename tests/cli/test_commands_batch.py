@@ -56,8 +56,10 @@ def test_batch_happy_path_returns_0(mock_client_cls, mock_handle, authed_env, tm
     )
     assert rc == 0
     out = capsys.readouterr().out
-    assert "[1/2]" in out and "demo.prod" in out
-    assert "[2/2]" in out and "demo.staging" in out
+    assert "[1/2]" in out
+    assert "demo.prod" in out
+    assert "[2/2]" in out
+    assert "demo.staging" in out
     assert "BATCH PROCESSING SUMMARY" in out
     assert "Successful: 2" in out
     assert "Failed: 0" in out

@@ -59,25 +59,23 @@ def _render_component_section(buf: StringIO, cd: ComponentDiff) -> None:
 
     if cd.added:
         buf.write("### Added\n\n| ID | Name |\n|---|---|\n")
-        for item in cd.added:
-            buf.write(f"| {escape_pipe(item.id)} | {escape_pipe(item.name)} |\n")
+        buf.writelines(f"| {escape_pipe(item.id)} | {escape_pipe(item.name)} |\n" for item in cd.added)
         buf.write("\n")
 
     if cd.removed:
         buf.write("### Removed\n\n| ID | Name |\n|---|---|\n")
-        for item in cd.removed:
-            buf.write(f"| {escape_pipe(item.id)} | {escape_pipe(item.name)} |\n")
+        buf.writelines(f"| {escape_pipe(item.id)} | {escape_pipe(item.name)} |\n" for item in cd.removed)
         buf.write("\n")
 
     if cd.modified:
         buf.write("### Modified\n\n| ID | Name | Field | Before | After |\n|---|---|---|---|---|\n")
         for item in cd.modified:
-            for delta in item.deltas:
-                buf.write(
-                    f"| {escape_pipe(item.id)} "
-                    f"| {escape_pipe(item.name)} "
-                    f"| `{escape_pipe(delta.field)}` "
-                    f"| {escape_pipe(stringify_cell(delta.before))} "
-                    f"| {escape_pipe(stringify_cell(delta.after))} |\n",
-                )
+            buf.writelines(
+                f"| {escape_pipe(item.id)} "
+                f"| {escape_pipe(item.name)} "
+                f"| `{escape_pipe(delta.field)}` "
+                f"| {escape_pipe(stringify_cell(delta.before))} "
+                f"| {escape_pipe(stringify_cell(delta.after))} |\n"
+                for delta in item.deltas
+            )
         buf.write("\n")

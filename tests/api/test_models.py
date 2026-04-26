@@ -121,7 +121,7 @@ def test_classification_dataset_minimal_construction() -> None:
 
 
 @pytest.mark.parametrize(
-    "cls,kwargs",
+    ("cls", "kwargs"),
     [
         (
             models.ReportSuite,

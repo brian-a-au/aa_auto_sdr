@@ -26,6 +26,4 @@ def test_no_write_shape_sdk_calls_in_api() -> None:
         for match in _WRITE_SHAPE.finditer(text):
             line_no = text[: match.start()].count("\n") + 1
             violations.append(f"{py.name}:{line_no}: {match.group(0)}")
-    assert not violations, (
-        f"SDK write-shape call in api/ — Read-Only AA invariant violated: {violations}"
-    )
+    assert not violations, f"SDK write-shape call in api/ — Read-Only AA invariant violated: {violations}"
