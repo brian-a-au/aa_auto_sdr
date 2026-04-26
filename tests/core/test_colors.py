@@ -72,3 +72,13 @@ def test_non_tty_disables_colors(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("NO_COLOR", raising=False)
     monkeypatch.setattr("sys.stdout.isatty", lambda: False)
     assert colors.bold("hi") == "hi"
+
+
+def test_warn_when_enabled_uses_yellow(monkeypatch: pytest.MonkeyPatch) -> None:
+    _force_enabled(monkeypatch, True)
+    assert colors.warn("careful") == "\033[33mcareful\033[0m"
+
+
+def test_warn_when_disabled_returns_text_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    _force_enabled(monkeypatch, False)
+    assert colors.warn("careful") == "careful"

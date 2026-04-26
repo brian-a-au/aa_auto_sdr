@@ -236,3 +236,62 @@ def test_batch_unknown_rsid_in_resolution_records_failure_and_continues(
     assert "Successful: 2" in out
     assert "Failed: 1" in out
     assert "nonexistent.rsid" in out
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_snapshot_writes_one_per_success(
+    mock_client_cls,
+    mock_handle,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json as _json
+
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    profile_dir = fake_home / ".aa" / "orgs" / "prod"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "config.json").write_text(
+        _json.dumps(
+            {
+                "org_id": "O",
+                "client_id": "C",
+                "secret": "S",
+                "scopes": "X",
+            }
+        )
+    )
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=tmp_path / "out",
+        format_name="json",
+        profile="prod",
+        snapshot=True,
+    )
+    assert rc == 0
+    snap_root = fake_home / ".aa" / "orgs" / "prod" / "snapshots"
+    assert (snap_root / "demo.prod").exists()
+    assert (snap_root / "demo.staging").exists()
+    assert len(list((snap_root / "demo.prod").glob("*.json"))) == 1
+
+
+def test_batch_snapshot_without_profile_returns_10(monkeypatch, tmp_path) -> None:
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+    rc = batch_cmd.run(
+        rsids=["demo.prod"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+        snapshot=True,
+    )
+    assert rc == 10

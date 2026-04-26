@@ -2,7 +2,7 @@
 
 Adobe Analytics SDR Generator — a CLI that generates Solution Design Reference documentation from an Adobe Analytics report suite. Sister project to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does **not** share code.
 
-> **Status:** v0.5 — single + batch SDR generation in five formats; discovery, inspection, and describe commands with filter/sort/limit; `--output -` stdout piping. Accepts either an RSID or a report-suite name. OAuth Server-to-Server auth.
+> **Status:** v0.7 — single + batch SDR generation, snapshot save (`--snapshot`), and `--diff` between any two snapshots (path / `@latest` / `@previous` / git ref). Five output formats; discovery + inspect; `--output -` piping. OAuth Server-to-Server auth.
 
 ## Requirements
 
@@ -84,6 +84,41 @@ identifiers are deduplicated after resolution. Exit codes: `0` (all ok), `14`
 (partial), or the last failure's code (all failed). `--output -` is rejected
 for batch — use `--output-dir`.
 
+## Snapshot and diff (v0.7)
+
+Persist a normalized snapshot of the SDR alongside generation:
+
+```bash
+uv run aa_auto_sdr <RSID> --snapshot --profile prod
+uv run aa_auto_sdr --batch RS1 RS2 --snapshot --profile prod
+```
+
+Snapshots land under `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json`.
+JSON, sorted keys, atomic write — git-diff-friendly out of the box.
+
+Compare any two snapshots:
+
+```bash
+# Path-based
+uv run aa_auto_sdr --diff snap-a.json snap-b.json
+
+# Profile-scoped aliases
+uv run aa_auto_sdr --diff demo.prod@latest demo.prod@previous --profile prod
+uv run aa_auto_sdr --diff demo.prod@2026-04-20T10-00-00+00-00 demo.prod@latest --profile prod
+
+# Git ref (snapshot file at a specific commit)
+uv run aa_auto_sdr --diff git:HEAD~1:snapshots/demo.prod.json git:HEAD:snapshots/demo.prod.json
+
+# Output formats
+uv run aa_auto_sdr --diff a.json b.json                          # console (default)
+uv run aa_auto_sdr --diff a.json b.json --format json --output - # pipe to jq
+uv run aa_auto_sdr --diff a.json b.json --format markdown --output diff.md
+```
+
+Identity is by component ID (a name change is a *modification*, not add+remove). Diffs run on the normalized model, not on rendered files — renaming a column in Excel does not create a false diff. Whitespace, `None`/empty-string, and tag ordering are normalized away (false-positive prevention adopted from `cja_auto_sdr`'s diff comparator).
+
+Exit codes: `0` (diff succeeded), `15` (bad `--format`/`--output` combo), `16` (snapshot resolve/schema/git failure).
+
 ## Discover and inspect
 
 Without generating a full SDR, you can list and inspect resources:
@@ -125,4 +160,4 @@ uv run ruff format src/ tests/
 
 ## Roadmap
 
-v0.7 = snapshot + `--diff` (version control of SDR). v0.9 = release-gate hardening (CI matrix, version-sync, completion). v1.0.0 = PyPI publish.
+v0.9 = release-gate hardening (CI matrix, `core/exit_codes.py`, `--explain-exit-code`, `--completion`, version-sync). v1.0.0 = PyPI publish.

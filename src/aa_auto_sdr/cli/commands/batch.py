@@ -48,6 +48,7 @@ def run(
     output_dir: Path,
     format_name: str,
     profile: str | None,
+    snapshot: bool = False,
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
@@ -59,6 +60,18 @@ def run(
     except ConfigError as e:
         print(f"error: {e}", flush=True)
         return _EXIT_CONFIG
+
+    snapshot_dir: Path | None = None
+    if snapshot:
+        if not profile:
+            print(
+                "error: --snapshot requires --profile (snapshots are profile-scoped)",
+                flush=True,
+            )
+            return _EXIT_CONFIG
+        from aa_auto_sdr.core.profiles import default_base
+
+        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
 
     print(f"using credentials from: {creds.source}")
 
@@ -138,6 +151,7 @@ def run(
             tool_version=__version__,
             progress_callback=_on_progress,
             failure_callback=_on_failure,
+            snapshot_dir=snapshot_dir,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

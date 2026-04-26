@@ -19,8 +19,12 @@ def run_single(
     output_dir: Path,
     captured_at: datetime,
     tool_version: str,
+    snapshot_dir: Path | None = None,
 ) -> RunResult:
-    """Generate an SDR for `rsid` and write it in every requested `format`."""
+    """Generate an SDR for `rsid` and write it in every requested `format`.
+
+    If `snapshot_dir` is set, also persist the SdrDocument envelope to
+    `<snapshot_dir>/<rsid>/<captured_at-fs>.json`."""
     registry.bootstrap()
     doc = build_sdr(client, rsid, captured_at=captured_at, tool_version=tool_version)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -29,6 +33,11 @@ def run_single(
         writer = registry.get_writer(fmt)
         target = output_dir / f"{rsid}{writer.extension}"
         paths.extend(writer.write(doc, target))
+    if snapshot_dir is not None:
+        from aa_auto_sdr.snapshot.store import save_snapshot
+
+        snap_path = save_snapshot(doc, snapshot_dir=snapshot_dir)
+        paths.append(snap_path)
     return RunResult(
         rsid=rsid,
         success=True,

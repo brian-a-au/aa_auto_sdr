@@ -169,3 +169,41 @@ def test_batch_with_format_and_output_dir() -> None:
     assert ns.batch == ["rs1", "rs2"]
     assert ns.format == "json"
     assert str(ns.output_dir) == "/tmp/out"
+
+
+def test_snapshot_flag_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["demo.prod", "--snapshot"])
+    assert ns.snapshot is True
+
+
+def test_snapshot_default_false() -> None:
+    p = build_parser()
+    ns = p.parse_args(["demo.prod"])
+    assert ns.snapshot is False
+
+
+def test_snapshot_with_batch() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--batch", "rs1", "rs2", "--snapshot", "--profile", "prod"])
+    assert ns.snapshot is True
+    assert ns.batch == ["rs1", "rs2"]
+    assert ns.profile == "prod"
+
+
+def test_diff_flag_parses_two_args() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--diff", "a.json", "b.json"])
+    assert ns.diff == ["a.json", "b.json"]
+
+
+def test_diff_requires_exactly_two_args() -> None:
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--diff", "only-one.json"])
+
+
+def test_diff_mutually_exclusive_with_batch() -> None:
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--diff", "a", "b", "--batch", "rs1"])

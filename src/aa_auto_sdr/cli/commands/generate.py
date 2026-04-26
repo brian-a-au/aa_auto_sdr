@@ -30,7 +30,14 @@ _EXIT_NOT_FOUND = 13
 _EXIT_OUTPUT = 15
 
 
-def run(*, rsid: str, output_dir: Path, format_name: str, profile: str | None) -> int:
+def run(
+    *,
+    rsid: str,
+    output_dir: Path,
+    format_name: str,
+    profile: str | None,
+    snapshot: bool = False,
+) -> int:
     is_pipe = output_dir == Path("-")
 
     try:
@@ -38,6 +45,18 @@ def run(*, rsid: str, output_dir: Path, format_name: str, profile: str | None) -
     except ConfigError as e:
         print(f"error: {e}", flush=True)
         return _EXIT_CONFIG
+
+    snapshot_dir: Path | None = None
+    if snapshot:
+        if not profile:
+            print(
+                "error: --snapshot requires --profile (snapshots are profile-scoped)",
+                flush=True,
+            )
+            return _EXIT_CONFIG
+        from aa_auto_sdr.core.profiles import default_base
+
+        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
 
     if not is_pipe:
         print(f"using credentials from: {creds.source}")
@@ -114,6 +133,10 @@ def run(*, rsid: str, output_dir: Path, format_name: str, profile: str | None) -
                 print(f"api error: {e}", flush=True)
                 return _EXIT_API
             docs.append(doc.to_dict())
+            if snapshot_dir is not None:
+                from aa_auto_sdr.snapshot.store import save_snapshot
+
+                save_snapshot(doc, snapshot_dir=snapshot_dir)
 
         import json as _json
         import sys as _sys
@@ -135,6 +158,7 @@ def run(*, rsid: str, output_dir: Path, format_name: str, profile: str | None) -
                 output_dir=output_dir,
                 captured_at=captured_at,
                 tool_version=__version__,
+                snapshot_dir=snapshot_dir,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

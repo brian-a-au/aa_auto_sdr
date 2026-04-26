@@ -83,6 +83,21 @@ def run(argv: list[str]) -> int:
                 limit=ns.limit,
             )
 
+    # Diff (v0.7) — snapshot comparison
+    if ns.diff:
+        if ns.rsid:
+            print("error: --diff cannot be combined with a positional RSID", flush=True)
+            return _EXIT_USAGE
+        from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+        return diff_cmd.run(
+            a=ns.diff[0],
+            b=ns.diff[1],
+            format_name=ns.format,
+            output=ns.output,
+            profile=ns.profile,
+        )
+
     # Batch (v0.5) — sequential multi-RSID generation
     if ns.batch:
         if ns.output == "-":
@@ -99,6 +114,7 @@ def run(argv: list[str]) -> int:
             output_dir=ns.output_dir,
             format_name=ns.format or "excel",
             profile=ns.profile,
+            snapshot=ns.snapshot,
         )
 
     # Generate (positional RSID) — default --format to "excel" if omitted
@@ -112,6 +128,7 @@ def run(argv: list[str]) -> int:
         output_dir=output_dir,
         format_name=ns.format or "excel",
         profile=ns.profile,
+        snapshot=ns.snapshot,
     )
 
 

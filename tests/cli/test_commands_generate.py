@@ -236,3 +236,62 @@ def test_generate_pipe_alias_rejected(mock_client_cls, env_creds, tmp_path: Path
         profile=None,
     )
     assert rc == 15
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_snapshot_writes_to_profile_dir(
+    mock_client_cls,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """--snapshot --profile X persists envelope to <home>/.aa/orgs/X/snapshots/<rsid>/<ts>.json."""
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    profile_dir = fake_home / ".aa" / "orgs" / "prod"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "org_id": "O",
+                "client_id": "C",
+                "secret": "S",
+                "scopes": "X",
+            }
+        )
+    )
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=tmp_path / "out",
+        format_name="json",
+        profile="prod",
+        snapshot=True,
+    )
+    assert rc == 0
+    snap_dir = fake_home / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
+    assert snap_dir.exists()
+    files = list(snap_dir.glob("*.json"))
+    assert len(files) == 1
+
+
+def test_generate_snapshot_without_profile_returns_10(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+        snapshot=True,
+    )
+    assert rc == 10
