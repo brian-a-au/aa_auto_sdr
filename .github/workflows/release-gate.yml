@@ -1,0 +1,30 @@
+name: release-gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Tests + coverage gate
+        run: uv run pytest -q
+      - name: Ruff check
+        run: uv run ruff check src/ tests/ scripts/
+      - name: Ruff format check
+        run: uv run ruff format --check src/ tests/ scripts/
+      - name: Version sync
+        run: uv run python scripts/check_version_sync.py
+      - name: Build wheel + sdist
+        run: uv build
+      - name: Smoke-install the wheel
+        run: |
+          python -m venv /tmp/install_smoke
+          /tmp/install_smoke/bin/pip install dist/*.whl
+          /tmp/install_smoke/bin/aa_auto_sdr -V
+          /tmp/install_smoke/bin/aa_auto_sdr --exit-codes
