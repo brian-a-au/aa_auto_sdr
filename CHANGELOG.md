@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] — 2026-04-25
+
+### Added
+- CSV writer — multi-file output (one CSV per component type), UTF-8 with BOM, atomic writes.
+- HTML writer — single self-contained file with embedded CSS, one section per component, no JavaScript.
+- Markdown writer — GFM-flavored, one H2 per component, escaped pipe characters in cells.
+- Format aliases (`all`, `reports`, `data`, `ci`) now resolve to working writers — `aa_auto_sdr <RSID> --format all` produces all five formats.
+- Report-suite-name resolution: the positional argument now accepts either an RSID or a friendly name (case-insensitive exact match). When a name matches multiple report suites, an SDR is produced for each match (matches `cja_auto_sdr` convention). Output filenames stay keyed off the canonical RSID.
+- New shared helper module `output/_helpers.py` with `stringify_cell`, `escape_pipe`, `escape_html`. Excel writer migrated to use it.
+
+### Changed
+- **Internal:** `Writer.write` returns `list[Path]` instead of `Path`. Single-file writers return a one-element list; CSV returns 7. No external behaviour change — the CLI still prints one `wrote: <path>` line per file.
+
+### Out of scope (planned for later milestones)
+- Discovery and inspection commands (`--list-reportsuites`, `--list-metrics`, etc.) — v0.3.
+- Stdout piping (`--output -`) — v0.3.
+- Batch generation (`--batch`) — v0.5.
+- Snapshot save and `--diff` — v0.7.
+
 ## [0.1.1] — 2026-04-25
 
 ### Fixed
