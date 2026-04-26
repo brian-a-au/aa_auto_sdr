@@ -17,17 +17,33 @@ The console gives you four values to capture: **Org ID**, **Client ID**, **Clien
 
 ### 2. Required scopes
 
-The `SCOPES` value must include **all** of the following:
+#### Minimum (verified working)
+
+The `SCOPES` value must include these **three** scopes. They've been verified against a live Adobe Analytics 2.0 instance for the read surface this tool exercises (`/reportsuites`, `/dimensions`, `/metrics`, `/segments`, `/calculatedmetrics`, `/virtualreportsuites`, `/classifications/datasets`).
 
 ```
 openid
 AdobeID
-read_organizations
 additional_info.projectedProductContext
+```
+
+#### Recommended (broader endpoint coverage)
+
+Add either or both of these if your org's IMS rules require them for the endpoints this tool calls. They're documented by Adobe as part of the canonical OAuth Server-to-Server scope set, but neither is empirically required for the v1.0.0 read surface in the test org we validated against:
+
+```
+read_organizations
 additional_info.job_function
 ```
 
-The `additional_info.job_function` scope is **load-bearing**. Without it, `/dimensions`, `/metrics`, and other read endpoints return empty responses or 403 errors even though authentication appears to succeed. This is one of the most common silent-failure modes when first setting up the tool.
+#### How to tell if you need the recommended scopes
+
+| Symptom | Likely missing scope |
+|---------|----------------------|
+| `--list-reportsuites` returns empty despite successful auth | `read_organizations` (or your integration isn't on a Product Profile — see step 3) |
+| `--list-metrics`, `--list-dimensions` return 403 or empty | `additional_info.job_function` |
+
+If you hit either symptom with the minimum 3-scope config, add the corresponding recommended scope and re-test.
 
 ### 3. Add to a Product Profile
 
@@ -83,7 +99,7 @@ Per-platform setup:
 export ORG_ID="...@AdobeOrg"
 export CLIENT_ID="..."
 export SECRET="..."
-export SCOPES="openid AdobeID read_organizations additional_info.projectedProductContext additional_info.job_function"
+export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 
 # Windows cmd
 setx ORG_ID "...@AdobeOrg"
@@ -112,7 +128,7 @@ cp config.json.example config.json
   "org_id": "...@AdobeOrg",
   "client_id": "...",
   "secret": "...",
-  "scopes": "openid AdobeID read_organizations additional_info.projectedProductContext additional_info.job_function",
+  "scopes": "openid, AdobeID, additional_info.projectedProductContext",
   "sandbox": null
 }
 ```
@@ -125,7 +141,7 @@ If `python-dotenv` is installed (it's an optional extra), the tool also reads `.
 ORG_ID=...@AdobeOrg
 CLIENT_ID=...
 SECRET=...
-SCOPES=openid AdobeID read_organizations additional_info.projectedProductContext additional_info.job_function
+SCOPES=openid, AdobeID, additional_info.projectedProductContext
 ```
 
 Same fields, same gitignore.
@@ -156,9 +172,9 @@ Prints which credential source resolved, the truncated client_id (no secret expo
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `error: Profile 'X' not found at ~/.aa/orgs/X/config.json` | `--profile X` referenced a non-existent profile | Run `aa_auto_sdr --profile-add X` or fix the path |
-| `auth error: ...` (exit 11) | Bad client_id/secret or wrong scopes | Verify in Developer Console; confirm `additional_info.job_function` is in SCOPES |
+| `auth error: ...` (exit 11) | Bad client_id/secret or wrong scopes | Verify in Developer Console; check SCOPES per step 2 above |
 | `--list-reportsuites` returns empty even though auth succeeded | Integration not on a Product Profile in Admin Console | Add the integration to a Product Profile |
-| `403 Forbidden` on `/dimensions` or `/metrics` | Missing `additional_info.job_function` scope | Update SCOPES to include it |
+| `403 Forbidden` on `/dimensions` or `/metrics` | Recommended scope `additional_info.job_function` may be required by your org | Add it to SCOPES (see step 2 above) |
 | `error: report suite 'X' not found` (exit 13) | Typo or wrong org for the credentials | `aa_auto_sdr --list-reportsuites` to see what's actually visible |
 
 For full per-code remediation, run `aa_auto_sdr --explain-exit-code <CODE>`.

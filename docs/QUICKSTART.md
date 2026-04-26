@@ -25,7 +25,7 @@ Pick one — environment variables (fastest) or a profile (recommended for daily
 export ORG_ID="...@AdobeOrg"
 export CLIENT_ID="..."
 export SECRET="..."
-export SCOPES="openid AdobeID read_organizations additional_info.projectedProductContext additional_info.job_function"
+export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 ```
 
 ```bash
