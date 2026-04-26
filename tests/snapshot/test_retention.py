@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -81,19 +81,21 @@ class TestSelectForDeletion:
         assert select_for_deletion(files, RetentionPolicy(keep_last=1)) == []
 
     def test_keep_since_drops_old_files(self) -> None:
-        now = datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
         files = [
             self._file("2026-04-20T10-00-00+00-00"),  # 6 days old → drop
             self._file("2026-04-25T10-00-00+00-00"),  # 1 day old → keep
         ]
         deleted = select_for_deletion(
-            files, RetentionPolicy(keep_since=timedelta(days=3)), now=now,
+            files,
+            RetentionPolicy(keep_since=timedelta(days=3)),
+            now=now,
         )
         assert deleted == [self._file("2026-04-20T10-00-00+00-00")]
 
     def test_combined_keep_last_and_keep_since_union(self) -> None:
         # A file dropped by either rule is dropped overall (set-union semantics).
-        now = datetime(2026, 4, 26, 12, 0, 0, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 26, 12, 0, 0, tzinfo=UTC)
         files = [
             self._file("2026-04-20T10-00-00+00-00"),
             self._file("2026-04-21T10-00-00+00-00"),
@@ -114,7 +116,7 @@ class TestSelectForDeletion:
 
     def test_malformed_filename_treated_as_ancient(self) -> None:
         # _restore_iso returns datetime.min on bad shape — should be flagged for delete by keep_since
-        now = datetime(2026, 4, 26, tzinfo=timezone.utc)
+        now = datetime(2026, 4, 26, tzinfo=UTC)
         files = [
             self._file("not-a-timestamp"),
             self._file("2026-04-26T10-00-00+00-00"),

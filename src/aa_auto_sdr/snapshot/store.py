@@ -8,13 +8,17 @@ in-payload `captured_at` field keeps the proper colon form."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.core.json_io import read_json, write_json
 from aa_auto_sdr.sdr.document import SdrDocument
 from aa_auto_sdr.snapshot.schema import document_to_envelope, validate_envelope
+
+if TYPE_CHECKING:
+    from aa_auto_sdr.snapshot.retention import RetentionPolicy
 
 
 def captured_at_to_filename(captured_at_iso: str) -> str:
@@ -52,3 +56,49 @@ def load_snapshot(path: Path) -> dict[str, Any]:
     payload = read_json(path)
     validate_envelope(payload)
     return payload
+
+
+def list_snapshots(snapshot_dir: Path, *, rsid: str | None = None) -> list[Path]:
+    """List snapshot files under `snapshot_dir`, optionally filtered to one RSID.
+
+    Returns paths sorted chronologically (oldest first). Returns [] if the
+    directory doesn't exist or has no matching snapshots."""
+    if rsid is not None:
+        rs_dir = snapshot_dir / rsid
+        if not rs_dir.exists():
+            return []
+        return sorted(rs_dir.glob("*.json"))
+    if not snapshot_dir.exists():
+        return []
+    return sorted(p for rs in snapshot_dir.iterdir() if rs.is_dir() for p in rs.glob("*.json"))
+
+
+def prune_snapshots(
+    snapshot_dir: Path,
+    policy: RetentionPolicy,
+    *,
+    rsid: str | None = None,
+    dry_run: bool = False,
+    now: datetime | None = None,
+) -> list[Path]:
+    """Apply `policy` to each RSID under `snapshot_dir` (or one RSID).
+
+    Returns paths actually deleted (or that would be, if dry_run). Pruning is
+    per-RSID — `--keep-last 5` keeps 5 *per RSID*, not 5 total."""
+    from aa_auto_sdr.snapshot.retention import select_for_deletion  # local import
+
+    rsids = [rsid] if rsid else _list_rsids(snapshot_dir)
+    deleted: list[Path] = []
+    for r in rsids:
+        files = list_snapshots(snapshot_dir, rsid=r)
+        for f in select_for_deletion(files, policy, now=now):
+            if not dry_run:
+                f.unlink()
+            deleted.append(f)
+    return sorted(deleted)
+
+
+def _list_rsids(snapshot_dir: Path) -> list[str]:
+    if not snapshot_dir.exists():
+        return []
+    return sorted(p.name for p in snapshot_dir.iterdir() if p.is_dir())

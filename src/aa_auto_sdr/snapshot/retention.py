@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import ConfigError
@@ -65,10 +65,10 @@ def select_for_deletion(
     sorted_files = sorted(files)
     to_delete: set[Path] = set()
     if policy.keep_last is not None:
-        kept = sorted_files[-policy.keep_last:]
+        kept = sorted_files[-policy.keep_last :]
         to_delete.update(f for f in sorted_files if f not in kept)
     if policy.keep_since is not None:
-        cutoff = (now or datetime.now(timezone.utc)) - policy.keep_since
+        cutoff = (now or datetime.now(UTC)) - policy.keep_since
         for f in sorted_files:
             ts = _restore_iso(f.stem)
             if ts < cutoff:
@@ -83,9 +83,6 @@ def _restore_iso(stem: str) -> datetime:
     (which causes keep_since policies to flag them for deletion)."""
     m = _TS_RE.match(stem)
     if not m:
-        return datetime.min.replace(tzinfo=timezone.utc)
-    iso = (
-        f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}"
-        f"{m.group(5)}:{m.group(6)}"
-    )
+        return datetime.min.replace(tzinfo=UTC)
+    iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}{m.group(5)}:{m.group(6)}"
     return datetime.fromisoformat(iso)
