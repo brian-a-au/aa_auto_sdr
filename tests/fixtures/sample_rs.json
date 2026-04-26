@@ -1,0 +1,33 @@
+{
+  "report_suite": {
+    "rsid": "demo.prod",
+    "name": "Demo Production",
+    "timezone": "US/Pacific",
+    "currency": "USD",
+    "parentRsid": null
+  },
+  "dimensions": [
+    {"id": "variables/evar1", "name": "User ID", "type": "string", "category": "Conversion", "parent": "", "pathable": false, "description": "Authenticated user identifier", "tags": []},
+    {"id": "variables/evar2", "name": "Plan", "type": "string", "category": "Conversion", "parent": "", "pathable": false, "description": null, "tags": []},
+    {"id": "variables/prop1", "name": "Page Type", "type": "string", "category": "Content", "parent": "", "pathable": true, "description": "Section taxonomy", "tags": ["taxonomy"]},
+    {"id": "variables/events", "name": "Custom Events", "type": "counter", "category": null, "parent": "", "pathable": false, "description": null, "tags": []}
+  ],
+  "metrics": [
+    {"id": "metrics/pageviews", "name": "Page Views", "type": "int", "category": "Traffic", "precision": 0, "segmentable": true, "description": "Total page views", "tags": [], "dataGroup": null},
+    {"id": "metrics/visits", "name": "Visits", "type": "int", "category": "Traffic", "precision": 0, "segmentable": true, "description": null, "tags": [], "dataGroup": null},
+    {"id": "metrics/orders", "name": "Orders", "type": "int", "category": "Commerce", "precision": 0, "segmentable": true, "description": "Conversion events", "tags": [], "dataGroup": "Commerce"}
+  ],
+  "segments": [
+    {"id": "s_111", "name": "Mobile Users", "description": "Mobile device traffic", "rsid": "demo.prod", "owner": {"id": 42}, "definition": {"version": [1, 0, 0], "container": {"func": "container", "context": "hits", "pred": {"func": "eq", "val": "mobile"}}}, "compatibility": {}, "tags": [], "created": "2025-01-01T00:00:00Z", "modified": "2025-01-02T00:00:00Z"},
+    {"id": "s_222", "name": "Returning Visitors", "description": null, "rsid": "demo.prod", "owner": {"id": 42}, "definition": {"version": [1, 0, 0], "container": {"func": "container", "context": "visits", "pred": {"func": "eq", "val": "returning"}}}, "compatibility": {}, "tags": [], "created": null, "modified": null}
+  ],
+  "calculated_metrics": [
+    {"id": "cm_1", "name": "Conversion Rate", "description": "Orders divided by visits", "rsid": "demo.prod", "owner": {"id": 42}, "polarity": "positive", "precision": 4, "type": "decimal", "definition": {"formula": {"func": "divide", "args": ["metrics/orders", "metrics/visits"]}}, "tags": [], "categories": ["Conversion"]}
+  ],
+  "virtual_report_suites": [
+    {"id": "vrs_eu", "name": "EU Visitors Only", "parentRsid": "demo.prod", "timezone": "Europe/Berlin", "description": "EU-only traffic view", "segmentList": ["s_eu"], "curatedComponents": [], "modified": "2025-03-01T00:00:00Z"}
+  ],
+  "classification_datasets": [
+    {"id": "ds_5", "name": "Campaign Metadata", "rsid": "demo.prod"}
+  ]
+}
