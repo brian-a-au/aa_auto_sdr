@@ -207,3 +207,27 @@ def test_diff_mutually_exclusive_with_batch() -> None:
     p = build_parser()
     with pytest.raises(SystemExit):
         p.parse_args(["--diff", "a", "b", "--batch", "rs1"])
+
+
+def test_exit_codes_flag_parses() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--exit-codes"])
+    assert ns.exit_codes is True
+
+
+def test_explain_exit_code_with_int_arg() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--explain-exit-code", "11"])
+    assert ns.explain_exit_code == 11
+
+
+def test_explain_exit_code_with_invalid_arg_errors() -> None:
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--explain-exit-code", "not-a-number"])
+
+
+def test_exit_codes_mutex_with_diff() -> None:
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--exit-codes", "--diff", "a", "b"])

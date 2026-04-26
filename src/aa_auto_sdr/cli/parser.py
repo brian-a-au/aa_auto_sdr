@@ -96,6 +96,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Diff two snapshots. Tokens: <path> | <rsid>@<ts>|@latest|@previous | git:<ref>:<path>",
     )
     actions.add_argument(
+        "--exit-codes",
+        action="store_true",
+        help="List every exit code with a one-line meaning",
+    )
+    actions.add_argument(
+        "--explain-exit-code",
+        metavar="CODE",
+        type=int,
+        default=None,
+        help="Print the meaning, likely causes, and remediation for an exit code",
+    )
+    actions.add_argument(
         "--profile-add",
         metavar="NAME",
         default=None,

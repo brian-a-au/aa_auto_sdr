@@ -21,6 +21,16 @@ def run(argv: list[str]) -> int:
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)
 
+    # Fast-path actions (also reachable via slow path if positional ordering forced argparse)
+    if ns.exit_codes:
+        from aa_auto_sdr.cli.commands.exit_codes import run_list_exit_codes
+
+        return run_list_exit_codes()
+    if ns.explain_exit_code is not None:
+        from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
+
+        return run_explain_exit_code(ns.explain_exit_code)
+
     # Discovery + inspect actions (handlers added in later tasks; stub for now)
     if ns.list_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd

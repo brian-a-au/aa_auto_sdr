@@ -45,6 +45,22 @@ def main(argv: list[str] | None = None) -> int:
         return _print_version()
     if args and args[0] in _FASTPATH_HELP:
         return _print_help()
+    if args and args[0] == "--exit-codes":
+        from aa_auto_sdr.cli.commands.exit_codes import run_list_exit_codes
+
+        return run_list_exit_codes()
+    if args and args[0] == "--explain-exit-code":
+        from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
+
+        if len(args) < 2:
+            print("error: --explain-exit-code requires a CODE argument", flush=True)
+            return 2
+        try:
+            code = int(args[1])
+        except ValueError:
+            print(f"error: '{args[1]}' is not a valid exit code (must be int)", flush=True)
+            return 2
+        return run_explain_exit_code(code)
     from aa_auto_sdr.cli.main import run
 
     return run(args)
