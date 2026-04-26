@@ -1,9 +1,4 @@
-# aa_auto_sdr — Adobe Analytics SDR Generator
-
-[![tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)
-[![lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)
-[![release-gate](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/release-gate.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/release-gate.yml)
-[![version-sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)
+# Adobe Analytics Solution Design Reference Generator
 
 A production-ready Python CLI that automates the creation of **Solution Design Reference (SDR)** documentation from your Adobe Analytics implementation. **Read-only** against Adobe Analytics. **API 2.0 only**.
 
