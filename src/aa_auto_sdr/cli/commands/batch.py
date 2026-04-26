@@ -27,19 +27,11 @@ from aa_auto_sdr.core.exceptions import (
     ConfigError,
     ReportSuiteNotFoundError,
 )
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
-
-_EXIT_OK = 0
-_EXIT_GENERIC = 1
-_EXIT_CONFIG = 10
-_EXIT_AUTH = 11
-_EXIT_API = 12
-_EXIT_NOT_FOUND = 13
-_EXIT_PARTIAL_SUCCESS = 14
-_EXIT_OUTPUT = 15
 
 
 def run(
@@ -59,7 +51,7 @@ def run(
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_CONFIG
+        return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
     if snapshot:
@@ -68,7 +60,7 @@ def run(
                 "error: --snapshot requires --profile (snapshots are profile-scoped)",
                 flush=True,
             )
-            return _EXIT_CONFIG
+            return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
 
         snapshot_dir = default_base() / "orgs" / profile / "snapshots"
@@ -79,7 +71,7 @@ def run(
         formats = registry.resolve_formats(format_name or "excel")
     except KeyError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_GENERIC
+        return ExitCode.GENERIC.value
 
     registry.bootstrap()
     for fmt in formats:
@@ -87,13 +79,13 @@ def run(
             registry.get_writer(fmt)
         except KeyError:
             print(f"error: format '{fmt}' is not available in this build", flush=True)
-            return _EXIT_OUTPUT
+            return ExitCode.OUTPUT.value
 
     try:
         client = AaClient.from_credentials(creds)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
-        return _EXIT_AUTH
+        return ExitCode.AUTH.value
 
     # Identifier resolution: print a one-line `error: ...` immediately on
     # failure (matches single-RSID generate.py convention) AND collect the
@@ -112,7 +104,7 @@ def run(
                     rsid=identifier,
                     error_type=type(exc).__name__,
                     message=str(exc),
-                    exit_code=_EXIT_NOT_FOUND,
+                    exit_code=ExitCode.NOT_FOUND.value,
                 ),
             )
             continue
@@ -123,7 +115,7 @@ def run(
                     rsid=identifier,
                     error_type=type(exc).__name__,
                     message=str(exc),
-                    exit_code=_EXIT_API,
+                    exit_code=ExitCode.API.value,
                 ),
             )
             continue
@@ -174,9 +166,9 @@ def run(
     _print_summary(final)
 
     if not final.failures:
-        return _EXIT_OK
+        return ExitCode.OK.value
     if final.successes:
-        return _EXIT_PARTIAL_SUCCESS
+        return ExitCode.PARTIAL_SUCCESS.value
     # All failed → exit code of the *last* failure
     return final.failures[-1].exit_code
 

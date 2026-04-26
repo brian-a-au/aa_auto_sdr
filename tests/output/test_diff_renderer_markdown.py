@@ -116,3 +116,40 @@ def test_render_markdown_escapes_pipes_in_values() -> None:
     out = render_markdown(rep2)
     assert "Pipe\\|Name" in out
     assert "a\\|b" in out
+
+
+def test_render_markdown_with_report_suite_deltas() -> None:
+    """report_suite_deltas table renders when non-empty."""
+    rep = _empty_report()
+    rep_w_rs = replace(
+        rep,
+        report_suite_deltas=[
+            FieldDelta(field="name", before="Old Name", after="New Name"),
+            FieldDelta(field="timezone", before="UTC", after="US/Pacific"),
+        ],
+    )
+    out = render_markdown(rep_w_rs)
+    assert "## Report Suite" in out
+    assert "Old Name" in out
+    assert "New Name" in out
+    assert "timezone" in out
+
+
+def test_render_markdown_rsid_mismatch_warning() -> None:
+    rep = _empty_report()
+    rep_mismatch = replace(rep, b_rsid="other.rs", rsid_mismatch=True)
+    out = render_markdown(rep_mismatch)
+    assert "RSID mismatch" in out
+
+
+def test_render_markdown_removed_table() -> None:
+    rep = _empty_report()
+    rep_components = list(rep.components)
+    rep_components[0] = ComponentDiff(
+        component_type="dimensions",
+        removed=[AddedRemovedItem(id="evar99", name="Old")],
+        unchanged_count=0,
+    )
+    out = render_markdown(replace(rep, components=rep_components))
+    assert "### Removed" in out
+    assert "evar99" in out

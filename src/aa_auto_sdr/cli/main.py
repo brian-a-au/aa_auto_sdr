@@ -8,10 +8,7 @@ from pathlib import Path
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
 from aa_auto_sdr.cli.parser import build_parser
-
-_EXIT_USAGE = 2
-_EXIT_NOT_IMPLEMENTED = 1
-_EXIT_OUTPUT = 15
+from aa_auto_sdr.core.exit_codes import ExitCode
 
 
 def run(argv: list[str]) -> int:
@@ -23,6 +20,20 @@ def run(argv: list[str]) -> int:
         return config_cmd.profile_add(ns.profile_add)
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)
+
+    # Fast-path actions (also reachable via slow path if positional ordering forced argparse)
+    if ns.exit_codes:
+        from aa_auto_sdr.cli.commands.exit_codes import run_list_exit_codes
+
+        return run_list_exit_codes()
+    if ns.explain_exit_code is not None:
+        from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
+
+        return run_explain_exit_code(ns.explain_exit_code)
+    if ns.completion:
+        from aa_auto_sdr.cli.commands.completion import run_completion
+
+        return run_completion(ns.completion)
 
     # Discovery + inspect actions (handlers added in later tasks; stub for now)
     if ns.list_reportsuites:
@@ -87,7 +98,7 @@ def run(argv: list[str]) -> int:
     if ns.diff:
         if ns.rsid:
             print("error: --diff cannot be combined with a positional RSID", flush=True)
-            return _EXIT_USAGE
+            return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
         return diff_cmd.run(
@@ -106,7 +117,7 @@ def run(argv: list[str]) -> int:
                 "(multiple SDRs cannot share a single stream); use --output-dir instead",
                 flush=True,
             )
-            return _EXIT_OUTPUT
+            return ExitCode.OUTPUT.value
         from aa_auto_sdr.cli.commands import batch as batch_cmd
 
         return batch_cmd.run(
@@ -120,7 +131,7 @@ def run(argv: list[str]) -> int:
     # Generate (positional RSID) — default --format to "excel" if omitted
     if not ns.rsid:
         parser.print_usage(sys.stderr)
-        return _EXIT_USAGE
+        return ExitCode.USAGE.value
 
     output_dir: Path = Path("-") if ns.output == "-" else ns.output_dir
     return generate_cmd.run(
@@ -134,4 +145,4 @@ def run(argv: list[str]) -> int:
 
 def _stub_action(name: str) -> int:
     print(f"error: {name} not yet implemented in this build", flush=True)
-    return _EXIT_NOT_IMPLEMENTED
+    return ExitCode.GENERIC.value

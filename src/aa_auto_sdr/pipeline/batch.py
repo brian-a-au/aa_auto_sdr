@@ -27,26 +27,27 @@ from aa_auto_sdr.core.exceptions import (
     OutputError,
     ReportSuiteNotFoundError,
 )
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
 
 # Mirrors the per-exception exit codes in cli/commands/generate.py so a single-
 # RSID equivalent invocation would have returned the same code.
 _EXIT_CODE_BY_TYPE: dict[type[AaAutoSdrError], int] = {
-    ConfigError: 10,
-    AuthError: 11,
-    ApiError: 12,
-    ReportSuiteNotFoundError: 13,
-    OutputError: 15,
+    ConfigError: ExitCode.CONFIG.value,
+    AuthError: ExitCode.AUTH.value,
+    ApiError: ExitCode.API.value,
+    ReportSuiteNotFoundError: ExitCode.NOT_FOUND.value,
+    OutputError: ExitCode.OUTPUT.value,
 }
 
 
 def _exit_code_for(exc: AaAutoSdrError) -> int:
-    """Match generate.py's exit-code policy. Most-specific class wins; fallback = 1."""
+    """Match generate.py's exit-code policy. Most-specific class wins; fallback = GENERIC."""
     for cls in type(exc).__mro__:
         if cls in _EXIT_CODE_BY_TYPE:
             return _EXIT_CODE_BY_TYPE[cls]
-    return 1
+    return ExitCode.GENERIC.value
 
 
 def _bytes_for(result: RunResult) -> int:

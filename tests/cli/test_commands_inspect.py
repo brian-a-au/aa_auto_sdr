@@ -365,3 +365,115 @@ def test_describe_reportsuite_single_row(mock_client_cls, env_creds, tmp_path: P
     assert parsed[0]["calculated_metrics"] == 1
     assert parsed[0]["virtual_report_suites"] == 0
     assert parsed[0]["classifications"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Error-path tests (v0.9 coverage gate raise to 90%)
+# ---------------------------------------------------------------------------
+
+
+def test_list_metrics_no_creds_returns_10(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+
+    for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    rc = cmd.run_list_metrics(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 10
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_list_metrics_auth_error_returns_11(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("nope")
+    rc = cmd.run_list_metrics(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 11
+
+
+def test_describe_reportsuite_no_creds_returns_10(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+
+    for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    rc = cmd.run_describe_reportsuite(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == 10
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_reportsuite_auth_error_returns_11(mock_client_cls, env_creds) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("nope")
+    rc = cmd.run_describe_reportsuite(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == 11
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_list_metrics_api_error_returns_12(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    handle = MagicMock()
+    handle.getReportSuites.side_effect = ApiError("rate")
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    rc = cmd.run_list_metrics(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 12
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_reportsuite_unknown_returns_13(mock_client_cls, env_creds) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+
+    handle = MagicMock()
+    handle.getReportSuites.return_value = pd.DataFrame(
+        [{"rsid": "demo.prod", "name": "Demo Production", "timezone": "UTC", "currency": "USD", "parentRsid": ""}]
+    )
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    rc = cmd.run_describe_reportsuite(
+        identifier="never-exists",
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == 13

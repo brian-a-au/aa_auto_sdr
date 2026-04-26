@@ -31,10 +31,13 @@ def _print_help() -> int:
         "  aa_auto_sdr --profile-add <name>     Create a credentials profile\n"
         "  aa_auto_sdr --profile <name> ...     Use a named profile\n"
         "  aa_auto_sdr --show-config            Show resolved credentials source\n"
+        "  aa_auto_sdr --exit-codes             List every exit code with one-line meaning\n"
+        "  aa_auto_sdr --explain-exit-code <N>  Detailed explanation for one exit code\n"
+        "  aa_auto_sdr --completion <SHELL>     Emit a shell completion script (bash|zsh|fish)\n"
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
-        "v0.7: single + batch SDR generation, snapshot save, --diff, 5 formats.\n"
+        "v0.9: release-gate hardening — exit-code metacommands, --completion, JSON error envelope, meta-tests, CI.\n"
     )
     return 0
 
@@ -45,6 +48,29 @@ def main(argv: list[str] | None = None) -> int:
         return _print_version()
     if args and args[0] in _FASTPATH_HELP:
         return _print_help()
+    if args and args[0] == "--exit-codes":
+        from aa_auto_sdr.cli.commands.exit_codes import run_list_exit_codes
+
+        return run_list_exit_codes()
+    if args and args[0] == "--explain-exit-code":
+        from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
+
+        if len(args) < 2:
+            print("error: --explain-exit-code requires a CODE argument", flush=True)
+            return 2
+        try:
+            code = int(args[1])
+        except ValueError:
+            print(f"error: '{args[1]}' is not a valid exit code (must be int)", flush=True)
+            return 2
+        return run_explain_exit_code(code)
+    if args and args[0] == "--completion":
+        from aa_auto_sdr.cli.commands.completion import run_completion
+
+        if len(args) < 2:
+            print("error: --completion requires a SHELL argument (bash, zsh, or fish)", flush=True)
+            return 2
+        return run_completion(args[1])
     from aa_auto_sdr.cli.main import run
 
     return run(args)

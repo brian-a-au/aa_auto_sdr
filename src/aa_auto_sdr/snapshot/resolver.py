@@ -49,7 +49,7 @@ def resolve_snapshot(
 
 def _looks_like_path(token: str) -> bool:
     """Heuristic: tokens with a path separator or that point to an existing file are paths."""
-    if os.sep in token or token.startswith("./") or token.startswith("~"):
+    if os.sep in token or token.startswith(("./", "~")):
         return True
     return Path(token).exists()
 

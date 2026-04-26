@@ -2,7 +2,9 @@
 
 Adobe Analytics SDR Generator — a CLI that generates Solution Design Reference documentation from an Adobe Analytics report suite. Sister project to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does **not** share code.
 
-> **Status:** v0.7 — single + batch SDR generation, snapshot save (`--snapshot`), and `--diff` between any two snapshots (path / `@latest` / `@previous` / git ref). Five output formats; discovery + inspect; `--output -` piping. OAuth Server-to-Server auth.
+> **Status:** v0.9 — release-gate hardened. Single + batch SDR generation, snapshot save, `--diff`, exit-code metacommands, shell completion, machine-readable error envelopes, four meta-tests, expanded ruff rule set, Linux CI. Five output formats. OAuth Server-to-Server auth.
+
+See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for a 90-second onboarding and [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md) for the full flag table.
 
 ## Requirements
 
@@ -149,6 +151,16 @@ uv run aa_auto_sdr -V
 uv run aa_auto_sdr --show-config
 ```
 
+## Tab completion
+
+```bash
+aa_auto_sdr --completion bash > ~/.bash_completion.d/aa_auto_sdr
+aa_auto_sdr --completion zsh  > ~/.zsh/completions/_aa_auto_sdr
+aa_auto_sdr --completion fish > ~/.config/fish/completions/aa_auto_sdr.fish
+```
+
+Re-source your shell config (or open a new terminal).
+
 ## Develop
 
 ```bash
@@ -160,4 +172,4 @@ uv run ruff format src/ tests/
 
 ## Roadmap
 
-v0.9 = release-gate hardening (CI matrix, `core/exit_codes.py`, `--explain-exit-code`, `--completion`, version-sync). v1.0.0 = PyPI publish.
+v1.0.0 = PyPI publish via trusted publishing; macOS + Windows CI matrix; final docs polish.

@@ -197,3 +197,116 @@ def test_list_reportsuites_invalid_sort_returns_2(
         limit=None,
     )
     assert rc == 2  # usage error
+
+
+# ---------------------------------------------------------------------------
+# Error-path tests (v0.9 coverage gate raise to 90%)
+# ---------------------------------------------------------------------------
+
+
+@patch("aa_auto_sdr.cli.commands.discovery.AaClient")
+def test_list_reportsuites_auth_error_returns_11(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("bad scopes")
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 11
+    assert "auth error" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.discovery.AaClient")
+def test_list_reportsuites_api_error_returns_12(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    handle = MagicMock()
+    handle.getReportSuites.side_effect = ApiError("rate limit")
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 12
+    assert "api error" in capsys.readouterr().out
+
+
+def test_list_virtual_reportsuites_no_creds_returns_10(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_virtual_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 10
+
+
+@patch("aa_auto_sdr.cli.commands.discovery.AaClient")
+def test_list_virtual_reportsuites_auth_error_returns_11(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("x")
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_virtual_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 11
+
+
+@patch("aa_auto_sdr.cli.commands.discovery.AaClient")
+def test_list_virtual_reportsuites_api_error_returns_12(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    handle = MagicMock()
+    handle.getVirtualReportSuites.side_effect = ApiError("boom")
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_virtual_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 12
+
+
+def test_resolve_output_dash_returns_path_dash() -> None:
+    from aa_auto_sdr.cli.commands.discovery import _resolve_output
+
+    assert _resolve_output("-") == Path("-")
+    assert _resolve_output(None) is None
+    assert _resolve_output("/tmp/x.json") == Path("/tmp/x.json")

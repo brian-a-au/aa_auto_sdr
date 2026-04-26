@@ -16,16 +16,13 @@ import sys
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import SnapshotError
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.profiles import default_base
 from aa_auto_sdr.output.diff_renderers.console import render_console
 from aa_auto_sdr.output.diff_renderers.json import render_json
 from aa_auto_sdr.output.diff_renderers.markdown import render_markdown
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.resolver import resolve_snapshot
-
-_EXIT_OK = 0
-_EXIT_OUTPUT = 15
-_EXIT_SNAPSHOT = 16
 
 _VALID_FORMATS = ("console", "json", "markdown")
 
@@ -44,13 +41,13 @@ def run(
             f"error: format '{fmt}' is not available for --diff (use console|json|markdown)",
             flush=True,
         )
-        return _EXIT_OUTPUT
+        return ExitCode.OUTPUT.value
     if fmt == "console" and output == "-":
         print(
             "error: --format console cannot pipe to stdout (use --format json|markdown for pipes)",
             flush=True,
         )
-        return _EXIT_OUTPUT
+        return ExitCode.OUTPUT.value
 
     profile_snapshot_dir = (default_base() / "orgs" / profile / "snapshots") if profile else None
     repo_root = Path.cwd()
@@ -59,8 +56,13 @@ def run(
         env_a = resolve_snapshot(a, profile_snapshot_dir=profile_snapshot_dir, repo_root=repo_root)
         env_b = resolve_snapshot(b, profile_snapshot_dir=profile_snapshot_dir, repo_root=repo_root)
     except SnapshotError as exc:
-        print(f"snapshot error: {exc}", flush=True)
-        return _EXIT_SNAPSHOT
+        if fmt in ("json", "markdown") and output == "-":
+            from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+            emit_error_envelope(exc, ExitCode.SNAPSHOT.value)
+        else:
+            print(f"snapshot error: {exc}", flush=True)
+        return ExitCode.SNAPSHOT.value
 
     report = compare(env_a, env_b)
 
@@ -82,4 +84,4 @@ def run(
         target.write_text(rendered)
         print(f"wrote: {target}", flush=True)
 
-    return _EXIT_OK
+    return ExitCode.OK.value

@@ -136,3 +136,33 @@ def test_diff_with_positional_rsid_returns_2(capsys) -> None:
     assert rc == 2
     err = capsys.readouterr().out
     assert "positional" in err.lower() or "diff" in err.lower()
+
+
+# ---------------------------------------------------------------------------
+# Slow-path dispatch for v0.9 fast-path actions (coverage gate raise to 90%)
+# ---------------------------------------------------------------------------
+
+
+def test_exit_codes_via_slow_path(capsys) -> None:
+    """`run([..., '--exit-codes'])` (not at argv[0]) must dispatch via slow path."""
+    rc = run(["--profile", "anything", "--exit-codes"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Code  Meaning" in out
+
+
+def test_explain_exit_code_via_slow_path(capsys) -> None:
+    rc = run(["--profile", "anything", "--explain-exit-code", "11"])
+    assert rc == 0
+    assert "Exit code 11" in capsys.readouterr().out
+
+
+def test_completion_via_slow_path(capsys) -> None:
+    rc = run(["--profile", "anything", "--completion", "bash"])
+    assert rc == 0
+    assert "complete -F" in capsys.readouterr().out
+
+
+def test_no_args_returns_usage_error_2(capsys) -> None:
+    rc = run([])
+    assert rc == 2

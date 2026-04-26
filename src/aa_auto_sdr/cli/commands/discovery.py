@@ -19,13 +19,7 @@ from aa_auto_sdr.core.exceptions import (
     AuthError,
     ConfigError,
 )
-
-_EXIT_OK = 0
-_EXIT_GENERIC = 1
-_EXIT_USAGE = 2
-_EXIT_CONFIG = 10
-_EXIT_AUTH = 11
-_EXIT_API = 12
+from aa_auto_sdr.core.exit_codes import ExitCode
 
 _REPORTSUITES_SORT_ALLOWLIST = ("rsid", "name")
 _VRS_SORT_ALLOWLIST = ("id", "name", "parent_rsid")
@@ -54,22 +48,22 @@ def run_list_reportsuites(
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_CONFIG
+        return ExitCode.CONFIG.value
 
     try:
         client = AaClient.from_credentials(creds)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
-        return _EXIT_AUTH
+        return ExitCode.AUTH.value
 
     try:
         suites = fetch._records(client.handle.getReportSuites(extended_info=True))
     except ApiError as e:
         print(f"api error: {e}", flush=True)
-        return _EXIT_API
+        return ExitCode.API.value
     except AaAutoSdrError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_GENERIC
+        return ExitCode.GENERIC.value
 
     return _render_with_filters(
         suites,
@@ -99,22 +93,22 @@ def run_list_virtual_reportsuites(
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_CONFIG
+        return ExitCode.CONFIG.value
 
     try:
         client = AaClient.from_credentials(creds)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
-        return _EXIT_AUTH
+        return ExitCode.AUTH.value
 
     try:
         raws = fetch._records(client.handle.getVirtualReportSuites(extended_info=True))
     except ApiError as e:
         print(f"api error: {e}", flush=True)
-        return _EXIT_API
+        return ExitCode.API.value
     except AaAutoSdrError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_GENERIC
+        return ExitCode.GENERIC.value
 
     # Normalize parentRsid -> parent_rsid for sort allowlist consistency
     normalized = [
@@ -164,7 +158,7 @@ def _render_with_filters(
         )
     except ValueError as e:
         print(f"error: {e}", flush=True)
-        return _EXIT_USAGE
+        return ExitCode.USAGE.value
 
     return render_records(
         filtered,
