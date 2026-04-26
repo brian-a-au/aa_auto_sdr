@@ -21,14 +21,18 @@ def _print_help() -> int:
         "aa_auto_sdr — Adobe Analytics SDR Generator (API 2.0 only)\n"
         "\n"
         "Usage:\n"
-        "  aa_auto_sdr <RSID>                   Generate SDR for one report suite\n"
+        "  aa_auto_sdr <RSID-or-name>           Generate SDR for one report suite\n"
+        "  aa_auto_sdr --batch <RSID...>        Generate SDRs for multiple report suites\n"
+        "  aa_auto_sdr --list-reportsuites      List all report suites visible to the org\n"
+        "  aa_auto_sdr --list-metrics <RSID>    List metrics (also: --list-dimensions/segments/...)\n"
+        "  aa_auto_sdr --describe-reportsuite <RSID>  Print metadata + per-component counts\n"
         "  aa_auto_sdr --profile-add <name>     Create a credentials profile\n"
         "  aa_auto_sdr --profile <name> ...     Use a named profile\n"
         "  aa_auto_sdr --show-config            Show resolved credentials source\n"
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
-        "v0.1: only single-RSID generation, JSON + Excel outputs, profile auth.\n"
+        "v0.5: single + batch SDR generation, 5 formats, discovery + inspect, --output - piping.\n"
     )
     return 0
 
