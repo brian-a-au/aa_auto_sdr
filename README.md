@@ -120,17 +120,22 @@ The Adobe Analytics 2.0 API uses **OAuth Server-to-Server** authentication. JWT 
 
 #### b. Required scopes
 
-The `SCOPES` value passed to Adobe must include **all** of:
+The `SCOPES` value must include these **three** scopes (verified minimum for the read surface this tool exercises):
 
 ```
 openid
 AdobeID
-read_organizations
 additional_info.projectedProductContext
+```
+
+These two scopes are **recommended** for fuller endpoint coverage and broader org configurations:
+
+```
+read_organizations
 additional_info.job_function
 ```
 
-The `additional_info.job_function` scope is **load-bearing** — without it, `/dimensions`, `/metrics`, and other read endpoints return empty responses or 403 even though authentication appears to succeed.
+If your org's IMS rules require either of the recommended scopes for the endpoints this tool calls, you'll see a 403 on `--list-reportsuites` or empty `/dimensions` / `/metrics` responses despite a successful auth handshake. Add them to your `SCOPES` value if that happens.
 
 #### c. Add the integration to a Product Profile
 
@@ -155,7 +160,7 @@ Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes `~/.aa
 export ORG_ID="...@AdobeOrg"
 export CLIENT_ID="..."
 export SECRET="..."
-export SCOPES="openid AdobeID read_organizations additional_info.projectedProductContext additional_info.job_function"
+export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 
 # Windows cmd
 setx ORG_ID "...@AdobeOrg"
@@ -192,7 +197,7 @@ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list ab
 **Troubleshooting:**
 
 - If `--show-config` succeeds but `--list-reportsuites` returns empty → the integration isn't on a Product Profile (step c).
-- If `--list-reportsuites` returns a 403 → the `additional_info.job_function` scope is missing (step b).
+- If `--list-reportsuites` returns a 403 or `/dimensions` / `/metrics` come back empty despite a successful auth → try adding the recommended scopes (`read_organizations`, `additional_info.job_function`) per step b.
 - For full code-by-code remediation: `uv run aa_auto_sdr --explain-exit-code <CODE>`.
 
 ### 5. Review Output
