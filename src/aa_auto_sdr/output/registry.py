@@ -39,9 +39,12 @@ def get_writer(name: str) -> Writer:
 
 
 def bootstrap() -> None:
-    """Import the v0.1 writer modules so they self-register.
+    """Import the v0.2 writer modules so they self-register.
 
     Heavy deps (pandas, xlsxwriter) are pulled in here, not at registry import,
     so the fast-path entry stays cheap."""
+    from aa_auto_sdr.output.writers import csv as _csv  # noqa: F401
     from aa_auto_sdr.output.writers import excel as _excel  # noqa: F401
+    from aa_auto_sdr.output.writers import html as _html  # noqa: F401
     from aa_auto_sdr.output.writers import json as _json  # noqa: F401
+    from aa_auto_sdr.output.writers import markdown as _markdown  # noqa: F401
