@@ -78,7 +78,10 @@ def test_fetch_metrics_passes_richer_info_flags(mock_client: AaClient) -> None:
     assert kwargs.get("rsid") == "demo.prod"
     assert kwargs.get("description") is True
     assert kwargs.get("tags") is True
-    assert kwargs.get("dataGroup") is True
+    # dataGroup=True intentionally NOT passed — the aanalytics2 wrapper crashes
+    # with KeyError when the API doesn't return that column for the given RS.
+    # See note in fetch_metrics() and CHANGELOG v0.1.1.
+    assert "dataGroup" not in kwargs
 
 
 def test_fetch_segments_includes_definition(mock_client: AaClient) -> None:

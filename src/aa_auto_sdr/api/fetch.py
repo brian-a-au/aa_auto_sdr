@@ -123,8 +123,14 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
 
 
 def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
+    # NOTE: `dataGroup=True` removed in v0.1.1. The aanalytics2 wrapper internally
+    # slices the response DataFrame to a hardcoded column list that includes
+    # `dataGroup` — but the API doesn't always return that column for every RS,
+    # which raises `KeyError: "['dataGroup'] not in index"`. Until upstream fixes
+    # the slice or we figure out which RS shapes are safe, we skip the flag and
+    # leave `data_group` as None on the Metric model.
     raws = _records(
-        client.handle.getMetrics(rsid=rsid, description=True, tags=True, dataGroup=True),
+        client.handle.getMetrics(rsid=rsid, description=True, tags=True),
     )
     known = {
         "id",
@@ -266,6 +272,18 @@ def fetch_virtual_report_suites(
     ]
 
 
+_CLASSIFICATION_ID_KEYS = ("id", "dataSetId", "datasetId", "data_set_id")
+_CLASSIFICATION_NAME_KEYS = ("name", "displayName", "display_name")
+
+
+def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+    for k in keys:
+        v = d.get(k)
+        if v not in (None, ""):
+            return str(v)
+    return None
+
+
 def fetch_classification_datasets(
     client: AaClient,
     rsid: str,
@@ -273,15 +291,38 @@ def fetch_classification_datasets(
     """Lists classification datasets compatible with metrics in the report suite.
 
     This is the only enumeration path Adobe Analytics API 2.0 exposes for
-    classifications — there is no per-dimension list endpoint."""
-    raws = _records(client.handle.getClassificationDatasets(rsid=rsid))
-    known = {"id", "name", "rsid"}
-    return [
-        models.ClassificationDataset(
-            id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
-            rsid=str(r.get("rsid", rsid)),
-            extra=_extra(r, known),
+    classifications — there is no per-dimension list endpoint.
+
+    The endpoint's response shape varies by org/RS. We tolerate `id` /
+    `dataSetId` / `datasetId` for the identifier, and `name` / `displayName`
+    for the human-readable name. Records missing both id-like keys are skipped.
+    Any failure of the underlying call returns an empty list rather than
+    breaking the whole SDR — classifications are best-effort in v0.1.x."""
+    try:
+        raws = _records(client.handle.getClassificationDatasets(rsid=rsid))
+    except Exception as e:  # wrapper raises various exception types
+        import sys
+
+        print(
+            f"warning: classifications fetch failed ({type(e).__name__}: {e}); skipping",
+            file=sys.stderr,
+            flush=True,
         )
-        for r in raws
-    ]
+        return []
+
+    known = {*_CLASSIFICATION_ID_KEYS, *_CLASSIFICATION_NAME_KEYS, "rsid"}
+    out: list[models.ClassificationDataset] = []
+    for r in raws:
+        ds_id = _first_present(r, _CLASSIFICATION_ID_KEYS)
+        if ds_id is None:
+            continue
+        ds_name = _first_present(r, _CLASSIFICATION_NAME_KEYS) or ds_id
+        out.append(
+            models.ClassificationDataset(
+                id=ds_id,
+                name=ds_name,
+                rsid=str(r.get("rsid", rsid)),
+                extra=_extra(r, known),
+            ),
+        )
+    return out
