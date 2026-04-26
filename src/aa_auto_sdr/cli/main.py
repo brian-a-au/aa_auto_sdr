@@ -24,9 +24,29 @@ def run(argv: list[str]) -> int:
 
     # Discovery + inspect actions (handlers added in later tasks; stub for now)
     if ns.list_reportsuites:
-        return _stub_action("--list-reportsuites")
+        from aa_auto_sdr.cli.commands import discovery as discovery_cmd
+
+        return discovery_cmd.run_list_reportsuites(
+            profile=ns.profile,
+            format_name=ns.format,
+            output=ns.output,
+            name_filter=ns.filter,
+            name_exclude=ns.exclude,
+            sort_field=ns.sort,
+            limit=ns.limit,
+        )
     if ns.list_virtual_reportsuites:
-        return _stub_action("--list-virtual-reportsuites")
+        from aa_auto_sdr.cli.commands import discovery as discovery_cmd
+
+        return discovery_cmd.run_list_virtual_reportsuites(
+            profile=ns.profile,
+            format_name=ns.format,
+            output=ns.output,
+            name_filter=ns.filter,
+            name_exclude=ns.exclude,
+            sort_field=ns.sort,
+            limit=ns.limit,
+        )
     if ns.describe_reportsuite:
         return _stub_action("--describe-reportsuite")
     if ns.list_metrics:
