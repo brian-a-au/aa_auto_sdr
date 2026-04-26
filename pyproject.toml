@@ -1,18 +1,31 @@
 [project]
 name = "aa-auto-sdr"
 dynamic = ["version"]
-description = "Adobe Analytics SDR Generator with snapshot diffing (API 2.0 only)"
+description = "Adobe Analytics SDR generator with snapshot/diff. Read-only. API 2.0 only."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.14"
+authors = [{name = "Brian Au"}]
+keywords = [
+    "adobe-analytics",
+    "sdr",
+    "solution-design-reference",
+    "documentation",
+    "snapshot",
+    "diff",
+    "cli",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Documentation",
+    "Topic :: Office/Business",
 ]
 dependencies = [
     "aanalytics2>=0.4.0",
@@ -23,6 +36,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/brian-a-au/aa_auto_sdr"
 Repository = "https://github.com/brian-a-au/aa_auto_sdr"
+Issues = "https://github.com/brian-a-au/aa_auto_sdr/issues"
+Changelog = "https://github.com/brian-a-au/aa_auto_sdr/blob/main/CHANGELOG.md"
 
 [project.scripts]
 aa_auto_sdr = "aa_auto_sdr.__main__:main"
