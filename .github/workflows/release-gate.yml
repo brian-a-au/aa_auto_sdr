@@ -24,7 +24,8 @@ jobs:
         run: uv build
       - name: Smoke-install the wheel
         run: |
-          python -m venv /tmp/install_smoke
+          # Use uv-managed Python 3.14 (system python on GH runners is 3.12, below our >=3.14 floor)
+          uv venv --python 3.14 /tmp/install_smoke
           /tmp/install_smoke/bin/pip install dist/*.whl
           /tmp/install_smoke/bin/aa_auto_sdr -V
           /tmp/install_smoke/bin/aa_auto_sdr --exit-codes
