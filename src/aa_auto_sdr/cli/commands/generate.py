@@ -112,6 +112,8 @@ def run(
         # JSON-only pipe path: build SdrDocuments and emit one JSON value
         # (single object for one RSID, array of objects for multi-match).
         docs: list[dict] = []
+        from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
         for canonical_rsid in canonical_rsids:
             try:
                 doc = build_sdr(
@@ -121,10 +123,10 @@ def run(
                     tool_version=__version__,
                 )
             except ReportSuiteNotFoundError as e:
-                print(f"error: {e}", flush=True)
+                emit_error_envelope(e, ExitCode.NOT_FOUND.value)
                 return ExitCode.NOT_FOUND.value
             except ApiError as e:
-                print(f"api error: {e}", flush=True)
+                emit_error_envelope(e, ExitCode.API.value)
                 return ExitCode.API.value
             docs.append(doc.to_dict())
             if snapshot_dir is not None:

@@ -228,3 +228,22 @@ def test_diff_rsid_mismatch_warning_in_output(tmp_path: Path, capsys) -> None:
     assert rc == 0  # mismatch is a warning, not an error
     out = capsys.readouterr().out
     assert "RSID mismatch" in out
+
+
+def test_diff_json_pipe_failure_writes_envelope_to_stderr(tmp_path, capsys) -> None:
+    """When --format json --output - and resolve fails, stderr gets a JSON envelope."""
+    import json as _json
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    rc = diff_cmd.run(
+        a=str(tmp_path / "nope.json"),
+        b=str(tmp_path / "also-nope.json"),
+        format_name="json",
+        output="-",
+        profile=None,
+    )
+    assert rc == 16
+    captured = capsys.readouterr()
+    payload = _json.loads(captured.err.strip())
+    assert payload["error"]["code"] == 16
+    assert payload["error"]["type"] in ("SnapshotResolveError", "SnapshotSchemaError")

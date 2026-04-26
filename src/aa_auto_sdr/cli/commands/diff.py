@@ -57,7 +57,12 @@ def run(
         env_a = resolve_snapshot(a, profile_snapshot_dir=profile_snapshot_dir, repo_root=repo_root)
         env_b = resolve_snapshot(b, profile_snapshot_dir=profile_snapshot_dir, repo_root=repo_root)
     except SnapshotError as exc:
-        print(f"snapshot error: {exc}", flush=True)
+        if fmt in ("json", "markdown") and output == "-":
+            from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+            emit_error_envelope(exc, ExitCode.SNAPSHOT.value)
+        else:
+            print(f"snapshot error: {exc}", flush=True)
         return ExitCode.SNAPSHOT.value
 
     report = compare(env_a, env_b)
