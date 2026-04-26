@@ -212,8 +212,13 @@ def test_list_reportsuites_auth_error_returns_11(mock_client_cls, env_creds, cap
     from aa_auto_sdr.cli.commands import discovery as _disc
 
     rc = _disc.run_list_reportsuites(
-        profile=None, format_name=None, output=None,
-        name_filter=None, name_exclude=None, sort_field=None, limit=None,
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
     )
     assert rc == 11
     assert "auth error" in capsys.readouterr().out
@@ -229,8 +234,13 @@ def test_list_reportsuites_api_error_returns_12(mock_client_cls, env_creds, caps
     from aa_auto_sdr.cli.commands import discovery as _disc
 
     rc = _disc.run_list_reportsuites(
-        profile=None, format_name=None, output=None,
-        name_filter=None, name_exclude=None, sort_field=None, limit=None,
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
     )
     assert rc == 12
     assert "api error" in capsys.readouterr().out
@@ -243,8 +253,13 @@ def test_list_virtual_reportsuites_no_creds_returns_10(monkeypatch: pytest.Monke
     from aa_auto_sdr.cli.commands import discovery as _disc
 
     rc = _disc.run_list_virtual_reportsuites(
-        profile=None, format_name=None, output=None,
-        name_filter=None, name_exclude=None, sort_field=None, limit=None,
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
     )
     assert rc == 10
 
@@ -257,8 +272,13 @@ def test_list_virtual_reportsuites_auth_error_returns_11(mock_client_cls, env_cr
     from aa_auto_sdr.cli.commands import discovery as _disc
 
     rc = _disc.run_list_virtual_reportsuites(
-        profile=None, format_name=None, output=None,
-        name_filter=None, name_exclude=None, sort_field=None, limit=None,
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
     )
     assert rc == 11
 
@@ -273,8 +293,13 @@ def test_list_virtual_reportsuites_api_error_returns_12(mock_client_cls, env_cre
     from aa_auto_sdr.cli.commands import discovery as _disc
 
     rc = _disc.run_list_virtual_reportsuites(
-        profile=None, format_name=None, output=None,
-        name_filter=None, name_exclude=None, sort_field=None, limit=None,
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
     )
     assert rc == 12
 

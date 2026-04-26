@@ -302,7 +302,9 @@ def test_generate_snapshot_without_profile_returns_10(
 # ---------------------------------------------------------------------------
 
 
-def test_generate_pipe_no_creds_emits_envelope_to_stderr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+def test_generate_pipe_no_creds_emits_envelope_to_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
     """ConfigError on pipe path must JSON-envelope to stderr; stdout must stay empty."""
     for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
         monkeypatch.delenv(v, raising=False)
