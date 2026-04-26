@@ -12,10 +12,10 @@ from aa_auto_sdr.sdr.document import SdrDocument
 class JsonWriter:
     extension = ".json"
 
-    def write(self, doc: SdrDocument, output_path: Path) -> Path:
+    def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
         write_json(target, doc.to_dict())
-        return target
+        return [target]
 
 
 register_writer("json", JsonWriter())
