@@ -1,0 +1,4 @@
+﻿id,name,type,category,precision,segmentable,description,tags,data_group,extra
+metrics/orders,Orders,int,Commerce,0,true,Conversion events,[],Commerce,{}
+metrics/pageviews,Page Views,int,Traffic,0,true,Total page views,[],,{}
+metrics/visits,Visits,int,Traffic,0,true,,[],,{}

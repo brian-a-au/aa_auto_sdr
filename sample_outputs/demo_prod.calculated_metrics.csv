@@ -1,0 +1,2 @@
+﻿id,name,description,rsid,owner_id,polarity,precision,type,definition,tags,categories,extra
+cm_1,Conversion Rate,Orders divided by visits,demo.prod,42,positive,4,decimal,"{""formula"": {""args"": [""metrics/orders"", ""metrics/visits""], ""func"": ""divide""}}",[],"[""Conversion""]",{}

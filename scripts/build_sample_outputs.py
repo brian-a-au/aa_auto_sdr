@@ -132,15 +132,16 @@ def main() -> int:
     if env_b["components"]["metrics"]:
         env_b["components"]["metrics"] = env_b["components"]["metrics"][1:]
 
-    (OUT / "synthetic_snapshot_a.json").write_text(json.dumps(env_a, indent=2, sort_keys=True) + "\n")
-    (OUT / "synthetic_snapshot_b.json").write_text(json.dumps(env_b, indent=2, sort_keys=True) + "\n")
+    # Explicit utf-8 — Windows' default 'charmap' codec cannot encode `→` and other unicode
+    (OUT / "synthetic_snapshot_a.json").write_text(json.dumps(env_a, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    (OUT / "synthetic_snapshot_b.json").write_text(json.dumps(env_b, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     report = compare(env_a, env_b)
-    (OUT / "diff_console.txt").write_text(_strip_ansi(render_console(report)))
-    (OUT / "diff_report.json").write_text(render_diff_json(report))
-    (OUT / "diff_report.md").write_text(render_diff_md(report))
+    (OUT / "diff_console.txt").write_text(_strip_ansi(render_console(report)), encoding="utf-8")
+    (OUT / "diff_report.json").write_text(render_diff_json(report), encoding="utf-8")
+    (OUT / "diff_report.md").write_text(render_diff_md(report), encoding="utf-8")
 
-    (OUT / "README.md").write_text(_README_TEXT)
+    (OUT / "README.md").write_text(_README_TEXT, encoding="utf-8")
 
     print(f"sample_outputs/ generated at {OUT}")
     return 0

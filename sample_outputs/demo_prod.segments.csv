@@ -1,0 +1,3 @@
+﻿id,name,description,rsid,owner_id,definition,compatibility,tags,created,modified,extra
+s_111,Mobile Users,Mobile device traffic,demo.prod,42,"{""container"": {""context"": ""hits"", ""func"": ""container"", ""pred"": {""func"": ""eq"", ""val"": ""mobile""}}, ""version"": [1, 0, 0]}",{},[],2025-01-01T00:00:00Z,2025-01-02T00:00:00Z,{}
+s_222,Returning Visitors,,demo.prod,42,"{""container"": {""context"": ""visits"", ""func"": ""container"", ""pred"": {""func"": ""eq"", ""val"": ""returning""}}, ""version"": [1, 0, 0]}",{},[],,,{}
