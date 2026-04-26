@@ -1,4 +1,5 @@
 """CLI dispatcher — populated incrementally."""
+
 from __future__ import annotations
 
 

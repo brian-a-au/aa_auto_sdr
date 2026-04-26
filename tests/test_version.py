@@ -1,4 +1,5 @@
 """Verify version is exposed and follows expected format."""
+
 import re
 
 import aa_auto_sdr

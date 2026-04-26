@@ -1,5 +1,6 @@
 """Fast-path entry point. Handles --version/--help/--exit-codes/--completion
 without importing any heavy dependency. Delegates everything else to cli.main."""
+
 from __future__ import annotations
 
 import sys
