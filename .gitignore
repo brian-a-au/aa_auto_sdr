@@ -42,3 +42,5 @@ config.json
 *.csv
 !tests/fixtures/**/*.csv
 !tests/fixtures/**/*.xlsx
+!sample_outputs/**/*.csv
+!sample_outputs/**/*.xlsx

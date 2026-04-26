@@ -1,0 +1,206 @@
+{
+  "captured_at": "2026-04-01T12:00:00+00:00",
+  "components": {
+    "calculated_metrics": [
+      {
+        "categories": [
+          "Conversion"
+        ],
+        "definition": {
+          "formula": {
+            "args": [
+              "metrics/orders",
+              "metrics/visits"
+            ],
+            "func": "divide"
+          }
+        },
+        "description": "Orders divided by visits",
+        "extra": {},
+        "id": "cm_1",
+        "name": "Conversion Rate",
+        "owner_id": 42,
+        "polarity": "positive",
+        "precision": 4,
+        "rsid": "demo.prod",
+        "tags": [],
+        "type": "decimal"
+      }
+    ],
+    "classifications": [
+      {
+        "extra": {},
+        "id": "ds_5",
+        "name": "Campaign Metadata",
+        "rsid": "demo.prod"
+      }
+    ],
+    "dimensions": [
+      {
+        "category": "Conversion",
+        "description": "Authenticated user identifier",
+        "extra": {},
+        "id": "variables/evar1",
+        "name": "User ID",
+        "parent": "",
+        "pathable": false,
+        "tags": [],
+        "type": "string"
+      },
+      {
+        "category": "Conversion",
+        "description": null,
+        "extra": {},
+        "id": "variables/evar2",
+        "name": "Plan",
+        "parent": "",
+        "pathable": false,
+        "tags": [],
+        "type": "string"
+      },
+      {
+        "category": null,
+        "description": null,
+        "extra": {},
+        "id": "variables/events",
+        "name": "Custom Events",
+        "parent": "",
+        "pathable": false,
+        "tags": [],
+        "type": "counter"
+      },
+      {
+        "category": "Content",
+        "description": "Section taxonomy",
+        "extra": {},
+        "id": "variables/prop1",
+        "name": "Page Type",
+        "parent": "",
+        "pathable": true,
+        "tags": [
+          "taxonomy"
+        ],
+        "type": "string"
+      }
+    ],
+    "metrics": [
+      {
+        "category": "Commerce",
+        "data_group": "Commerce",
+        "description": "Conversion events",
+        "extra": {},
+        "id": "metrics/orders",
+        "name": "Orders",
+        "precision": 0,
+        "segmentable": true,
+        "tags": [],
+        "type": "int"
+      },
+      {
+        "category": "Traffic",
+        "data_group": null,
+        "description": "Total page views",
+        "extra": {},
+        "id": "metrics/pageviews",
+        "name": "Page Views",
+        "precision": 0,
+        "segmentable": true,
+        "tags": [],
+        "type": "int"
+      },
+      {
+        "category": "Traffic",
+        "data_group": null,
+        "description": null,
+        "extra": {},
+        "id": "metrics/visits",
+        "name": "Visits",
+        "precision": 0,
+        "segmentable": true,
+        "tags": [],
+        "type": "int"
+      }
+    ],
+    "report_suite": {
+      "currency": "USD",
+      "name": "Demo Production",
+      "parent_rsid": null,
+      "rsid": "demo.prod",
+      "timezone": "US/Pacific"
+    },
+    "segments": [
+      {
+        "compatibility": {},
+        "created": "2025-01-01T00:00:00Z",
+        "definition": {
+          "container": {
+            "context": "hits",
+            "func": "container",
+            "pred": {
+              "func": "eq",
+              "val": "mobile"
+            }
+          },
+          "version": [
+            1,
+            0,
+            0
+          ]
+        },
+        "description": "Mobile device traffic",
+        "extra": {},
+        "id": "s_111",
+        "modified": "2025-01-02T00:00:00Z",
+        "name": "Mobile Users",
+        "owner_id": 42,
+        "rsid": "demo.prod",
+        "tags": []
+      },
+      {
+        "compatibility": {},
+        "created": null,
+        "definition": {
+          "container": {
+            "context": "visits",
+            "func": "container",
+            "pred": {
+              "func": "eq",
+              "val": "returning"
+            }
+          },
+          "version": [
+            1,
+            0,
+            0
+          ]
+        },
+        "description": null,
+        "extra": {},
+        "id": "s_222",
+        "modified": null,
+        "name": "Returning Visitors",
+        "owner_id": 42,
+        "rsid": "demo.prod",
+        "tags": []
+      }
+    ],
+    "virtual_report_suites": [
+      {
+        "curated_components": [],
+        "description": "EU-only traffic view",
+        "extra": {},
+        "id": "vrs_eu",
+        "modified": "2025-03-01T00:00:00Z",
+        "name": "EU Visitors Only",
+        "parent_rsid": "demo.prod",
+        "segment_list": [
+          "s_eu"
+        ],
+        "timezone": "Europe/Berlin"
+      }
+    ]
+  },
+  "rsid": "demo.prod",
+  "schema": "aa-sdr-snapshot/v1",
+  "tool_version": "1.0.0"
+}

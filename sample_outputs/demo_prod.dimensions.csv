@@ -1,0 +1,5 @@
+﻿id,name,type,category,parent,pathable,description,tags,extra
+variables/evar1,User ID,string,Conversion,,false,Authenticated user identifier,[],{}
+variables/evar2,Plan,string,Conversion,,false,,[],{}
+variables/events,Custom Events,counter,,,false,,[],{}
+variables/prop1,Page Type,string,Content,,true,Section taxonomy,"[""taxonomy""]",{}

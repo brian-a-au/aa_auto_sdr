@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.0] — 2026-04-26
+
+The first production release.
+
+### What's in 1.0.0
+
+- **Generation** of Solution Design Reference (SDR) documentation for one (`aa_auto_sdr <RSID>`) or many (`--batch RSID...`) Adobe Analytics report suites. Five output formats (Excel, CSV, JSON, HTML, Markdown) plus four aliases (`all`, `reports`, `data`, `ci`).
+- **Discovery & inspection** commands without generating a full SDR: `--list-reportsuites`, `--list-virtual-reportsuites`, `--describe-reportsuite`, `--list-{metrics,dimensions,segments,calculated-metrics,classification-datasets}`, with `--filter`, `--exclude`, `--sort`, `--limit`.
+- **Snapshot save** (`--snapshot`) and **`--diff <a> <b>`** between any two snapshots — the "version control of SDR" capability. Tokens: bare path, `<rsid>@<ts>`, `<rsid>@latest`, `<rsid>@previous`, `git:<ref>:<path>`. Three renderers: console, JSON, Markdown.
+- **Authentication** via OAuth Server-to-Server (env vars, named profile, `.env`, or `config.json` — checked in that precedence order).
+- **Read-only** against Adobe Analytics, **forever**. CI-enforced via meta-test scanning `src/aa_auto_sdr/api/` for any write-shape SDK call.
+- **API 2.0 only.** No legacy 1.4 paths anywhere. CI-enforced via meta-test.
+- **Fast-path actions** complete in <100ms: `-V`/`--version`, `-h`/`--help`, `--exit-codes`, `--explain-exit-code <CODE>`, `--completion {bash,zsh,fish}`.
+- **Machine-readable error envelope** on stderr for pipe-path failures (`--output -` / `--format json|markdown`).
+- **CI** gates on Linux, macOS, and Windows: tests + 90% coverage, ruff lint + format, version-sync, wheel build + smoke-install (`release-gate.yml`).
+- **Documentation** covering quickstart, CLI reference, configuration, snapshot/diff, and output formats. README mirrors the `cja_auto_sdr` structure (sister-project parity for users moving between AA and CJA).
+- **`sample_outputs/`** in the repo so anyone can browse representative outputs without installing.
+- **`pyproject.toml`** classifiers promoted to `Development Status :: 5 - Production/Stable`. Wheel + sdist build cleanly via `uv build`.
+
+### Out of scope (deferred)
+
+- **PyPI publish.** The repo is publish-ready (wheel builds, gates pass, metadata is correct), but the actual upload to pypi.org is not part of v1.0.0. Future v1.1+ may add `publish.yml` with trusted publishing.
+- **`core/logging.py` structured logging.** Defer.
+- **`--stats` summary command.** Dropped.
+- **Quality / validation engine, drift trending, circuit breakers, API auto-tuning.** Out of scope; defer indefinitely.
+- **`docs/CONFIGURATION.md` / `docs/SNAPSHOT_DIFF.md` / `docs/OUTPUT_FORMATS.md` further deepening.** First cuts shipped in 1.0.0; expansions on demand.
+
 ## [0.9.0] — 2026-04-26
 
 ### Added

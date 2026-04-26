@@ -1,0 +1,2 @@
+﻿id,name,parent_rsid,timezone,description,segment_list,curated_components,modified,extra
+vrs_eu,EU Visitors Only,demo.prod,Europe/Berlin,EU-only traffic view,"[""s_eu""]",[],2025-03-01T00:00:00Z,{}

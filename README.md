@@ -1,175 +1,351 @@
-# aa_auto_sdr
+# aa_auto_sdr — Adobe Analytics SDR Generator
 
-Adobe Analytics SDR Generator — a CLI that generates Solution Design Reference documentation from an Adobe Analytics report suite. Sister project to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does **not** share code.
+[![tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)
+[![lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)
+[![release-gate](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/release-gate.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/release-gate.yml)
+[![version-sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)
 
-> **Status:** v0.9 — release-gate hardened. Single + batch SDR generation, snapshot save, `--diff`, exit-code metacommands, shell completion, machine-readable error envelopes, four meta-tests, expanded ruff rule set, Linux CI. Five output formats. OAuth Server-to-Server auth.
+A production-ready Python CLI that automates the creation of **Solution Design Reference (SDR)** documentation from your Adobe Analytics implementation. **Read-only** against Adobe Analytics. **API 2.0 only**.
 
-See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for a 90-second onboarding and [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md) for the full flag table.
+Sister project to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does **not** share code.
 
-## Requirements
+## What It Is
 
-- Python 3.14+
-- `uv`
-- An Adobe Analytics OAuth Server-to-Server credential set (Org ID, Client ID, Secret, Scopes)
+A **Solution Design Reference** is the documentation that bridges your business requirements and your analytics implementation. It catalogs every dimension, metric, segment, calculated metric, virtual report suite, and classification dataset in your Adobe Analytics report suite — the single source of truth for what you collect and how it's configured.
 
-## Install
+**The Problem:** Manual SDR documentation is time-consuming, error-prone, and quickly outdated. Teams export data, format spreadsheets, and cross-reference configurations only to repeat the entire process when components change.
+
+**The Solution:** This tool connects to the Adobe Analytics 2.0 API, extracts every component of a report suite, and renders the result in five formats (Excel, CSV, JSON, HTML, Markdown). It also persists snapshots of the normalized model and produces structured diffs between any two snapshots — version control of SDR.
+
+### How It Works
+
+1. **Authenticates** via Adobe OAuth Server-to-Server (env vars, named profile, `.env`, or `config.json`).
+2. **Fetches** every component from your report suite via the Adobe Analytics 2.0 API. Read-only — no writes ever.
+3. **Builds** an `SdrDocument` — the normalized, SDK-agnostic boundary type that all renderers and snapshots consume.
+4. **Renders** to your chosen format(s) and optionally **persists a snapshot** under `~/.aa/orgs/<profile>/snapshots/` for later diffing.
+
+### Key Features
+
+| Category | Feature |
+|----------|---------|
+| **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
+| | Batch generation across N report suites with continue-on-error |
+| | Five output formats: Excel, CSV, JSON, HTML, Markdown |
+| | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
+| | Multi-match name fan-out: a name matching N suites generates N SDRs |
+| **Discovery & Inspection** | `--list-reportsuites`, `--list-virtual-reportsuites` |
+| | `--describe-reportsuite <RSID>` — metadata + per-component counts |
+| | `--list-{metrics,dimensions,segments,calculated-metrics,classification-datasets} <RSID>` |
+| | `--filter`, `--exclude`, `--sort`, `--limit` on every list command |
+| **Snapshot & Diff** | `--snapshot` opt-in persist alongside generation |
+| | `--diff <a> <b>` between any two snapshots |
+| | Token grammar: bare path / `<rsid>@<ts>` / `<rsid>@latest` / `<rsid>@previous` / `git:<ref>:<path>` |
+| | Three diff renderers: console (ANSI-colored), JSON (sorted keys, jq-friendly), Markdown (GFM tables) |
+| | Identity by component ID, never by name (a name change is *modification*) |
+| | Value normalization (whitespace, NaN/None/`""`, order-insensitive `tags`/`categories`) suppresses false-positive diffs |
+| **Authentication** | OAuth Server-to-Server (env vars / profile / `.env` / `config.json`) |
+| | Named profiles for multi-org users (`~/.aa/orgs/<name>/`) |
+| | `--show-config` reports which credential source resolved |
+| | `--profile-add <name>` interactive credential capture |
+| **Output** | `--output -` stdout pipe for json (single-RSID generation) and json/markdown (diff) |
+| | Machine-readable JSON error envelope on stderr for pipe-path failures |
+| | Atomic file writes (temp + rename) for every output format |
+| **Reliability** | **Read-only against Adobe Analytics, forever** — CI-enforced via meta-test scanning `src/aa_auto_sdr/api/` for any write-shape SDK call |
+| | **API 2.0 only, no 1.4 paths** — CI-enforced via meta-test |
+| | 90% coverage gate on the unit slice |
+| | CI matrix on Linux + macOS + Windows |
+| | Atomic snapshot writes; sorted-key JSON for git-friendly diffs |
+| **Developer UX** | `--exit-codes` lists every code; `--explain-exit-code <CODE>` prints meaning + remediation |
+| | `--completion {bash,zsh,fish}` emits a static shell-completion script |
+| | Sub-100ms fast-path for `-V`/`--version`/`-h`/`--help`/`--exit-codes`/`--explain-exit-code`/`--completion` |
+| | `--help` covers every flag |
+
+**Explicitly out of scope** (not in v1.0.0; defer to future versions if asked): no quality / validation engine; no parallel batch processing; no org-wide analysis or clustering; no derived-fields or calculated-metrics inventory mode; no auto-snapshot or retention policies; no `--stats` summary command; not yet on PyPI.
+
+### Who It's For
+
+- **Adobe Analytics implementers** documenting report suite state for stakeholders or audits
+- **Analytics teams** capturing SDR snapshots in git for change tracking
+- **Consultants** managing multiple client implementations across orgs (multi-profile)
+- **Data Governance** teams needing a structured artifact of every RS configuration over time
+- **DevOps Engineers** automating SDR drift detection in CI/CD pipelines
+
+## Quick Start
+
+> **macOS/Linux:** prefix commands with `uv run` (e.g. `uv run aa_auto_sdr --list-reportsuites`).
+> **Windows:** activate the venv first (`.venv\Scripts\activate`), then run commands directly.
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/brian-a-au/aa_auto_sdr
+cd aa_auto_sdr
+```
+
+### 2. Install Dependencies
+
+Install [`uv`](https://docs.astral.sh/uv/) — pick whichever path is convenient:
+
+```bash
+# macOS / Linux (recommended)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or via pip on any platform
+pip install uv
+```
+
+Sync the project (creates `.venv/` and installs all dependencies):
 
 ```bash
 uv sync --all-extras
 ```
 
-## Authenticate
+**Windows:** activate the virtual environment so subsequent commands work without the `uv run` prefix:
 
-Pick one. Resolution precedence: `--profile` > env vars > `.env` > `./config.json`.
+```powershell
+.venv\Scripts\activate
+```
 
-### Profile (recommended for daily use)
+### 3. Configure Credentials (Adobe Analytics API 2.0, OAuth Server-to-Server)
+
+The Adobe Analytics 2.0 API uses **OAuth Server-to-Server** authentication. JWT auth is fully deprecated as of 2025-01-01 — do not use it.
+
+#### a. Create an Adobe Developer Console project
+
+1. Visit https://developer.adobe.com/console
+2. Create a new project (or open an existing one)
+3. Add the **Adobe Analytics API**
+4. Choose **OAuth Server-to-Server** as the authentication method
+5. The console generates: **Org ID**, **Client ID**, **Client Secret**
+
+#### b. Required scopes
+
+The `SCOPES` value passed to Adobe must include **all** of:
+
+```
+openid
+AdobeID
+read_organizations
+additional_info.projectedProductContext
+additional_info.job_function
+```
+
+The `additional_info.job_function` scope is **load-bearing** — without it, `/dimensions`, `/metrics`, and other read endpoints return empty responses or 403 even though authentication appears to succeed.
+
+#### c. Add the integration to a Product Profile
+
+In the **Adobe Admin Console**, add the integration to an Adobe Analytics **Product Profile**. Without this, `Login().getCompanyId()` returns no companies and `Analytics()` calls return empty data. `aa_auto_sdr --show-config` cannot detect this — the first generation attempt is what surfaces the problem.
+
+#### d. Save credentials
+
+Pick **one** of the four sources (resolution precedence: `--profile` → env vars → `.env` → `config.json`):
+
+**Option 1 — Named profile (recommended for daily use):**
 
 ```bash
 uv run aa_auto_sdr --profile-add prod
 ```
 
-Stored at `~/.aa/orgs/prod/config.json`.
+Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes `~/.aa/orgs/prod/config.json`. Use with `--profile prod` on subsequent commands.
+
+**Option 2 — Environment variables:**
 
 ```bash
-uv run aa_auto_sdr <RSID> --profile prod
+# macOS / Linux
+export ORG_ID="...@AdobeOrg"
+export CLIENT_ID="..."
+export SECRET="..."
+export SCOPES="openid AdobeID read_organizations additional_info.projectedProductContext additional_info.job_function"
+
+# Windows cmd
+setx ORG_ID "...@AdobeOrg"
+setx CLIENT_ID "..."
+# ...
+
+# PowerShell
+$Env:ORG_ID = "...@AdobeOrg"
+$Env:CLIENT_ID = "..."
+# ...
 ```
 
-### Environment variables
+(See [the upstream SDK env-var auth guide](https://github.com/pitchmuc/adobe-analytics-api-2.0/blob/master/docs/authenticating_without_config_json.md) for more on env-var-based setup, especially for CI/server environments.)
+
+**Option 3 — `config.json` in repo root:**
 
 ```bash
-export ORG_ID=...@AdobeOrg
-export CLIENT_ID=...
-export SECRET=...
-export SCOPES=...
-uv run aa_auto_sdr <RSID>
+cp config.json.example config.json
+# Edit config.json — already gitignored
 ```
 
-### `.env` file
+**Option 4 — `.env` file** (requires `python-dotenv`, an optional extra): same fields as env vars, in a `.env` file in the working directory.
 
-`uv add python-dotenv` and copy `.env.example` to `.env`.
+### 4. Verify Setup & Run
 
-### `config.json`
-
-A `config.json` in the working directory with the same fields as the profile.
-
-## Generate an SDR
+Confirm credentials and connectivity, then generate your first SDR:
 
 ```bash
-uv run aa_auto_sdr <RSID>                     # default Excel
-uv run aa_auto_sdr <RSID> --format json
-uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr
+uv run aa_auto_sdr --show-config        # which credential source resolved
+uv run aa_auto_sdr --list-reportsuites  # confirms auth + scope; lists visible RSes
+uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list above
 ```
 
-All five formats are supported (`excel`, `csv`, `json`, `html`, `markdown`) plus aliases `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown).
+**Troubleshooting:**
 
-The positional argument accepts either an RSID or a report-suite name:
+- If `--show-config` succeeds but `--list-reportsuites` returns empty → the integration isn't on a Product Profile (step c).
+- If `--list-reportsuites` returns a 403 → the `additional_info.job_function` scope is missing (step b).
+- For full code-by-code remediation: `uv run aa_auto_sdr --explain-exit-code <CODE>`.
+
+### 5. Review Output
+
+Default format produces `<RSID>.xlsx` in the working directory. Use `--format` for alternates:
 
 ```bash
-uv run aa_auto_sdr "Adobe Store"           # name lookup (case-insensitive exact match)
-uv run aa_auto_sdr dgeo1xxpnwcidadobestore # RSID
+uv run aa_auto_sdr <RSID> --format json    # single JSON file
+uv run aa_auto_sdr <RSID> --format all     # all five formats at once
+uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
 ```
 
-A name matching multiple report suites produces an SDR for each match (mirrors `cja_auto_sdr` convention). Output filenames are always keyed off the canonical RSID, never the input name.
+Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format looks like before running anything.
 
-## Generate SDRs for multiple report suites (`--batch`)
+## Common Use Cases
 
-```bash
-uv run aa_auto_sdr --batch RSID1 RSID2 RSID3
-uv run aa_auto_sdr --batch "Adobe Store" "Demo Production" --format json --output-dir /tmp/sdr
+> Commands below omit the `uv run` prefix for brevity (macOS/Linux: prepend `uv run`; Windows: activate venv first).
+
+| Task | Command |
+|------|---------|
+| **Getting Started** | |
+| List visible report suites | `aa_auto_sdr --list-reportsuites` |
+| Show resolved credentials source | `aa_auto_sdr --show-config` |
+| Print help | `aa_auto_sdr --help` |
+| **SDR Generation** | |
+| Single RS by RSID | `aa_auto_sdr dgeo1xxpnwcidadobestore` |
+| Single RS by name | `aa_auto_sdr "Adobe Store"` |
+| Custom output directory | `aa_auto_sdr <RSID> --output-dir /tmp/sdr` |
+| Batch (continue-on-error) | `aa_auto_sdr --batch RS1 RS2 RS3` |
+| Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
+| **Output Formats** | |
+| Excel (default) | `aa_auto_sdr <RSID>` |
+| JSON | `aa_auto_sdr <RSID> --format json` |
+| All five formats | `aa_auto_sdr <RSID> --format all` |
+| Pipe JSON to jq | `aa_auto_sdr <RSID> --format json --output - \| jq '.report_suite'` |
+| Aliases (excel + markdown) | `aa_auto_sdr <RSID> --format reports` |
+| **Discovery & Inspection** | |
+| List metrics for one RS | `aa_auto_sdr --list-metrics <RSID>` |
+| Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |
+| Describe (counts only) | `aa_auto_sdr --describe-reportsuite <RSID>` |
+| List as JSON for scripting | `aa_auto_sdr --list-reportsuites --format json --output -` |
+| **Snapshot** | |
+| Capture snapshot alongside generation | `aa_auto_sdr <RSID> --snapshot --profile prod` |
+| Capture snapshots in batch | `aa_auto_sdr --batch RS1 RS2 --snapshot --profile prod` |
+| **Diff** | |
+| Diff two snapshot files | `aa_auto_sdr --diff a.json b.json` |
+| Diff `@latest` vs `@previous` | `aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod` |
+| Diff at a specific timestamp | `aa_auto_sdr --diff <RSID>@2026-04-26T17-29-01+00-00 <RSID>@latest --profile prod` |
+| Diff at a git ref | `aa_auto_sdr --diff git:HEAD~1:snapshots/x.json git:HEAD:snapshots/x.json` |
+| Diff to JSON pipe | `aa_auto_sdr --diff a.json b.json --format json --output -` |
+| Diff to Markdown file | `aa_auto_sdr --diff a.json b.json --format markdown --output diff.md` |
+| **Profile / Config** | |
+| Create profile interactively | `aa_auto_sdr --profile-add prod` |
+| Verify resolved source | `aa_auto_sdr --show-config` |
+| **Fast-path / Help** | |
+| Print version | `aa_auto_sdr -V` |
+| List exit codes | `aa_auto_sdr --exit-codes` |
+| Explain one exit code | `aa_auto_sdr --explain-exit-code 11` |
+| Generate completion script | `aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr` |
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [Quickstart](docs/QUICKSTART.md) | 90-second onboarding from clone to first SDR |
+| [CLI Reference](docs/CLI_REFERENCE.md) | Every flag with examples + exit codes + token grammar |
+| [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, troubleshooting |
+| [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, common workflows |
+| [Output Formats](docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
+| [Sample Outputs](sample_outputs/) | Browse representative outputs without installing |
+
+## Requirements
+
+- Python 3.14+
+- Adobe Developer Console project with **Adobe Analytics API** access (OAuth Server-to-Server)
+- Integration added to an Adobe Analytics **Product Profile** in Admin Console
+- Network connectivity to Adobe APIs
+
+## Project Structure
+
+High-level layout (representative, not exhaustive):
+
+```
+aa_auto_sdr/
+├── .github/
+│   └── workflows/             # tests, lint, version-sync, release-gate
+├── src/
+│   └── aa_auto_sdr/           # main package (src layout)
+│       ├── __init__.py
+│       ├── __main__.py        # fast-path entry (sub-100ms for --version/--help/--exit-codes/--completion)
+│       ├── api/               # aanalytics2 wrapper, auth, fetchers, normalized models
+│       │   ├── client.py      # only file (besides auth/fetch) that imports aanalytics2
+│       │   ├── auth.py
+│       │   ├── fetch.py       # per-component fetchers; coerces SDK shapes
+│       │   └── models.py      # normalized dataclasses (boundary types)
+│       ├── cli/               # argparse + dispatch
+│       │   ├── parser.py
+│       │   ├── main.py
+│       │   ├── list_output.py # table/json/csv rendering for list/inspect
+│       │   └── commands/      # one module per command
+│       ├── core/              # cross-cutting utilities
+│       │   ├── version.py     # canonical __version__
+│       │   ├── exceptions.py  # typed exception hierarchy
+│       │   ├── exit_codes.py  # central ExitCode enum + ROWS + EXPLANATIONS
+│       │   ├── colors.py      # ANSI helpers (auto-disabled for non-TTY / NO_COLOR)
+│       │   ├── credentials.py # OAuth credential resolution + precedence
+│       │   ├── profiles.py    # ~/.aa/orgs/<name>/ profile CRUD
+│       │   ├── constants.py   # BANNER_WIDTH, etc.
+│       │   └── json_io.py     # atomic JSON read/write
+│       ├── output/            # format writers + diff renderers + error envelope
+│       │   ├── protocols.py
+│       │   ├── registry.py
+│       │   ├── error_envelope.py  # JSON envelope on stderr for pipe-path failures
+│       │   ├── _helpers.py
+│       │   ├── writers/       # excel.py, csv.py, json.py, html.py, markdown.py
+│       │   └── diff_renderers/  # console.py, json.py, markdown.py
+│       ├── pipeline/          # run coordination
+│       │   ├── single.py      # single-RSID
+│       │   ├── batch.py       # multi-RSID, sequential, continue-on-error
+│       │   └── models.py      # RunResult, BatchResult, BatchFailure
+│       ├── sdr/               # SDR assembly
+│       │   ├── builder.py     # pure: AaClient + RSID -> SdrDocument
+│       │   └── document.py    # SdrDocument boundary type
+│       └── snapshot/          # version control of SDR
+│           ├── store.py       # save/load + path convention
+│           ├── schema.py      # aa-sdr-snapshot/v1 envelope + validator
+│           ├── resolver.py    # token grammar dispatcher
+│           ├── git.py         # git show wrapper
+│           ├── comparator.py  # diff algorithm + value normalization
+│           └── models.py      # DiffReport, ComponentDiff, FieldDelta
+├── tests/                     # pytest suite — unit / integration / meta
+│   └── meta/                  # CI-enforced architectural invariants
+├── scripts/
+│   ├── check_version_sync.py  # version drift gate
+│   └── build_sample_outputs.py  # deterministic sample generator
+├── docs/                      # user-facing markdown (gitignored docs/superpowers/ excluded)
+├── sample_outputs/            # representative outputs, generated from fixture
+├── pyproject.toml
+├── uv.lock
+├── README.md                  # this file
+├── CHANGELOG.md
+├── LICENSE
+├── config.json.example
+└── .env.example
 ```
 
-Sequential generation across N report suites. Continue-on-error: a failure on one
-RSID doesn't stop the rest. After the run, a summary banner prints counts,
-success rate, total bytes/duration, and per-RSID ✓/✗ lists with timing. Names
-that match multiple report suites fan out within the batch; duplicate
-identifiers are deduplicated after resolution. Exit codes: `0` (all ok), `14`
-(partial), or the last failure's code (all failed). `--output -` is rejected
-for batch — use `--output-dir`.
+## License
 
-## Snapshot and diff (v0.7)
+See [LICENSE](LICENSE) for details (MIT).
 
-Persist a normalized snapshot of the SDR alongside generation:
+## Additional Resources
 
-```bash
-uv run aa_auto_sdr <RSID> --snapshot --profile prod
-uv run aa_auto_sdr --batch RS1 RS2 --snapshot --profile prod
-```
-
-Snapshots land under `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json`.
-JSON, sorted keys, atomic write — git-diff-friendly out of the box.
-
-Compare any two snapshots:
-
-```bash
-# Path-based
-uv run aa_auto_sdr --diff snap-a.json snap-b.json
-
-# Profile-scoped aliases
-uv run aa_auto_sdr --diff demo.prod@latest demo.prod@previous --profile prod
-uv run aa_auto_sdr --diff demo.prod@2026-04-20T10-00-00+00-00 demo.prod@latest --profile prod
-
-# Git ref (snapshot file at a specific commit)
-uv run aa_auto_sdr --diff git:HEAD~1:snapshots/demo.prod.json git:HEAD:snapshots/demo.prod.json
-
-# Output formats
-uv run aa_auto_sdr --diff a.json b.json                          # console (default)
-uv run aa_auto_sdr --diff a.json b.json --format json --output - # pipe to jq
-uv run aa_auto_sdr --diff a.json b.json --format markdown --output diff.md
-```
-
-Identity is by component ID (a name change is a *modification*, not add+remove). Diffs run on the normalized model, not on rendered files — renaming a column in Excel does not create a false diff. Whitespace, `None`/empty-string, and tag ordering are normalized away (false-positive prevention adopted from `cja_auto_sdr`'s diff comparator).
-
-Exit codes: `0` (diff succeeded), `15` (bad `--format`/`--output` combo), `16` (snapshot resolve/schema/git failure).
-
-## Discover and inspect
-
-Without generating a full SDR, you can list and inspect resources:
-
-```bash
-uv run aa_auto_sdr --list-reportsuites                  # all RSes visible to the org
-uv run aa_auto_sdr --list-virtual-reportsuites          # all virtual report suites
-uv run aa_auto_sdr --describe-reportsuite "Adobe Store" # metadata + counts
-uv run aa_auto_sdr --list-metrics dgeo1xxpnwcidadobestore
-uv run aa_auto_sdr --list-dimensions dgeo1xxpnwcidadobestore --filter "page" --sort name --limit 10
-uv run aa_auto_sdr --list-segments "Adobe Store" --format json --output -    # pipe to jq
-```
-
-All list/inspect commands accept `--filter`, `--exclude`, `--sort FIELD`, `--limit N`, and `--format json|csv`. Default is a fixed-width table on stdout.
-
-## Pipe SDR JSON to other tools
-
-```bash
-uv run aa_auto_sdr <RSID> --format json --output -
-```
-
-Outputs the full SDR as JSON to stdout. Pair with `jq` or any JSON consumer. Only `--format json` is valid with `--output -`; other formats reject.
-
-## Verify
-
-```bash
-uv run aa_auto_sdr -V
-uv run aa_auto_sdr --show-config
-```
-
-## Tab completion
-
-```bash
-aa_auto_sdr --completion bash > ~/.bash_completion.d/aa_auto_sdr
-aa_auto_sdr --completion zsh  > ~/.zsh/completions/_aa_auto_sdr
-aa_auto_sdr --completion fish > ~/.config/fish/completions/aa_auto_sdr.fish
-```
-
-Re-source your shell config (or open a new terminal).
-
-## Develop
-
-```bash
-uv run pytest                # all tests
-uv run pytest -m unit        # unit only
-uv run ruff check src/ tests/
-uv run ruff format src/ tests/
-```
-
-## Roadmap
-
-v1.0.0 = PyPI publish via trusted publishing; macOS + Windows CI matrix; final docs polish.
+- [Adobe Analytics 2.0 API documentation](https://developer.adobe.com/analytics-apis/docs/2.0/)
+- [`aanalytics2` Python wrapper](https://github.com/pitchmuc/adobe-analytics-api-2.0) — the underlying SDK
+- [`uv` package manager](https://github.com/astral-sh/uv)
+- [Sister project: `cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr) — Customer Journey Analytics equivalent

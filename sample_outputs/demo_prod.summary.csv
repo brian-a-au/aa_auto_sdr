@@ -1,0 +1,14 @@
+﻿field,value
+RSID,demo.prod
+Name,Demo Production
+Timezone,US/Pacific
+Currency,USD
+Parent RSID,
+Captured at,2026-04-26T12:00:00+00:00
+Tool version,1.0.0
+Dimensions,4
+Metrics,3
+Segments,2
+Calculated Metrics,1
+Virtual Report Suites,1
+Classifications,1

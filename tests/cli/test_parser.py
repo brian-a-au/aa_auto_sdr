@@ -168,7 +168,8 @@ def test_batch_with_format_and_output_dir() -> None:
     ns = p.parse_args(["--batch", "rs1", "rs2", "--format", "json", "--output-dir", "/tmp/out"])
     assert ns.batch == ["rs1", "rs2"]
     assert ns.format == "json"
-    assert str(ns.output_dir) == "/tmp/out"
+    # as_posix() for cross-platform: Path repr is "\\tmp\\out" on Windows, "/tmp/out" on POSIX
+    assert ns.output_dir.as_posix() == "/tmp/out"
 
 
 def test_snapshot_flag_parses() -> None:

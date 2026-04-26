@@ -11,7 +11,7 @@ def test_version_flag_short() -> None:
         text=True,
         check=True,
     )
-    assert "0.9.0" in result.stdout
+    assert "1.0.0" in result.stdout
 
 
 def test_version_flag_long() -> None:
@@ -21,7 +21,7 @@ def test_version_flag_long() -> None:
         text=True,
         check=True,
     )
-    assert "0.9.0" in result.stdout
+    assert "1.0.0" in result.stdout
 
 
 def test_help_flag_does_not_import_aanalytics2() -> None:
