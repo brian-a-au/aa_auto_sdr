@@ -1,7 +1,7 @@
 """diff command: resolve two tokens → compare → render → write to --output.
 
 Owns all I/O. The pure pieces (resolver, comparator, renderers) are tested
-without capsys/tmp_path. See v0.7 spec §4–§6 + §8.
+without capsys/tmp_path. See v0.7 spec sections 4-6 + 8.
 
 Exit codes:
   0   diff succeeded (regardless of whether deltas exist)

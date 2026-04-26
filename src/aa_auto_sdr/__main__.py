@@ -23,6 +23,8 @@ def _print_help() -> int:
         "Usage:\n"
         "  aa_auto_sdr <RSID-or-name>           Generate SDR for one report suite\n"
         "  aa_auto_sdr --batch <RSID...>        Generate SDRs for multiple report suites\n"
+        "  aa_auto_sdr --diff <a> <b>           Compare two snapshots (path|@ts|@latest|@previous|git:ref:path)\n"
+        "  aa_auto_sdr <RSID> --snapshot --profile P  Generate + persist snapshot under ~/.aa/orgs/P/snapshots/\n"
         "  aa_auto_sdr --list-reportsuites      List all report suites visible to the org\n"
         "  aa_auto_sdr --list-metrics <RSID>    List metrics (also: --list-dimensions/segments/...)\n"
         "  aa_auto_sdr --describe-reportsuite <RSID>  Print metadata + per-component counts\n"
@@ -32,7 +34,7 @@ def _print_help() -> int:
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
-        "v0.5: single + batch SDR generation, 5 formats, discovery + inspect, --output - piping.\n"
+        "v0.7: single + batch SDR generation, snapshot save, --diff, 5 formats.\n"
     )
     return 0
 

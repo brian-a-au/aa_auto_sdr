@@ -11,7 +11,6 @@ from io import StringIO
 from aa_auto_sdr.output._helpers import escape_pipe, stringify_cell
 from aa_auto_sdr.snapshot.models import ComponentDiff, DiffReport
 
-
 _TYPE_LABELS = {
     "dimensions": "Dimensions",
     "metrics": "Metrics",
@@ -55,10 +54,7 @@ def render_markdown(report: DiffReport) -> str:
 
 def _render_component_section(buf: StringIO, cd: ComponentDiff) -> None:
     label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
-    counts = (
-        f"+{len(cd.added)} / −{len(cd.removed)} / ~{len(cd.modified)} "
-        f"/ {cd.unchanged_count} unchanged"
-    )
+    counts = f"+{len(cd.added)} / -{len(cd.removed)} / ~{len(cd.modified)} / {cd.unchanged_count} unchanged"
     buf.write(f"## {label} ({counts})\n\n")
 
     if cd.added:

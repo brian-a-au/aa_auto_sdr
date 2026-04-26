@@ -254,9 +254,16 @@ def test_generate_snapshot_writes_to_profile_dir(
     monkeypatch.setenv("HOME", str(fake_home))
     profile_dir = fake_home / ".aa" / "orgs" / "prod"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "config.json").write_text(json.dumps({
-        "org_id": "O", "client_id": "C", "secret": "S", "scopes": "X",
-    }))
+    (profile_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "org_id": "O",
+                "client_id": "C",
+                "secret": "S",
+                "scopes": "X",
+            }
+        )
+    )
 
     rc = cmd.run(
         rsid="demo.prod",

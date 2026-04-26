@@ -240,9 +240,13 @@ def test_batch_unknown_rsid_in_resolution_records_failure_and_continues(
 
 @patch("aa_auto_sdr.cli.commands.batch.AaClient")
 def test_batch_snapshot_writes_one_per_success(
-    mock_client_cls, mock_handle, tmp_path, monkeypatch: pytest.MonkeyPatch,
+    mock_client_cls,
+    mock_handle,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import json as _json
+
     from aa_auto_sdr.cli.commands import batch as batch_cmd
 
     fake_home = tmp_path / "home"
@@ -250,9 +254,16 @@ def test_batch_snapshot_writes_one_per_success(
     monkeypatch.setenv("HOME", str(fake_home))
     profile_dir = fake_home / ".aa" / "orgs" / "prod"
     profile_dir.mkdir(parents=True)
-    (profile_dir / "config.json").write_text(_json.dumps({
-        "org_id": "O", "client_id": "C", "secret": "S", "scopes": "X",
-    }))
+    (profile_dir / "config.json").write_text(
+        _json.dumps(
+            {
+                "org_id": "O",
+                "client_id": "C",
+                "secret": "S",
+                "scopes": "X",
+            }
+        )
+    )
     mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
 
     rc = batch_cmd.run(

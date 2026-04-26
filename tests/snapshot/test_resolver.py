@@ -78,7 +78,7 @@ def test_resolve_rsid_at_previous(tmp_path: Path) -> None:
 def test_resolve_rsid_at_previous_with_only_one_snapshot_raises(tmp_path: Path) -> None:
     rs_dir = tmp_path / "demo.prod"
     _write_snapshot(rs_dir / "2026-04-26T17-29-01+00-00.json", "demo.prod", "2026-04-26T17:29:01+00:00")
-    with pytest.raises(SnapshotResolveError, match="at least two|previous"):
+    with pytest.raises(SnapshotResolveError, match=r"at least two|previous"):
         resolve_snapshot("demo.prod@previous", profile_snapshot_dir=tmp_path, repo_root=None)
 
 

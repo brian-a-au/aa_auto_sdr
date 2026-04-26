@@ -90,5 +90,5 @@ def test_validate_envelope_rejects_naive_timestamp() -> None:
     """§5.2: only timezone-aware ISO-8601 timestamps accepted."""
     env = document_to_envelope(_stub_doc())
     env["captured_at"] = "2026-04-26T17:29:01"  # no offset
-    with pytest.raises(SnapshotSchemaError, match="naive|timezone|offset"):
+    with pytest.raises(SnapshotSchemaError, match=r"naive|timezone|offset"):
         validate_envelope(env)
