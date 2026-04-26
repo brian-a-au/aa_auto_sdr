@@ -156,3 +156,83 @@ def test_generate_multi_match_by_name_runs_pipeline_per_rsid(
     assert "matches 2 report suites" in captured.out
     assert "generating SDR 1/2: demo.prod" in captured.out
     assert "generating SDR 2/2: demo.dev" in captured.out
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_json_to_stdout(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    """--format json --output - writes JSON to stdout, no 'wrote:' diagnostic."""
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 0
+    captured = capsys.readouterr()
+    parsed = json.loads(captured.out)
+    # JSON SDR doc has report_suite, dimensions, etc.
+    assert parsed["report_suite"]["rsid"] == "demo.prod"
+    assert "wrote:" not in captured.out
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_csv_rejected(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    """--format csv --output - rejects (multi-file)."""
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="csv",
+        profile=None,
+    )
+    assert rc == 15
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_excel_rejected(mock_client_cls, env_creds, tmp_path: Path) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="excel",
+        profile=None,
+    )
+    assert rc == 15
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_alias_rejected(mock_client_cls, env_creds, tmp_path: Path) -> None:
+    """--format all --output - rejects (multi-format)."""
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="all",
+        profile=None,
+    )
+    assert rc == 15

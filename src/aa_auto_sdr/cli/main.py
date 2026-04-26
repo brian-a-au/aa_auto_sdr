@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
@@ -86,9 +87,10 @@ def run(argv: list[str]) -> int:
         parser.print_usage(sys.stderr)
         return _EXIT_USAGE
 
+    output_dir: Path = Path("-") if ns.output == "-" else ns.output_dir
     return generate_cmd.run(
         rsid=ns.rsid,
-        output_dir=ns.output_dir,
+        output_dir=output_dir,
         format_name=ns.format or "excel",
         profile=ns.profile,
     )
