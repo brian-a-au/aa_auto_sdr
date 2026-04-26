@@ -57,7 +57,6 @@ def test_sample_outputs_up_to_date(tmp_path: Path) -> None:
     byte_checked = [f for f in diff.common_files if _is_byte_checked(f)]
     _, mismatches, errors = filecmp.cmpfiles(fresh, COMMITTED, byte_checked, shallow=False)
     assert not mismatches, (
-        f"sample_outputs/ drift: {mismatches}. "
-        "Run `uv run python scripts/build_sample_outputs.py` and commit."
+        f"sample_outputs/ drift: {mismatches}. Run `uv run python scripts/build_sample_outputs.py` and commit."
     )
     assert not errors, f"diff errors: {errors}"
