@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] — 2026-04-26
+
+### Added
+- `--exit-codes`: list every exit code with a one-line meaning. Fast-path action (no pandas/aanalytics2 import).
+- `--explain-exit-code <CODE>`: paragraph-form explanation including likely causes and a "What to try" remediation block. Fast-path action.
+- `--completion {bash,zsh,fish}`: emit a static shell-completion script to stdout. Fast-path action; no `argcomplete` runtime dep.
+- `core/exit_codes.py`: central `ExitCode` IntEnum + `ROWS` (table) + `EXPLANATIONS` (long-form). Single source of truth; nine files migrated from per-module `_EXIT_*` constants.
+- Machine-readable JSON error envelope (`output/error_envelope.py`): when `--output -` or `--format json|markdown` is in effect and an error occurs, a one-line `{"error": {...}}` is written to stderr while stdout stays silent.
+- Four meta-tests in `tests/meta/` enforcing CLAUDE.md architectural invariants in CI: SDK isolation, no 1.4 paths, read-only AA, exit-code completeness.
+- `scripts/check_version_sync.py` validates version string across `core/version.py`, `pyproject.toml`, `CHANGELOG.md`, `README.md`.
+- Three Linux GitHub Actions workflows: `tests.yml` (pytest + coverage gate), `lint.yml` (ruff check + format), `version-sync.yml`.
+- User-facing docs: `docs/QUICKSTART.md` (90-second onboarding), `docs/CLI_REFERENCE.md` (full flag table).
+
+### Changed
+- **Coverage gate:** 70% → 85% in `pyproject.toml`. v0.9 spec §11 targeted 90%; deferred to v1.0.0 as the gap is error-path coverage in pre-existing modules. v0.9 still represents a 70→85 jump.
+- **Ruff rule set** expanded from 7 to 41 rule families (CJA-equivalent profile) with per-file-ignores for legitimate CLI `print`, intentional Unicode in docstrings, and test-only assertion patterns.
+- All `_EXIT_*` integer constants in `cli/`, `pipeline/` migrated to `ExitCode.X.value` references. Wire-level behavior unchanged.
+
+### Out of scope (v1.0.0)
+- macOS + Windows CI matrix.
+- `release-gate.yml` and `publish.yml` (PyPI trusted publishing).
+- `docs/CONFIGURATION.md`, `docs/SNAPSHOT_DIFF.md`, `docs/OUTPUT_FORMATS.md`.
+- Coverage gate raise from 85% → 90%.
+
 ## [0.7.0] — 2026-04-26
 
 ### Added
