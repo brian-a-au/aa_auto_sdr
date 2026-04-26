@@ -83,6 +83,18 @@ def run(argv: list[str]) -> int:
                 limit=ns.limit,
             )
 
+    # Diff (v0.7) — snapshot comparison
+    if ns.diff:
+        from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+        return diff_cmd.run(
+            a=ns.diff[0],
+            b=ns.diff[1],
+            format_name=ns.format,
+            output=ns.output,
+            profile=ns.profile,
+        )
+
     # Batch (v0.5) — sequential multi-RSID generation
     if ns.batch:
         if ns.output == "-":

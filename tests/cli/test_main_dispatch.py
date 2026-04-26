@@ -95,3 +95,36 @@ def test_batch_with_output_dash_returns_15(monkeypatch: pytest.MonkeyPatch, tmp_
     monkeypatch.setenv("SCOPES", "X")
     rc = run(["--batch", "demo.prod", "--output", "-"])
     assert rc == 15
+
+
+def test_diff_routes_to_commands_diff(tmp_path: Path, capsys) -> None:
+    """`run(["--diff", a, b])` should reach commands/diff.py and return 0 for two valid envelopes."""
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    payload = {
+        "schema": "aa-sdr-snapshot/v1",
+        "rsid": "demo.prod",
+        "captured_at": "2026-04-20T10:00:00+00:00",
+        "tool_version": "0.7.0",
+        "components": {
+            "report_suite": {
+                "rsid": "demo.prod",
+                "name": "demo.prod",
+                "timezone": "UTC",
+                "currency": "USD",
+                "parent_rsid": None,
+            },
+            "dimensions": [],
+            "metrics": [],
+            "segments": [],
+            "calculated_metrics": [],
+            "virtual_report_suites": [],
+            "classifications": [],
+        },
+    }
+    a.write_text(json.dumps(payload, sort_keys=True))
+    b.write_text(json.dumps({**payload, "captured_at": "2026-04-26T17:29:01+00:00"}, sort_keys=True))
+
+    rc = run(["--diff", str(a), str(b)])
+    assert rc == 0
+    assert "SDR DIFF" in capsys.readouterr().out

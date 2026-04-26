@@ -89,6 +89,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate SDRs for multiple report suites sequentially (continue on error)",
     )
     actions.add_argument(
+        "--diff",
+        nargs=2,
+        metavar=("A", "B"),
+        default=None,
+        help="Diff two snapshots. Tokens: <path> | <rsid>@<ts>|@latest|@previous | git:<ref>:<path>",
+    )
+    actions.add_argument(
         "--profile-add",
         metavar="NAME",
         default=None,
