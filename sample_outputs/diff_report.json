@@ -1,0 +1,71 @@
+{
+  "a_captured_at": "2026-04-01T12:00:00+00:00",
+  "a_rsid": "demo.prod",
+  "a_tool_version": "1.0.0",
+  "b_captured_at": "2026-04-26T12:00:00+00:00",
+  "b_rsid": "demo.prod",
+  "b_tool_version": "1.0.0",
+  "components": [
+    {
+      "added": [],
+      "component_type": "dimensions",
+      "modified": [
+        {
+          "deltas": [
+            {
+              "after": "User ID (renamed)",
+              "before": "User ID",
+              "field": "name"
+            }
+          ],
+          "id": "variables/evar1",
+          "name": "User ID (renamed)"
+        }
+      ],
+      "removed": [],
+      "unchanged_count": 3
+    },
+    {
+      "added": [],
+      "component_type": "metrics",
+      "modified": [],
+      "removed": [
+        {
+          "id": "metrics/orders",
+          "name": "Orders"
+        }
+      ],
+      "unchanged_count": 2
+    },
+    {
+      "added": [],
+      "component_type": "segments",
+      "modified": [],
+      "removed": [],
+      "unchanged_count": 2
+    },
+    {
+      "added": [],
+      "component_type": "calculated_metrics",
+      "modified": [],
+      "removed": [],
+      "unchanged_count": 1
+    },
+    {
+      "added": [],
+      "component_type": "virtual_report_suites",
+      "modified": [],
+      "removed": [],
+      "unchanged_count": 1
+    },
+    {
+      "added": [],
+      "component_type": "classifications",
+      "modified": [],
+      "removed": [],
+      "unchanged_count": 1
+    }
+  ],
+  "report_suite_deltas": [],
+  "rsid_mismatch": false
+}
