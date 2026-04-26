@@ -48,17 +48,38 @@ def run(argv: list[str]) -> int:
             limit=ns.limit,
         )
     if ns.describe_reportsuite:
-        return _stub_action("--describe-reportsuite")
-    if ns.list_metrics:
-        return _stub_action("--list-metrics")
-    if ns.list_dimensions:
-        return _stub_action("--list-dimensions")
-    if ns.list_segments:
-        return _stub_action("--list-segments")
-    if ns.list_calculated_metrics:
-        return _stub_action("--list-calculated-metrics")
-    if ns.list_classification_datasets:
-        return _stub_action("--list-classification-datasets")
+        from aa_auto_sdr.cli.commands import inspect as inspect_cmd
+
+        return inspect_cmd.run_describe_reportsuite(
+            identifier=ns.describe_reportsuite,
+            profile=ns.profile,
+            format_name=ns.format,
+            output=ns.output,
+        )
+
+    list_inspect_actions = (
+        ("list_metrics", "run_list_metrics"),
+        ("list_dimensions", "run_list_dimensions"),
+        ("list_segments", "run_list_segments"),
+        ("list_calculated_metrics", "run_list_calculated_metrics"),
+        ("list_classification_datasets", "run_list_classification_datasets"),
+    )
+    for attr, fn_name in list_inspect_actions:
+        identifier = getattr(ns, attr)
+        if identifier:
+            from aa_auto_sdr.cli.commands import inspect as inspect_cmd
+
+            handler = getattr(inspect_cmd, fn_name)
+            return handler(
+                identifier=identifier,
+                profile=ns.profile,
+                format_name=ns.format,
+                output=ns.output,
+                name_filter=ns.filter,
+                name_exclude=ns.exclude,
+                sort_field=ns.sort,
+                limit=ns.limit,
+            )
 
     # Generate (positional RSID) — default --format to "excel" if omitted
     if not ns.rsid:
