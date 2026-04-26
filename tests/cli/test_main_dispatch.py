@@ -56,3 +56,42 @@ def test_rsid_runs_generate(
     rc = run(["demo.prod", "--format", "json", "--output-dir", str(tmp_path)])
     assert rc == 0
     assert (tmp_path / "demo.prod.json").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_routes_to_commands_batch(
+    mock_client_cls,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import pandas as pd
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = MagicMock()
+    handle.getReportSuites.return_value = pd.DataFrame([raw["report_suite"]])
+    handle.getDimensions.return_value = pd.DataFrame(raw["dimensions"])
+    handle.getMetrics.return_value = pd.DataFrame(raw["metrics"])
+    handle.getSegments.return_value = pd.DataFrame(raw["segments"])
+    handle.getCalculatedMetrics.return_value = pd.DataFrame(raw["calculated_metrics"])
+    handle.getVirtualReportSuites.return_value = pd.DataFrame(raw["virtual_report_suites"])
+    handle.getClassificationDatasets.return_value = pd.DataFrame(raw["classification_datasets"])
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+
+    rc = run(["--batch", "demo.prod", "--format", "json", "--output-dir", str(tmp_path)])
+    assert rc == 0
+    assert (tmp_path / "demo.prod.json").exists()
+
+
+def test_batch_with_output_dash_returns_15(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`--batch RSID --output -` is ambiguous (multi-SDR to single stream); reject."""
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+    rc = run(["--batch", "demo.prod", "--output", "-"])
+    assert rc == 15

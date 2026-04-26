@@ -1,0 +1,238 @@
+"""cli.commands.batch.run — orchestrates resolve+dedup → run_batch → summary."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
+import pytest
+
+FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_rs.json"
+
+
+def _df(records: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame(records)
+
+
+@pytest.fixture
+def mock_handle() -> MagicMock:
+    raw = json.loads(FIXTURE.read_text())
+    rs_records = [
+        raw["report_suite"],
+        {**raw["report_suite"], "rsid": "demo.staging", "name": "Demo Staging"},
+        {**raw["report_suite"], "rsid": "demo.dev", "name": "Demo Dev"},
+    ]
+    handle = MagicMock()
+    handle.getReportSuites.return_value = _df(rs_records)
+    handle.getDimensions.return_value = _df(raw["dimensions"])
+    handle.getMetrics.return_value = _df(raw["metrics"])
+    handle.getSegments.return_value = _df(raw["segments"])
+    handle.getCalculatedMetrics.return_value = _df(raw["calculated_metrics"])
+    handle.getVirtualReportSuites.return_value = _df(raw["virtual_report_suites"])
+    handle.getClassificationDatasets.return_value = _df(raw["classification_datasets"])
+    return handle
+
+
+@pytest.fixture
+def authed_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_happy_path_returns_0(mock_client_cls, mock_handle, authed_env, tmp_path, capsys) -> None:
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "[1/2]" in out and "demo.prod" in out
+    assert "[2/2]" in out and "demo.staging" in out
+    assert "BATCH PROCESSING SUMMARY" in out
+    assert "Successful: 2" in out
+    assert "Failed: 0" in out
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_partial_success_returns_14(
+    mock_client_cls,
+    mock_handle,
+    authed_env,
+    tmp_path,
+    capsys,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+    from aa_auto_sdr.pipeline import single
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+
+    real_run_single = single.run_single
+
+    def fake_run_single(**kwargs):
+        if kwargs["rsid"] == "demo.staging":
+            raise ApiError("rate limit exceeded")
+        return real_run_single(**kwargs)
+
+    monkeypatch.setattr("aa_auto_sdr.pipeline.batch.single.run_single", fake_run_single)
+
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging", "demo.dev"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 14  # PARTIAL_SUCCESS
+    out = capsys.readouterr().out
+    assert "Successful: 2" in out
+    assert "Failed: 1" in out
+    assert "demo.staging" in out
+    assert "rate limit" in out
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_all_fail_returns_last_failure_code(
+    mock_client_cls,
+    mock_handle,
+    authed_env,
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+    from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+
+    def fake_run_single(**kwargs):
+        if kwargs["rsid"] == "demo.prod":
+            raise ApiError("rate")
+        raise ReportSuiteNotFoundError("not here")
+
+    monkeypatch.setattr("aa_auto_sdr.pipeline.batch.single.run_single", fake_run_single)
+
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    # All failed → exit code = last failure's exit_code (ReportSuiteNotFound = 13).
+    assert rc == 13
+
+
+def test_batch_missing_credentials_returns_10(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    rc = batch_cmd.run(
+        rsids=["demo.prod"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 10
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_dedups_after_name_resolution(
+    mock_client_cls,
+    mock_handle,
+    authed_env,
+    tmp_path,
+    capsys,
+) -> None:
+    """Passing the same RSID twice (or a name + its RSID) must not generate twice."""
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.prod", "Demo Production"],  # name resolves to demo.prod
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    # After dedup: only one [1/1] line referencing demo.prod
+    assert out.count("demo.prod") >= 1
+    assert "[1/1]" in out
+    assert "[2/" not in out
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_name_lookup_fans_out_within_batch(
+    mock_client_cls,
+    authed_env,
+    tmp_path,
+    capsys,
+) -> None:
+    """A name that matches multiple RSes generates one SDR per match (matches v0.2)."""
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    raw = json.loads(FIXTURE.read_text())
+    # Two RSes share the name "Shared Name".
+    rs_records = [
+        {**raw["report_suite"], "rsid": "rs.a", "name": "Shared Name"},
+        {**raw["report_suite"], "rsid": "rs.b", "name": "Shared Name"},
+        {**raw["report_suite"], "rsid": "demo.prod", "name": "Demo Production"},
+    ]
+    handle = MagicMock()
+    handle.getReportSuites.return_value = _df(rs_records)
+    handle.getDimensions.return_value = _df(raw["dimensions"])
+    handle.getMetrics.return_value = _df(raw["metrics"])
+    handle.getSegments.return_value = _df(raw["segments"])
+    handle.getCalculatedMetrics.return_value = _df(raw["calculated_metrics"])
+    handle.getVirtualReportSuites.return_value = _df(raw["virtual_report_suites"])
+    handle.getClassificationDatasets.return_value = _df(raw["classification_datasets"])
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = batch_cmd.run(
+        rsids=["Shared Name"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "[1/2]" in out  # fans out to two RSIDs
+    assert "[2/2]" in out
+    assert (tmp_path / "rs.a.json").exists()
+    assert (tmp_path / "rs.b.json").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_unknown_rsid_in_resolution_records_failure_and_continues(
+    mock_client_cls,
+    mock_handle,
+    authed_env,
+    tmp_path,
+    capsys,
+) -> None:
+    """One bad identifier among many shouldn't abort the whole batch."""
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "nonexistent.rsid", "demo.staging"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 14  # partial success
+    out = capsys.readouterr().out
+    assert "Successful: 2" in out
+    assert "Failed: 1" in out
+    assert "nonexistent.rsid" in out

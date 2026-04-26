@@ -135,3 +135,37 @@ def test_format_flag_accepts_any_string_at_parse_time() -> None:
     assert ns.format == "json"
     ns = p.parse_args(["demo.prod", "--format", "excel"])
     assert ns.format == "excel"
+
+
+def test_batch_flag_parses_multiple_rsids() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--batch", "rs1", "rs2", "rs3"])
+    assert ns.batch == ["rs1", "rs2", "rs3"]
+    assert ns.rsid is None
+
+
+def test_batch_flag_requires_at_least_one_arg() -> None:
+    """nargs="+" → bare `--batch` is a usage error."""
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--batch"])
+
+
+def test_batch_accepts_quoted_names() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--batch", "Adobe Store", "rs2"])
+    assert ns.batch == ["Adobe Store", "rs2"]
+
+
+def test_batch_mutually_exclusive_with_list_reportsuites() -> None:
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["--batch", "rs1", "--list-reportsuites"])
+
+
+def test_batch_with_format_and_output_dir() -> None:
+    p = build_parser()
+    ns = p.parse_args(["--batch", "rs1", "rs2", "--format", "json", "--output-dir", "/tmp/out"])
+    assert ns.batch == ["rs1", "rs2"]
+    assert ns.format == "json"
+    assert str(ns.output_dir) == "/tmp/out"

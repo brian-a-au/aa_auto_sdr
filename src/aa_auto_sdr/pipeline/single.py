@@ -29,4 +29,9 @@ def run_single(
         writer = registry.get_writer(fmt)
         target = output_dir / f"{rsid}{writer.extension}"
         paths.extend(writer.write(doc, target))
-    return RunResult(rsid=rsid, success=True, outputs=paths)
+    return RunResult(
+        rsid=rsid,
+        success=True,
+        outputs=paths,
+        report_suite_name=doc.report_suite.name,
+    )
