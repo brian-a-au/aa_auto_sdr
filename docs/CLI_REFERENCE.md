@@ -203,9 +203,113 @@ uv run aa_auto_sdr --profile-test prod
 
 Import a JSON file (with `org_id`, `client_id`, `secret`, `scopes` fields) as a new profile. Exit 10 on missing file, bad JSON, or missing required fields.
 
+**Breaking change in v1.2:** errors with exit 10 if the profile already exists. Pass `--profile-overwrite` to allow replacement.
+
 ### `aa_auto_sdr --show-config`
 
 Show which credential source resolved (env / profile / .env / config.json) without exposing secrets.
+
+### `aa_auto_sdr --config-status` (v1.2)
+
+Print the full credential resolution chain — every source checked, which one matched. More verbose than `--show-config`. Useful for debugging why a profile isn't being picked up.
+
+```text
+Resolution chain (highest precedence first):
+  1. --profile=prod              ✓ MATCHED
+  2. env vars                     ⊘ skipped
+  3. .env (cwd)                   ⊘ skipped
+  4. config.json (cwd)            ⊘ skipped
+
+Resolved values (sensitive fields masked):
+  org_id:    abc@AdobeOrg
+  client_id: 1234…5678
+  ...
+```
+
+### `aa_auto_sdr --validate-config` (v1.2)
+
+Resolve credentials and validate shape **without** calling Adobe. Fast pre-flight check. Exit 0 on valid shape, exit 10 on missing fields or malformed `org_id` (must end with `@AdobeOrg`).
+
+### `aa_auto_sdr --sample-config` (v1.2)
+
+Emit a `config.json` template to stdout. Pipe to a file:
+
+```bash
+aa_auto_sdr --sample-config > config.json
+```
+
+## Discovery & UX (v1.2)
+
+### `aa_auto_sdr --stats [<RSID>...]` (v1.2)
+
+Quick component counts per RSID — no full SDR build, no metadata. Lighter than `--describe-reportsuite`. With no positional args, lists every visible report suite.
+
+- `--format table` (default): `RSID  NAME  DIM  MET  SEG  CALC  VRS  CLS`
+- `--format json`: `[{"rsid", "name", "counts": {...}}, ...]`
+
+### `aa_auto_sdr --interactive` (v1.2)
+
+Print a numbered menu of visible report suites to stderr, prompt for selection by index or `all` on stdin, emit the chosen RSID(s) to stdout. Designed for shell composition:
+
+```bash
+RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot
+```
+
+Exit 130 on Ctrl-C. Exit 2 (USAGE) on out-of-range index.
+
+## Diff polish (v1.2)
+
+These flags refine the existing `--diff` output without changing its core behavior. They compose with v1.1's `--side-by-side`, `--summary`, `--ignore-fields`.
+
+| Flag | Behavior |
+|------|----------|
+| `--quiet-diff` | Suppress unchanged trailers; show only changed sections (console + markdown) |
+| `--diff-labels A=… B=…` | Override "Source" / "Target" labels in renderer output |
+| `--reverse-diff` | Swap a and b before compare |
+| `--warn-threshold N` | Exit 3 (`WARN`) if total changes ≥ N. Diff itself still runs. |
+| `--changes-only` | In rendered output, drop component types with no changes |
+| `--show-only TYPES` | Restrict diff output to listed types (CSV: `metrics,dimensions`) |
+| `--max-issues N` | Cap each component's added/removed/modified to N items in render |
+
+```bash
+aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --quiet-diff --warn-threshold 10
+aa_auto_sdr --diff a.json b.json --diff-labels "A=baseline" "B=candidate"
+aa_auto_sdr --diff a.json b.json --show-only metrics --max-issues 20
+```
+
+**`$GITHUB_STEP_SUMMARY` (v1.2):** when the env var is set (GitHub Actions does this automatically per job), every `--diff` invocation also appends a markdown render to that file. No flag needed; uses the full unfiltered report.
+
+## Generation modifiers (v1.2)
+
+### `<RSID> --metrics-only` / `--dimensions-only` (mutex)
+
+Slim the SDR by skipping the API calls for excluded component types. Real perf win for large RSes.
+
+```bash
+aa_auto_sdr <RSID> --metrics-only --format json --output-dir /tmp/metrics-only
+```
+
+`--metrics-only` and `--dimensions-only` are mutually exclusive. `--include-segments` and `--include-calculated` are explicit no-ops kept for CJA parity (segments and calculated metrics are already default in AA).
+
+### `<RSID> --dry-run` / `--batch RS1 RS2 --dry-run` (v1.2)
+
+Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then **print what would be written** without doing the heavy component fetch or any file writes. Auth still validates so the user knows the run would succeed.
+
+```bash
+aa_auto_sdr <RSID> --dry-run --auto-snapshot --profile prod
+# DRY RUN — would generate:
+#   demo.prod.xlsx
+#   ~/.aa/orgs/prod/snapshots/demo.prod/2026-04-27T...json
+# (no files were written; remove --dry-run to execute)
+```
+
+### `<RSID> --open` (v1.2)
+
+After successful generation, open the first output file (single) or output dir (batch) in the OS default app. Best-effort — silently skips on headless / no-display environments.
+
+### `--yes` / `-y` (v1.2)
+
+Skip confirmation prompts on destructive actions. Currently only `--prune-snapshots` (without `--dry-run`) prompts. Non-tty stdin (CI / pipes) refuses to prompt and aborts safely without `--yes`.
 
 ## Fast-path actions
 
@@ -251,6 +355,7 @@ aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
 | 0 | Success |
 | 1 | Generic error |
 | 2 | Argument / usage error (argparse) |
+| 3 | Diff `--warn-threshold` exceeded (diff itself ran successfully; v1.2) |
 | 10 | Bad config or missing credentials |
 | 11 | Adobe OAuth Server-to-Server failure |
 | 12 | Adobe Analytics API request failed |

@@ -28,6 +28,9 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
 | | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported (v1.1) |
 | | RSIDs and names may be mixed freely in one invocation (v1.1) |
+| | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types (v1.2) |
+| | `--dry-run` previews would-be output paths without writing (auth still validates; v1.2) |
+| | `--open` opens generated output in OS default app after writing (v1.2) |
 | | Continue-on-error across N report suites with summary banner |
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
@@ -35,23 +38,31 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | **Discovery & Inspection** | `--list-reportsuites`, `--list-virtual-reportsuites` |
 | | `--describe-reportsuite <RSID>` — metadata + per-component counts |
 | | `--list-{metrics,dimensions,segments,calculated-metrics,classification-datasets} <RSID>` |
+| | `--stats [<RSID>...]` — quick component counts per RSID without full SDR build (v1.2) |
+| | `--interactive` — pick an RSID interactively; emits to stdout for shell composition (v1.2) |
 | | `--filter`, `--exclude`, `--sort`, `--limit` on every list command |
 | **Snapshot & Diff** | `--snapshot` opt-in persist alongside generation |
 | | `--auto-snapshot` saves a snapshot per RSID on every `<RSID>` / `--batch` run (v1.1) |
 | | `--auto-prune` + `--keep-last N` / `--keep-since 30d` retention policy (v1.1) |
 | | `--list-snapshots [<RSID>]` action — table or json view (v1.1) |
 | | `--prune-snapshots [<RSID>] --dry-run` — apply retention policy with optional preview (v1.1) |
+| | `--prune-snapshots` confirms before deleting; `--yes` skips the prompt (v1.2) |
 | | `--diff <a> <b>` between any two snapshots |
 | | Token grammar: bare path / `<rsid>@<ts>` / `<rsid>@latest` / `<rsid>@previous` / `git:<ref>:<path>` |
 | | Four diff renderers: console (ANSI-colored), JSON, Markdown, **`pr-comment`** (compact GFM with collapsible `<details>` for GitHub PRs, v1.1) |
 | | Diff modifiers: `--side-by-side`, `--summary`, `--ignore-fields description,tags` (v1.1) |
+| | Diff polish: `--quiet-diff`, `--diff-labels A=… B=…`, `--reverse-diff`, `--changes-only`, `--show-only TYPES`, `--max-issues N` (v1.2) |
+| | `--warn-threshold N` exits 3 when total changes ≥ N (CI signal; v1.2) |
+| | `$GITHUB_STEP_SUMMARY` auto-append for `--diff` when env var is set (v1.2) |
 | | Identity by component ID, never by name (a name change is *modification*) |
 | | Value normalization (whitespace, NaN/None/`""`, order-insensitive `tags`/`categories`) suppresses false-positive diffs |
 | **Authentication** | OAuth Server-to-Server (env vars / profile / `.env` / `config.json`) |
 | | Named profiles for multi-org users (`~/.aa/orgs/<name>/`) |
 | | `--show-config` reports which credential source resolved |
+| | `--config-status` / `--validate-config` / `--sample-config` for credential introspection (v1.2) |
 | | `--profile-add <name>` interactive credential capture |
 | | `--profile-list` / `--profile-show NAME` / `--profile-test NAME` / `--profile-import NAME FILE` (v1.1) |
+| | `--profile-import` requires `--profile-overwrite` to replace an existing profile (v1.2 breaking change) |
 | **Output** | `--output -` stdout pipe for json (single-RSID generation) and json/markdown (diff) |
 | | Machine-readable JSON error envelope on stderr for pipe-path failures |
 | | Atomic file writes (temp + rename) for every output format |

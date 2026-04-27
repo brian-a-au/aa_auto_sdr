@@ -455,25 +455,57 @@ class TestV12Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, a, b, format_name, output, profile,
-                  side_by_side, summary, ignore_fields,
-                  quiet, labels, reverse, changes_only, show_only,
-                  max_issues, warn_threshold):
-            captured.update({
-                "quiet": quiet, "labels": labels, "reverse": reverse,
-                "changes_only": changes_only, "show_only": show_only,
-                "max_issues": max_issues, "warn_threshold": warn_threshold,
-            })
+        def _stub(
+            *,
+            a,
+            b,
+            format_name,
+            output,
+            profile,
+            side_by_side,
+            summary,
+            ignore_fields,
+            quiet,
+            labels,
+            reverse,
+            changes_only,
+            show_only,
+            max_issues,
+            warn_threshold,
+        ):
+            captured.update(
+                {
+                    "quiet": quiet,
+                    "labels": labels,
+                    "reverse": reverse,
+                    "changes_only": changes_only,
+                    "show_only": show_only,
+                    "max_issues": max_issues,
+                    "warn_threshold": warn_threshold,
+                }
+            )
             return 0
 
         monkeypatch.setattr(diff_cmd, "run", _stub)
-        rc = run([
-            "--diff", "a.json", "b.json",
-            "--quiet-diff", "--reverse-diff",
-            "--diff-labels", "A=before", "B=after",
-            "--changes-only", "--show-only", "metrics,dimensions",
-            "--max-issues", "5", "--warn-threshold", "10",
-        ])
+        rc = run(
+            [
+                "--diff",
+                "a.json",
+                "b.json",
+                "--quiet-diff",
+                "--reverse-diff",
+                "--diff-labels",
+                "A=before",
+                "B=after",
+                "--changes-only",
+                "--show-only",
+                "metrics,dimensions",
+                "--max-issues",
+                "5",
+                "--warn-threshold",
+                "10",
+            ]
+        )
         assert rc == 0
         assert captured["quiet"] is True
         assert captured["reverse"] is True

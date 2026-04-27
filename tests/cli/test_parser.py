@@ -342,8 +342,7 @@ class TestV12Flags:
 
     def test_changes_only_show_only_max_issues(self) -> None:
         ns = build_parser().parse_args(
-            ["--diff", "a.json", "b.json",
-             "--changes-only", "--show-only", "metrics,dimensions", "--max-issues", "3"],
+            ["--diff", "a.json", "b.json", "--changes-only", "--show-only", "metrics,dimensions", "--max-issues", "3"],
         )
         assert ns.changes_only is True
         assert ns.show_only == "metrics,dimensions"
