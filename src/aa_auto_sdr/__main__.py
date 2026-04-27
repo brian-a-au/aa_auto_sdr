@@ -37,7 +37,7 @@ def _print_help() -> int:
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
-        "v1.0.0: production release. Single + batch SDR generation, snapshot save, --diff, 5 formats.\n"
+        "v1.1.0: snapshot lifecycle (auto-snapshot, retention, list, prune); diff UX (side-by-side, summary, ignore-fields, pr-comment); profile parity (list, test, show, import).\n"
     )
     return 0
 
