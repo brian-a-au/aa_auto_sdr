@@ -297,3 +297,109 @@ def test_batch_snapshot_without_profile_returns_10(monkeypatch, tmp_path) -> Non
         snapshot=True,
     )
     assert rc == 10
+
+
+# ---------------------------------------------------------------------------
+# v1.1 — --auto-snapshot / --auto-prune wiring
+# ---------------------------------------------------------------------------
+
+
+class TestBatchAutoSnapshot:
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_auto_snapshot_per_rsid(
+        self,
+        mock_client_cls,
+        mock_handle,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        monkeypatch.setenv("HOME", str(tmp_path))
+        prof_dir = tmp_path / ".aa" / "orgs" / "prod"
+        prof_dir.mkdir(parents=True)
+        (prof_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "org_id": "O",
+                    "client_id": "C",
+                    "secret": "S",
+                    "scopes": "X",
+                }
+            )
+        )
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "demo.staging"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile="prod",
+            auto_snapshot=True,
+        )
+        assert rc in (0, 14)  # OK or PARTIAL_SUCCESS
+        snap_root = tmp_path / ".aa" / "orgs" / "prod" / "snapshots"
+        assert len(list((snap_root / "demo.prod").glob("*.json"))) == 1
+        assert len(list((snap_root / "demo.staging").glob("*.json"))) == 1
+
+    def test_auto_snapshot_requires_profile(
+        self,
+        authed_env,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            auto_snapshot=True,
+        )
+        assert rc == 10
+        assert "requires --profile" in capsys.readouterr().out
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_auto_prune_applies_policy_per_rsid(
+        self,
+        mock_client_cls,
+        mock_handle,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        monkeypatch.setenv("HOME", str(tmp_path))
+        prof_dir = tmp_path / ".aa" / "orgs" / "prod"
+        prof_dir.mkdir(parents=True)
+        (prof_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "org_id": "O",
+                    "client_id": "C",
+                    "secret": "S",
+                    "scopes": "X",
+                }
+            )
+        )
+        # Pre-seed older snapshots for one RSID
+        snap_root = tmp_path / ".aa" / "orgs" / "prod" / "snapshots"
+        prod_dir = snap_root / "demo.prod"
+        prod_dir.mkdir(parents=True)
+        for day in ("20", "21", "22"):
+            (prod_dir / f"2026-04-{day}T10-00-00+00-00.json").write_text("{}")
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "demo.staging"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile="prod",
+            auto_snapshot=True,
+            auto_prune=True,
+            keep_last=1,
+        )
+        assert rc in (0, 14)
+        # demo.prod: 3 pre-seeded + 1 new = 4 → keep-last 1 leaves 1
+        assert len(list((snap_root / "demo.prod").glob("*.json"))) == 1
+        # demo.staging: 1 new → keep-last 1 leaves 1
+        assert len(list((snap_root / "demo.staging").glob("*.json"))) == 1

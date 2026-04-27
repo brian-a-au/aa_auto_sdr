@@ -41,6 +41,10 @@ def run(
     format_name: str,
     profile: str | None,
     snapshot: bool = False,
+    auto_snapshot: bool = False,
+    auto_prune: bool = False,
+    keep_last: int | None = None,
+    keep_since: str | None = None,
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
@@ -54,10 +58,12 @@ def run(
         return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
-    if snapshot:
+    save_required = snapshot or auto_snapshot
+    if save_required:
         if not profile:
+            flag = "--snapshot" if snapshot else "--auto-snapshot"
             print(
-                "error: --snapshot requires --profile (snapshots are profile-scoped)",
+                f"error: {flag} requires --profile (snapshots are profile-scoped)",
                 flush=True,
             )
             return ExitCode.CONFIG.value
@@ -165,12 +171,56 @@ def run(
 
     _print_summary(final)
 
+    if auto_prune and snapshot_dir is not None:
+        rc = _apply_auto_prune(
+            snapshot_dir=snapshot_dir,
+            rsids=[ok.rsid for ok in final.successes],
+            keep_last=keep_last,
+            keep_since=keep_since,
+        )
+        if rc != ExitCode.OK.value:
+            return rc
+
     if not final.failures:
         return ExitCode.OK.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value
     # All failed → exit code of the *last* failure
     return final.failures[-1].exit_code
+
+
+def _apply_auto_prune(
+    *,
+    snapshot_dir: Path,
+    rsids: list[str],
+    keep_last: int | None,
+    keep_since: str | None,
+) -> int:
+    """Parse retention policy and prune each RSID under `snapshot_dir`.
+
+    Per-RSID prune failures log a warning but don't abort the batch.
+    Returns ExitCode.OK on success, ExitCode.CONFIG on bad/empty policy.
+    """
+    from aa_auto_sdr.snapshot.retention import parse_policy
+    from aa_auto_sdr.snapshot.store import prune_snapshots
+
+    try:
+        policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
+    except ConfigError as exc:
+        print(f"error: {exc}", flush=True)
+        return ExitCode.CONFIG.value
+    if not policy.is_active():
+        print(
+            "error: --auto-prune requires --keep-last or --keep-since",
+            flush=True,
+        )
+        return ExitCode.CONFIG.value
+    for rs in rsids:
+        try:
+            prune_snapshots(snapshot_dir, policy, rsid=rs)
+        except OSError as exc:
+            print(f"warning: prune failed for {rs}: {exc}", flush=True)
+    return ExitCode.OK.value
 
 
 def _print_summary(result: BatchResult) -> None:

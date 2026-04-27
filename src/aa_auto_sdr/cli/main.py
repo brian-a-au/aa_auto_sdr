@@ -169,6 +169,10 @@ def run(argv: list[str]) -> int:
             format_name=ns.format or "excel",
             profile=ns.profile,
             snapshot=ns.snapshot,
+            auto_snapshot=ns.auto_snapshot,
+            auto_prune=ns.auto_prune,
+            keep_last=ns.keep_last,
+            keep_since=ns.keep_since,
         )
 
     # Generate (positional RSID) — default --format to "excel" if omitted
@@ -183,6 +187,10 @@ def run(argv: list[str]) -> int:
         format_name=ns.format or "excel",
         profile=ns.profile,
         snapshot=ns.snapshot,
+        auto_snapshot=ns.auto_snapshot,
+        auto_prune=ns.auto_prune,
+        keep_last=ns.keep_last,
+        keep_since=ns.keep_since,
     )
 
 

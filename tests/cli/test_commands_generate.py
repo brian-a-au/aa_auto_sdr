@@ -444,3 +444,147 @@ def test_generate_non_pipe_runsingle_outputerror(
     monkeypatch.setattr(single, "run_single", boom)
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == 15
+
+
+# ---------------------------------------------------------------------------
+# v1.1 — --auto-snapshot / --auto-prune wiring
+# ---------------------------------------------------------------------------
+
+
+class TestAutoSnapshot:
+    def test_auto_snapshot_requires_profile(
+        self,
+        env_creds,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            auto_snapshot=True,
+        )
+        assert rc == 10  # ExitCode.CONFIG
+        assert "requires --profile" in capsys.readouterr().out
+
+    @patch("aa_auto_sdr.cli.commands.generate.AaClient")
+    def test_auto_snapshot_saves_once_with_profile(
+        self,
+        mock_client_cls,
+        env_creds,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        raw = json.loads(FIXTURE.read_text())
+        handle = _build_handle(raw)
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=handle,
+            company_id="testco",
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        prof_dir = tmp_path / ".aa" / "orgs" / "prod"
+        prof_dir.mkdir(parents=True)
+        (prof_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "org_id": "O",
+                    "client_id": "C",
+                    "secret": "S",
+                    "scopes": "X",
+                }
+            )
+        )
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile="prod",
+            auto_snapshot=True,
+        )
+        assert rc == 0
+        snap_dir = tmp_path / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
+        assert len(list(snap_dir.glob("*.json"))) == 1
+
+    @patch("aa_auto_sdr.cli.commands.generate.AaClient")
+    def test_auto_prune_applies_policy(
+        self,
+        mock_client_cls,
+        env_creds,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        raw = json.loads(FIXTURE.read_text())
+        handle = _build_handle(raw)
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=handle,
+            company_id="testco",
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        prof_dir = tmp_path / ".aa" / "orgs" / "prod"
+        prof_dir.mkdir(parents=True)
+        (prof_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "org_id": "O",
+                    "client_id": "C",
+                    "secret": "S",
+                    "scopes": "X",
+                }
+            )
+        )
+        snap_dir = tmp_path / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
+        snap_dir.mkdir(parents=True)
+        for day in ("20", "21", "22"):
+            (snap_dir / f"2026-04-{day}T10-00-00+00-00.json").write_text("{}")
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile="prod",
+            auto_snapshot=True,
+            auto_prune=True,
+            keep_last=1,
+        )
+        assert rc == 0
+        # Auto-snapshot wrote 1 new; auto-prune --keep-last 1 leaves 1.
+        assert len(list(snap_dir.glob("*.json"))) == 1
+
+    @patch("aa_auto_sdr.cli.commands.generate.AaClient")
+    def test_snapshot_and_auto_snapshot_collapse_to_one_save(
+        self,
+        mock_client_cls,
+        env_creds,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        raw = json.loads(FIXTURE.read_text())
+        handle = _build_handle(raw)
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=handle,
+            company_id="testco",
+        )
+        monkeypatch.setenv("HOME", str(tmp_path))
+        prof_dir = tmp_path / ".aa" / "orgs" / "prod"
+        prof_dir.mkdir(parents=True)
+        (prof_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "org_id": "O",
+                    "client_id": "C",
+                    "secret": "S",
+                    "scopes": "X",
+                }
+            )
+        )
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile="prod",
+            snapshot=True,
+            auto_snapshot=True,
+        )
+        assert rc == 0
+        snap_dir = tmp_path / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
+        assert len(list(snap_dir.glob("*.json"))) == 1
