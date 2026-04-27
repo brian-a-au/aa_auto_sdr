@@ -124,6 +124,40 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print which credential source resolved and exit",
     )
+    actions.add_argument(
+        "--list-snapshots",
+        action="store_true",
+        help="List snapshots in ~/.aa/orgs/<profile>/snapshots/ (requires --profile)",
+    )
+    actions.add_argument(
+        "--prune-snapshots",
+        action="store_true",
+        help="Apply retention policy and delete snapshots (requires --profile + --keep-last|--keep-since)",
+    )
+    actions.add_argument(
+        "--profile-list",
+        action="store_true",
+        help="List all credentials profiles in ~/.aa/orgs/",
+    )
+    actions.add_argument(
+        "--profile-test",
+        metavar="NAME",
+        default=None,
+        help="Authenticate the named profile (OAuth + getCompanyId), print PASS/FAIL",
+    )
+    actions.add_argument(
+        "--profile-show",
+        metavar="NAME",
+        default=None,
+        help="Show profile fields with masked client_id (no secret)",
+    )
+    actions.add_argument(
+        "--profile-import",
+        nargs=2,
+        metavar=("NAME", "FILE"),
+        default=None,
+        help="Import a JSON file as a credentials profile",
+    )
 
     # Positional RSID for generate
     p.add_argument(
@@ -168,7 +202,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FMT",
         help=(
             "Generate: excel|csv|json|html|markdown|all|reports|data|ci. "
-            "List/inspect: json|csv (default = fixed-width table to stdout)."
+            "List/inspect: json|csv (default = fixed-width table to stdout). "
+            "Diff: console|json|markdown|pr-comment."
         ),
     )
 
@@ -198,6 +233,55 @@ def build_parser() -> argparse.ArgumentParser:
         "--snapshot",
         action="store_true",
         help="Persist the built SdrDocument to ~/.aa/orgs/<profile>/snapshots/<RSID>/<ts>.json (requires --profile)",
+    )
+
+    # v1.1 — auto-snapshot + retention
+    p.add_argument(
+        "--auto-snapshot",
+        action="store_true",
+        help="On generate/batch, save a snapshot per RSID (requires --profile)",
+    )
+    p.add_argument(
+        "--auto-prune",
+        action="store_true",
+        help="After auto-snapshot or with --prune-snapshots, apply retention policy",
+    )
+    keep_group = p.add_mutually_exclusive_group()
+    keep_group.add_argument(
+        "--keep-last",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Retention: keep N most recent snapshots per RSID",
+    )
+    keep_group.add_argument(
+        "--keep-since",
+        default=None,
+        metavar="DURATION",
+        help="Retention: keep snapshots newer than DURATION (e.g. 30d, 12h, 4w)",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="For --prune-snapshots, list deletions without unlinking",
+    )
+
+    # v1.1 — diff modifiers
+    p.add_argument(
+        "--side-by-side",
+        action="store_true",
+        help="Render diff modified-component fields side-by-side (console/markdown only)",
+    )
+    p.add_argument(
+        "--summary",
+        action="store_true",
+        help="Render diff as count-only summary (no per-field detail)",
+    )
+    p.add_argument(
+        "--ignore-fields",
+        default=None,
+        metavar="CSV",
+        help="Comma-separated field names to skip during compare (e.g. description,tags)",
     )
 
     return p

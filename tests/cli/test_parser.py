@@ -232,3 +232,56 @@ def test_exit_codes_mutex_with_diff() -> None:
     p = build_parser()
     with pytest.raises(SystemExit):
         p.parse_args(["--exit-codes", "--diff", "a", "b"])
+
+
+class TestV11Flags:
+    def test_list_snapshots_action(self) -> None:
+        ns = build_parser().parse_args(["--list-snapshots"])
+        assert ns.list_snapshots is True
+
+    def test_prune_snapshots_with_keep_last(self) -> None:
+        ns = build_parser().parse_args(["--prune-snapshots", "--keep-last", "5"])
+        assert ns.prune_snapshots is True
+        assert ns.keep_last == 5
+
+    def test_keep_last_keep_since_mutex(self) -> None:
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(
+                ["--prune-snapshots", "--keep-last", "5", "--keep-since", "30d"],
+            )
+
+    def test_profile_list(self) -> None:
+        ns = build_parser().parse_args(["--profile-list"])
+        assert ns.profile_list is True
+
+    def test_profile_test(self) -> None:
+        ns = build_parser().parse_args(["--profile-test", "prod"])
+        assert ns.profile_test == "prod"
+
+    def test_profile_import(self) -> None:
+        ns = build_parser().parse_args(["--profile-import", "prod", "/tmp/x.json"])
+        assert ns.profile_import == ["prod", "/tmp/x.json"]
+
+    def test_auto_snapshot(self) -> None:
+        ns = build_parser().parse_args(["RS1", "--auto-snapshot"])
+        assert ns.auto_snapshot is True
+
+    def test_diff_format_pr_comment(self) -> None:
+        ns = build_parser().parse_args(
+            ["--diff", "a.json", "b.json", "--format", "pr-comment"],
+        )
+        assert ns.format == "pr-comment"
+
+    def test_side_by_side_summary_ignore_fields(self) -> None:
+        ns = build_parser().parse_args(
+            ["--diff", "a.json", "b.json", "--side-by-side", "--summary", "--ignore-fields", "description,tags"],
+        )
+        assert ns.side_by_side is True
+        assert ns.summary is True
+        assert ns.ignore_fields == "description,tags"
+
+    def test_dry_run(self) -> None:
+        ns = build_parser().parse_args(
+            ["--prune-snapshots", "--keep-last", "5", "--dry-run"],
+        )
+        assert ns.dry_run is True

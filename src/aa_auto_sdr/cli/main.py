@@ -21,6 +21,45 @@ def run(argv: list[str]) -> int:
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)
 
+    # v1.1 — snapshot lifecycle
+    if ns.list_snapshots:
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        return snap_cmd.list_run(
+            profile=ns.profile,
+            rsid=ns.rsid,
+            format_name=ns.format,
+        )
+    if ns.prune_snapshots:
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        return snap_cmd.prune_run(
+            profile=ns.profile,
+            rsid=ns.rsid,
+            keep_last=ns.keep_last,
+            keep_since=ns.keep_since,
+            dry_run=ns.dry_run,
+        )
+
+    # v1.1 — profile commands
+    if ns.profile_list:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        return prof_cmd.list_run(format_name=ns.format)
+    if ns.profile_test:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        return prof_cmd.test_run(ns.profile_test)
+    if ns.profile_show:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        return prof_cmd.show_run(ns.profile_show)
+    if ns.profile_import:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        name, src_path = ns.profile_import
+        return prof_cmd.import_run(name, src_path)
+
     # Fast-path actions (also reachable via slow path if positional ordering forced argparse)
     if ns.exit_codes:
         from aa_auto_sdr.cli.commands.exit_codes import run_list_exit_codes
@@ -101,12 +140,16 @@ def run(argv: list[str]) -> int:
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
+        ignore = frozenset(f.strip() for f in (ns.ignore_fields or "").split(",") if f.strip())
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
             format_name=ns.format,
             output=ns.output,
             profile=ns.profile,
+            side_by_side=ns.side_by_side,
+            summary=ns.summary,
+            ignore_fields=ignore,
         )
 
     # Batch (v0.5) — sequential multi-RSID generation

@@ -166,3 +166,110 @@ def test_completion_via_slow_path(capsys) -> None:
 def test_no_args_returns_usage_error_2(capsys) -> None:
     rc = run([])
     assert rc == 2
+
+
+class TestV11Dispatch:
+    def test_list_snapshots_dispatched(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        called: dict[str, object] = {}
+
+        def _stub(*, profile, rsid, format_name):
+            called["profile"] = profile
+            called["rsid"] = rsid
+            called["format_name"] = format_name
+            return 0
+
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        monkeypatch.setattr(snap_cmd, "list_run", _stub)
+        rc = run(["--list-snapshots", "--profile", "prod"])
+        assert rc == 0
+        assert called["profile"] == "prod"
+
+    def test_prune_snapshots_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        called: dict[str, object] = {}
+
+        def _stub(*, profile, rsid, keep_last, keep_since, dry_run):
+            called.update(
+                {
+                    "profile": profile,
+                    "rsid": rsid,
+                    "keep_last": keep_last,
+                    "keep_since": keep_since,
+                    "dry_run": dry_run,
+                }
+            )
+            return 0
+
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        monkeypatch.setattr(snap_cmd, "prune_run", _stub)
+        rc = run(
+            [
+                "--prune-snapshots",
+                "--profile",
+                "prod",
+                "--keep-last",
+                "5",
+                "--dry-run",
+            ]
+        )
+        assert rc == 0
+        assert called["keep_last"] == 5
+        assert called["dry_run"] is True
+
+    def test_profile_list_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, format_name=None, base=None):
+            captured["format_name"] = format_name
+            return 0
+
+        monkeypatch.setattr(prof_cmd, "list_run", _stub)
+        rc = run(["--profile-list", "--format", "json"])
+        assert rc == 0
+        assert captured["format_name"] == "json"
+
+    def test_diff_passes_new_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, a, b, format_name, output, profile, side_by_side, summary, ignore_fields):
+            captured.update(
+                {
+                    "a": a,
+                    "b": b,
+                    "format_name": format_name,
+                    "output": output,
+                    "profile": profile,
+                    "side_by_side": side_by_side,
+                    "summary": summary,
+                    "ignore_fields": ignore_fields,
+                }
+            )
+            return 0
+
+        monkeypatch.setattr(diff_cmd, "run", _stub)
+        rc = run(
+            [
+                "--diff",
+                "a.json",
+                "b.json",
+                "--side-by-side",
+                "--summary",
+                "--ignore-fields",
+                "description,tags",
+                "--format",
+                "pr-comment",
+            ]
+        )
+        assert rc == 0
+        assert captured["side_by_side"] is True
+        assert captured["summary"] is True
+        assert captured["ignore_fields"] == frozenset({"description", "tags"})
+        assert captured["format_name"] == "pr-comment"
