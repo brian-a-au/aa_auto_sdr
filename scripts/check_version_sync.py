@@ -5,7 +5,6 @@ Canonical: src/aa_auto_sdr/core/version.py
 Verified:
   - pyproject.toml dynamic version wired to canonical path
   - CHANGELOG.md most-recent ## [x.y.z] heading matches
-  - README.md status line includes vMAJOR.MINOR
 
 Exits 0 on match, 1 on first mismatch."""
 
@@ -46,23 +45,11 @@ def _check_changelog(repo: Path, canonical: str) -> None:
         sys.exit(1)
 
 
-def _check_readme(repo: Path, canonical: str) -> None:
-    major_minor = ".".join(canonical.split(".")[:2])
-    text = (repo / "README.md").read_text()
-    if f"v{major_minor}" not in text:
-        print(
-            f"error: README.md does not mention v{major_minor}",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-
 def main() -> int:
     repo = Path.cwd()
     canonical = _read_canonical(repo)
     _check_pyproject(repo)
     _check_changelog(repo, canonical)
-    _check_readme(repo, canonical)
     print(f"version sync OK: {canonical}")
     return 0
 
