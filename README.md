@@ -55,8 +55,6 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | Sub-100ms fast-path for `-V`/`--version`/`-h`/`--help`/`--exit-codes`/`--explain-exit-code`/`--completion` |
 | | `--help` covers every flag |
 
-**Explicitly out of scope** (not in v1.0.0; defer to future versions if asked): no quality / validation engine; no parallel batch processing; no org-wide analysis or clustering; no derived-fields or calculated-metrics inventory mode; no auto-snapshot or retention policies; no `--stats` summary command; not yet on PyPI.
-
 ### Who It's For
 
 - **Adobe Analytics implementers** documenting report suite state for stakeholders or audits
