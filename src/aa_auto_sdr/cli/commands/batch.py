@@ -48,6 +48,7 @@ def run(
     metrics_only: bool = False,  # v1.2
     dimensions_only: bool = False,  # v1.2
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
+    open_after: bool = False,  # v1.2 — open output_dir in OS default app
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
@@ -232,6 +233,11 @@ def run(
         )
         if rc != ExitCode.OK.value:
             return rc
+
+    if open_after and not dry_run:
+        from aa_auto_sdr.core._open import os_open
+
+        os_open(output_dir)
 
     if not final.failures:
         return ExitCode.OK.value

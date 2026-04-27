@@ -57,6 +57,7 @@ def run(
     metrics_only: bool = False,  # v1.2
     dimensions_only: bool = False,  # v1.2
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
+    open_after: bool = False,  # v1.2 — open first output in OS default app
 ) -> int:
     is_pipe = output_dir == Path("-")
 
@@ -226,6 +227,7 @@ def run(
         return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
+    first_output: Path | None = None
     for index, canonical_rsid in enumerate(canonical_rsids, start=1):
         if total > 1:
             print(f"generating SDR {index}/{total}: {canonical_rsid}")
@@ -255,6 +257,8 @@ def run(
 
         for path in result.outputs:
             print(f"wrote: {path}")
+        if first_output is None and result.outputs:
+            first_output = result.outputs[0]
 
     if auto_prune and snapshot_dir is not None:
         rc = _apply_auto_prune(
@@ -266,6 +270,11 @@ def run(
         )
         if rc != ExitCode.OK.value:
             return rc
+
+    if open_after and not is_pipe and not dry_run and first_output is not None:
+        from aa_auto_sdr.core._open import os_open
+
+        os_open(first_output)
 
     return ExitCode.OK.value
 

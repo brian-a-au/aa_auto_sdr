@@ -58,12 +58,14 @@ def prune_run(
     keep_last: int | None,
     keep_since: str | None,
     dry_run: bool,
+    assume_yes: bool = False,
 ) -> int:
     """Apply retention policy under `~/.aa/orgs/<profile>/snapshots/`.
 
     Requires `--profile` and at least one of `keep_last` / `keep_since`.
     `rsid` filters to one RSID. `dry_run` reports what would be deleted
-    without unlinking."""
+    without unlinking. `assume_yes` skips the confirmation prompt for
+    non-dry-run deletes (v1.2 destructive-action gate)."""
     if not profile:
         print("error: --prune-snapshots requires --profile", flush=True)
         return ExitCode.CONFIG.value
@@ -79,6 +81,20 @@ def prune_run(
         )
         return ExitCode.CONFIG.value
     snapshot_dir = default_base() / "orgs" / profile / "snapshots"
+
+    if not dry_run:
+        from aa_auto_sdr.core._confirm import confirm
+
+        # Probe with dry-run first so we can show the user how many files
+        # would be deleted before they confirm.
+        would_delete = prune_snapshots(snapshot_dir, policy, rsid=rsid, dry_run=True)
+        if would_delete and not confirm(
+            f"about to delete {len(would_delete)} snapshots; continue?",
+            assume_yes=assume_yes,
+        ):
+            print("aborted", flush=True)
+            return ExitCode.OK.value
+
     deleted = prune_snapshots(snapshot_dir, policy, rsid=rsid, dry_run=dry_run)
     label = "would delete" if dry_run else "deleted"
     if not deleted:

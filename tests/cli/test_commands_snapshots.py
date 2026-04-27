@@ -158,6 +158,7 @@ class TestPruneSnapshots:
             keep_last=1,
             keep_since=None,
             dry_run=False,
+            assume_yes=True,  # v1.2: confirmation gate
         )
         assert rc == ExitCode.OK.value
         rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
@@ -174,6 +175,7 @@ class TestPruneSnapshots:
             keep_last=1,
             keep_since=None,
             dry_run=False,
+            assume_yes=True,  # v1.2: confirmation gate
         )
         assert rc == ExitCode.OK.value
         rs1_dir = aa_home_multi / "orgs" / "prod" / "snapshots" / "RS1"
@@ -186,7 +188,10 @@ class TestPruneSnapshots:
         aa_home: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """When policy keeps everything, prune reports '0 snapshots'."""
+        """When policy keeps everything, prune reports '0 snapshots'.
+
+        Zero-delete path skips the confirmation prompt entirely (no files would
+        be removed), so `assume_yes` is irrelevant here."""
         rc = cmd.prune_run(
             profile="prod",
             rsid=None,
@@ -196,3 +201,28 @@ class TestPruneSnapshots:
         )
         assert rc == ExitCode.OK.value
         assert "deleted: 0 snapshots" in capsys.readouterr().out
+
+
+class TestPruneConfirmation:
+    """v1.2 confirmation gate for destructive prune."""
+
+    def test_prune_aborts_on_non_tty_without_assume_yes(
+        self,
+        aa_home: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """v1.2: --prune-snapshots without --yes on non-tty stdin → abort, no delete."""
+        rc = cmd.prune_run(
+            profile="prod",
+            rsid=None,
+            keep_last=1,
+            keep_since=None,
+            dry_run=False,
+            assume_yes=False,
+        )
+        assert rc == ExitCode.OK.value
+        out = capsys.readouterr().out
+        assert "aborted" in out
+        # Files NOT deleted
+        rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
+        assert len(list(rs_dir.glob("*.json"))) == 2
