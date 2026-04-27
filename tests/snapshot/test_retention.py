@@ -105,8 +105,9 @@ class TestSelectForDeletion:
             self._file("2026-04-25T10-00-00+00-00"),
             self._file("2026-04-26T10-00-00+00-00"),
         ]
-        # keep_last=2 → drop the two oldest; keep_since=3d → drop the two >3d old
-        # Result: union = three oldest.
+        # keep_last=2 → drop the two oldest (04-20, 04-21).
+        # keep_since=3d (cutoff 04-23 12:00) → drop the same two files.
+        # Result: union = the two oldest.
         policy = RetentionPolicy(
             keep_last=2,
             keep_since=timedelta(days=3),

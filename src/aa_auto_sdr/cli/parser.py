@@ -127,12 +127,12 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--list-snapshots",
         action="store_true",
-        help="List snapshots in ~/.aa/orgs/<profile>/snapshots/ (requires --profile)",
+        help="List snapshots in ~/.aa/orgs/<profile>/snapshots/ (requires --profile; pass <RSID> positional to filter)",
     )
     actions.add_argument(
         "--prune-snapshots",
         action="store_true",
-        help="Apply retention policy and delete snapshots (requires --profile + --keep-last|--keep-since)",
+        help="Apply retention policy and delete snapshots (requires --profile + --keep-last|--keep-since; pass <RSID> positional to scope to one)",
     )
     actions.add_argument(
         "--profile-list",
