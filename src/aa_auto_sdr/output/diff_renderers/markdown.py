@@ -26,14 +26,18 @@ def render_markdown(
     *,
     side_by_side: bool = False,
     summary: bool = False,
+    quiet: bool = False,
+    labels: tuple[str, str] | None = None,
 ) -> str:
     buf = StringIO()
     buf.write("# SDR Diff\n\n")
+    a_label = labels[0] if labels else "Source"
+    b_label = labels[1] if labels else "Target"
     buf.write(
-        f"**Source:** `{report.a_rsid}` @ `{report.a_captured_at}` (tool {report.a_tool_version})\n",
+        f"**{a_label}:** `{report.a_rsid}` @ `{report.a_captured_at}` (tool {report.a_tool_version})\n",
     )
     buf.write(
-        f"**Target:** `{report.b_rsid}` @ `{report.b_captured_at}` (tool {report.b_tool_version})\n\n",
+        f"**{b_label}:** `{report.b_rsid}` @ `{report.b_captured_at}` (tool {report.b_tool_version})\n\n",
     )
     if report.rsid_mismatch:
         buf.write(f"> ⚠️ RSID mismatch: source `{report.a_rsid}` ≠ target `{report.b_rsid}`\n\n")
@@ -41,13 +45,24 @@ def render_markdown(
     if summary:
         # Summary mode: per-component-type count rows, no per-item detail.
         buf.write("## Summary\n\n")
-        buf.write("| Component | Added | Removed | Modified | Unchanged |\n")
-        buf.write("|---|---|---|---|---|\n")
-        for cd in report.components:
-            label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
-            buf.write(
-                f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
-            )
+        if quiet:
+            buf.write("| Component | Added | Removed | Modified |\n")
+            buf.write("|---|---|---|---|\n")
+            for cd in report.components:
+                if not (cd.added or cd.removed or cd.modified):
+                    continue
+                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+                buf.write(
+                    f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} |\n",
+                )
+        else:
+            buf.write("| Component | Added | Removed | Modified | Unchanged |\n")
+            buf.write("|---|---|---|---|---|\n")
+            for cd in report.components:
+                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+                buf.write(
+                    f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
+                )
         buf.write("\n")
         return buf.getvalue()
 
@@ -65,14 +80,23 @@ def render_markdown(
     for cd in report.components:
         if not (cd.added or cd.removed or cd.modified):
             continue
-        _render_component_section(buf, cd, side_by_side=side_by_side)
+        _render_component_section(buf, cd, side_by_side=side_by_side, quiet=quiet)
 
     return buf.getvalue()
 
 
-def _render_component_section(buf: StringIO, cd: ComponentDiff, *, side_by_side: bool = False) -> None:
+def _render_component_section(
+    buf: StringIO,
+    cd: ComponentDiff,
+    *,
+    side_by_side: bool = False,
+    quiet: bool = False,
+) -> None:
     label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
-    counts = f"+{len(cd.added)} / -{len(cd.removed)} / ~{len(cd.modified)} / {cd.unchanged_count} unchanged"
+    if quiet:
+        counts = f"+{len(cd.added)} / -{len(cd.removed)} / ~{len(cd.modified)}"
+    else:
+        counts = f"+{len(cd.added)} / -{len(cd.removed)} / ~{len(cd.modified)} / {cd.unchanged_count} unchanged"
     buf.write(f"## {label} ({counts})\n\n")
 
     if cd.added:

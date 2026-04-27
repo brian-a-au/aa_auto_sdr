@@ -41,17 +41,21 @@ def render_console(
     *,
     side_by_side: bool = False,
     summary: bool = False,
+    quiet: bool = False,
+    labels: tuple[str, str] | None = None,
 ) -> str:
     buf = StringIO()
     bar = "=" * BANNER_WIDTH
     buf.write(f"{bar}\n")
     buf.write(colors.bold("SDR DIFF") + "\n")
     buf.write(f"{bar}\n")
+    a_label = labels[0] if labels else "Source"
+    b_label = labels[1] if labels else "Target"
     buf.write(
-        f"Source: {report.a_rsid} @ {report.a_captured_at} (tool {report.a_tool_version})\n",
+        f"{a_label}: {report.a_rsid} @ {report.a_captured_at} (tool {report.a_tool_version})\n",
     )
     buf.write(
-        f"Target: {report.b_rsid} @ {report.b_captured_at} (tool {report.b_tool_version})\n",
+        f"{b_label}: {report.b_rsid} @ {report.b_captured_at} (tool {report.b_tool_version})\n",
     )
     if report.rsid_mismatch:
         buf.write(
@@ -66,9 +70,11 @@ def render_console(
         # Summary mode: per-component-type counts only.
         for cd in report.components:
             label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+            if quiet and not (cd.added or cd.removed or cd.modified):
+                continue
             buf.write(
                 f"{label}: +{len(cd.added)} added, -{len(cd.removed)} removed, "
-                f"~{len(cd.modified)} modified, {cd.unchanged_count} unchanged\n",
+                f"~{len(cd.modified)} modified" + ("" if quiet else f", {cd.unchanged_count} unchanged") + "\n",
             )
         buf.write(f"{bar}\n")
         return buf.getvalue()
@@ -81,27 +87,44 @@ def render_console(
 
     total_added = total_removed = total_modified = total_unchanged = 0
     for cd in report.components:
-        _render_component(buf, cd, side_by_side=side_by_side)
+        if quiet and not (cd.added or cd.removed or cd.modified):
+            total_unchanged += cd.unchanged_count
+            continue
+        _render_component(buf, cd, side_by_side=side_by_side, quiet=quiet)
         total_added += len(cd.added)
         total_removed += len(cd.removed)
         total_modified += len(cd.modified)
         total_unchanged += cd.unchanged_count
 
     buf.write(f"{bar}\n")
-    buf.write(
-        f"Total: +{total_added} added, -{total_removed} removed, "
-        f"~{total_modified} modified, {total_unchanged} unchanged\n",
-    )
+    if quiet:
+        buf.write(
+            f"Total: +{total_added} added, -{total_removed} removed, ~{total_modified} modified\n",
+        )
+    else:
+        buf.write(
+            f"Total: +{total_added} added, -{total_removed} removed, "
+            f"~{total_modified} modified, {total_unchanged} unchanged\n",
+        )
     buf.write(f"{bar}\n")
     return buf.getvalue()
 
 
-def _render_component(buf: StringIO, cd: ComponentDiff, *, side_by_side: bool = False) -> None:
+def _render_component(
+    buf: StringIO,
+    cd: ComponentDiff,
+    *,
+    side_by_side: bool = False,
+    quiet: bool = False,
+) -> None:
     label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
-    summary = (
-        f"+{len(cd.added)} added, -{len(cd.removed)} removed, "
-        f"~{len(cd.modified)} modified, {cd.unchanged_count} unchanged"
-    )
+    if quiet:
+        summary = f"+{len(cd.added)} added, -{len(cd.removed)} removed, ~{len(cd.modified)} modified"
+    else:
+        summary = (
+            f"+{len(cd.added)} added, -{len(cd.removed)} removed, "
+            f"~{len(cd.modified)} modified, {cd.unchanged_count} unchanged"
+        )
     buf.write(f"{label}: {summary}\n")
     buf.writelines(f"  {colors.success('+')} {item.id} — {item.name}\n" for item in cd.added)
     buf.writelines(f"  {colors.error('-')} {item.id} — {item.name}\n" for item in cd.removed)

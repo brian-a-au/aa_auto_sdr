@@ -16,14 +16,20 @@ LENGTH_CAP = 60_000
 _INLINE_VALUE_CAP = 200
 
 
-def render_pr_comment(report: DiffReport, *, summary: bool = False) -> str:
+def render_pr_comment(
+    report: DiffReport,
+    *,
+    summary: bool = False,
+    labels: tuple[str, str] | None = None,
+) -> str:
     """Render `report` as compact GFM suitable for a GitHub PR comment.
 
     Output is capped at LENGTH_CAP chars; anything beyond gets truncated at the
     last <details> boundary with a banner. `summary=True` drops per-field
-    detail and emits only counts."""
+    detail and emits only counts. `labels=(a, b)` adds an "**a** vs **b**"
+    line under the header (default `None` preserves v1.1 output exactly)."""
     parts: list[str] = []
-    parts.append(_header(report))
+    parts.append(_header(report, labels=labels))
     if report.rsid_mismatch:
         parts.append(
             f"> ⚠ RSID mismatch — `{report.a_rsid}` vs `{report.b_rsid}` — "
@@ -42,8 +48,10 @@ def render_pr_comment(report: DiffReport, *, summary: bool = False) -> str:
     return _enforce_cap(body)
 
 
-def _header(report: DiffReport) -> str:
+def _header(report: DiffReport, *, labels: tuple[str, str] | None = None) -> str:
     short_ts = report.b_captured_at.split("T")[0]
+    if labels:
+        return f"### SDR Diff: `{report.a_rsid}` ({short_ts})\n— **{labels[0]}** vs **{labels[1]}**\n"
     return f"### SDR Diff: `{report.a_rsid}` ({short_ts})\n"
 
 
