@@ -1,6 +1,6 @@
 # Adobe Analytics Solution Design Reference Generator
 
-<img width="1024" height="572" alt="aa_sdr" src="https://github.com/user-attachments/assets/8be00f87-28da-4ab8-88fb-93c41f70b193" />
+<img width="2750" height="1536" alt="Gemini_Generated_Image_fmlfuefmlfuefmlf" src="https://github.com/user-attachments/assets/28bea7c7-918b-4402-802b-b4a34f4cd77f" />
 
 A production-ready Python CLI that automates the creation of **Solution Design Reference (SDR)** documentation from your Adobe Analytics implementation. **Read-only** against Adobe Analytics. **API 2.0 only**.
 
