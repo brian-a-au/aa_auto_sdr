@@ -49,6 +49,7 @@ def run(
     dimensions_only: bool = False,  # v1.2
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
     open_after: bool = False,  # v1.2 — open output_dir in OS default app
+    assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 

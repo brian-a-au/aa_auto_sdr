@@ -191,7 +191,7 @@ class TestV11Dispatch:
     def test_prune_snapshots_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
         called: dict[str, object] = {}
 
-        def _stub(*, profile, rsid, keep_last, keep_since, dry_run):
+        def _stub(*, profile, rsid, keep_last, keep_since, dry_run, **_v12):
             called.update(
                 {
                     "profile": profile,
@@ -239,7 +239,7 @@ class TestV11Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, a, b, format_name, output, profile, side_by_side, summary, ignore_fields):
+        def _stub(*, a, b, format_name, output, profile, side_by_side, summary, ignore_fields, **_v12):
             captured.update(
                 {
                     "a": a,
@@ -389,3 +389,128 @@ class TestAutoBatchPositional:
         rc = run(["--list-snapshots", "rs1", "rs2", "--profile", "prod"])
         assert rc == 2
         assert "at most one positional" in capsys.readouterr().out
+
+
+class TestV12Dispatch:
+    def test_stats_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import stats as stats_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, rsids, profile, format_name):
+            captured["rsids"] = rsids
+            captured["profile"] = profile
+            captured["format_name"] = format_name
+            return 0
+
+        monkeypatch.setattr(stats_cmd, "run", _stub)
+        rc = run(["--stats", "rs1", "rs2", "--profile", "prod"])
+        assert rc == 0
+        assert captured["rsids"] == ["rs1", "rs2"]
+        assert captured["profile"] == "prod"
+
+    def test_interactive_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import interactive as interactive_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, profile):
+            captured["profile"] = profile
+            return 0
+
+        monkeypatch.setattr(interactive_cmd, "run", _stub)
+        rc = run(["--interactive", "--profile", "prod"])
+        assert rc == 0
+        assert captured["profile"] == "prod"
+
+    def test_config_status_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import config as config_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, profile):
+            captured["profile"] = profile
+            return 0
+
+        monkeypatch.setattr(config_cmd, "config_status", _stub)
+        rc = run(["--config-status"])
+        assert rc == 0
+
+    def test_sample_config_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import config as config_cmd
+
+        called = {"hit": False}
+
+        def _stub():
+            called["hit"] = True
+            return 0
+
+        monkeypatch.setattr(config_cmd, "sample_config", _stub)
+        rc = run(["--sample-config"])
+        assert rc == 0
+        assert called["hit"] is True
+
+    def test_diff_passes_v12_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, a, b, format_name, output, profile,
+                  side_by_side, summary, ignore_fields,
+                  quiet, labels, reverse, changes_only, show_only,
+                  max_issues, warn_threshold):
+            captured.update({
+                "quiet": quiet, "labels": labels, "reverse": reverse,
+                "changes_only": changes_only, "show_only": show_only,
+                "max_issues": max_issues, "warn_threshold": warn_threshold,
+            })
+            return 0
+
+        monkeypatch.setattr(diff_cmd, "run", _stub)
+        rc = run([
+            "--diff", "a.json", "b.json",
+            "--quiet-diff", "--reverse-diff",
+            "--diff-labels", "A=before", "B=after",
+            "--changes-only", "--show-only", "metrics,dimensions",
+            "--max-issues", "5", "--warn-threshold", "10",
+        ])
+        assert rc == 0
+        assert captured["quiet"] is True
+        assert captured["reverse"] is True
+        assert captured["labels"] == ("before", "after")
+        assert captured["changes_only"] is True
+        assert captured["show_only"] == frozenset({"metrics", "dimensions"})
+        assert captured["max_issues"] == 5
+        assert captured["warn_threshold"] == 10
+
+    def test_generate_passes_v12_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs):
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(generate_cmd, "run", _stub)
+        rc = run(["RS1", "--metrics-only", "--open", "-y"])
+        assert rc == 0
+        assert captured["metrics_only"] is True
+        assert captured["open_after"] is True
+        assert captured["assume_yes"] is True
+
+    def test_profile_import_with_overwrite(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(name, file_path, *, base=None, overwrite=False):
+            captured["name"] = name
+            captured["file_path"] = file_path
+            captured["overwrite"] = overwrite
+            return 0
+
+        monkeypatch.setattr(prof_cmd, "import_run", _stub)
+        rc = run(["--profile-import", "prod", "/tmp/c.json", "--profile-overwrite"])
+        assert rc == 0
+        assert captured["overwrite"] is True

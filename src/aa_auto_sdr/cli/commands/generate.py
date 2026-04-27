@@ -58,6 +58,7 @@ def run(
     dimensions_only: bool = False,  # v1.2
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
     open_after: bool = False,  # v1.2 — open first output in OS default app
+    assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
 ) -> int:
     is_pipe = output_dir == Path("-")
 
