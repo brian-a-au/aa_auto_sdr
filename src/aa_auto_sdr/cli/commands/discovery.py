@@ -112,10 +112,7 @@ def run_list_virtual_reportsuites(
         print(f"error: {e}", flush=True)
         return ExitCode.GENERIC.value
     # Convert to dicts for the existing renderer (which expects dict-shaped rows).
-    normalized = [
-        {"id": s.id, "name": s.name or "", "parent_rsid": s.parent_rsid}
-        for s in summaries
-    ]
+    normalized = [{"id": s.id, "name": s.name or "", "parent_rsid": s.parent_rsid} for s in summaries]
 
     return _render_with_filters(
         normalized,

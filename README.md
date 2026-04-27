@@ -31,6 +31,8 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types (v1.2) |
 | | `--dry-run` previews would-be output paths without writing (auth still validates; v1.2) |
 | | `--open` opens generated output in OS default app after writing (v1.2) |
+| | `--show-timings` prints per-stage timings to stderr at end of run (v1.2.1) |
+| | `--run-summary-json PATH` emits a structured JSON run summary to a file or stdout (v1.2.1) |
 | | Continue-on-error across N report suites with summary banner |
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |

@@ -396,6 +396,6 @@ class TestStepSummaryUsesFullReport:
         # Step summary file MUST contain the metric details (full report),
         # even though show_only filtered them out of the rendered diff.
         content = summary_path.read_text()
-        assert "m1" in content and "m2" in content, (
-            "Step summary should reflect the FULL diff, not the show_only-filtered render"
-        )
+        # Step summary should reflect the FULL diff, not the show_only-filtered render.
+        assert "m1" in content
+        assert "m2" in content
