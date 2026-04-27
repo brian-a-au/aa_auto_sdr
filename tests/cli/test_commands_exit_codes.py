@@ -47,3 +47,21 @@ def test_run_explain_exit_code_unknown_returns_2(capsys) -> None:
     err = captured.out + captured.err
     assert "999" in err
     assert "unknown exit code" in err.lower() or "--exit-codes" in err
+
+
+def test_explain_exit_code_config_mentions_v1_1_scenarios(capsys) -> None:
+    """v1.1 added --list-snapshots / --prune-snapshots / --profile-test etc.
+    The CONFIG explanation should mention them so users get a remediation hint."""
+    rc = run_explain_exit_code(10)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "--list-snapshots" in out or "--profile-test" in out
+    assert "--keep-since" in out or "--keep-last" in out
+
+
+def test_explain_exit_code_auth_mentions_profile_test(capsys) -> None:
+    """v1.1 added --profile-test. The AUTH explanation should reference it."""
+    rc = run_explain_exit_code(11)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "--profile-test" in out

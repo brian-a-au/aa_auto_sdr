@@ -65,12 +65,22 @@ What to try:
 
 Likely causes:
 - Required env vars unset (`ORG_ID`, `CLIENT_ID`, `SECRET`, `SCOPES`).
-- `--snapshot` used without `--profile`.
+- `--snapshot` or `--auto-snapshot` used without `--profile`.
 - `--profile NAME` referenced but no profile file at `~/.aa/orgs/NAME/`.
+- `--list-snapshots`, `--prune-snapshots`, `--profile-test`, `--profile-show`,
+  or `--profile-import` used without `--profile` (when required) or with
+  a profile that doesn't exist.
+- `--prune-snapshots` or `--auto-prune` used without `--keep-last` or
+  `--keep-since`.
+- `--keep-since` value not in `<int><h|d|w>` form (e.g. `forever` is rejected;
+  use `30d`, `12h`, `4w`).
+- `--profile-import` source file missing required fields
+  (`org_id`, `client_id`, `secret`, `scopes`).
 
 What to try:
 - Run `aa_auto_sdr --show-config` to see which credentials source resolved.
-- Run `aa_auto_sdr --profile-add NAME` to create a profile interactively.""",
+- Run `aa_auto_sdr --profile-add NAME` to create a profile interactively.
+- Run `aa_auto_sdr --profile-list` to list known profiles.""",
     ExitCode.AUTH: """OAuth Server-to-Server authentication failed.
 
 Likely causes:
@@ -78,11 +88,13 @@ Likely causes:
 - Scopes missing `additional_info.job_function` (Adobe rejects reads silently
   without it).
 - Integration not added to an Adobe Analytics Product Profile in Admin Console.
+- `--profile-test` failed at OAuth or `getCompanyId()` for the named profile.
 
 What to try:
 - Verify credentials in Adobe Developer Console (https://developer.adobe.com/console).
 - Confirm SCOPES contains `openid AdobeID read_organizations
-  additional_info.projectedProductContext additional_info.job_function`.""",
+  additional_info.projectedProductContext additional_info.job_function`.
+- Run `aa_auto_sdr --profile-test NAME` to surface the underlying auth error.""",
     ExitCode.API: """An Adobe Analytics API request failed.
 
 Likely causes:
@@ -119,11 +131,14 @@ Likely causes:
   `--format excel`, etc.).
 - `--output -` combined with `--batch` (multiple SDRs cannot share one stream).
 - `--diff --format console --output -` (console diff is for humans, not pipes).
+- `--list-snapshots` or `--profile-list` with a format value other than
+  `json|table`.
 - Filesystem write failure (permissions, disk full).
 
 What to try:
 - For piping, use `--format json` (single SDR) or `--format json|markdown`
-  (diff). Use `--output-dir` for multi-format and batch.""",
+  (diff). Use `--output-dir` for multi-format and batch.
+- For `--list-snapshots` / `--profile-list`, use `--format json` or `--format table`.""",
     ExitCode.SNAPSHOT: """A snapshot could not be resolved, parsed, or read from git.
 
 Likely causes:
