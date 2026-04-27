@@ -402,5 +402,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print per-stage timings at end of run (auth, resolve, build, write)",
     )
+    p.add_argument(
+        "--run-summary-json",
+        default=None,
+        metavar="PATH",
+        help="Emit a JSON run summary to PATH (or '-' for stdout)",
+    )
 
     return p

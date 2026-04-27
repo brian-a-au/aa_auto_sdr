@@ -13,6 +13,7 @@ The runner in pipeline/batch.py is pure; this module owns all stdout printing
 
 from __future__ import annotations
 
+import json as _json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,6 +29,7 @@ from aa_auto_sdr.core.exceptions import (
     ReportSuiteNotFoundError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.core.run_summary import PerRsidResult, RunSummary
 from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
@@ -42,6 +44,40 @@ def _emit_timings_if_enabled(*, show_timings: bool) -> None:
     _sys.stderr.write(timings.format_report())
     _sys.stderr.flush()
     timings.disable()
+
+
+def _emit_run_summary(
+    *,
+    run_summary_json: str | None,
+    started_at: datetime,
+    finished_at: datetime,
+    profile: str | None,
+    per_rsid: list[PerRsidResult],
+    show_timings: bool,
+) -> None:
+    if not run_summary_json:
+        return
+    summary = RunSummary(
+        started_at=started_at.isoformat(),
+        finished_at=finished_at.isoformat(),
+        duration_seconds=(finished_at - started_at).total_seconds(),
+        tool_version=__version__,
+        profile=profile,
+        rsids=per_rsid,
+        timings=timings.report() if show_timings else [],
+    )
+    if run_summary_json == "-":
+        # Compact single-line JSON on stdout — easier to consume from scripts and
+        # plays nicely with `splitlines()[-1]` shaped pipelines.
+        payload = _json.dumps(summary.to_dict(), sort_keys=True)
+        import sys as _sys
+
+        _sys.stdout.write(payload + "\n")
+        _sys.stdout.flush()
+    else:
+        payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
+        Path(run_summary_json).write_text(payload + "\n")
+        print(f"wrote run summary: {run_summary_json}", flush=True)
 
 
 def run(
@@ -61,12 +97,15 @@ def run(
     open_after: bool = False,  # v1.2 — open output_dir in OS default app
     assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
     show_timings: bool = False,  # v1.2.1
+    run_summary_json: str | None = None,  # v1.2.1
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
     `rsids` here is the raw list from argparse; identifier resolution + dedup
     happen below before `run_batch` sees the list.
     """
+    started_at = datetime.now(UTC)
+
     if show_timings:
         timings.clear()
         timings.enable()
@@ -210,6 +249,38 @@ def run(
                 )
                 print(f"  {snap_path}")
         print("(no files were written; remove --dry-run to execute)", flush=True)
+        dry_per_rsid: list[PerRsidResult] = [
+            PerRsidResult(
+                rsid=rs,
+                name=None,
+                succeeded=True,
+                formats=list(formats),
+                output_paths=[],
+                snapshot_path=None,
+                error=None,
+            )
+            for rs in canonical
+        ]
+        dry_per_rsid.extend(
+            PerRsidResult(
+                rsid=bad.rsid,
+                name=None,
+                succeeded=False,
+                formats=list(formats),
+                output_paths=[],
+                snapshot_path=None,
+                error=f"{bad.error_type}: {bad.message}",
+            )
+            for bad in pre_failures
+        )
+        _emit_run_summary(
+            run_summary_json=run_summary_json,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            profile=profile,
+            per_rsid=dry_per_rsid,
+            show_timings=show_timings,
+        )
         _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.OK.value
 
@@ -251,6 +322,39 @@ def run(
     )
 
     _print_summary(final)
+
+    per_rsid_results: list[PerRsidResult] = [
+        PerRsidResult(
+            rsid=ok.rsid,
+            name=ok.report_suite_name,
+            succeeded=True,
+            formats=list(formats),
+            output_paths=[str(p) for p in ok.outputs],
+            snapshot_path=None,
+            error=None,
+        )
+        for ok in final.successes
+    ]
+    per_rsid_results.extend(
+        PerRsidResult(
+            rsid=bad.rsid,
+            name=None,
+            succeeded=False,
+            formats=list(formats),
+            output_paths=[],
+            snapshot_path=None,
+            error=f"{bad.error_type}: {bad.message}",
+        )
+        for bad in final.failures
+    )
+    _emit_run_summary(
+        run_summary_json=run_summary_json,
+        started_at=started_at,
+        finished_at=datetime.now(UTC),
+        profile=profile,
+        per_rsid=per_rsid_results,
+        show_timings=show_timings,
+    )
 
     if auto_prune and snapshot_dir is not None:
         rc = _apply_auto_prune(

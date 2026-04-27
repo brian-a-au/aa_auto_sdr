@@ -546,3 +546,25 @@ class TestV12Dispatch:
         rc = run(["--profile-import", "prod", "/tmp/c.json", "--profile-overwrite"])
         assert rc == 0
         assert captured["overwrite"] is True
+
+
+def test_run_summary_json_dash_with_output_dash_returns_output_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both --run-summary-json - and --output - want stdout — reject before any work."""
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+    rc = run(
+        [
+            "demo.prod",
+            "--format",
+            "json",
+            "--output",
+            "-",
+            "--run-summary-json",
+            "-",
+        ],
+    )
+    assert rc == 15  # ExitCode.OUTPUT

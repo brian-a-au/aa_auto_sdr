@@ -1,7 +1,8 @@
 """RunSummary: structured outcome of a generate/batch run, suitable for JSON emit.
 
 Built at end of run by cli/commands/{generate,batch}.py and emitted as JSON
-when --run-summary-json is set."""
+when --run-summary-json is set (PATH for a file, '-' for stdout). The flag is
+wired in v1.2.1; the dataclass shape was added in v1.2.0."""
 
 from __future__ import annotations
 
