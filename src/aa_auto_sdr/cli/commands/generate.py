@@ -50,6 +50,10 @@ def run(
     format_name: str,
     profile: str | None,
     snapshot: bool = False,
+    auto_snapshot: bool = False,
+    auto_prune: bool = False,
+    keep_last: int | None = None,
+    keep_since: str | None = None,
 ) -> int:
     is_pipe = output_dir == Path("-")
 
@@ -60,9 +64,11 @@ def run(
         return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
-    if snapshot:
+    save_required = snapshot or auto_snapshot
+    if save_required:
         if not profile:
-            msg = "error: --snapshot requires --profile (snapshots are profile-scoped)"
+            flag = "--snapshot" if snapshot else "--auto-snapshot"
+            msg = f"error: {flag} requires --profile (snapshots are profile-scoped)"
             _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.CONFIG.value)
             return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
@@ -153,6 +159,17 @@ def run(
         payload = docs[0] if total == 1 else docs
         _sys.stdout.write(_json.dumps(payload, indent=2, default=str) + "\n")
         _sys.stdout.flush()
+
+        if auto_prune and snapshot_dir is not None:
+            rc = _apply_auto_prune(
+                is_pipe=is_pipe,
+                snapshot_dir=snapshot_dir,
+                rsids=canonical_rsids,
+                keep_last=keep_last,
+                keep_since=keep_since,
+            )
+            if rc != ExitCode.OK.value:
+                return rc
         return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
@@ -185,4 +202,45 @@ def run(
         for path in result.outputs:
             print(f"wrote: {path}")
 
+    if auto_prune and snapshot_dir is not None:
+        rc = _apply_auto_prune(
+            is_pipe=is_pipe,
+            snapshot_dir=snapshot_dir,
+            rsids=canonical_rsids,
+            keep_last=keep_last,
+            keep_since=keep_since,
+        )
+        if rc != ExitCode.OK.value:
+            return rc
+
+    return ExitCode.OK.value
+
+
+def _apply_auto_prune(
+    *,
+    is_pipe: bool,
+    snapshot_dir: Path,
+    rsids: list[str],
+    keep_last: int | None,
+    keep_since: str | None,
+) -> int:
+    """Parse retention policy and prune each RSID under `snapshot_dir`.
+
+    Returns ExitCode.OK on success, ExitCode.CONFIG on bad/empty policy.
+    """
+    from aa_auto_sdr.snapshot.retention import parse_policy
+    from aa_auto_sdr.snapshot.store import prune_snapshots
+
+    try:
+        policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
+    except ConfigError as exc:
+        msg = f"error: {exc}"
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=exc, message=msg, exit_code=ExitCode.CONFIG.value)
+        return ExitCode.CONFIG.value
+    if not policy.is_active():
+        msg = "error: --auto-prune requires --keep-last or --keep-since"
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.CONFIG.value)
+        return ExitCode.CONFIG.value
+    for rs in rsids:
+        prune_snapshots(snapshot_dir, policy, rsid=rs)
     return ExitCode.OK.value

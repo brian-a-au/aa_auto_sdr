@@ -5,10 +5,24 @@ import pytest
 from aa_auto_sdr.cli.parser import build_parser
 
 
-def test_positional_rsid() -> None:
+def test_positional_rsid_single() -> None:
     p = build_parser()
     ns = p.parse_args(["demo.prod"])
-    assert ns.rsid == "demo.prod"
+    assert ns.rsids == ["demo.prod"]
+
+
+def test_positional_rsid_multiple() -> None:
+    """v1.1 — positional accepts 2+ identifiers (auto-batch shorthand)."""
+    p = build_parser()
+    ns = p.parse_args(["rs1", "rs2", "rs3"])
+    assert ns.rsids == ["rs1", "rs2", "rs3"]
+
+
+def test_positional_mixes_rsid_and_name() -> None:
+    """v1.1 — RSIDs and case-insensitive names can mix freely in one invocation."""
+    p = build_parser()
+    ns = p.parse_args(["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"])
+    assert ns.rsids == ["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"]
 
 
 def test_format_default_is_none() -> None:
@@ -33,14 +47,14 @@ def test_profile_add_is_mutually_exclusive_with_rsid() -> None:
     """v0.1 defines --profile-add as a standalone action — RSID not required."""
     p = build_parser()
     ns = p.parse_args(["--profile-add", "prod"])
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_show_config_is_action() -> None:
     p = build_parser()
     ns = p.parse_args(["--show-config"])
     assert ns.show_config is True
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_profile_flag() -> None:
@@ -53,7 +67,7 @@ def test_list_reportsuites_flag_parses() -> None:
     p = build_parser()
     ns = p.parse_args(["--list-reportsuites"])
     assert ns.list_reportsuites is True
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_list_virtual_reportsuites_flag_parses() -> None:
@@ -141,7 +155,7 @@ def test_batch_flag_parses_multiple_rsids() -> None:
     p = build_parser()
     ns = p.parse_args(["--batch", "rs1", "rs2", "rs3"])
     assert ns.batch == ["rs1", "rs2", "rs3"]
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_batch_flag_requires_at_least_one_arg() -> None:
@@ -232,3 +246,56 @@ def test_exit_codes_mutex_with_diff() -> None:
     p = build_parser()
     with pytest.raises(SystemExit):
         p.parse_args(["--exit-codes", "--diff", "a", "b"])
+
+
+class TestV11Flags:
+    def test_list_snapshots_action(self) -> None:
+        ns = build_parser().parse_args(["--list-snapshots"])
+        assert ns.list_snapshots is True
+
+    def test_prune_snapshots_with_keep_last(self) -> None:
+        ns = build_parser().parse_args(["--prune-snapshots", "--keep-last", "5"])
+        assert ns.prune_snapshots is True
+        assert ns.keep_last == 5
+
+    def test_keep_last_keep_since_mutex(self) -> None:
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(
+                ["--prune-snapshots", "--keep-last", "5", "--keep-since", "30d"],
+            )
+
+    def test_profile_list(self) -> None:
+        ns = build_parser().parse_args(["--profile-list"])
+        assert ns.profile_list is True
+
+    def test_profile_test(self) -> None:
+        ns = build_parser().parse_args(["--profile-test", "prod"])
+        assert ns.profile_test == "prod"
+
+    def test_profile_import(self) -> None:
+        ns = build_parser().parse_args(["--profile-import", "prod", "/tmp/x.json"])
+        assert ns.profile_import == ["prod", "/tmp/x.json"]
+
+    def test_auto_snapshot(self) -> None:
+        ns = build_parser().parse_args(["RS1", "--auto-snapshot"])
+        assert ns.auto_snapshot is True
+
+    def test_diff_format_pr_comment(self) -> None:
+        ns = build_parser().parse_args(
+            ["--diff", "a.json", "b.json", "--format", "pr-comment"],
+        )
+        assert ns.format == "pr-comment"
+
+    def test_side_by_side_summary_ignore_fields(self) -> None:
+        ns = build_parser().parse_args(
+            ["--diff", "a.json", "b.json", "--side-by-side", "--summary", "--ignore-fields", "description,tags"],
+        )
+        assert ns.side_by_side is True
+        assert ns.summary is True
+        assert ns.ignore_fields == "description,tags"
+
+    def test_dry_run(self) -> None:
+        ns = build_parser().parse_args(
+            ["--prune-snapshots", "--keep-last", "5", "--dry-run"],
+        )
+        assert ns.dry_run is True

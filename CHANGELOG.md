@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] — 2026-04-26
+
+The first feature release after v1.0.0. Closes the three highest-ROI gaps from the AA-vs-CJA feature gap review, plus a CLI ergonomics upgrade.
+
+### Generation ergonomics
+
+- **Auto-batch:** passing 2+ identifiers on the command line now routes to batch mode automatically — `aa_auto_sdr rs1 rs2 rs3` works without `--batch`.
+- **Mixed RSIDs and names:** RSIDs and case-insensitive names can be combined in one invocation — `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod`.
+- `--batch` flag is preserved for backward compatibility; mixing it with positional RSIDs returns exit 2 with a clear error.
+
+### Snapshot lifecycle
+
+- `--auto-snapshot` saves a snapshot per RSID on `<RSID>` and `--batch <RSIDs...>` runs (requires `--profile`). Collapses with `--snapshot` to a single save when both are set.
+- `--auto-prune` applies retention policy after auto-save.
+- `--keep-last N` and `--keep-since <int><h|d|w>` retention rules (mutually exclusive — pick one).
+- `--list-snapshots [<RSID>]` action — table or json output (requires `--profile`).
+- `--prune-snapshots [<RSID>]` action — applies policy and deletes; supports `--dry-run`.
+
+### Diff UX
+
+- `--side-by-side` renders modified-component fields with before/after columns (console; markdown's existing layout already provides Before/After columns).
+- `--summary` collapses diff output to per-component-type counts.
+- `--ignore-fields description,tags` skips listed fields at every nesting level during compare. Filtering happens in the comparator, so the resulting `DiffReport` is clean for piped JSON consumers.
+- `--format pr-comment` — new diff renderer optimized for GitHub PR comments, with collapsible `<details>` blocks and a 60K-char length cap.
+
+### Profile parity
+
+- `--profile-list` lists profile names (table or json).
+- `--profile-test NAME` performs a real OAuth + `getCompanyId()` round trip and prints PASS/FAIL.
+- `--profile-show NAME` prints profile fields with masked client_id (no secret).
+- `--profile-import NAME FILE` imports a JSON file as a profile (validates required fields).
+
+### Technical
+
+- No new exit codes — new failure modes map onto existing `CONFIG` (10), `AUTH` (11), `OUTPUT` (15), `SNAPSHOT` (16). `--exit-codes` table unchanged; `--explain-exit-code` text expanded.
+- Snapshot filename parsing now accepts both `+HH:MM` offset and `Z` UTC suffix (matching `snapshot/schema.py`); unparseable filenames are kept rather than deleted (fail-closed safer default).
+- `captured_at` field in `--list-snapshots --format json` is now canonical ISO-8601 (with colons), not the filesystem-mangled stem.
+- No new runtime dependencies.
+- Read-only AA enforcement and API 2.0-only meta-tests continue to gate.
+- Test count: 546 (up from 446 in v1.0.0).
+
 ## [1.0.0] — 2026-04-26
 
 The first production release.

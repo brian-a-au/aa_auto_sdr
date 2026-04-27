@@ -21,7 +21,12 @@ _TYPE_LABELS = {
 }
 
 
-def render_markdown(report: DiffReport) -> str:
+def render_markdown(
+    report: DiffReport,
+    *,
+    side_by_side: bool = False,
+    summary: bool = False,
+) -> str:
     buf = StringIO()
     buf.write("# SDR Diff\n\n")
     buf.write(
@@ -32,6 +37,19 @@ def render_markdown(report: DiffReport) -> str:
     )
     if report.rsid_mismatch:
         buf.write(f"> ⚠️ RSID mismatch: source `{report.a_rsid}` ≠ target `{report.b_rsid}`\n\n")
+
+    if summary:
+        # Summary mode: per-component-type count rows, no per-item detail.
+        buf.write("## Summary\n\n")
+        buf.write("| Component | Added | Removed | Modified | Unchanged |\n")
+        buf.write("|---|---|---|---|---|\n")
+        for cd in report.components:
+            label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+            buf.write(
+                f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
+            )
+        buf.write("\n")
+        return buf.getvalue()
 
     if report.report_suite_deltas:
         buf.write("## Report Suite\n\n")
@@ -47,12 +65,12 @@ def render_markdown(report: DiffReport) -> str:
     for cd in report.components:
         if not (cd.added or cd.removed or cd.modified):
             continue
-        _render_component_section(buf, cd)
+        _render_component_section(buf, cd, side_by_side=side_by_side)
 
     return buf.getvalue()
 
 
-def _render_component_section(buf: StringIO, cd: ComponentDiff) -> None:
+def _render_component_section(buf: StringIO, cd: ComponentDiff, *, side_by_side: bool = False) -> None:
     label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
     counts = f"+{len(cd.added)} / -{len(cd.removed)} / ~{len(cd.modified)} / {cd.unchanged_count} unchanged"
     buf.write(f"## {label} ({counts})\n\n")
@@ -68,6 +86,11 @@ def _render_component_section(buf: StringIO, cd: ComponentDiff) -> None:
         buf.write("\n")
 
     if cd.modified:
+        # Both default and side_by_side currently emit the same flat 5-column table
+        # with Before/After columns. The side_by_side flag is accepted for symmetry
+        # with console.py and as a forward-compatibility hook; the default markdown
+        # form is already a side-by-side layout.
+        _ = side_by_side
         buf.write("### Modified\n\n| ID | Name | Field | Before | After |\n|---|---|---|---|---|\n")
         for item in cd.modified:
             buf.writelines(

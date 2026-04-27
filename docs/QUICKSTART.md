@@ -6,7 +6,7 @@ Generate your first Solution Design Reference (SDR) in 90 seconds.
 
 - Python 3.14+
 - [`uv`](https://docs.astral.sh/uv/) (`brew install uv` or `curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- An Adobe Analytics OAuth Server-to-Server credential set (Org ID, Client ID, Secret, Scopes). See `docs/CONFIGURATION.md` (v1.0.0) or [Adobe Developer Console](https://developer.adobe.com/console).
+- An Adobe Analytics OAuth Server-to-Server credential set (Org ID, Client ID, Secret, Scopes). See `docs/CONFIGURATION.md` or [Adobe Developer Console](https://developer.adobe.com/console).
 
 ## 1. Install
 

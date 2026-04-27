@@ -22,7 +22,8 @@ def _print_help() -> int:
         "\n"
         "Usage:\n"
         "  aa_auto_sdr <RSID-or-name>           Generate SDR for one report suite\n"
-        "  aa_auto_sdr --batch <RSID...>        Generate SDRs for multiple report suites\n"
+        "  aa_auto_sdr <RSID...> [<NAME>...]    Auto-batch when 2+ identifiers given (RSIDs/names may mix)\n"
+        "  aa_auto_sdr --batch <RSID...>        Same as above; explicit form still supported\n"
         "  aa_auto_sdr --diff <a> <b>           Compare two snapshots (path|@ts|@latest|@previous|git:ref:path)\n"
         "  aa_auto_sdr <RSID> --snapshot --profile P  Generate + persist snapshot under ~/.aa/orgs/P/snapshots/\n"
         "  aa_auto_sdr --list-reportsuites      List all report suites visible to the org\n"
@@ -37,7 +38,7 @@ def _print_help() -> int:
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
-        "v1.0.0: production release. Single + batch SDR generation, snapshot save, --diff, 5 formats.\n"
+        "v1.1.0: snapshot lifecycle (auto-snapshot, retention, list, prune); diff UX (side-by-side, summary, ignore-fields, pr-comment); profile parity (list, test, show, import).\n"
     )
     return 0
 

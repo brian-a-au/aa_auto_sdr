@@ -1,14 +1,4 @@
-"""diff command: resolve two tokens → compare → render → write to --output.
-
-Owns all I/O. The pure pieces (resolver, comparator, renderers) are tested
-without capsys/tmp_path. See v0.7 spec sections 4-6 + 8.
-
-Exit codes:
-  0   diff succeeded (regardless of whether deltas exist)
-  10  ConfigError (missing profile / token requires profile)
-  15  bad --format or --output combination
-  16  SnapshotError (resolve / schema / git failure)
-"""
+"""diff command — wire side-by-side, summary, ignore-fields, pr-comment."""
 
 from __future__ import annotations
 
@@ -21,10 +11,11 @@ from aa_auto_sdr.core.profiles import default_base
 from aa_auto_sdr.output.diff_renderers.console import render_console
 from aa_auto_sdr.output.diff_renderers.json import render_json
 from aa_auto_sdr.output.diff_renderers.markdown import render_markdown
+from aa_auto_sdr.output.diff_renderers.pr_comment import render_pr_comment
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.resolver import resolve_snapshot
 
-_VALID_FORMATS = ("console", "json", "markdown")
+_VALID_FORMATS = ("console", "json", "markdown", "pr-comment")
 
 
 def run(
@@ -34,11 +25,14 @@ def run(
     format_name: str | None,
     output: str | None,
     profile: str | None,
+    side_by_side: bool = False,
+    summary: bool = False,
+    ignore_fields: frozenset[str] = frozenset(),
 ) -> int:
     fmt = format_name or "console"
     if fmt not in _VALID_FORMATS:
         print(
-            f"error: format '{fmt}' is not available for --diff (use console|json|markdown)",
+            f"error: format '{fmt}' is not available for --diff (use console|json|markdown|pr-comment)",
             flush=True,
         )
         return ExitCode.OUTPUT.value
@@ -49,12 +43,20 @@ def run(
         )
         return ExitCode.OUTPUT.value
 
-    profile_snapshot_dir = (default_base() / "orgs" / profile / "snapshots") if profile else None
+    profile_snapshot_dir = default_base() / "orgs" / profile / "snapshots" if profile else None
     repo_root = Path.cwd()
 
     try:
-        env_a = resolve_snapshot(a, profile_snapshot_dir=profile_snapshot_dir, repo_root=repo_root)
-        env_b = resolve_snapshot(b, profile_snapshot_dir=profile_snapshot_dir, repo_root=repo_root)
+        env_a = resolve_snapshot(
+            a,
+            profile_snapshot_dir=profile_snapshot_dir,
+            repo_root=repo_root,
+        )
+        env_b = resolve_snapshot(
+            b,
+            profile_snapshot_dir=profile_snapshot_dir,
+            repo_root=repo_root,
+        )
     except SnapshotError as exc:
         if fmt in ("json", "markdown") and output == "-":
             from aa_auto_sdr.output.error_envelope import emit_error_envelope
@@ -64,14 +66,16 @@ def run(
             print(f"snapshot error: {exc}", flush=True)
         return ExitCode.SNAPSHOT.value
 
-    report = compare(env_a, env_b)
+    report = compare(env_a, env_b, ignore_fields=ignore_fields)
 
     if fmt == "console":
-        rendered = render_console(report)
+        rendered = render_console(report, side_by_side=side_by_side, summary=summary)
     elif fmt == "json":
-        rendered = render_json(report)
-    else:
-        rendered = render_markdown(report)
+        rendered = render_json(report, summary=summary)
+    elif fmt == "markdown":
+        rendered = render_markdown(report, side_by_side=side_by_side, summary=summary)
+    else:  # pr-comment
+        rendered = render_pr_comment(report, summary=summary)
 
     if output is None or output == "-":
         sys.stdout.write(rendered)

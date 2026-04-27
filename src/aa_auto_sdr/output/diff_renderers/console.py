@@ -36,7 +36,12 @@ _TYPE_LABELS = {
 }
 
 
-def render_console(report: DiffReport) -> str:
+def render_console(
+    report: DiffReport,
+    *,
+    side_by_side: bool = False,
+    summary: bool = False,
+) -> str:
     buf = StringIO()
     bar = "=" * BANNER_WIDTH
     buf.write(f"{bar}\n")
@@ -57,6 +62,17 @@ def render_console(report: DiffReport) -> str:
         )
     buf.write("\n")
 
+    if summary:
+        # Summary mode: per-component-type counts only.
+        for cd in report.components:
+            label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+            buf.write(
+                f"{label}: +{len(cd.added)} added, -{len(cd.removed)} removed, "
+                f"~{len(cd.modified)} modified, {cd.unchanged_count} unchanged\n",
+            )
+        buf.write(f"{bar}\n")
+        return buf.getvalue()
+
     if report.report_suite_deltas:
         buf.write(colors.bold("Report Suite header") + "\n")
         for d in report.report_suite_deltas:
@@ -65,7 +81,7 @@ def render_console(report: DiffReport) -> str:
 
     total_added = total_removed = total_modified = total_unchanged = 0
     for cd in report.components:
-        _render_component(buf, cd)
+        _render_component(buf, cd, side_by_side=side_by_side)
         total_added += len(cd.added)
         total_removed += len(cd.removed)
         total_modified += len(cd.modified)
@@ -80,7 +96,7 @@ def render_console(report: DiffReport) -> str:
     return buf.getvalue()
 
 
-def _render_component(buf: StringIO, cd: ComponentDiff) -> None:
+def _render_component(buf: StringIO, cd: ComponentDiff, *, side_by_side: bool = False) -> None:
     label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
     summary = (
         f"+{len(cd.added)} added, -{len(cd.removed)} removed, "
@@ -90,13 +106,19 @@ def _render_component(buf: StringIO, cd: ComponentDiff) -> None:
     buf.writelines(f"  {colors.success('+')} {item.id} — {item.name}\n" for item in cd.added)
     buf.writelines(f"  {colors.error('-')} {item.id} — {item.name}\n" for item in cd.removed)
     for item in cd.modified:
-        _render_modified_item(buf, item)
+        _render_modified_item(buf, item, side_by_side=side_by_side)
     if cd.added or cd.removed or cd.modified:
         buf.write("\n")
 
 
-def _render_modified_item(buf: StringIO, item: ModifiedItem) -> None:
+def _render_modified_item(buf: StringIO, item: ModifiedItem, *, side_by_side: bool = False) -> None:
     buf.write(f"  {colors.warn('~')} {item.id} — {item.name}\n")
-    buf.writelines(
-        f"      {delta.field}: {_fmt_value(delta.before)} → {_fmt_value(delta.after)}\n" for delta in item.deltas
-    )
+    if side_by_side:
+        for delta in item.deltas:
+            before = _fmt_value(delta.before)
+            after = _fmt_value(delta.after)
+            buf.write(f"      {delta.field}:  {before}  |  {after}\n")
+    else:
+        buf.writelines(
+            f"      {delta.field}: {_fmt_value(delta.before)} → {_fmt_value(delta.after)}\n" for delta in item.deltas
+        )

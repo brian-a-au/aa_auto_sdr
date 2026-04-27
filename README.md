@@ -26,7 +26,9 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | Category | Feature |
 |----------|---------|
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
-| | Batch generation across N report suites with continue-on-error |
+| | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported (v1.1) |
+| | RSIDs and names may be mixed freely in one invocation (v1.1) |
+| | Continue-on-error across N report suites with summary banner |
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
 | | Multi-match name fan-out: a name matching N suites generates N SDRs |
@@ -35,15 +37,21 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | `--list-{metrics,dimensions,segments,calculated-metrics,classification-datasets} <RSID>` |
 | | `--filter`, `--exclude`, `--sort`, `--limit` on every list command |
 | **Snapshot & Diff** | `--snapshot` opt-in persist alongside generation |
+| | `--auto-snapshot` saves a snapshot per RSID on every `<RSID>` / `--batch` run (v1.1) |
+| | `--auto-prune` + `--keep-last N` / `--keep-since 30d` retention policy (v1.1) |
+| | `--list-snapshots [<RSID>]` action — table or json view (v1.1) |
+| | `--prune-snapshots [<RSID>] --dry-run` — apply retention policy with optional preview (v1.1) |
 | | `--diff <a> <b>` between any two snapshots |
 | | Token grammar: bare path / `<rsid>@<ts>` / `<rsid>@latest` / `<rsid>@previous` / `git:<ref>:<path>` |
-| | Three diff renderers: console (ANSI-colored), JSON (sorted keys, jq-friendly), Markdown (GFM tables) |
+| | Four diff renderers: console (ANSI-colored), JSON, Markdown, **`pr-comment`** (compact GFM with collapsible `<details>` for GitHub PRs, v1.1) |
+| | Diff modifiers: `--side-by-side`, `--summary`, `--ignore-fields description,tags` (v1.1) |
 | | Identity by component ID, never by name (a name change is *modification*) |
 | | Value normalization (whitespace, NaN/None/`""`, order-insensitive `tags`/`categories`) suppresses false-positive diffs |
 | **Authentication** | OAuth Server-to-Server (env vars / profile / `.env` / `config.json`) |
 | | Named profiles for multi-org users (`~/.aa/orgs/<name>/`) |
 | | `--show-config` reports which credential source resolved |
 | | `--profile-add <name>` interactive credential capture |
+| | `--profile-list` / `--profile-show NAME` / `--profile-test NAME` / `--profile-import NAME FILE` (v1.1) |
 | **Output** | `--output -` stdout pipe for json (single-RSID generation) and json/markdown (diff) |
 | | Machine-readable JSON error envelope on stderr for pipe-path failures |
 | | Atomic file writes (temp + rename) for every output format |
@@ -221,7 +229,9 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Single RS by RSID | `aa_auto_sdr dgeo1xxpnwcidadobestore` |
 | Single RS by name | `aa_auto_sdr "Adobe Store"` |
 | Custom output directory | `aa_auto_sdr <RSID> --output-dir /tmp/sdr` |
-| Batch (continue-on-error) | `aa_auto_sdr --batch RS1 RS2 RS3` |
+| Auto-batch (v1.1) — multiple positional identifiers | `aa_auto_sdr rs1 rs2 rs3` |
+| Auto-batch with mixed RSIDs and names (v1.1) | `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod` |
+| Batch via explicit flag | `aa_auto_sdr --batch RS1 RS2 RS3` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
 | Excel (default) | `aa_auto_sdr <RSID>` |
@@ -236,7 +246,8 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | List as JSON for scripting | `aa_auto_sdr --list-reportsuites --format json --output -` |
 | **Snapshot** | |
 | Capture snapshot alongside generation | `aa_auto_sdr <RSID> --snapshot --profile prod` |
-| Capture snapshots in batch | `aa_auto_sdr --batch RS1 RS2 --snapshot --profile prod` |
+| Capture snapshots for multiple RSes (auto-batch, v1.1) | `aa_auto_sdr RS1 RS2 --snapshot --profile prod` |
+| Auto-snapshot every run (v1.1) | `aa_auto_sdr <RSID> --auto-snapshot --profile prod` |
 | **Diff** | |
 | Diff two snapshot files | `aa_auto_sdr --diff a.json b.json` |
 | Diff `@latest` vs `@previous` | `aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod` |

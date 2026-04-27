@@ -237,10 +237,78 @@ uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod --format 
 | Code | Meaning |
 |----|----|
 | 0 | Diff ran successfully (regardless of whether changes exist) |
+| 10 | `--list-snapshots` / `--prune-snapshots` missing `--profile` or policy |
 | 15 | Bad `--format`/`--output` combination |
 | 16 | Snapshot resolve / schema / git failure |
 
 For full code-by-code remediation, run `aa_auto_sdr --explain-exit-code 16`.
+
+## v1.1: snapshot lifecycle
+
+Beyond the per-run `--snapshot` flag, v1.1 adds three first-class actions for managing snapshots as a long-lived, profile-scoped store.
+
+### Auto-snapshot on every run
+
+```bash
+uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot
+uv run aa_auto_sdr --batch RS1 RS2 --profile prod --auto-snapshot
+```
+
+Equivalent to passing `--snapshot` every time, but designed to be set as a default. If both `--snapshot` and `--auto-snapshot` are passed, exactly one save happens (no duplicate file).
+
+### Retention policy
+
+```bash
+# Keep only the 5 most recent snapshots per RSID
+aa_auto_sdr --auto-snapshot --auto-prune --keep-last 5 RS1 --profile prod
+
+# Keep only snapshots newer than 30 days (per RSID)
+aa_auto_sdr --auto-snapshot --auto-prune --keep-since 30d RS1 --profile prod
+
+# Or apply retention without doing a generation
+aa_auto_sdr --prune-snapshots --keep-last 10 --profile prod
+aa_auto_sdr --prune-snapshots RS1 --keep-since 90d --profile prod --dry-run
+```
+
+`--keep-since` accepts `<int><h|d|w>` — `12h`, `30d`, `4w`. Mutually exclusive with `--keep-last`.
+
+`--dry-run` (with `--prune-snapshots`) prints what would be deleted without unlinking.
+
+Snapshots whose filenames don't match the expected ISO-8601 stem are **kept**, not deleted, as a fail-closed safety default — a future filename-format change won't silently delete recent snapshots.
+
+### Listing
+
+```bash
+aa_auto_sdr --list-snapshots --profile prod
+aa_auto_sdr --list-snapshots RS1 --profile prod --format json | jq '.[].captured_at'
+```
+
+The JSON output's `captured_at` field is canonical ISO-8601 (with colons), so it round-trips cleanly through `datetime.fromisoformat`. `path` is the filesystem location, useful for diff inputs:
+
+```bash
+aa_auto_sdr --diff $(aa_auto_sdr --list-snapshots RS1 --profile prod --format json | jq -r '.[-2:][0].path') $(aa_auto_sdr --list-snapshots RS1 --profile prod --format json | jq -r '.[-1].path') --format pr-comment
+```
+
+…or just use the `@latest` / `@previous` shortcuts described in the diff section above.
+
+## v1.1: diff modes
+
+Three modifier flags reshape the diff output without changing the comparator:
+
+- `--side-by-side` — render modified-component fields with before/after columns. Affects console mostly; markdown's existing layout already includes Before/After columns.
+- `--summary` — collapse output to per-component-type counts; suppress per-item / per-field detail. Useful for high-level CI summaries.
+- `--ignore-fields description,tags` — comma-separated field names to skip during compare. Match is exact at every nesting level (e.g., skips `segments[*].definition.description` too). Filtering happens in the comparator, so the resulting `DiffReport` is clean for piped JSON consumers.
+
+```bash
+aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --summary
+aa_auto_sdr --diff a.json b.json --ignore-fields description,tags
+```
+
+A new diff renderer, `--format pr-comment`, produces compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub's comment limit is 65,536); when exceeded, truncates at the last `</details>` boundary with a banner line.
+
+```bash
+aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | pbcopy
+```
 
 ## Sample outputs
 

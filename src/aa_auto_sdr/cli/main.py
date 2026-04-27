@@ -14,12 +14,95 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
+    rsids: list[str] = list(ns.rsids)
+
+    # Reject positional RSIDs combined with actions that take their identifier
+    # inline. Without this guard, `aa_auto_sdr --list-metrics RS1 RS2` would
+    # silently drop RS2 (the user likely meant "list metrics for both" — fail
+    # loud rather than ignore). The diff and snapshot-lifecycle actions have
+    # their own action-specific positional limits below.
+    _inline_id_actions = (
+        ("describe_reportsuite", "--describe-reportsuite"),
+        ("list_metrics", "--list-metrics"),
+        ("list_dimensions", "--list-dimensions"),
+        ("list_segments", "--list-segments"),
+        ("list_calculated_metrics", "--list-calculated-metrics"),
+        ("list_classification_datasets", "--list-classification-datasets"),
+        ("profile_add", "--profile-add"),
+        ("profile_test", "--profile-test"),
+        ("profile_show", "--profile-show"),
+    )
+    for attr, flag in _inline_id_actions:
+        if getattr(ns, attr) and rsids:
+            print(
+                f"error: {flag} takes its RSID inline; extra positional arguments are not supported",
+                flush=True,
+            )
+            return ExitCode.USAGE.value
+    if ns.profile_import and rsids:
+        print(
+            "error: --profile-import takes <NAME> <FILE> inline; extra positional arguments are not supported",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
 
     # Profile/config actions
     if ns.profile_add:
         return config_cmd.profile_add(ns.profile_add)
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)
+
+    # v1.1 — snapshot lifecycle. Optional positional <RSID> narrows to one suite;
+    # multiple positionals are a usage error (the filter is single-valued).
+    if ns.list_snapshots:
+        if len(rsids) > 1:
+            print(
+                "error: --list-snapshots accepts at most one positional <RSID> filter",
+                flush=True,
+            )
+            return ExitCode.USAGE.value
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        return snap_cmd.list_run(
+            profile=ns.profile,
+            rsid=rsids[0] if rsids else None,
+            format_name=ns.format,
+        )
+    if ns.prune_snapshots:
+        if len(rsids) > 1:
+            print(
+                "error: --prune-snapshots accepts at most one positional <RSID> filter",
+                flush=True,
+            )
+            return ExitCode.USAGE.value
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        return snap_cmd.prune_run(
+            profile=ns.profile,
+            rsid=rsids[0] if rsids else None,
+            keep_last=ns.keep_last,
+            keep_since=ns.keep_since,
+            dry_run=ns.dry_run,
+        )
+
+    # v1.1 — profile commands
+    if ns.profile_list:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        return prof_cmd.list_run(format_name=ns.format)
+    if ns.profile_test:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        return prof_cmd.test_run(ns.profile_test)
+    if ns.profile_show:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        return prof_cmd.show_run(ns.profile_show)
+    if ns.profile_import:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        name, src_path = ns.profile_import
+        return prof_cmd.import_run(name, src_path)
 
     # Fast-path actions (also reachable via slow path if positional ordering forced argparse)
     if ns.exit_codes:
@@ -96,24 +179,49 @@ def run(argv: list[str]) -> int:
 
     # Diff (v0.7) — snapshot comparison
     if ns.diff:
-        if ns.rsid:
-            print("error: --diff cannot be combined with a positional RSID", flush=True)
+        if rsids:
+            print("error: --diff cannot be combined with positional RSIDs", flush=True)
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
+        ignore = frozenset(f.strip() for f in (ns.ignore_fields or "").split(",") if f.strip())
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
             format_name=ns.format,
             output=ns.output,
             profile=ns.profile,
+            side_by_side=ns.side_by_side,
+            summary=ns.summary,
+            ignore_fields=ignore,
         )
 
-    # Batch (v0.5) — sequential multi-RSID generation
-    if ns.batch:
+    # Combine explicit --batch flag with positional RSIDs into a single list.
+    # `--batch RS1 RS2` is the original v0.5 form; `aa_auto_sdr RS1 RS2` (v1.1+) is
+    # the auto-inferred shorthand. Mixing them is rejected for clarity.
+    explicit_batch = bool(ns.batch)
+    if explicit_batch and rsids:
+        print(
+            "error: cannot combine --batch with positional RSIDs (use one form or the other)",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+    if explicit_batch:
+        rsids = list(ns.batch)
+
+    # No identifiers at all and no other action matched → usage error.
+    if not rsids:
+        parser.print_usage(sys.stderr)
+        return ExitCode.USAGE.value
+
+    # Route to batch if EITHER --batch was explicit OR multiple positionals were
+    # given. Single positional with no --batch goes through the single-generate
+    # path. (Note: `--batch RS1` with one RSID still uses batch — the flag opts in
+    # to the batch summary banner / partial-success exit code even for one RSID.)
+    if explicit_batch or len(rsids) > 1:
         if ns.output == "-":
             print(
-                "error: --output - is ambiguous for --batch "
+                "error: --output - is ambiguous for batch runs "
                 "(multiple SDRs cannot share a single stream); use --output-dir instead",
                 flush=True,
             )
@@ -121,25 +229,29 @@ def run(argv: list[str]) -> int:
         from aa_auto_sdr.cli.commands import batch as batch_cmd
 
         return batch_cmd.run(
-            rsids=ns.batch,
+            rsids=rsids,
             output_dir=ns.output_dir,
             format_name=ns.format or "excel",
             profile=ns.profile,
             snapshot=ns.snapshot,
+            auto_snapshot=ns.auto_snapshot,
+            auto_prune=ns.auto_prune,
+            keep_last=ns.keep_last,
+            keep_since=ns.keep_since,
         )
 
-    # Generate (positional RSID) — default --format to "excel" if omitted
-    if not ns.rsid:
-        parser.print_usage(sys.stderr)
-        return ExitCode.USAGE.value
-
+    # Single identifier → generate. Default --format to "excel" if omitted.
     output_dir: Path = Path("-") if ns.output == "-" else ns.output_dir
     return generate_cmd.run(
-        rsid=ns.rsid,
+        rsid=rsids[0],
         output_dir=output_dir,
         format_name=ns.format or "excel",
         profile=ns.profile,
         snapshot=ns.snapshot,
+        auto_snapshot=ns.auto_snapshot,
+        auto_prune=ns.auto_prune,
+        keep_last=ns.keep_last,
+        keep_since=ns.keep_since,
     )
 
 

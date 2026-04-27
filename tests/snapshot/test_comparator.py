@@ -189,3 +189,34 @@ def test_compare_added_and_modified_lists_sorted_by_id() -> None:
     report = compare(a, b)
     dim_diff = next(c for c in report.components if c.component_type == "dimensions")
     assert [x.id for x in dim_diff.added] == ["m", "z"]
+
+
+class TestIgnoreFields:
+    def test_ignored_field_no_delta(self) -> None:
+        env_a = _envelope(metrics=[{"id": "m1", "name": "M", "description": "old"}])
+        env_b = _envelope(metrics=[{"id": "m1", "name": "M", "description": "new"}])
+        report = compare(env_a, env_b, ignore_fields=frozenset({"description"}))
+        assert all(c.modified == [] for c in report.components)
+
+    def test_unignored_field_still_diffs(self) -> None:
+        env_a = _envelope(metrics=[{"id": "m1", "name": "Old", "description": "x"}])
+        env_b = _envelope(metrics=[{"id": "m1", "name": "New", "description": "x"}])
+        report = compare(env_a, env_b, ignore_fields=frozenset({"description"}))
+        metric_diff = next(c for c in report.components if c.component_type == "metrics")
+        assert len(metric_diff.modified) == 1
+        assert metric_diff.modified[0].deltas[0].field == "name"
+
+    def test_ignore_fields_apply_at_nested_level(self) -> None:
+        env_a = _envelope(segments=[{"id": "s1", "name": "S", "definition": {"description": "a"}}])
+        env_b = _envelope(segments=[{"id": "s1", "name": "S", "definition": {"description": "b"}}])
+        report = compare(env_a, env_b, ignore_fields=frozenset({"description"}))
+        seg_diff = next(c for c in report.components if c.component_type == "segments")
+        assert seg_diff.modified == []
+
+    def test_default_ignore_fields_empty(self) -> None:
+        # Existing tests must still pass — default arg is empty frozenset
+        env_a = _envelope(metrics=[{"id": "m1", "name": "Old"}])
+        env_b = _envelope(metrics=[{"id": "m1", "name": "New"}])
+        report = compare(env_a, env_b)
+        metric_diff = next(c for c in report.components if c.component_type == "metrics")
+        assert len(metric_diff.modified) == 1

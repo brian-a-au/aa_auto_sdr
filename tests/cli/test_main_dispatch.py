@@ -166,3 +166,226 @@ def test_completion_via_slow_path(capsys) -> None:
 def test_no_args_returns_usage_error_2(capsys) -> None:
     rc = run([])
     assert rc == 2
+
+
+class TestV11Dispatch:
+    def test_list_snapshots_dispatched(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        called: dict[str, object] = {}
+
+        def _stub(*, profile, rsid, format_name):
+            called["profile"] = profile
+            called["rsid"] = rsid
+            called["format_name"] = format_name
+            return 0
+
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        monkeypatch.setattr(snap_cmd, "list_run", _stub)
+        rc = run(["--list-snapshots", "--profile", "prod"])
+        assert rc == 0
+        assert called["profile"] == "prod"
+
+    def test_prune_snapshots_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        called: dict[str, object] = {}
+
+        def _stub(*, profile, rsid, keep_last, keep_since, dry_run):
+            called.update(
+                {
+                    "profile": profile,
+                    "rsid": rsid,
+                    "keep_last": keep_last,
+                    "keep_since": keep_since,
+                    "dry_run": dry_run,
+                }
+            )
+            return 0
+
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        monkeypatch.setattr(snap_cmd, "prune_run", _stub)
+        rc = run(
+            [
+                "--prune-snapshots",
+                "--profile",
+                "prod",
+                "--keep-last",
+                "5",
+                "--dry-run",
+            ]
+        )
+        assert rc == 0
+        assert called["keep_last"] == 5
+        assert called["dry_run"] is True
+
+    def test_profile_list_dispatched(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import profiles as prof_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, format_name=None, base=None):
+            captured["format_name"] = format_name
+            return 0
+
+        monkeypatch.setattr(prof_cmd, "list_run", _stub)
+        rc = run(["--profile-list", "--format", "json"])
+        assert rc == 0
+        assert captured["format_name"] == "json"
+
+    def test_diff_passes_new_kwargs(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(*, a, b, format_name, output, profile, side_by_side, summary, ignore_fields):
+            captured.update(
+                {
+                    "a": a,
+                    "b": b,
+                    "format_name": format_name,
+                    "output": output,
+                    "profile": profile,
+                    "side_by_side": side_by_side,
+                    "summary": summary,
+                    "ignore_fields": ignore_fields,
+                }
+            )
+            return 0
+
+        monkeypatch.setattr(diff_cmd, "run", _stub)
+        rc = run(
+            [
+                "--diff",
+                "a.json",
+                "b.json",
+                "--side-by-side",
+                "--summary",
+                "--ignore-fields",
+                "description,tags",
+                "--format",
+                "pr-comment",
+            ]
+        )
+        assert rc == 0
+        assert captured["side_by_side"] is True
+        assert captured["summary"] is True
+        assert captured["ignore_fields"] == frozenset({"description", "tags"})
+        assert captured["format_name"] == "pr-comment"
+
+
+class TestAutoBatchPositional:
+    """v1.1 — multiple positional RSIDs auto-route to batch without --batch."""
+
+    def test_two_positionals_routes_to_batch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(batch_cmd, "run", _stub)
+        rc = run(["rs1", "rs2", "--profile", "prod"])
+        assert rc == 0
+        assert captured["rsids"] == ["rs1", "rs2"]
+        assert captured["profile"] == "prod"
+
+    def test_three_positionals_with_mixed_rsid_and_name(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(batch_cmd, "run", _stub)
+        rc = run(["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"])
+        assert rc == 0
+        # RSIDs and names pass through unchanged; batch's per-RSID resolver does name lookup.
+        assert captured["rsids"] == ["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"]
+
+    def test_single_positional_still_routes_to_generate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(generate_cmd, "run", _stub)
+        rc = run(["demo.prod"])
+        assert rc == 0
+        assert captured["rsid"] == "demo.prod"
+
+    def test_batch_flag_greedy_consumes_all_rsids(self) -> None:
+        """`--batch RS1 RS2 RS3` — argparse's nargs="+" is greedy, so all three RSIDs
+        flow to ns.batch and ns.rsids stays empty. Confirms there's no parser-level
+        ambiguity between --batch's args and the trailing positional."""
+        from aa_auto_sdr.cli.parser import build_parser
+
+        ns = build_parser().parse_args(["--batch", "rs1", "rs2", "rs3"])
+        assert ns.batch == ["rs1", "rs2", "rs3"]
+        assert ns.rsids == []
+
+    def test_batch_flag_plus_positional_rejected(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Use the parser explicitly: --batch + positional rsid should error in main."""
+        from aa_auto_sdr.cli.parser import build_parser
+
+        ns = build_parser().parse_args(["rs1", "--batch", "rs2"])
+        # Argparse populates both ns.rsids and ns.batch.
+        assert ns.rsids == ["rs1"]
+        assert ns.batch == ["rs2"]
+        # Now run the dispatch — it should print the mutex error and return USAGE (2).
+        rc = run(["rs1", "--batch", "rs2"])
+        out = capsys.readouterr().out
+        assert rc == 2
+        assert "cannot combine --batch with positional RSIDs" in out
+
+    def test_zero_positionals_returns_usage(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = run([])
+        assert rc == 2
+
+    def test_describe_reportsuite_with_extra_positional_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """--describe-reportsuite takes its RSID inline; extras are a usage error
+        rather than silently dropped."""
+        rc = run(["--describe-reportsuite", "rs1", "rs2"])
+        assert rc == 2
+        assert "takes its RSID inline" in capsys.readouterr().out
+
+    def test_list_metrics_with_extra_positional_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run(["--list-metrics", "rs1", "rs2"])
+        assert rc == 2
+        assert "takes its RSID inline" in capsys.readouterr().out
+
+    def test_profile_test_with_extra_positional_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run(["--profile-test", "prod", "extra-arg"])
+        assert rc == 2
+        assert "takes its RSID inline" in capsys.readouterr().out
+
+    def test_list_snapshots_with_two_positionals_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run(["--list-snapshots", "rs1", "rs2", "--profile", "prod"])
+        assert rc == 2
+        assert "at most one positional" in capsys.readouterr().out
