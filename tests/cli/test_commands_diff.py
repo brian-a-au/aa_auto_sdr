@@ -11,12 +11,51 @@ import pytest
 def _write_envelope(
     path: Path,
     rsid: str,
-    captured_at: str,
+    captured_at: str = "2026-04-26T17:29:01+00:00",
     *,
     dim_id: str = "evar1",
     dim_name: str = "User ID",
-) -> None:
+    dimensions: list[dict] | None = None,
+    metrics: list[dict] | None = None,
+    segments: list[dict] | None = None,
+    calculated_metrics: list[dict] | None = None,
+    virtual_report_suites: list[dict] | None = None,
+    classifications: list[dict] | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    default_dims = [
+        {
+            "id": dim_id,
+            "name": dim_name,
+            "type": "string",
+            "category": "Custom",
+            "parent": "",
+            "pathable": False,
+            "description": None,
+            "tags": [],
+            "extra": {},
+        },
+    ]
+
+    def _normalize_metric(m: dict) -> dict:
+        base = {
+            "id": "",
+            "name": "",
+            "type": "int",
+            "category": "Custom",
+            "precision": 0,
+            "segmentable": True,
+            "description": None,
+            "tags": [],
+            "data_group": None,
+            "extra": {},
+        }
+        base.update(m)
+        return base
+
+    raw_metrics = metrics if metrics is not None else []
+    norm_metrics = [_normalize_metric(m) for m in raw_metrics]
+
     path.write_text(
         json.dumps(
             {
@@ -32,29 +71,18 @@ def _write_envelope(
                         "currency": "USD",
                         "parent_rsid": None,
                     },
-                    "dimensions": [
-                        {
-                            "id": dim_id,
-                            "name": dim_name,
-                            "type": "string",
-                            "category": "Custom",
-                            "parent": "",
-                            "pathable": False,
-                            "description": None,
-                            "tags": [],
-                            "extra": {},
-                        },
-                    ],
-                    "metrics": [],
-                    "segments": [],
-                    "calculated_metrics": [],
-                    "virtual_report_suites": [],
-                    "classifications": [],
+                    "dimensions": dimensions if dimensions is not None else default_dims,
+                    "metrics": norm_metrics,
+                    "segments": segments if segments is not None else [],
+                    "calculated_metrics": calculated_metrics if calculated_metrics is not None else [],
+                    "virtual_report_suites": virtual_report_suites if virtual_report_suites is not None else [],
+                    "classifications": classifications if classifications is not None else [],
                 },
             },
             sort_keys=True,
         )
     )
+    return path
 
 
 def test_diff_two_paths_returns_0(tmp_path: Path, capsys) -> None:
@@ -248,3 +276,99 @@ def test_diff_json_pipe_failure_writes_envelope_to_stderr(tmp_path, capsys) -> N
     payload = _json.loads(captured.err.strip())
     assert payload["error"]["code"] == 16
     assert payload["error"]["type"] in ("SnapshotResolveError", "SnapshotSchemaError")
+
+
+class TestDiffNewKnobs:
+    def test_format_pr_comment_works(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands.diff import run
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        a = _write_envelope(tmp_path / "a.json", "RS1")
+        b = _write_envelope(tmp_path / "b.json", "RS1")
+        rc = run(
+            a=str(a),
+            b=str(b),
+            format_name="pr-comment",
+            output=None,
+            profile=None,
+            side_by_side=False,
+            summary=False,
+            ignore_fields=frozenset(),
+        )
+        assert rc == ExitCode.OK.value
+        out = capsys.readouterr().out
+        assert "SDR Diff" in out
+
+    def test_ignore_fields_drops_delta(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands.diff import run
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        a = _write_envelope(
+            tmp_path / "a.json",
+            "RS1",
+            metrics=[{"id": "m1", "name": "M", "description": "old"}],
+        )
+        b = _write_envelope(
+            tmp_path / "b.json",
+            "RS1",
+            metrics=[{"id": "m1", "name": "M", "description": "new"}],
+        )
+        rc = run(
+            a=str(a),
+            b=str(b),
+            format_name="json",
+            output=None,
+            profile=None,
+            side_by_side=False,
+            summary=False,
+            ignore_fields=frozenset({"description"}),
+        )
+        assert rc == ExitCode.OK.value
+        out = capsys.readouterr().out
+        # Either no modified entries, or modified entries with empty deltas
+        import json as _json
+
+        payload = _json.loads(out)
+        metric_diff = next(c for c in payload["components"] if c["component_type"] == "metrics")
+        # description-only change should disappear entirely
+        assert metric_diff["modified"] == []
+
+    def test_summary_drops_detail(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands.diff import run
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        a = _write_envelope(
+            tmp_path / "a.json",
+            "RS1",
+            metrics=[{"id": "m1", "name": "Old"}],
+        )
+        b = _write_envelope(
+            tmp_path / "b.json",
+            "RS1",
+            metrics=[{"id": "m1", "name": "New"}],
+        )
+        rc = run(
+            a=str(a),
+            b=str(b),
+            format_name="markdown",
+            output=None,
+            profile=None,
+            side_by_side=False,
+            summary=True,
+            ignore_fields=frozenset(),
+        )
+        assert rc == ExitCode.OK.value
+        out = capsys.readouterr().out
+        assert "metrics" in out.lower()
