@@ -51,7 +51,7 @@ def run(*, profile: str | None) -> int:
 
     try:
         choice = input("Select index (1-N) or 'all': ").strip().lower()
-    except KeyboardInterrupt, EOFError:
+    except (KeyboardInterrupt, EOFError):
         return 130
 
     if choice == "all":
