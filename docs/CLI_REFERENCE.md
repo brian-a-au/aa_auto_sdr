@@ -289,7 +289,7 @@ Slim the SDR by skipping the API calls for excluded component types. Real perf w
 aa_auto_sdr <RSID> --metrics-only --format json --output-dir /tmp/metrics-only
 ```
 
-`--metrics-only` and `--dimensions-only` are mutually exclusive. `--include-segments` and `--include-calculated` are explicit no-ops kept for CJA parity (segments and calculated metrics are already default in AA).
+`--metrics-only` and `--dimensions-only` are mutually exclusive. These flags **cannot** be combined with `--snapshot` or `--auto-snapshot` (filtered snapshots produce misleading diffs against full ones — exit 2).
 
 ### `<RSID> --dry-run` / `--batch RS1 RS2 --dry-run` (v1.2)
 

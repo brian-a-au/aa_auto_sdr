@@ -348,11 +348,6 @@ class TestV12Flags:
         assert ns.show_only == "metrics,dimensions"
         assert ns.max_issues == 3
 
-    def test_show_timings_run_summary(self) -> None:
-        ns = build_parser().parse_args(["RS1", "--show-timings", "--run-summary-json", "/tmp/s.json"])
-        assert ns.show_timings is True
-        assert ns.run_summary_json == "/tmp/s.json"
-
     def test_metrics_only_dimensions_only_mutex(self) -> None:
         with pytest.raises(SystemExit):
             build_parser().parse_args(["RS1", "--metrics-only", "--dimensions-only"])

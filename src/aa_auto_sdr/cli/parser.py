@@ -364,19 +364,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cap each component's added/removed/modified to N items in render",
     )
 
-    # v1.2 — observability
-    p.add_argument(
-        "--show-timings",
-        action="store_true",
-        help="Print per-stage timings at end of run",
-    )
-    p.add_argument(
-        "--run-summary-json",
-        default=None,
-        metavar="PATH",
-        help="Emit a JSON run summary to PATH (or '-' for stdout)",
-    )
-
     # v1.2 — generation modifiers
     gen_modifiers = p.add_mutually_exclusive_group()
     gen_modifiers.add_argument(
@@ -388,16 +375,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--dimensions-only",
         action="store_true",
         help="Generate SDR with only dimensions",
-    )
-    p.add_argument(
-        "--include-segments",
-        action="store_true",
-        help="Include segments (default; for CJA parity)",
-    )
-    p.add_argument(
-        "--include-calculated",
-        action="store_true",
-        help="Include calculated metrics (default; for CJA parity)",
     )
 
     # v1.2 — UX gates

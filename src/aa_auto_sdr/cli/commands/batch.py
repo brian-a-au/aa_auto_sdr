@@ -63,6 +63,14 @@ def run(
         )
         return ExitCode.USAGE.value
 
+    if (metrics_only or dimensions_only) and (snapshot or auto_snapshot):
+        print(
+            "error: --metrics-only / --dimensions-only cannot be combined with "
+            "--snapshot / --auto-snapshot — filtered snapshots produce misleading diffs",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+
     from aa_auto_sdr.sdr.builder import ComponentFilter
 
     component_filter = ComponentFilter.from_args(

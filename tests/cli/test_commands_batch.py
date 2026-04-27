@@ -431,3 +431,68 @@ class TestBatchDryRun:
         assert not (tmp_path / "demo.prod.json").exists()
         out = capsys.readouterr().out
         assert "DRY RUN" in out or "would generate" in out
+
+
+class TestBatchFilteredSnapshotGuard:
+    """v1.2 — --metrics-only / --dimensions-only must reject --snapshot / --auto-snapshot
+    to prevent persisting misleading filtered envelopes that would falsely diff
+    as 'all dimensions removed' against full snapshots."""
+
+    def test_metrics_only_with_snapshot_rejected(
+        self,
+        authed_env,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            metrics_only=True,
+            snapshot=True,
+        )
+        assert rc == ExitCode.USAGE.value
+        assert "filtered snapshots" in capsys.readouterr().out
+
+    def test_metrics_only_with_auto_snapshot_rejected(
+        self,
+        authed_env,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            metrics_only=True,
+            auto_snapshot=True,
+        )
+        assert rc == ExitCode.USAGE.value
+
+    def test_dimensions_only_with_snapshot_rejected(
+        self,
+        authed_env,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            dimensions_only=True,
+            snapshot=True,
+        )
+        assert rc == ExitCode.USAGE.value
+        assert "filtered snapshots" in capsys.readouterr().out

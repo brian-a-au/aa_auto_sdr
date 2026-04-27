@@ -35,7 +35,6 @@ Polish release closing all remaining Tier 1 gaps from the AA-vs-CJA review.
 ### Generation modifiers
 
 - `--metrics-only` / `--dimensions-only` (mutex) — slim the SDR. Skips the API calls for excluded types (real perf win on large RSes).
-- `--include-segments` / `--include-calculated` — explicit no-ops for CJA parity (segments/calc are already default in AA).
 
 ### Config introspection
 
@@ -50,8 +49,8 @@ Polish release closing all remaining Tier 1 gaps from the AA-vs-CJA review.
 ### Technical
 
 - New exit code `3` (`WARN`) for `--warn-threshold` exceeded. `--exit-codes` table now has 11 codes.
-- `core/timings.py` — lightweight `Timer` context manager (off by default, zero-cost no-op when disabled).
-- `core/run_summary.py` — `RunSummary` + `PerRsidResult` dataclasses for `--run-summary-json`.
+- `core/timings.py` — lightweight `Timer` context manager (library; not yet wired to a CLI flag).
+- `core/run_summary.py` — `RunSummary` + `PerRsidResult` dataclasses (library; not yet wired to a CLI flag).
 - `core/_open.py` and `core/_confirm.py` — small platform-aware helpers.
 - `output/diff_renderers/_filters.py` — pure post-compare filter (changes_only, show_only, max_issues). Keeps the canonical `DiffReport` intact for downstream JSON consumers.
 - `sdr/builder.py::ComponentFilter` — selects which component types `build_sdr` fetches. Pure dataclass; default = all True.

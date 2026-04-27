@@ -78,6 +78,57 @@ class TestGenerationModifiers:
         )
         assert rc == ExitCode.USAGE.value
 
+    def test_metrics_only_with_snapshot_rejected(
+        self,
+        env_creds,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """v1.2 — metrics-only + snapshot would produce misleading filtered envelopes."""
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            metrics_only=True,
+            snapshot=True,
+        )
+        assert rc == ExitCode.USAGE.value
+        assert "filtered snapshots" in capsys.readouterr().out
+
+    def test_metrics_only_with_auto_snapshot_rejected(
+        self,
+        env_creds,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            metrics_only=True,
+            auto_snapshot=True,
+        )
+        assert rc == ExitCode.USAGE.value
+
+    def test_dimensions_only_with_snapshot_rejected(
+        self,
+        env_creds,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="excel",
+            profile=None,
+            dimensions_only=True,
+            snapshot=True,
+        )
+        assert rc == ExitCode.USAGE.value
+        assert "filtered snapshots" in capsys.readouterr().out
+
 
 class TestDryRun:
     @patch("aa_auto_sdr.cli.commands.generate.AaClient")
