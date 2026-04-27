@@ -16,6 +16,36 @@ def run(argv: list[str]) -> int:
     ns = parser.parse_args(argv)
     rsids: list[str] = list(ns.rsids)
 
+    # Reject positional RSIDs combined with actions that take their identifier
+    # inline. Without this guard, `aa_auto_sdr --list-metrics RS1 RS2` would
+    # silently drop RS2 (the user likely meant "list metrics for both" — fail
+    # loud rather than ignore). The diff and snapshot-lifecycle actions have
+    # their own action-specific positional limits below.
+    _inline_id_actions = (
+        ("describe_reportsuite", "--describe-reportsuite"),
+        ("list_metrics", "--list-metrics"),
+        ("list_dimensions", "--list-dimensions"),
+        ("list_segments", "--list-segments"),
+        ("list_calculated_metrics", "--list-calculated-metrics"),
+        ("list_classification_datasets", "--list-classification-datasets"),
+        ("profile_add", "--profile-add"),
+        ("profile_test", "--profile-test"),
+        ("profile_show", "--profile-show"),
+    )
+    for attr, flag in _inline_id_actions:
+        if getattr(ns, attr) and rsids:
+            print(
+                f"error: {flag} takes its RSID inline; extra positional arguments are not supported",
+                flush=True,
+            )
+            return ExitCode.USAGE.value
+    if ns.profile_import and rsids:
+        print(
+            "error: --profile-import takes <NAME> <FILE> inline; extra positional arguments are not supported",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+
     # Profile/config actions
     if ns.profile_add:
         return config_cmd.profile_add(ns.profile_add)

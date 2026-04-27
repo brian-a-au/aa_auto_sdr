@@ -356,6 +356,32 @@ class TestAutoBatchPositional:
         rc = run([])
         assert rc == 2
 
+    def test_describe_reportsuite_with_extra_positional_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """--describe-reportsuite takes its RSID inline; extras are a usage error
+        rather than silently dropped."""
+        rc = run(["--describe-reportsuite", "rs1", "rs2"])
+        assert rc == 2
+        assert "takes its RSID inline" in capsys.readouterr().out
+
+    def test_list_metrics_with_extra_positional_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run(["--list-metrics", "rs1", "rs2"])
+        assert rc == 2
+        assert "takes its RSID inline" in capsys.readouterr().out
+
+    def test_profile_test_with_extra_positional_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run(["--profile-test", "prod", "extra-arg"])
+        assert rc == 2
+        assert "takes its RSID inline" in capsys.readouterr().out
+
     def test_list_snapshots_with_two_positionals_rejects(
         self,
         capsys: pytest.CaptureFixture[str],
