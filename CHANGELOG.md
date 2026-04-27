@@ -4,7 +4,13 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## [1.1.0] — 2026-04-26
 
-The first feature release after v1.0.0. Closes the three highest-ROI gaps from the AA-vs-CJA feature gap review.
+The first feature release after v1.0.0. Closes the three highest-ROI gaps from the AA-vs-CJA feature gap review, plus a CLI ergonomics upgrade.
+
+### Generation ergonomics
+
+- **Auto-batch:** passing 2+ identifiers on the command line now routes to batch mode automatically — `aa_auto_sdr rs1 rs2 rs3` works without `--batch`.
+- **Mixed RSIDs and names:** RSIDs and case-insensitive names can be combined in one invocation — `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod`.
+- `--batch` flag is preserved for backward compatibility; mixing it with positional RSIDs returns exit 2 with a clear error.
 
 ### Snapshot lifecycle
 

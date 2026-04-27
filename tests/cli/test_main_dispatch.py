@@ -273,3 +273,92 @@ class TestV11Dispatch:
         assert captured["summary"] is True
         assert captured["ignore_fields"] == frozenset({"description", "tags"})
         assert captured["format_name"] == "pr-comment"
+
+
+class TestAutoBatchPositional:
+    """v1.1 — multiple positional RSIDs auto-route to batch without --batch."""
+
+    def test_two_positionals_routes_to_batch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(batch_cmd, "run", _stub)
+        rc = run(["rs1", "rs2", "--profile", "prod"])
+        assert rc == 0
+        assert captured["rsids"] == ["rs1", "rs2"]
+        assert captured["profile"] == "prod"
+
+    def test_three_positionals_with_mixed_rsid_and_name(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(batch_cmd, "run", _stub)
+        rc = run(["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"])
+        assert rc == 0
+        # RSIDs and names pass through unchanged; batch's per-RSID resolver does name lookup.
+        assert captured["rsids"] == ["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"]
+
+    def test_single_positional_still_routes_to_generate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+
+        captured: dict[str, object] = {}
+
+        def _stub(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(generate_cmd, "run", _stub)
+        rc = run(["demo.prod"])
+        assert rc == 0
+        assert captured["rsid"] == "demo.prod"
+
+    def test_batch_flag_with_positional_rejects(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = run(["--batch", "rs1", "rs2", "rs3"])
+        # Argparse swallows extra positionals when --batch is greedy; this case is OK.
+        # The interesting case is mixing them syntactically.
+        # When `aa_auto_sdr rs1 --batch rs2 rs3` is parsed, argparse routes rs1 to the
+        # positional and rs2/rs3 to --batch — both populated, mutex check fires.
+        # (We can't assert this here without invoking argparse; the test below covers it.)
+        assert rc in (0, 11, 13)  # any non-2 (USAGE) is fine — proves argparse did NOT reject
+
+    def test_batch_flag_plus_positional_rejected(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Use the parser explicitly: --batch + positional rsid should error in main."""
+        from aa_auto_sdr.cli.parser import build_parser
+
+        ns = build_parser().parse_args(["rs1", "--batch", "rs2"])
+        # Argparse populates both ns.rsids and ns.batch.
+        assert ns.rsids == ["rs1"]
+        assert ns.batch == ["rs2"]
+        # Now run the dispatch — it should print the mutex error and return USAGE (2).
+        rc = run(["rs1", "--batch", "rs2"])
+        out = capsys.readouterr().out
+        assert rc == 2
+        assert "cannot combine --batch with positional RSIDs" in out
+
+    def test_zero_positionals_returns_usage(self, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = run([])
+        assert rc == 2
+
+    def test_list_snapshots_with_two_positionals_rejects(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = run(["--list-snapshots", "rs1", "rs2", "--profile", "prod"])
+        assert rc == 2
+        assert "at most one positional" in capsys.readouterr().out

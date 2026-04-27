@@ -159,12 +159,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Import a JSON file as a credentials profile",
     )
 
-    # Positional RSID for generate
+    # Positional RSID(s) — one or more. Single value runs generate; multiple values
+    # auto-batch (sequential, continue-on-error). RSIDs and names may be mixed freely.
+    # Also accepts an optional single RSID filter for --list-snapshots / --prune-snapshots.
     p.add_argument(
-        "rsid",
-        nargs="?",
-        default=None,
-        help="Report Suite ID or name to generate an SDR for",
+        "rsids",
+        nargs="*",
+        default=[],
+        metavar="RSID_OR_NAME",
+        help=(
+            "One or more report suites (RSID or case-insensitive name). "
+            "Multiple values auto-batch (sequential, continue-on-error). "
+            "RSIDs and names may be mixed freely."
+        ),
     )
 
     # Common options

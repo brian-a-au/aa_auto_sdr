@@ -5,10 +5,24 @@ import pytest
 from aa_auto_sdr.cli.parser import build_parser
 
 
-def test_positional_rsid() -> None:
+def test_positional_rsid_single() -> None:
     p = build_parser()
     ns = p.parse_args(["demo.prod"])
-    assert ns.rsid == "demo.prod"
+    assert ns.rsids == ["demo.prod"]
+
+
+def test_positional_rsid_multiple() -> None:
+    """v1.1 — positional accepts 2+ identifiers (auto-batch shorthand)."""
+    p = build_parser()
+    ns = p.parse_args(["rs1", "rs2", "rs3"])
+    assert ns.rsids == ["rs1", "rs2", "rs3"]
+
+
+def test_positional_mixes_rsid_and_name() -> None:
+    """v1.1 — RSIDs and case-insensitive names can mix freely in one invocation."""
+    p = build_parser()
+    ns = p.parse_args(["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"])
+    assert ns.rsids == ["dgeo1xxpnwcidadobestore", "Adobe Store", "demo.prod"]
 
 
 def test_format_default_is_none() -> None:
@@ -33,14 +47,14 @@ def test_profile_add_is_mutually_exclusive_with_rsid() -> None:
     """v0.1 defines --profile-add as a standalone action — RSID not required."""
     p = build_parser()
     ns = p.parse_args(["--profile-add", "prod"])
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_show_config_is_action() -> None:
     p = build_parser()
     ns = p.parse_args(["--show-config"])
     assert ns.show_config is True
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_profile_flag() -> None:
@@ -53,7 +67,7 @@ def test_list_reportsuites_flag_parses() -> None:
     p = build_parser()
     ns = p.parse_args(["--list-reportsuites"])
     assert ns.list_reportsuites is True
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_list_virtual_reportsuites_flag_parses() -> None:
@@ -141,7 +155,7 @@ def test_batch_flag_parses_multiple_rsids() -> None:
     p = build_parser()
     ns = p.parse_args(["--batch", "rs1", "rs2", "rs3"])
     assert ns.batch == ["rs1", "rs2", "rs3"]
-    assert ns.rsid is None
+    assert ns.rsids == []
 
 
 def test_batch_flag_requires_at_least_one_arg() -> None:

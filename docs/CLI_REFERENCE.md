@@ -17,15 +17,32 @@ Default format: Excel. Output filename keys off the canonical RSID.
 
 Exit codes: `0` (success), `10` (config), `11` (auth), `12` (api), `13` (rs not found), `15` (output error).
 
+### `aa_auto_sdr <RSID...> [<NAME>...]` — auto-batch (v1.1)
+
+Pass two or more identifiers and the tool automatically routes to batch mode — no `--batch` flag needed. **RSIDs and names may be mixed freely** in a single invocation; per-RSID name resolution happens inside the batch loop.
+
+```bash
+# Three RSIDs
+uv run aa_auto_sdr rs1 rs2 rs3 --output-dir /tmp/sdr
+
+# Mixed RSIDs and names
+uv run aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod --format json
+
+# Auto-batch + auto-snapshot
+uv run aa_auto_sdr rs1 "Adobe Store" --profile prod --auto-snapshot --auto-prune --keep-last 5
+```
+
+`--output -` is rejected when more than one identifier is given (multi-SDR cannot share one stream → exit 15). Same continue-on-error semantics, summary banner, and partial-success exit code as explicit `--batch`.
+
 ### `aa_auto_sdr --batch RSID1 RSID2 ...`
 
-Sequential generation across multiple report suites. Continue-on-error: a per-RSID failure does not stop the rest. After the run, a CJA-style summary banner prints counts, success rate, total bytes/duration, and per-RSID ✓/✗ rows.
+Original v0.5 form — kept for backward compatibility. Sequential generation across multiple report suites. Continue-on-error: a per-RSID failure does not stop the rest. After the run, a CJA-style summary banner prints counts, success rate, total bytes/duration, and per-RSID ✓/✗ rows.
 
 ```bash
 uv run aa_auto_sdr --batch RS1 RS2 RS3 --format json --output-dir /tmp/sdr
 ```
 
-Mutually exclusive with positional `<RSID>`. `--output -` is rejected (multiple SDRs cannot share one stream → exit 15).
+Mutually exclusive with positional RSIDs (use one form or the other; mixing them returns exit 2). `--output -` is rejected (multiple SDRs cannot share one stream → exit 15).
 
 Exit codes: `0`, `14` (partial — some succeeded, some failed), or the last failure's exit code if all failed.
 
