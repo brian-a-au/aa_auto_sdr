@@ -270,7 +270,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="For --prune-snapshots, list deletions without unlinking",
+        help=(
+            "Preview without writing: for --prune-snapshots list deletions; "
+            "for <RSID> / --batch list output paths (auth still happens, no "
+            "component fetch, no files written)"
+        ),
     )
 
     # v1.1 — diff modifiers

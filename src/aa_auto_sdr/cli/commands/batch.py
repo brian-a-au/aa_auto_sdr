@@ -47,6 +47,7 @@ def run(
     keep_since: str | None = None,
     metrics_only: bool = False,  # v1.2
     dimensions_only: bool = False,  # v1.2
+    dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
@@ -148,6 +149,40 @@ def run(
             canonical.append(rs)
 
     captured_at = datetime.now(UTC)
+
+    if dry_run:
+        # Preview-only path (v1.2): credentials resolved + auth round-trip done +
+        # all identifiers resolved → list what would be written per RSID and
+        # exit. No component fetches, no file writes, no snapshot writes. We
+        # surface any pre-resolution failures already printed above as part of
+        # the dry-run report by listing canonical RSIDs only — unresolved
+        # identifiers were already reported with `error: ...` lines above.
+        print("DRY RUN — would generate:", flush=True)
+        ext_map = {
+            "excel": "xlsx",
+            "json": "json",
+            "html": "html",
+            "markdown": "md",
+            "csv": "csv",
+        }
+        for canonical_rsid in canonical:
+            for fmt in formats:
+                if fmt == "csv":
+                    print(f"  {output_dir / f'{canonical_rsid}.<component>.csv'}")
+                else:
+                    ext = ext_map.get(fmt, fmt)
+                    print(f"  {output_dir / f'{canonical_rsid}.{ext}'}")
+            if save_required and snapshot_dir is not None:
+                from aa_auto_sdr.snapshot.store import snapshot_path
+
+                snap_path = snapshot_path(
+                    snapshot_dir=snapshot_dir,
+                    rsid=canonical_rsid,
+                    captured_at_iso=captured_at.isoformat(),
+                )
+                print(f"  {snap_path}")
+        print("(no files were written; remove --dry-run to execute)", flush=True)
+        return ExitCode.OK.value
 
     def _on_progress(i: int, total: int, rsid: str) -> None:
         print(f"[{i}/{total}] generating {rsid}...", flush=True)

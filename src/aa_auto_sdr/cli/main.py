@@ -238,6 +238,7 @@ def run(argv: list[str]) -> int:
             auto_prune=ns.auto_prune,
             keep_last=ns.keep_last,
             keep_since=ns.keep_since,
+            dry_run=ns.dry_run,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -252,6 +253,7 @@ def run(argv: list[str]) -> int:
         auto_prune=ns.auto_prune,
         keep_last=ns.keep_last,
         keep_since=ns.keep_since,
+        dry_run=ns.dry_run,
     )
 
 

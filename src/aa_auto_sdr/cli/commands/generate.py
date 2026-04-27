@@ -56,6 +56,7 @@ def run(
     keep_since: str | None = None,
     metrics_only: bool = False,  # v1.2
     dimensions_only: bool = False,  # v1.2
+    dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
 ) -> int:
     is_pipe = output_dir == Path("-")
 
@@ -145,6 +146,38 @@ def run(
 
     captured_at = datetime.now(UTC)
     total = len(canonical_rsids)
+
+    if dry_run:
+        # Preview-only path (v1.2): credentials resolved + auth round-trip done +
+        # RSID resolved → list what would be written and exit. No component
+        # fetches (the heavy AA calls), no file writes, no snapshot writes.
+        print("DRY RUN — would generate:", flush=True)
+        ext_map = {
+            "excel": "xlsx",
+            "json": "json",
+            "html": "html",
+            "markdown": "md",
+            "csv": "csv",
+        }
+        for canonical_rsid in canonical_rsids:
+            for fmt in formats:
+                if fmt == "csv":
+                    # CSV mode produces one file per component type.
+                    print(f"  {output_dir / f'{canonical_rsid}.<component>.csv'}")
+                else:
+                    ext = ext_map.get(fmt, fmt)
+                    print(f"  {output_dir / f'{canonical_rsid}.{ext}'}")
+            if save_required and snapshot_dir is not None:
+                from aa_auto_sdr.snapshot.store import snapshot_path
+
+                snap_path = snapshot_path(
+                    snapshot_dir=snapshot_dir,
+                    rsid=canonical_rsid,
+                    captured_at_iso=captured_at.isoformat(),
+                )
+                print(f"  {snap_path}")
+        print("(no files were written; remove --dry-run to execute)", flush=True)
+        return ExitCode.OK.value
 
     if is_pipe:
         # JSON-only pipe path: build SdrDocuments and emit one JSON value

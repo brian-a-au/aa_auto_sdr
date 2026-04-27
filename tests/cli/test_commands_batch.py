@@ -403,3 +403,31 @@ class TestBatchAutoSnapshot:
         assert len(list((snap_root / "demo.prod").glob("*.json"))) == 1
         # demo.staging: 1 new → keep-last 1 leaves 1
         assert len(list((snap_root / "demo.staging").glob("*.json"))) == 1
+
+
+class TestBatchDryRun:
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_dry_run_writes_no_files_in_batch(
+        self,
+        mock_client_cls,
+        mock_handle,
+        authed_env,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            dry_run=True,
+        )
+        assert rc == ExitCode.OK.value
+        # No file written for the RSID
+        assert not (tmp_path / "demo.prod.json").exists()
+        out = capsys.readouterr().out
+        assert "DRY RUN" in out or "would generate" in out
