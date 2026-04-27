@@ -236,3 +236,49 @@ def test_fetch_classification_datasets_returns_empty_on_wrapper_error(capsys) ->
     assert cs == []
     captured = capsys.readouterr()
     assert "classifications fetch failed" in captured.err
+
+
+def test_fetch_report_suite_summaries_normalizes_records(mock_client: AaClient) -> None:
+    """Each raw record becomes a ReportSuiteSummary with rsid + name only."""
+    summaries = fetch.fetch_report_suite_summaries(mock_client)
+    assert all(isinstance(s, models.ReportSuiteSummary) for s in summaries)
+    assert summaries[0].rsid == "demo.prod"
+    assert summaries[0].name == "Demo Production"
+
+
+def test_fetch_report_suite_summaries_sort_order() -> None:
+    """Output is alphabetically sorted by rsid (stable across runs)."""
+    handle = MagicMock()
+    handle.getReportSuites.return_value = _df(
+        [
+            {"rsid": "zeta.prod", "name": "Zeta"},
+            {"rsid": "alpha.prod", "name": "Alpha"},
+            {"rsid": "mid.prod", "name": "Mid"},
+        ],
+    )
+    client = AaClient(handle=handle, company_id="testco")
+    summaries = fetch.fetch_report_suite_summaries(client)
+    assert [s.rsid for s in summaries] == ["alpha.prod", "mid.prod", "zeta.prod"]
+
+
+def test_fetch_report_suite_summaries_drops_records_with_empty_rsid() -> None:
+    """Records missing `rsid` are skipped (defensive — real API returns them)."""
+    handle = MagicMock()
+    handle.getReportSuites.return_value = _df(
+        [
+            {"rsid": "good", "name": "Good"},
+            {"rsid": "", "name": "Empty"},
+            {"rsid": None, "name": "None"},
+        ],
+    )
+    client = AaClient(handle=handle, company_id="testco")
+    summaries = fetch.fetch_report_suite_summaries(client)
+    assert [s.rsid for s in summaries] == ["good"]
+
+
+def test_fetch_report_suite_summaries_passes_extended_info(mock_client: AaClient) -> None:
+    """The wrapper must request extended_info so name (and any future fields)
+    are populated. Mirrors the call-shape tests for other fetchers in this file."""
+    fetch.fetch_report_suite_summaries(mock_client)
+    _, kwargs = mock_client.handle.getReportSuites.call_args
+    assert kwargs.get("extended_info") is True

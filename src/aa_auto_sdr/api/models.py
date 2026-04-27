@@ -137,3 +137,14 @@ class ClassificationDataset:
     name: str
     rsid: str
     extra: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class ReportSuiteSummary:
+    """Lightweight RS summary for `--list-reportsuites`, `--stats`, `--interactive`.
+
+    Distinct from `ReportSuite` (full schema with timezone/currency/parent_rsid).
+    Carries only the fields CLI list views need."""
+
+    rsid: str
+    name: str | None
