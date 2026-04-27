@@ -148,3 +148,15 @@ class ReportSuiteSummary:
 
     rsid: str
     name: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class VirtualReportSuiteSummary:
+    """Lightweight VRS summary for `--list-virtual-reportsuites`.
+
+    Distinct from `VirtualReportSuite` (full schema with timezone/segment_list/
+    curated_components/etc.). Carries only the fields CLI list views need."""
+
+    id: str
+    name: str | None
+    parent_rsid: str

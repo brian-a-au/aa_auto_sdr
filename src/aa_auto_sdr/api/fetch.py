@@ -325,6 +325,28 @@ def fetch_virtual_report_suites(
     ]
 
 
+def fetch_virtual_report_suite_summaries(
+    client: AaClient,
+) -> list[models.VirtualReportSuiteSummary]:
+    """Fetch every visible virtual report suite as a list of VirtualReportSuiteSummary.
+
+    Replaces the v1.0–v1.2 pattern of `_records(client.handle.getVirtualReportSuites(...))`
+    being called from CLI command code. Keeps the SDK boundary inside `api/`.
+
+    Sort order: alphabetical by id."""
+    raw = _records(client.handle.getVirtualReportSuites(extended_info=True))
+    summaries = [
+        models.VirtualReportSuiteSummary(
+            id=str(r.get("id", "")),
+            name=_str_or_none(r, "name"),
+            parent_rsid=str(r.get("parentRsid", "")),
+        )
+        for r in raw
+        if r.get("id")
+    ]
+    return sorted(summaries, key=lambda s: s.id)
+
+
 _CLASSIFICATION_ID_KEYS = ("id", "dataSetId", "datasetId", "data_set_id")
 _CLASSIFICATION_NAME_KEYS = ("name", "displayName", "display_name")
 
