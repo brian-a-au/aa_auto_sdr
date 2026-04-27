@@ -9,6 +9,8 @@ import pytest
 
 from aa_auto_sdr.snapshot.retention import RetentionPolicy
 from aa_auto_sdr.snapshot.store import (
+    captured_at_to_filename,
+    filename_to_captured_at,
     list_snapshots,
     prune_snapshots,
 )
@@ -89,3 +91,20 @@ class TestPruneSnapshots:
         deleted = prune_snapshots(populated_dir, policy, now=now)
         # 04-22 is within 1 day; 04-20 and 04-21 are not — 2 per RSID
         assert len(deleted) == 4
+
+
+class TestFilenameRoundTrip:
+    @pytest.mark.parametrize(
+        "iso",
+        [
+            "2026-04-26T17:29:01+00:00",
+            "2026-04-26T17:29:01-05:00",
+            "2026-04-26T17:29:01Z",
+            "2026-04-26T00:00:00+10:30",
+        ],
+    )
+    def test_round_trip_preserves_iso(self, iso: str) -> None:
+        filename = captured_at_to_filename(iso)
+        # `.json` suffix gets stripped by Path(...).stem in callers
+        stem = filename.removesuffix(".json")
+        assert filename_to_captured_at(stem) == iso

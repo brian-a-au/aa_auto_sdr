@@ -28,6 +28,33 @@ def captured_at_to_filename(captured_at_iso: str) -> str:
     return captured_at_iso.replace(":", "-") + ".json"
 
 
+def filename_to_captured_at(filename_stem: str) -> str:
+    """Inverse of captured_at_to_filename. Restore colons in the time portion.
+
+    `2026-04-26T17-29-01+00-00` → `2026-04-26T17:29:01+00:00`.
+
+    Tolerates the `Z` UTC suffix variant accepted by snapshot.schema."""
+    if "T" not in filename_stem:
+        return filename_stem  # not a recognized timestamp shape; pass through
+    date, time_with_offset = filename_stem.split("T", 1)
+    if time_with_offset.endswith("Z"):
+        # 17-29-01Z → 17:29:01Z
+        body = time_with_offset[:-1].replace("-", ":")
+        return f"{date}T{body}Z"
+    # The offset is always the trailing 6 chars in the form `[+-]HH-MM`
+    # (since `captured_at_to_filename` only swaps colons → hyphens, the sign
+    # is preserved). For `+`, rfind is unambiguous; for `-`, we anchor at the
+    # length-6 position so the sign doesn't collide with HH-MM-SS hyphens.
+    if len(time_with_offset) >= 6 and time_with_offset[-6] in "+-":
+        sign_idx = len(time_with_offset) - 6
+        time_part = time_with_offset[:sign_idx].replace("-", ":")
+        offset_part = time_with_offset[sign_idx]  # the sign
+        offset_body = time_with_offset[sign_idx + 1 :].replace("-", ":")
+        return f"{date}T{time_part}{offset_part}{offset_body}"
+    # No recognizable offset signal; convert all hyphens (best effort).
+    return f"{date}T{time_with_offset.replace('-', ':')}"
+
+
 def snapshot_path(*, snapshot_dir: Path, rsid: str, captured_at_iso: str) -> Path:
     """Return the canonical snapshot path under `<snapshot_dir>/<rsid>/<filename>`."""
     return snapshot_dir / rsid / captured_at_to_filename(captured_at_iso)

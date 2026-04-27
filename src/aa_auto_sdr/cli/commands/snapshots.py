@@ -9,7 +9,11 @@ from aa_auto_sdr.core.exceptions import ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.profiles import default_base
 from aa_auto_sdr.snapshot.retention import parse_policy
-from aa_auto_sdr.snapshot.store import list_snapshots, prune_snapshots
+from aa_auto_sdr.snapshot.store import (
+    filename_to_captured_at,
+    list_snapshots,
+    prune_snapshots,
+)
 
 
 def list_run(
@@ -55,6 +59,11 @@ def prune_run(
     keep_since: str | None,
     dry_run: bool,
 ) -> int:
+    """Apply retention policy under `~/.aa/orgs/<profile>/snapshots/`.
+
+    Requires `--profile` and at least one of `keep_last` / `keep_since`.
+    `rsid` filters to one RSID. `dry_run` reports what would be deleted
+    without unlinking."""
     if not profile:
         print("error: --prune-snapshots requires --profile", flush=True)
         return ExitCode.CONFIG.value
@@ -84,6 +93,6 @@ def prune_run(
 def _to_row(path: Path) -> dict[str, str]:
     return {
         "rsid": path.parent.name,
-        "captured_at": path.stem,
+        "captured_at": filename_to_captured_at(path.stem),
         "path": str(path),
     }
