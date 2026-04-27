@@ -52,6 +52,26 @@ def run(argv: list[str]) -> int:
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)
 
+    # v1.2 — config introspection actions (no auth required)
+    if ns.config_status:
+        return config_cmd.config_status(profile=ns.profile)
+    if ns.validate_config:
+        return config_cmd.validate_config(profile=ns.profile)
+    if ns.sample_config:
+        return config_cmd.sample_config()
+
+    # v1.2 — stats action
+    if ns.stats:
+        from aa_auto_sdr.cli.commands import stats as stats_cmd
+
+        return stats_cmd.run(rsids=rsids, profile=ns.profile, format_name=ns.format)
+
+    # v1.2 — interactive action
+    if ns.interactive:
+        from aa_auto_sdr.cli.commands import interactive as interactive_cmd
+
+        return interactive_cmd.run(profile=ns.profile)
+
     # v1.1 — snapshot lifecycle. Optional positional <RSID> narrows to one suite;
     # multiple positionals are a usage error (the filter is single-valued).
     if ns.list_snapshots:
@@ -83,6 +103,7 @@ def run(argv: list[str]) -> int:
             keep_last=ns.keep_last,
             keep_since=ns.keep_since,
             dry_run=ns.dry_run,
+            assume_yes=ns.yes,
         )
 
     # v1.1 — profile commands
@@ -102,7 +123,7 @@ def run(argv: list[str]) -> int:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 
         name, src_path = ns.profile_import
-        return prof_cmd.import_run(name, src_path)
+        return prof_cmd.import_run(name, src_path, overwrite=ns.profile_overwrite)
 
     # Fast-path actions (also reachable via slow path if positional ordering forced argparse)
     if ns.exit_codes:
@@ -185,6 +206,13 @@ def run(argv: list[str]) -> int:
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
         ignore = frozenset(f.strip() for f in (ns.ignore_fields or "").split(",") if f.strip())
+        labels: tuple[str, str] | None = None
+        if ns.diff_labels:
+            # `--diff-labels A=baseline B=candidate` → ("baseline", "candidate")
+            a_label = ns.diff_labels[0].split("=", 1)[-1]
+            b_label = ns.diff_labels[1].split("=", 1)[-1]
+            labels = (a_label, b_label)
+        show_only = frozenset(t.strip() for t in (ns.show_only or "").split(",") if t.strip())
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
@@ -194,6 +222,13 @@ def run(argv: list[str]) -> int:
             side_by_side=ns.side_by_side,
             summary=ns.summary,
             ignore_fields=ignore,
+            quiet=ns.quiet_diff,
+            labels=labels,
+            reverse=ns.reverse_diff,
+            changes_only=ns.changes_only,
+            show_only=show_only,
+            max_issues=ns.max_issues,
+            warn_threshold=ns.warn_threshold,
         )
 
     # Combine explicit --batch flag with positional RSIDs into a single list.
@@ -238,6 +273,11 @@ def run(argv: list[str]) -> int:
             auto_prune=ns.auto_prune,
             keep_last=ns.keep_last,
             keep_since=ns.keep_since,
+            dry_run=ns.dry_run,
+            metrics_only=ns.metrics_only,
+            dimensions_only=ns.dimensions_only,
+            open_after=ns.open,
+            assume_yes=ns.yes,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -252,6 +292,11 @@ def run(argv: list[str]) -> int:
         auto_prune=ns.auto_prune,
         keep_last=ns.keep_last,
         keep_since=ns.keep_since,
+        dry_run=ns.dry_run,
+        metrics_only=ns.metrics_only,
+        dimensions_only=ns.dimensions_only,
+        open_after=ns.open,
+        assume_yes=ns.yes,
     )
 
 

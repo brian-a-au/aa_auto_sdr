@@ -54,8 +54,43 @@ def run(
     auto_prune: bool = False,
     keep_last: int | None = None,
     keep_since: str | None = None,
+    metrics_only: bool = False,  # v1.2
+    dimensions_only: bool = False,  # v1.2
+    dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
+    open_after: bool = False,  # v1.2 — open first output in OS default app
+    assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
 ) -> int:
     is_pipe = output_dir == Path("-")
+
+    if metrics_only and dimensions_only:
+        msg = "error: --metrics-only and --dimensions-only are mutually exclusive"
+        _emit_pipe_or_print(
+            is_pipe=is_pipe,
+            exc=None,
+            message=msg,
+            exit_code=ExitCode.USAGE.value,
+        )
+        return ExitCode.USAGE.value
+
+    if (metrics_only or dimensions_only) and (snapshot or auto_snapshot):
+        msg = (
+            "error: --metrics-only / --dimensions-only cannot be combined with "
+            "--snapshot / --auto-snapshot — filtered snapshots produce misleading diffs"
+        )
+        _emit_pipe_or_print(
+            is_pipe=is_pipe,
+            exc=None,
+            message=msg,
+            exit_code=ExitCode.USAGE.value,
+        )
+        return ExitCode.USAGE.value
+
+    from aa_auto_sdr.sdr.builder import ComponentFilter
+
+    component_filter = ComponentFilter.from_args(
+        metrics_only=metrics_only,
+        dimensions_only=dimensions_only,
+    )
 
     try:
         creds = credentials.resolve(profile=profile)
@@ -127,6 +162,38 @@ def run(
     captured_at = datetime.now(UTC)
     total = len(canonical_rsids)
 
+    if dry_run:
+        # Preview-only path (v1.2): credentials resolved + auth round-trip done +
+        # RSID resolved → list what would be written and exit. No component
+        # fetches (the heavy AA calls), no file writes, no snapshot writes.
+        print("DRY RUN — would generate:", flush=True)
+        ext_map = {
+            "excel": "xlsx",
+            "json": "json",
+            "html": "html",
+            "markdown": "md",
+            "csv": "csv",
+        }
+        for canonical_rsid in canonical_rsids:
+            for fmt in formats:
+                if fmt == "csv":
+                    # CSV mode produces one file per component type.
+                    print(f"  {output_dir / f'{canonical_rsid}.<component>.csv'}")
+                else:
+                    ext = ext_map.get(fmt, fmt)
+                    print(f"  {output_dir / f'{canonical_rsid}.{ext}'}")
+            if save_required and snapshot_dir is not None:
+                from aa_auto_sdr.snapshot.store import snapshot_path
+
+                snap_path = snapshot_path(
+                    snapshot_dir=snapshot_dir,
+                    rsid=canonical_rsid,
+                    captured_at_iso=captured_at.isoformat(),
+                )
+                print(f"  {snap_path}")
+        print("(no files were written; remove --dry-run to execute)", flush=True)
+        return ExitCode.OK.value
+
     if is_pipe:
         # JSON-only pipe path: build SdrDocuments and emit one JSON value
         # (single object for one RSID, array of objects for multi-match).
@@ -140,6 +207,7 @@ def run(
                     canonical_rsid,
                     captured_at=captured_at,
                     tool_version=__version__,
+                    component_filter=component_filter,
                 )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -173,6 +241,7 @@ def run(
         return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
+    first_output: Path | None = None
     for index, canonical_rsid in enumerate(canonical_rsids, start=1):
         if total > 1:
             print(f"generating SDR {index}/{total}: {canonical_rsid}")
@@ -185,6 +254,7 @@ def run(
                 captured_at=captured_at,
                 tool_version=__version__,
                 snapshot_dir=snapshot_dir,
+                component_filter=component_filter,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
@@ -201,6 +271,8 @@ def run(
 
         for path in result.outputs:
             print(f"wrote: {path}")
+        if first_output is None and result.outputs:
+            first_output = result.outputs[0]
 
     if auto_prune and snapshot_dir is not None:
         rc = _apply_auto_prune(
@@ -212,6 +284,11 @@ def run(
         )
         if rc != ExitCode.OK.value:
             return rc
+
+    if open_after and not is_pipe and not dry_run and first_output is not None:
+        from aa_auto_sdr.core._open import os_open
+
+        os_open(first_output)
 
     return ExitCode.OK.value
 

@@ -45,12 +45,39 @@ def run(
     auto_prune: bool = False,
     keep_last: int | None = None,
     keep_since: str | None = None,
+    metrics_only: bool = False,  # v1.2
+    dimensions_only: bool = False,  # v1.2
+    dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
+    open_after: bool = False,  # v1.2 — open output_dir in OS default app
+    assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
     `rsids` here is the raw list from argparse; identifier resolution + dedup
     happen below before `run_batch` sees the list.
     """
+    if metrics_only and dimensions_only:
+        print(
+            "error: --metrics-only and --dimensions-only are mutually exclusive",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+
+    if (metrics_only or dimensions_only) and (snapshot or auto_snapshot):
+        print(
+            "error: --metrics-only / --dimensions-only cannot be combined with "
+            "--snapshot / --auto-snapshot — filtered snapshots produce misleading diffs",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+
+    from aa_auto_sdr.sdr.builder import ComponentFilter
+
+    component_filter = ComponentFilter.from_args(
+        metrics_only=metrics_only,
+        dimensions_only=dimensions_only,
+    )
+
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
@@ -133,6 +160,40 @@ def run(
 
     captured_at = datetime.now(UTC)
 
+    if dry_run:
+        # Preview-only path (v1.2): credentials resolved + auth round-trip done +
+        # all identifiers resolved → list what would be written per RSID and
+        # exit. No component fetches, no file writes, no snapshot writes. We
+        # surface any pre-resolution failures already printed above as part of
+        # the dry-run report by listing canonical RSIDs only — unresolved
+        # identifiers were already reported with `error: ...` lines above.
+        print("DRY RUN — would generate:", flush=True)
+        ext_map = {
+            "excel": "xlsx",
+            "json": "json",
+            "html": "html",
+            "markdown": "md",
+            "csv": "csv",
+        }
+        for canonical_rsid in canonical:
+            for fmt in formats:
+                if fmt == "csv":
+                    print(f"  {output_dir / f'{canonical_rsid}.<component>.csv'}")
+                else:
+                    ext = ext_map.get(fmt, fmt)
+                    print(f"  {output_dir / f'{canonical_rsid}.{ext}'}")
+            if save_required and snapshot_dir is not None:
+                from aa_auto_sdr.snapshot.store import snapshot_path
+
+                snap_path = snapshot_path(
+                    snapshot_dir=snapshot_dir,
+                    rsid=canonical_rsid,
+                    captured_at_iso=captured_at.isoformat(),
+                )
+                print(f"  {snap_path}")
+        print("(no files were written; remove --dry-run to execute)", flush=True)
+        return ExitCode.OK.value
+
     def _on_progress(i: int, total: int, rsid: str) -> None:
         print(f"[{i}/{total}] generating {rsid}...", flush=True)
 
@@ -150,6 +211,7 @@ def run(
             progress_callback=_on_progress,
             failure_callback=_on_failure,
             snapshot_dir=snapshot_dir,
+            component_filter=component_filter,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the
@@ -180,6 +242,11 @@ def run(
         )
         if rc != ExitCode.OK.value:
             return rc
+
+    if open_after and not dry_run:
+        from aa_auto_sdr.core._open import os_open
+
+        os_open(output_dir)
 
     if not final.failures:
         return ExitCode.OK.value

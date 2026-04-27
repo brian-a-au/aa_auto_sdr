@@ -299,3 +299,71 @@ class TestV11Flags:
             ["--prune-snapshots", "--keep-last", "5", "--dry-run"],
         )
         assert ns.dry_run is True
+
+
+class TestV12Flags:
+    def test_stats_action(self) -> None:
+        ns = build_parser().parse_args(["--stats"])
+        assert ns.stats is True
+
+    def test_interactive_action(self) -> None:
+        ns = build_parser().parse_args(["--interactive"])
+        assert ns.interactive is True
+
+    def test_config_status_action(self) -> None:
+        ns = build_parser().parse_args(["--config-status"])
+        assert ns.config_status is True
+
+    def test_validate_config_action(self) -> None:
+        ns = build_parser().parse_args(["--validate-config"])
+        assert ns.validate_config is True
+
+    def test_sample_config_action(self) -> None:
+        ns = build_parser().parse_args(["--sample-config"])
+        assert ns.sample_config is True
+
+    def test_quiet_diff_modifier(self) -> None:
+        ns = build_parser().parse_args(["--diff", "a.json", "b.json", "--quiet-diff"])
+        assert ns.quiet_diff is True
+
+    def test_diff_labels_modifier(self) -> None:
+        ns = build_parser().parse_args(
+            ["--diff", "a.json", "b.json", "--diff-labels", "A=baseline", "B=candidate"],
+        )
+        assert ns.diff_labels == ["A=baseline", "B=candidate"]
+
+    def test_reverse_diff(self) -> None:
+        ns = build_parser().parse_args(["--diff", "a.json", "b.json", "--reverse-diff"])
+        assert ns.reverse_diff is True
+
+    def test_warn_threshold(self) -> None:
+        ns = build_parser().parse_args(["--diff", "a.json", "b.json", "--warn-threshold", "5"])
+        assert ns.warn_threshold == 5
+
+    def test_changes_only_show_only_max_issues(self) -> None:
+        ns = build_parser().parse_args(
+            ["--diff", "a.json", "b.json", "--changes-only", "--show-only", "metrics,dimensions", "--max-issues", "3"],
+        )
+        assert ns.changes_only is True
+        assert ns.show_only == "metrics,dimensions"
+        assert ns.max_issues == 3
+
+    def test_metrics_only_dimensions_only_mutex(self) -> None:
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["RS1", "--metrics-only", "--dimensions-only"])
+
+    def test_open_flag(self) -> None:
+        ns = build_parser().parse_args(["RS1", "--open"])
+        assert ns.open is True
+
+    def test_yes_flag_long(self) -> None:
+        ns = build_parser().parse_args(["RS1", "--yes"])
+        assert ns.yes is True
+
+    def test_yes_flag_short(self) -> None:
+        ns = build_parser().parse_args(["RS1", "-y"])
+        assert ns.yes is True
+
+    def test_profile_overwrite(self) -> None:
+        ns = build_parser().parse_args(["--profile-import", "prod", "/tmp/c.json", "--profile-overwrite"])
+        assert ns.profile_overwrite is True

@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] — 2026-04-27
+
+Polish release closing all remaining Tier 1 gaps from the AA-vs-CJA review.
+
+### Diff polish
+
+- `--quiet-diff` suppresses unchanged trailers; show only changed sections (console + markdown).
+- `--diff-labels A=… B=…` overrides Source/Target labels in renderer output.
+- `--reverse-diff` swaps a and b before compare.
+- `--warn-threshold N` exits 3 (`WARN`) when total changes ≥ N. **New exit code.**
+- `--changes-only` drops component types with no changes from rendered output.
+- `--show-only TYPES` restricts diff output to listed component types (CSV).
+- `--max-issues N` caps each component's added/removed/modified list to N items in render.
+
+### CI integration
+
+- When `$GITHUB_STEP_SUMMARY` is set, `--diff` also appends a markdown render to that file. No flag needed; uses the full unfiltered report so CI surfaces are never trimmed.
+
+### Discovery / UX
+
+- `--stats [<RSID>...]` action — per-RSID component counts without full SDR build (table or json).
+- `--interactive` action — pick an RSID from a numbered menu; emits chosen RSID(s) to stdout for shell composition.
+- `--open` opens generated output in OS default app after writing (cross-platform; best-effort).
+- `--yes` / `-y` skips confirmation prompts.
+
+### Operational
+
+- `--dry-run` extended to `<RSID>` and `--batch`: shows would-be output paths without writing. Auth round-trip still runs to validate credentials.
+- `--prune-snapshots` (without `--dry-run`) now prompts for confirmation; `--yes` skips. Non-tty stdin (CI) refuses to prompt and aborts safely.
+
+### Generation modifiers
+
+- `--metrics-only` / `--dimensions-only` (mutex) — slim the SDR. Skips the API calls for excluded types (real perf win on large RSes).
+
+### Config introspection
+
+- `--config-status` prints the full credential resolution chain (more verbose than `--show-config`).
+- `--validate-config` validates credential shape without calling Adobe (`org_id` must end `@AdobeOrg`, all required fields present).
+- `--sample-config` emits a `config.json` template to stdout.
+
+### Breaking changes
+
+- **`--profile-import` no longer silently overwrites an existing profile.** It now exits 10 with a remediation message; pass `--profile-overwrite` to allow replacement. Users with existing scripts that overwrite need to add the flag.
+
+### Technical
+
+- New exit code `3` (`WARN`) for `--warn-threshold` exceeded. `--exit-codes` table now has 11 codes.
+- `core/timings.py` — lightweight `Timer` context manager (library; not yet wired to a CLI flag).
+- `core/run_summary.py` — `RunSummary` + `PerRsidResult` dataclasses (library; not yet wired to a CLI flag).
+- `core/_open.py` and `core/_confirm.py` — small platform-aware helpers.
+- `output/diff_renderers/_filters.py` — pure post-compare filter (changes_only, show_only, max_issues). Keeps the canonical `DiffReport` intact for downstream JSON consumers.
+- `sdr/builder.py::ComponentFilter` — selects which component types `build_sdr` fetches. Pure dataclass; default = all True.
+- No new runtime dependencies.
+- Read-only AA + API 2.0-only meta-tests continue to gate.
+- Test count: 558 → 670+ (~110 new).
+
 ## [1.1.0] — 2026-04-26
 
 The first feature release after v1.0.0. Closes the three highest-ROI gaps from the AA-vs-CJA feature gap review, plus a CLI ergonomics upgrade.

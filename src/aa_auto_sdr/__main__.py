@@ -32,13 +32,18 @@ def _print_help() -> int:
         "  aa_auto_sdr --profile-add <name>     Create a credentials profile\n"
         "  aa_auto_sdr --profile <name> ...     Use a named profile\n"
         "  aa_auto_sdr --show-config            Show resolved credentials source\n"
+        "  aa_auto_sdr --config-status          Print full credential resolution chain (v1.2)\n"
+        "  aa_auto_sdr --validate-config        Validate credential shape without calling Adobe (v1.2)\n"
+        "  aa_auto_sdr --sample-config          Emit a config.json template to stdout (v1.2)\n"
+        "  aa_auto_sdr --stats [<RSID>...]      Quick component counts per RSID (v1.2)\n"
+        "  aa_auto_sdr --interactive            Pick an RSID interactively; emit to stdout (v1.2)\n"
         "  aa_auto_sdr --exit-codes             List every exit code with one-line meaning\n"
         "  aa_auto_sdr --explain-exit-code <N>  Detailed explanation for one exit code\n"
         "  aa_auto_sdr --completion <SHELL>     Emit a shell completion script (bash|zsh|fish)\n"
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
-        "v1.1.0: snapshot lifecycle (auto-snapshot, retention, list, prune); diff UX (side-by-side, summary, ignore-fields, pr-comment); profile parity (list, test, show, import).\n"
+        "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
     )
     return 0
 

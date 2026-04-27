@@ -5,6 +5,7 @@ from __future__ import annotations
 from aa_auto_sdr.output.diff_renderers.console import render_console
 from aa_auto_sdr.output.diff_renderers.json import render_json
 from aa_auto_sdr.output.diff_renderers.markdown import render_markdown
+from aa_auto_sdr.output.diff_renderers.pr_comment import render_pr_comment
 from aa_auto_sdr.snapshot.models import (
     AddedRemovedItem,
     ComponentDiff,
@@ -93,3 +94,43 @@ class TestJsonSummary:
         # modified items still listed but their .deltas are empty
         metric_block = next(c for c in payload["components"] if c["component_type"] == "metrics")
         assert metric_block["modified"][0]["deltas"] == []
+
+
+class TestConsoleQuiet:
+    def test_quiet_suppresses_unchanged_trailer(self) -> None:
+        out = render_console(_report_with_changes(), quiet=True)
+        # In quiet mode, the "Total: ... unchanged" line is suppressed.
+        # We assert the absence of "unchanged" — note that the per-component
+        # summary line which says "X unchanged" is also suppressed in quiet mode.
+        assert "unchanged" not in out
+
+
+class TestLabelsAllRenderers:
+    def test_console_labels_replace_source_target(self) -> None:
+        out = render_console(_report_with_changes(), labels=("baseline", "candidate"))
+        assert "baseline" in out
+        assert "candidate" in out
+
+    def test_markdown_labels_replace_source_target(self) -> None:
+        out = render_markdown(_report_with_changes(), labels=("baseline", "candidate"))
+        assert "baseline" in out
+        assert "candidate" in out
+
+    def test_json_labels_in_payload(self) -> None:
+        import json as _json
+
+        out = render_json(_report_with_changes(), labels=("baseline", "candidate"))
+        payload = _json.loads(out)
+        assert payload.get("a_label") == "baseline"
+        assert payload.get("b_label") == "candidate"
+
+    def test_pr_comment_labels_in_output(self) -> None:
+        out = render_pr_comment(_report_with_changes(), labels=("baseline", "candidate"))
+        assert "baseline" in out
+        assert "candidate" in out
+
+    def test_labels_default_none_preserves_v1_1(self) -> None:
+        # When labels=None, output must match v1.1 behavior (no breakage).
+        with_labels = render_console(_report_with_changes(), labels=None)
+        assert "Source:" in with_labels
+        assert "Target:" in with_labels

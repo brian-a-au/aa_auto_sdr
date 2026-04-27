@@ -102,6 +102,7 @@ def test_v1_1_full_workflow(
         keep_last=1,
         keep_since=None,
         dry_run=False,
+        assume_yes=True,  # v1.2: confirmation gate
     )
     assert rc == 0
     surviving = list(snap_dir.glob("*.json"))

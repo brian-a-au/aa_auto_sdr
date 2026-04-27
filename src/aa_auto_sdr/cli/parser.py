@@ -158,6 +158,31 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Import a JSON file as a credentials profile",
     )
+    actions.add_argument(
+        "--stats",
+        action="store_true",
+        help="Quick component counts per RSID (no full SDR build)",
+    )
+    actions.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Interactively pick an RSID from --list-reportsuites; emits to stdout",
+    )
+    actions.add_argument(
+        "--config-status",
+        action="store_true",
+        help="Print full credential resolution chain (more verbose than --show-config)",
+    )
+    actions.add_argument(
+        "--validate-config",
+        action="store_true",
+        help="Resolve and validate credential shape WITHOUT calling Adobe",
+    )
+    actions.add_argument(
+        "--sample-config",
+        action="store_true",
+        help="Emit a config.json template to stdout",
+    )
 
     # Positional RSID(s) — one or more. Single value runs generate; multiple values
     # auto-batch (sequential, continue-on-error). RSIDs and names may be mixed freely.
@@ -270,7 +295,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--dry-run",
         action="store_true",
-        help="For --prune-snapshots, list deletions without unlinking",
+        help=(
+            "Preview without writing: for --prune-snapshots list deletions; "
+            "for <RSID> / --batch list output paths (auth still happens, no "
+            "component fetch, no files written)"
+        ),
     )
 
     # v1.1 — diff modifiers
@@ -289,6 +318,82 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CSV",
         help="Comma-separated field names to skip during compare (e.g. description,tags)",
+    )
+
+    # v1.2 — diff polish
+    p.add_argument(
+        "--quiet-diff",
+        action="store_true",
+        help="Suppress unchanged trailers; show only changed sections",
+    )
+    p.add_argument(
+        "--diff-labels",
+        nargs=2,
+        default=None,
+        metavar=("A=LABEL_A", "B=LABEL_B"),
+        help="Override Source/Target labels (e.g. A=baseline B=candidate)",
+    )
+    p.add_argument(
+        "--reverse-diff",
+        action="store_true",
+        help="Swap a and b before compare",
+    )
+    p.add_argument(
+        "--warn-threshold",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Exit code 3 if total changes >= N",
+    )
+    p.add_argument(
+        "--changes-only",
+        action="store_true",
+        help="In rendered diff, drop component types with no changes",
+    )
+    p.add_argument(
+        "--show-only",
+        default=None,
+        metavar="TYPES",
+        help="Restrict diff output to listed component types (CSV)",
+    )
+    p.add_argument(
+        "--max-issues",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Cap each component's added/removed/modified to N items in render",
+    )
+
+    # v1.2 — generation modifiers
+    gen_modifiers = p.add_mutually_exclusive_group()
+    gen_modifiers.add_argument(
+        "--metrics-only",
+        action="store_true",
+        help="Generate SDR with only metrics",
+    )
+    gen_modifiers.add_argument(
+        "--dimensions-only",
+        action="store_true",
+        help="Generate SDR with only dimensions",
+    )
+
+    # v1.2 — UX gates
+    p.add_argument(
+        "--open",
+        action="store_true",
+        help="Open the generated output in the OS default app after writing",
+    )
+    p.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        dest="yes",
+        help="Skip confirmation prompts (for --prune-snapshots, etc.)",
+    )
+    p.add_argument(
+        "--profile-overwrite",
+        action="store_true",
+        help="Allow --profile-import to overwrite an existing profile",
     )
 
     return p

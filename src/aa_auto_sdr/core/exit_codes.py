@@ -14,6 +14,7 @@ class ExitCode(IntEnum):
     OK = 0
     GENERIC = 1
     USAGE = 2
+    WARN = 3  # v1.2 — diff --warn-threshold exceeded (diff itself ran successfully)
     CONFIG = 10
     AUTH = 11
     API = 12
@@ -28,6 +29,7 @@ ROWS: list[tuple[ExitCode, str]] = [
     (ExitCode.OK, "Success"),
     (ExitCode.GENERIC, "Generic error (uncategorized failure)"),
     (ExitCode.USAGE, "Argument / usage error from argparse"),
+    (ExitCode.WARN, "Diff --warn-threshold exceeded (diff itself ran successfully)"),
     (ExitCode.CONFIG, "Bad config or missing credentials"),
     (ExitCode.AUTH, "Adobe OAuth Server-to-Server failure"),
     (ExitCode.API, "Adobe Analytics API request failed"),
@@ -61,6 +63,17 @@ Likely causes:
 What to try:
 - Run `aa_auto_sdr --help` to see the full surface.
 - Run `aa_auto_sdr --exit-codes` for the full code list.""",
+    ExitCode.WARN: """The diff completed but the count of changes (added + removed +
+modified) met or exceeded --warn-threshold.
+
+Likely causes:
+- Significant SDR drift between the two snapshots.
+- Threshold set too low for normal churn rate.
+
+What to try:
+- Inspect the diff output to see which components changed.
+- If the threshold is wrong, raise it; if the drift is real, address upstream.
+- This is a soft signal — the diff itself ran successfully.""",
     ExitCode.CONFIG: """Configuration is missing or incomplete.
 
 Likely causes:

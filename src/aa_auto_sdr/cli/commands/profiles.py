@@ -75,8 +75,18 @@ def show_run(name: str, *, base: Path | None = None) -> int:
     return ExitCode.OK.value
 
 
-def import_run(name: str, file_path: str, *, base: Path | None = None) -> int:
-    """Read a JSON file and write it as a profile. Validates required fields."""
+def import_run(
+    name: str,
+    file_path: str,
+    *,
+    base: Path | None = None,
+    overwrite: bool = False,
+) -> int:
+    """Read a JSON file and write it as a profile. Validates required fields.
+
+    By default, errors if the profile already exists at `~/.aa/orgs/<name>/`.
+    Pass `overwrite=True` (CLI: `--profile-overwrite`) to replace an existing
+    profile. v1.1 silently overwrote; v1.2 makes the replacement explicit."""
     src = Path(file_path).expanduser()
     if not src.exists():
         print(f"error: file not found: {src}", flush=True)
@@ -92,6 +102,15 @@ def import_run(name: str, file_path: str, *, base: Path | None = None) -> int:
     if missing:
         print(f"error: missing required fields: {sorted(missing)}", flush=True)
         return ExitCode.CONFIG.value
+
+    target_dir = (base or profiles.default_base()) / "orgs" / name
+    if target_dir.exists() and not overwrite:
+        print(
+            f"error: profile '{name}' already exists at {target_dir}. Pass --profile-overwrite to replace.",
+            flush=True,
+        )
+        return ExitCode.CONFIG.value
+
     path = profiles.write_profile(name, data, base=base)
     print(f"profile imported: {path}")
     return ExitCode.OK.value

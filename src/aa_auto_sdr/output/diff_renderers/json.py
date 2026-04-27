@@ -8,8 +8,16 @@ import json
 from aa_auto_sdr.snapshot.models import DiffReport
 
 
-def render_json(report: DiffReport, *, summary: bool = False) -> str:
+def render_json(
+    report: DiffReport,
+    *,
+    summary: bool = False,
+    labels: tuple[str, str] | None = None,
+) -> str:
     payload = dataclasses.asdict(report)
+    if labels:
+        payload["a_label"] = labels[0]
+        payload["b_label"] = labels[1]
     if summary:
         # In summary mode, strip per-field deltas from modified entries and
         # drop the report-suite header deltas. The shape stays stable —
