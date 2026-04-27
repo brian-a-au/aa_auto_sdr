@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.sdr.builder import build_sdr
@@ -58,3 +59,130 @@ def test_build_sdr_components_sorted_by_id() -> None:
     assert dim_ids == sorted(dim_ids)
     metric_ids = [m.id for m in doc.metrics]
     assert metric_ids == sorted(metric_ids)
+
+
+class TestComponentFilter:
+    def test_metrics_only_skips_other_fetches(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from datetime import UTC, datetime
+        from unittest.mock import MagicMock
+
+        from aa_auto_sdr.api import fetch
+        from aa_auto_sdr.api.models import ReportSuite
+        from aa_auto_sdr.sdr.builder import ComponentFilter, build_sdr
+
+        calls: dict[str, int] = {
+            "dimensions": 0,
+            "metrics": 0,
+            "segments": 0,
+            "calculated_metrics": 0,
+            "virtual_report_suites": 0,
+            "classifications": 0,
+        }
+
+        def _stub_dim(c, r):
+            calls["dimensions"] += 1
+            return []
+
+        def _stub_met(c, r):
+            calls["metrics"] += 1
+            return []
+
+        def _stub_seg(c, r):
+            calls["segments"] += 1
+            return []
+
+        def _stub_calc(c, r):
+            calls["calculated_metrics"] += 1
+            return []
+
+        def _stub_vrs(c, r):
+            calls["virtual_report_suites"] += 1
+            return []
+
+        def _stub_cls(c, r):
+            calls["classifications"] += 1
+            return []
+
+        monkeypatch.setattr(fetch, "fetch_dimensions", _stub_dim)
+        monkeypatch.setattr(fetch, "fetch_metrics", _stub_met)
+        monkeypatch.setattr(fetch, "fetch_segments", _stub_seg)
+        monkeypatch.setattr(fetch, "fetch_calculated_metrics", _stub_calc)
+        monkeypatch.setattr(fetch, "fetch_virtual_report_suites", _stub_vrs)
+        monkeypatch.setattr(fetch, "fetch_classification_datasets", _stub_cls)
+        monkeypatch.setattr(
+            fetch,
+            "fetch_report_suite",
+            lambda _c, r: ReportSuite(
+                rsid=r,
+                name=r,
+                timezone="UTC",
+                currency="USD",
+                parent_rsid=None,
+            ),
+        )
+
+        client = MagicMock()
+        flt = ComponentFilter(
+            metrics=True,
+            dimensions=False,
+            segments=False,
+            calculated_metrics=False,
+            virtual_report_suites=False,
+            classifications=False,
+        )
+        build_sdr(
+            client,
+            "rs1",
+            captured_at=datetime.now(UTC),
+            tool_version="1.2.0",
+            component_filter=flt,
+        )
+
+        assert calls["metrics"] == 1
+        assert calls["dimensions"] == 0
+        assert calls["segments"] == 0
+        assert calls["calculated_metrics"] == 0
+        assert calls["virtual_report_suites"] == 0
+        assert calls["classifications"] == 0
+
+
+class TestComponentFilterFromArgs:
+    def test_metrics_only_helper(self) -> None:
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        f = ComponentFilter.from_args(metrics_only=True, dimensions_only=False)
+        assert f.metrics is True
+        assert f.dimensions is False
+        assert f.segments is False
+
+    def test_dimensions_only_helper(self) -> None:
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        f = ComponentFilter.from_args(metrics_only=False, dimensions_only=True)
+        assert f.dimensions is True
+        assert f.metrics is False
+
+    def test_default_includes_all(self) -> None:
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        f = ComponentFilter.from_args(metrics_only=False, dimensions_only=False)
+        assert all(
+            [
+                f.metrics,
+                f.dimensions,
+                f.segments,
+                f.calculated_metrics,
+                f.virtual_report_suites,
+                f.classifications,
+            ],
+        )
+
+    def test_both_flags_returns_default_all(self) -> None:
+        """Caller's job to enforce mutex; defensive default = include all."""
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        f = ComponentFilter.from_args(metrics_only=True, dimensions_only=True)
+        assert all([f.metrics, f.dimensions])

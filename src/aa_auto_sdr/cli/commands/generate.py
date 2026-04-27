@@ -54,8 +54,27 @@ def run(
     auto_prune: bool = False,
     keep_last: int | None = None,
     keep_since: str | None = None,
+    metrics_only: bool = False,  # v1.2
+    dimensions_only: bool = False,  # v1.2
 ) -> int:
     is_pipe = output_dir == Path("-")
+
+    if metrics_only and dimensions_only:
+        msg = "error: --metrics-only and --dimensions-only are mutually exclusive"
+        _emit_pipe_or_print(
+            is_pipe=is_pipe,
+            exc=None,
+            message=msg,
+            exit_code=ExitCode.USAGE.value,
+        )
+        return ExitCode.USAGE.value
+
+    from aa_auto_sdr.sdr.builder import ComponentFilter
+
+    component_filter = ComponentFilter.from_args(
+        metrics_only=metrics_only,
+        dimensions_only=dimensions_only,
+    )
 
     try:
         creds = credentials.resolve(profile=profile)
@@ -140,6 +159,7 @@ def run(
                     canonical_rsid,
                     captured_at=captured_at,
                     tool_version=__version__,
+                    component_filter=component_filter,
                 )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -185,6 +205,7 @@ def run(
                 captured_at=captured_at,
                 tool_version=__version__,
                 snapshot_dir=snapshot_dir,
+                component_filter=component_filter,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

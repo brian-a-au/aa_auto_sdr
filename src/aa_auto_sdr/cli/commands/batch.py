@@ -45,12 +45,28 @@ def run(
     auto_prune: bool = False,
     keep_last: int | None = None,
     keep_since: str | None = None,
+    metrics_only: bool = False,  # v1.2
+    dimensions_only: bool = False,  # v1.2
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
     `rsids` here is the raw list from argparse; identifier resolution + dedup
     happen below before `run_batch` sees the list.
     """
+    if metrics_only and dimensions_only:
+        print(
+            "error: --metrics-only and --dimensions-only are mutually exclusive",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+
+    from aa_auto_sdr.sdr.builder import ComponentFilter
+
+    component_filter = ComponentFilter.from_args(
+        metrics_only=metrics_only,
+        dimensions_only=dimensions_only,
+    )
+
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
@@ -150,6 +166,7 @@ def run(
             progress_callback=_on_progress,
             failure_callback=_on_failure,
             snapshot_dir=snapshot_dir,
+            component_filter=component_filter,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

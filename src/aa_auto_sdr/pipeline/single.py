@@ -8,7 +8,7 @@ from pathlib import Path
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline.models import RunResult
-from aa_auto_sdr.sdr.builder import build_sdr
+from aa_auto_sdr.sdr.builder import ComponentFilter, build_sdr
 
 
 def run_single(
@@ -20,13 +20,20 @@ def run_single(
     captured_at: datetime,
     tool_version: str,
     snapshot_dir: Path | None = None,
+    component_filter: ComponentFilter | None = None,  # v1.2
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
     If `snapshot_dir` is set, also persist the SdrDocument envelope to
     `<snapshot_dir>/<rsid>/<captured_at-fs>.json`."""
     registry.bootstrap()
-    doc = build_sdr(client, rsid, captured_at=captured_at, tool_version=tool_version)
+    doc = build_sdr(
+        client,
+        rsid,
+        captured_at=captured_at,
+        tool_version=tool_version,
+        component_filter=component_filter,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
     for fmt in formats:

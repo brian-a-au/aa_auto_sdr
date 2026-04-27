@@ -30,6 +30,7 @@ from aa_auto_sdr.core.exceptions import (
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
+from aa_auto_sdr.sdr.builder import ComponentFilter
 
 # Mirrors the per-exception exit codes in cli/commands/generate.py so a single-
 # RSID equivalent invocation would have returned the same code.
@@ -72,6 +73,7 @@ def run_batch(
     progress_callback: Callable[[int, int, str], None] | None = None,
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     snapshot_dir: Path | None = None,
+    component_filter: ComponentFilter | None = None,  # v1.2
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -102,6 +104,7 @@ def run_batch(
                 captured_at=captured_at,
                 tool_version=tool_version,
                 snapshot_dir=snapshot_dir,
+                component_filter=component_filter,
             )
         except AaAutoSdrError as exc:
             message = str(exc)
