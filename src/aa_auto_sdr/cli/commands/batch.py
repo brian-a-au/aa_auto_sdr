@@ -19,7 +19,7 @@ from pathlib import Path
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core import colors, credentials
+from aa_auto_sdr.core import colors, credentials, timings
 from aa_auto_sdr.core.constants import BANNER_WIDTH
 from aa_auto_sdr.core.exceptions import (
     ApiError,
@@ -32,6 +32,16 @@ from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
+
+
+def _emit_timings_if_enabled(*, show_timings: bool) -> None:
+    if not show_timings:
+        return
+    import sys as _sys
+
+    _sys.stderr.write(timings.format_report())
+    _sys.stderr.flush()
+    timings.disable()
 
 
 def run(
@@ -50,12 +60,17 @@ def run(
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
     open_after: bool = False,  # v1.2 — open output_dir in OS default app
     assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
+    show_timings: bool = False,  # v1.2.1
 ) -> int:
     """Entry point for `--batch RSID1 RSID2 ...`.
 
     `rsids` here is the raw list from argparse; identifier resolution + dedup
     happen below before `run_batch` sees the list.
     """
+    if show_timings:
+        timings.clear()
+        timings.enable()
+
     if metrics_only and dimensions_only:
         print(
             "error: --metrics-only and --dimensions-only are mutually exclusive",
@@ -115,9 +130,11 @@ def run(
             return ExitCode.OUTPUT.value
 
     try:
-        client = AaClient.from_credentials(creds)
+        with timings.Timer("auth"):
+            client = AaClient.from_credentials(creds)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
 
     # Identifier resolution: print a one-line `error: ...` immediately on
@@ -127,36 +144,37 @@ def run(
     canonical: list[str] = []
     seen: set[str] = set()
     pre_failures: list[BatchFailure] = []
-    for identifier in rsids:
-        try:
-            resolved, _was_name = fetch.resolve_rsid(client, identifier)
-        except ReportSuiteNotFoundError as exc:
-            print(f"error: {exc}", flush=True)
-            pre_failures.append(
-                BatchFailure(
-                    rsid=identifier,
-                    error_type=type(exc).__name__,
-                    message=str(exc),
-                    exit_code=ExitCode.NOT_FOUND.value,
-                ),
-            )
-            continue
-        except ApiError as exc:
-            print(f"api error: {exc}", flush=True)
-            pre_failures.append(
-                BatchFailure(
-                    rsid=identifier,
-                    error_type=type(exc).__name__,
-                    message=str(exc),
-                    exit_code=ExitCode.API.value,
-                ),
-            )
-            continue
-        for rs in resolved:
-            if rs in seen:
+    with timings.Timer("resolve"):
+        for identifier in rsids:
+            try:
+                resolved, _was_name = fetch.resolve_rsid(client, identifier)
+            except ReportSuiteNotFoundError as exc:
+                print(f"error: {exc}", flush=True)
+                pre_failures.append(
+                    BatchFailure(
+                        rsid=identifier,
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                        exit_code=ExitCode.NOT_FOUND.value,
+                    ),
+                )
                 continue
-            seen.add(rs)
-            canonical.append(rs)
+            except ApiError as exc:
+                print(f"api error: {exc}", flush=True)
+                pre_failures.append(
+                    BatchFailure(
+                        rsid=identifier,
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                        exit_code=ExitCode.API.value,
+                    ),
+                )
+                continue
+            for rs in resolved:
+                if rs in seen:
+                    continue
+                seen.add(rs)
+                canonical.append(rs)
 
     captured_at = datetime.now(UTC)
 
@@ -192,6 +210,7 @@ def run(
                 )
                 print(f"  {snap_path}")
         print("(no files were written; remove --dry-run to execute)", flush=True)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.OK.value
 
     def _on_progress(i: int, total: int, rsid: str) -> None:
@@ -241,6 +260,7 @@ def run(
             keep_since=keep_since,
         )
         if rc != ExitCode.OK.value:
+            _emit_timings_if_enabled(show_timings=show_timings)
             return rc
 
     if open_after and not dry_run:
@@ -248,6 +268,7 @@ def run(
 
         os_open(output_dir)
 
+    _emit_timings_if_enabled(show_timings=show_timings)
     if not final.failures:
         return ExitCode.OK.value
     if final.successes:

@@ -278,6 +278,7 @@ def run(argv: list[str]) -> int:
             dimensions_only=ns.dimensions_only,
             open_after=ns.open,
             assume_yes=ns.yes,
+            show_timings=ns.show_timings,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -297,6 +298,7 @@ def run(argv: list[str]) -> int:
         dimensions_only=ns.dimensions_only,
         open_after=ns.open,
         assume_yes=ns.yes,
+        show_timings=ns.show_timings,
     )
 
 

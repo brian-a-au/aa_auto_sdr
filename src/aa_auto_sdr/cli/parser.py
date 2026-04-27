@@ -396,4 +396,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allow --profile-import to overwrite an existing profile",
     )
 
+    # v1.2.1 — observability
+    p.add_argument(
+        "--show-timings",
+        action="store_true",
+        help="Print per-stage timings at end of run (auth, resolve, build, write)",
+    )
+
     return p

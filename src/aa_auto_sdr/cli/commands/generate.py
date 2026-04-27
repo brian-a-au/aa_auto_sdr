@@ -7,7 +7,7 @@ from pathlib import Path
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core import credentials
+from aa_auto_sdr.core import credentials, timings
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
     ApiError,
@@ -21,6 +21,16 @@ from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
+
+
+def _emit_timings_if_enabled(*, show_timings: bool) -> None:
+    if not show_timings:
+        return
+    import sys as _sys
+
+    _sys.stderr.write(timings.format_report())
+    _sys.stderr.flush()
+    timings.disable()
 
 
 def _emit_pipe_or_print(
@@ -59,7 +69,12 @@ def run(
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
     open_after: bool = False,  # v1.2 — open first output in OS default app
     assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
+    show_timings: bool = False,  # v1.2.1
 ) -> int:
+    if show_timings:
+        timings.clear()
+        timings.enable()
+
     is_pipe = output_dir == Path("-")
 
     if metrics_only and dimensions_only:
@@ -135,18 +150,23 @@ def run(
             return ExitCode.OUTPUT.value
 
     try:
-        client = AaClient.from_credentials(creds)
+        with timings.Timer("auth"):
+            client = AaClient.from_credentials(creds)
     except AuthError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"auth error: {e}", exit_code=ExitCode.AUTH.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
 
     try:
-        canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
+        with timings.Timer("resolve"):
+            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
     except ReportSuiteNotFoundError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.NOT_FOUND.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.NOT_FOUND.value
     except ApiError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"api error: {e}", exit_code=ExitCode.API.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.API.value
 
     if not is_pipe:
@@ -192,6 +212,7 @@ def run(
                 )
                 print(f"  {snap_path}")
         print("(no files were written; remove --dry-run to execute)", flush=True)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.OK.value
 
     if is_pipe:
@@ -202,18 +223,21 @@ def run(
 
         for canonical_rsid in canonical_rsids:
             try:
-                doc = build_sdr(
-                    client,
-                    canonical_rsid,
-                    captured_at=captured_at,
-                    tool_version=__version__,
-                    component_filter=component_filter,
-                )
+                with timings.Timer(f"build:{canonical_rsid}"):
+                    doc = build_sdr(
+                        client,
+                        canonical_rsid,
+                        captured_at=captured_at,
+                        tool_version=__version__,
+                        component_filter=component_filter,
+                    )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
+                _emit_timings_if_enabled(show_timings=show_timings)
                 return ExitCode.NOT_FOUND.value
             except ApiError as e:
                 emit_error_envelope(e, ExitCode.API.value)
+                _emit_timings_if_enabled(show_timings=show_timings)
                 return ExitCode.API.value
             docs.append(doc.to_dict())
             if snapshot_dir is not None:
@@ -237,7 +261,9 @@ def run(
                 keep_since=keep_since,
             )
             if rc != ExitCode.OK.value:
+                _emit_timings_if_enabled(show_timings=show_timings)
                 return rc
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
@@ -258,15 +284,19 @@ def run(
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.NOT_FOUND.value
         except ApiError as e:
             print(f"api error: {e}", flush=True)
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.API.value
         except OutputError as e:
             print(f"output error: {e}", flush=True)
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.OUTPUT.value
         except AaAutoSdrError as e:
             print(f"error: {e}", flush=True)
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.GENERIC.value
 
         for path in result.outputs:
@@ -283,6 +313,7 @@ def run(
             keep_since=keep_since,
         )
         if rc != ExitCode.OK.value:
+            _emit_timings_if_enabled(show_timings=show_timings)
             return rc
 
     if open_after and not is_pipe and not dry_run and first_output is not None:
@@ -290,6 +321,7 @@ def run(
 
         os_open(first_output)
 
+    _emit_timings_if_enabled(show_timings=show_timings)
     return ExitCode.OK.value
 
 

@@ -51,3 +51,20 @@ def report() -> list[tuple[str, float]]:
 def clear() -> None:
     """Drop all recorded timings."""
     _records.clear()
+
+
+def format_report(records: list[tuple[str, float]] | None = None) -> str:
+    """Render the recorded timings as a fixed-width text block.
+
+    Format: 32-char left-aligned label, right-aligned `{:.3f}s`, trailing
+    `Total` line summing all entries. Used by --show-timings."""
+    items = report() if records is None else list(records)
+    if not items:
+        return "Timings:\n  (no timings recorded)\n"
+    lines = ["Timings:"]
+    total = 0.0
+    for label, secs in items:
+        lines.append(f"  {label:<32}{secs:>10.3f}s")
+        total += secs
+    lines.append(f"  {'Total':<32}{total:>10.3f}s")
+    return "\n".join(lines) + "\n"
