@@ -138,7 +138,7 @@ The Adobe Analytics 2.0 API uses **OAuth Server-to-Server** authentication. JWT 
 
 The `SCOPES` value must include these **three** scopes (verified minimum for the read surface this tool exercises):
 
-```
+```text
 openid
 AdobeID
 additional_info.projectedProductContext
@@ -146,7 +146,7 @@ additional_info.projectedProductContext
 
 These two scopes are **recommended** for fuller endpoint coverage and broader org configurations:
 
-```
+```text
 read_organizations
 additional_info.job_function
 ```
@@ -171,22 +171,31 @@ Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes `~/.aa
 
 **Option 2 — Environment variables:**
 
+macOS / Linux:
+
 ```bash
-# macOS / Linux
 export ORG_ID="...@AdobeOrg"
 export CLIENT_ID="..."
 export SECRET="..."
 export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
+```
 
-# Windows cmd
+Windows cmd:
+
+```batch
 setx ORG_ID "...@AdobeOrg"
 setx CLIENT_ID "..."
-# ...
+setx SECRET "..."
+setx SCOPES "openid, AdobeID, additional_info.projectedProductContext"
+```
 
-# PowerShell
+PowerShell:
+
+```powershell
 $Env:ORG_ID = "...@AdobeOrg"
 $Env:CLIENT_ID = "..."
-# ...
+$Env:SECRET = "..."
+$Env:SCOPES = "openid, AdobeID, additional_info.projectedProductContext"
 ```
 
 (See [the upstream SDK env-var auth guide](https://github.com/pitchmuc/adobe-analytics-api-2.0/blob/master/docs/authenticating_without_config_json.md) for more on env-var-based setup, especially for CI/server environments.)
@@ -204,10 +213,10 @@ cp config.json.example config.json
 
 Confirm credentials and connectivity, then generate your first SDR:
 
-```bash
-uv run aa_auto_sdr --show-config        # which credential source resolved
-uv run aa_auto_sdr --list-reportsuites  # confirms auth + scope; lists visible RSes
-uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list above
+```console
+$ uv run aa_auto_sdr --show-config        # which credential source resolved
+$ uv run aa_auto_sdr --list-reportsuites  # confirms auth + scope; lists visible RSes
+$ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list above
 ```
 
 **Troubleshooting:**
@@ -220,10 +229,10 @@ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list ab
 
 Default format produces `<RSID>.xlsx` in the working directory. Use `--format` for alternates:
 
-```bash
-uv run aa_auto_sdr <RSID> --format json    # single JSON file
-uv run aa_auto_sdr <RSID> --format all     # all five formats at once
-uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
+```console
+$ uv run aa_auto_sdr <RSID> --format json    # single JSON file
+$ uv run aa_auto_sdr <RSID> --format all     # all five formats at once
+$ uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
 ```
 
 Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format looks like before running anything.
