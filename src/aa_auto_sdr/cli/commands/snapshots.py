@@ -92,8 +92,11 @@ def prune_run(
             f"about to delete {len(would_delete)} snapshots; continue?",
             assume_yes=assume_yes,
         ):
-            print("aborted", flush=True)
-            return ExitCode.OK.value
+            print(
+                "aborted: non-interactive stdin detected; pass --yes to skip the confirmation",
+                flush=True,
+            )
+            return ExitCode.USAGE.value
 
     deleted = prune_snapshots(snapshot_dir, policy, rsid=rsid, dry_run=dry_run)
     label = "would delete" if dry_run else "deleted"

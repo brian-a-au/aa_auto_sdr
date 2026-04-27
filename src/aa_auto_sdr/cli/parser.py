@@ -132,7 +132,11 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--prune-snapshots",
         action="store_true",
-        help="Apply retention policy and delete snapshots (requires --profile + --keep-last|--keep-since; pass <RSID> positional to scope to one)",
+        help=(
+            "Apply retention policy and delete snapshots (requires --profile + "
+            "--keep-last|--keep-since; pass <RSID> positional to scope to one; "
+            "pass --yes for non-interactive use, otherwise refuses with exit 2)"
+        ),
     )
     actions.add_argument(
         "--profile-list",
