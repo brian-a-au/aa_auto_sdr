@@ -65,3 +65,21 @@ def test_explain_exit_code_auth_mentions_profile_test(capsys) -> None:
     assert rc == 0
     out = capsys.readouterr().out
     assert "--profile-test" in out
+
+
+def test_explain_exit_code_warn(capsys) -> None:
+    """v1.2 — exit code 3 (WARN) for diff --warn-threshold exceeded."""
+    rc = run_explain_exit_code(3)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Exit code 3" in out
+    assert "warn-threshold" in out.lower()
+
+
+def test_run_list_exit_codes_includes_warn(capsys) -> None:
+    """The exit-codes table now includes 3 WARN."""
+    rc = run_list_exit_codes()
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "3" in out
+    assert "warn" in out.lower()
