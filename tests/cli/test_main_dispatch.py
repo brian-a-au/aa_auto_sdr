@@ -328,14 +328,15 @@ class TestAutoBatchPositional:
         assert rc == 0
         assert captured["rsid"] == "demo.prod"
 
-    def test_batch_flag_with_positional_rejects(self, capsys: pytest.CaptureFixture[str]) -> None:
-        rc = run(["--batch", "rs1", "rs2", "rs3"])
-        # Argparse swallows extra positionals when --batch is greedy; this case is OK.
-        # The interesting case is mixing them syntactically.
-        # When `aa_auto_sdr rs1 --batch rs2 rs3` is parsed, argparse routes rs1 to the
-        # positional and rs2/rs3 to --batch — both populated, mutex check fires.
-        # (We can't assert this here without invoking argparse; the test below covers it.)
-        assert rc in (0, 11, 13)  # any non-2 (USAGE) is fine — proves argparse did NOT reject
+    def test_batch_flag_greedy_consumes_all_rsids(self) -> None:
+        """`--batch RS1 RS2 RS3` — argparse's nargs="+" is greedy, so all three RSIDs
+        flow to ns.batch and ns.rsids stays empty. Confirms there's no parser-level
+        ambiguity between --batch's args and the trailing positional."""
+        from aa_auto_sdr.cli.parser import build_parser
+
+        ns = build_parser().parse_args(["--batch", "rs1", "rs2", "rs3"])
+        assert ns.batch == ["rs1", "rs2", "rs3"]
+        assert ns.rsids == []
 
     def test_batch_flag_plus_positional_rejected(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Use the parser explicitly: --batch + positional rsid should error in main."""
