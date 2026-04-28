@@ -155,7 +155,9 @@ If your org's IMS rules require either of the recommended scopes for the endpoin
 
 #### c. Add the integration to a Product Profile
 
-In the **Adobe Admin Console**, add the integration to an Adobe Analytics **Product Profile**. Without this, `Login().getCompanyId()` returns no companies and `Analytics()` calls return empty data. `aa_auto_sdr --show-config` cannot detect this — the first generation attempt is what surfaces the problem.
+In the **Adobe Admin Console**, add the integration to an Adobe Analytics **Product Profile**. Without this, authentication can succeed while no Analytics companies or report suites are visible. In the underlying SDK flow, `Login().getCompanyId()` may return no companies and subsequent `Analytics()` calls may return empty data. `aa_auto_sdr --show-config` cannot detect this — the first generation attempt is what surfaces the problem.
+
+> RSID is not the same as the Analytics global company ID. The CLI is RSID-first for the user, but Adobe Analytics 2.0 API requests are made in the context of an Analytics **global company ID** (sent as `x-proxy-global-company-id`); the tool resolves it from your Product Profile context internally. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md#analytics-company-context-rsid-vs-global-company-id) for the full explanation.
 
 #### d. Save credentials
 
@@ -177,7 +179,7 @@ macOS / Linux:
 export ORG_ID="YOUR_ORG_ID@AdobeOrg"
 export CLIENT_ID="YOUR_CLIENT_ID"
 export SECRET="YOUR_CLIENT_SECRET"
-export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
+export SCOPES="openid,AdobeID,additional_info.projectedProductContext"
 ```
 
 Windows cmd:
@@ -186,7 +188,7 @@ Windows cmd:
 setx ORG_ID "YOUR_ORG_ID@AdobeOrg"
 setx CLIENT_ID "YOUR_CLIENT_ID"
 setx SECRET "YOUR_CLIENT_SECRET"
-setx SCOPES "openid, AdobeID, additional_info.projectedProductContext"
+setx SCOPES "openid,AdobeID,additional_info.projectedProductContext"
 ```
 
 PowerShell:
@@ -195,7 +197,7 @@ PowerShell:
 $Env:ORG_ID = "YOUR_ORG_ID@AdobeOrg"
 $Env:CLIENT_ID = "YOUR_CLIENT_ID"
 $Env:SECRET = "YOUR_CLIENT_SECRET"
-$Env:SCOPES = "openid, AdobeID, additional_info.projectedProductContext"
+$Env:SCOPES = "openid,AdobeID,additional_info.projectedProductContext"
 ```
 
 **Option 3 — `config.json` in repo root:**
