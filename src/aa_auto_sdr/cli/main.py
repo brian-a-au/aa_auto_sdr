@@ -9,11 +9,13 @@ from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
 from aa_auto_sdr.cli.parser import build_parser
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.core.logging import setup_logging
 
 
 def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
+    setup_logging(ns)
     rsids: list[str] = list(ns.rsids)
 
     # Reject positional RSIDs combined with actions that take their identifier
