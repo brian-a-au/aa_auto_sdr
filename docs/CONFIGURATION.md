@@ -17,9 +17,9 @@ The console gives you four values to capture: **Org ID**, **Client ID**, **Clien
 
 ### 2. Required scopes
 
-#### Minimum (verified working)
+#### Known-working baseline (validated against a live Adobe Analytics 2.0 org)
 
-The `SCOPES` value must include these **three** scopes. They've been verified against a live Adobe Analytics 2.0 instance for the read surface this tool exercises (`/reportsuites`, `/dimensions`, `/metrics`, `/segments`, `/calculatedmetrics`, `/virtualreportsuites`, `/classifications/datasets`).
+The `SCOPES` value must include these **three** scopes. They've been validated against a live Adobe Analytics 2.0 org for the read surface this tool exercises (`/reportsuites`, `/dimensions`, `/metrics`, `/segments`, `/calculatedmetrics`, `/virtualreportsuites`, `/classifications/datasets`).
 
 ```
 openid
@@ -29,7 +29,7 @@ additional_info.projectedProductContext
 
 #### Recommended (broader endpoint coverage)
 
-Add either or both of these if your org's IMS rules require them for the endpoints this tool calls. They're documented by Adobe as part of the canonical OAuth Server-to-Server scope set, but neither is empirically required for the v1.0.0 read surface in the test org we validated against:
+Add either or both if your org's IMS rules require them for the endpoints this tool calls — they're commonly included in Adobe OAuth Server-to-Server integrations, but neither was empirically required for the v1.0.0 read surface:
 
 ```
 read_organizations
@@ -53,7 +53,21 @@ In the **Adobe Admin Console** (https://adminconsole.adobe.com/):
 2. Open the **Product Profile** that contains the report suites you want to access
 3. Add the integration (the one you just created in Developer Console) to the profile
 
-Without this step, `Login().getCompanyId()` returns no companies and `Analytics()` calls return empty data. `aa_auto_sdr --show-config` cannot detect this — the first generation attempt is what surfaces the problem.
+Without this step, authentication can succeed while no Analytics companies or report suites are visible. In the underlying SDK flow, `Login().getCompanyId()` may return no companies and subsequent `Analytics()` calls may return empty data. `aa_auto_sdr --show-config` cannot detect this — the first generation attempt is what surfaces the problem.
+
+## Analytics company context: RSID vs Global Company ID
+
+This CLI is RSID-first from the user's perspective, but Adobe Analytics 2.0 API calls are made in the context of an Analytics **global company ID**.
+
+Your **RSID** identifies the report suite to document. It is **not** the same as the Analytics company identifier used for API routing and request context.
+
+Under the hood, Adobe Analytics 2.0 requests typically require:
+
+- `Authorization: Bearer <access_token>`
+- `x-api-key: <client_id>`
+- `x-proxy-global-company-id: <globalCompanyId>`
+
+The tool resolves the accessible Analytics company context internally before making RSID-scoped requests. If the integration is not attached to the right Product Profile, authentication can succeed while no Analytics companies or report suites are visible.
 
 ## Credential storage
 
@@ -87,7 +101,7 @@ Use with `--profile prod` on subsequent commands. Multi-org users create one pro
 | `ORG_ID` | yes | e.g. `D0F83C645C5E1CC60A495CB3@AdobeOrg` |
 | `CLIENT_ID` | yes | from Developer Console |
 | `SECRET` | yes | the OAuth client secret |
-| `SCOPES` | yes | comma-separated list (see above) |
+| `SCOPES` | yes | comma-separated list (see above). The tool normalizes whitespace before requesting tokens, so `"openid, AdobeID, ..."` also works — but no-space is the canonical form |
 | `AA_PROFILE` | no | shorthand to set `--profile` |
 | `LOG_LEVEL` | no | honored by the CLI's logging |
 
@@ -98,7 +112,7 @@ Per-platform setup:
 export ORG_ID="YOUR_ORG_ID@AdobeOrg"
 export CLIENT_ID="YOUR_CLIENT_ID"
 export SECRET="YOUR_CLIENT_SECRET"
-export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
+export SCOPES="openid,AdobeID,additional_info.projectedProductContext"
 
 # Windows cmd
 setx ORG_ID "YOUR_ORG_ID@AdobeOrg"
@@ -125,7 +139,7 @@ cp config.json.example config.json
   "org_id": "...@AdobeOrg",
   "client_id": "...",
   "secret": "...",
-  "scopes": "openid, AdobeID, additional_info.projectedProductContext"
+  "scopes": "openid,AdobeID,additional_info.projectedProductContext"
 }
 ```
 
@@ -137,7 +151,7 @@ If `python-dotenv` is installed (it's an optional extra), the tool also reads `.
 ORG_ID=...@AdobeOrg
 CLIENT_ID=...
 SECRET=...
-SCOPES=openid, AdobeID, additional_info.projectedProductContext
+SCOPES=openid,AdobeID,additional_info.projectedProductContext
 ```
 
 Same fields, same gitignore.
