@@ -35,10 +35,10 @@ _atexit_registered = False
 
 
 _REDACTION_PATTERNS = (
-    (re.compile(r"Bearer\s+[A-Za-z0-9._\-]+"), "Bearer [REDACTED]"),
-    (re.compile(r"Authorization:\s*\S+"), "Authorization: [REDACTED]"),
-    (re.compile(r"client_secret=[A-Za-z0-9._\-]+"), "client_secret=[REDACTED]"),
-    (re.compile(r"access_token=[A-Za-z0-9._\-]+"), "access_token=[REDACTED]"),
+    (re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE), "Bearer [REDACTED]"),
+    (re.compile(r"Authorization:\s*[^\r\n]+", re.IGNORECASE), "Authorization: [REDACTED]"),
+    (re.compile(r"client_secret=[A-Za-z0-9._\-]+", re.IGNORECASE), "client_secret=[REDACTED]"),
+    (re.compile(r"access_token=[A-Za-z0-9._\-]+", re.IGNORECASE), "access_token=[REDACTED]"),
 )
 _SENSITIVE_FIELDS = frozenset({"secret", "client_secret", "access_token", "authorization", "bearer"})
 _REDACTION_SENTINEL = "[log-redaction-error]"
