@@ -20,7 +20,7 @@ uv sync --all-extras
 
 Pick one — environment variables (fastest) or a profile (recommended for daily use).
 
-```bash
+```text
 # Option A: env vars
 export ORG_ID="YOUR_ORG_ID@AdobeOrg"
 export CLIENT_ID="YOUR_CLIENT_ID"

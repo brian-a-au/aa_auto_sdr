@@ -93,7 +93,7 @@ Use with `--profile prod` on subsequent commands. Multi-org users create one pro
 
 Per-platform setup:
 
-```bash
+```text
 # macOS / Linux (current shell)
 export ORG_ID="YOUR_ORG_ID@AdobeOrg"
 export CLIENT_ID="YOUR_CLIENT_ID"

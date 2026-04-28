@@ -173,7 +173,7 @@ Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes `~/.aa
 
 macOS / Linux:
 
-```bash
+```text
 export ORG_ID="YOUR_ORG_ID@AdobeOrg"
 export CLIENT_ID="YOUR_CLIENT_ID"
 export SECRET="YOUR_CLIENT_SECRET"
@@ -182,7 +182,7 @@ export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 
 Windows cmd:
 
-```batch
+```text
 setx ORG_ID "YOUR_ORG_ID@AdobeOrg"
 setx CLIENT_ID "YOUR_CLIENT_ID"
 setx SECRET "YOUR_CLIENT_SECRET"
@@ -191,7 +191,7 @@ setx SCOPES "openid, AdobeID, additional_info.projectedProductContext"
 
 PowerShell:
 
-```powershell
+```text
 $Env:ORG_ID = "YOUR_ORG_ID@AdobeOrg"
 $Env:CLIENT_ID = "YOUR_CLIENT_ID"
 $Env:SECRET = "YOUR_CLIENT_SECRET"
