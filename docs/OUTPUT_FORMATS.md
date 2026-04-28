@@ -1,13 +1,13 @@
 # Output Formats
 
-`aa_auto_sdr` supports five base formats and four aliases for SDR generation, plus three formats for diff output. Browse [`sample_outputs/`](../sample_outputs/) for committed examples of each.
+`aa_auto_sdr` supports five base formats and four aliases for SDR generation, plus four formats for diff output. Browse [`sample_outputs/`](../sample_outputs/) for committed examples of each.
 
 ## Base formats (generation)
 
 | Format | Extension | File layout | Use case |
 |--------|-----------|-------------|----------|
 | `excel` | `.xlsx` | Single workbook with one sheet per component type | Human review; default format |
-| `csv` | `.csv` | Multi-file: one CSV per component type (7 files: report_suite, dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, plus a summary) | Spreadsheet integration; tabular tooling |
+| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus a summary (7 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary). Report-suite metadata is rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
 | `json` | `.json` | Single self-contained JSON file with the full SdrDocument | Automation; jq pipelines; downstream tooling |
 | `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript | Sharing as a static report; PR/email attachments |
 | `markdown` | `.md` | Single GFM-flavored Markdown file with one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
@@ -86,6 +86,7 @@ The `--diff` action has its own format set:
 | `console` (default) | Human review in terminal | ANSI-colored; auto-disabled for non-TTY / `NO_COLOR=1` |
 | `json` | Automation; jq pipelines | Sorted keys, stable shape |
 | `markdown` | PR comments; review artifacts | GFM tables; pipe characters escaped |
+| `pr-comment` | GitHub PR comments | Compact GFM with collapsible `<details>`; 60K-char cap |
 
 ```bash
 uv run aa_auto_sdr --diff a.json b.json                              # console

@@ -373,7 +373,7 @@ aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
 
 | Flag | Applies to | Behavior |
 |----|----|----|
-| `--format FMT` | generate, list/inspect, diff | Per-action allowlist (excel/csv/json/html/markdown for generate; json/csv for list/inspect; console/json/markdown for diff). |
+| `--format FMT` | generate, list/inspect, diff | Per-action allowlist (excel/csv/json/html/markdown plus aliases all/reports/data/ci for generate; json/csv for list/inspect; console/json/markdown/pr-comment for diff). |
 | `--output PATH \| -` | list/inspect, diff | File path, or `-` for stdout pipe (where supported). |
 | `--output-dir DIR` | generate, batch | Output directory for SDR file(s). Default: cwd. |
 | `--filter STR` | list/inspect | Case-insensitive substring on `name`. |
