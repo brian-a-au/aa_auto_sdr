@@ -169,6 +169,35 @@ uv run aa_auto_sdr --list-reportsuites --profile client-b
 
 Profiles are isolated under `~/.aa/orgs/<name>/`. Snapshot files are also profile-scoped: `~/.aa/orgs/<name>/snapshots/<RSID>/<ts>.json`.
 
+## Logging (v1.3.0)
+
+Every non-fast-path invocation writes a per-run log file under `./logs/` (relative to the working directory). Fast-path entries (`--version`, `--help`, `--exit-codes`, `--explain-exit-code`, `--completion`) skip logging — they exit too quickly to be worth recording.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` | `INFO` (or `LOG_LEVEL` env var) | Sets root logger level. |
+| `--log-format {text,json}` | `text` | Output format for both console and file. `json` emits NDJSON (one JSON object per line) — Splunk / ELK / CloudWatch / Datadog ingest it directly. |
+| `--quiet` / `-q` | off | Suppresses INFO-level console output (banners, progress). Errors and final result paths still print. **The log file is unaffected** — full records still land on disk. Designed for CI: `aa_auto_sdr <RSID> --quiet` gives clean stdout for piping; if a run fails, the log file has the trail. |
+
+**Log file naming** (timestamp is UTC `YYYYMMDD_HHMMSS`, file rotated at 10 MB / 5 backups):
+
+| Run mode | Filename pattern |
+|----------|------------------|
+| single generate | `logs/SDR_Generation_<RSID>_<UTC_TS>.log` |
+| batch generate | `logs/SDR_Batch_Generation_<UTC_TS>.log` |
+| diff | `logs/SDR_Diff_<UTC_TS>.log` |
+| everything else | `logs/SDR_Run_<UTC_TS>.log` |
+
+**Redaction** — the following patterns are scrubbed from records before they reach disk (case-insensitive):
+
+- `Bearer <token>` → `Bearer [REDACTED]`
+- `Authorization: <value>` → `Authorization: [REDACTED]` (full header value, not just the scheme)
+- `client_secret=<value>` → `client_secret=[REDACTED]`
+- `access_token=<value>` → `access_token=[REDACTED]`
+- `extra={"client_secret": "..."}` and other known sensitive keys are also redacted in JSON output.
+
+**`logs/` is git-ignored.** Treat as ephemeral run artifacts.
+
 ## Diagnostics
 
 ```bash

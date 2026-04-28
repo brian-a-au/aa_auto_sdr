@@ -2,6 +2,62 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] — 2026-04-28
+
+First Tier 2 release. Adds structured per-run logging — the only
+infrastructure parity gap from `cja_auto_sdr` that subsequent Tier 2 work
+(parallel workers, retry/backoff knobs, validation cache) depends on for
+debuggability.
+
+### Added
+
+- `core/logging.py`: trimmed port of the CJA equivalent. Provides
+  `setup_logging(namespace)` (single call site from `cli/main.run()`),
+  `infer_run_mode(namespace)`, `SensitiveDataFilter` (redacts bearer
+  tokens, `Authorization:` headers, `client_secret=` and `access_token=`
+  query/body values — case-insensitive, full-value-to-EOL), and
+  `JSONFormatter` (NDJSON; Splunk/ELK/Datadog ingest directly).
+- `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` flag (default `INFO`,
+  with `LOG_LEVEL` environment-variable fallback).
+- `--log-format {text,json}` flag (default `text`).
+- `--quiet` / `-q` flag. Suppresses INFO console output. Errors and final
+  result paths still print. **The log file is unaffected.**
+- `--color-theme {default,accessible}` flag for the diff renderer.
+  `accessible` swaps green/red → blue/orange for red-green deuteranopia.
+- `logs/` directory at the working directory. Per-run timestamped files:
+  `SDR_Generation_<RSID>_*.log`, `SDR_Batch_Generation_*.log`,
+  `SDR_Diff_*.log`, `SDR_Run_*.log` (catch-all). `RotatingFileHandler`
+  at 10 MB / 5 backups. Best-effort: a `mkdir` failure (PermissionError
+  or OSError) falls back to console-only with a stderr warning.
+- Five-record INFO startup banner per run (log file path, version,
+  Python+platform, dependency versions, run mode/level/format) — always
+  emitted to file regardless of `--quiet`.
+- Meta-test (`tests/meta/test_no_direct_logging_outside_core.py`)
+  enforcing that only `core/logging.py` instantiates handlers / calls
+  `basicConfig` / `dictConfig` / `fileConfig`. Other modules use
+  `logging.getLogger(__name__)` only.
+- ~50 new tests covering run-mode inference (11 modes), file-handler
+  wiring, mkdir fallback, redaction (4 patterns + case-insensitive +
+  Basic/Digest non-Bearer schemes + setup_logging integration),
+  NDJSON schema, --quiet semantics, palette switch.
+
+### Changed
+
+- Console banner / progress output channel: stdout → **stderr**. The
+  rationale: `aa_auto_sdr <RSID> --output -` pipes SDR JSON to stdout,
+  and logger banners must not corrupt that stream. Final result prints
+  (file paths, list bodies, `--show-config` output) are unchanged.
+- `core/colors.py` learns a `set_theme()` switch consulted by `success()`
+  and `error()`. `bold()` and `warn()` are theme-agnostic.
+
+### Notes
+
+- `logs/` is git-ignored.
+- Tier 2 carryover (parallel batch workers, retry/backoff CLI knobs,
+  validation cache, agent mode, sampling, memory caps, naming audits,
+  field-level shaping) — defer to v1.4+.
+- No exit-code changes. No new policy.
+
 ## [1.2.3] — 2026-04-28
 
 Cosmetic alignment release. Brings two internal SCOPES strings — the
