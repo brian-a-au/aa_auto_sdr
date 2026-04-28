@@ -16,6 +16,9 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     setup_logging(ns)
+    from aa_auto_sdr.core import colors
+
+    colors.set_theme(getattr(ns, "color_theme", "default"))
     rsids: list[str] = list(ns.rsids)
 
     # Reject positional RSIDs combined with actions that take their identifier
@@ -231,6 +234,7 @@ def run(argv: list[str]) -> int:
             show_only=show_only,
             max_issues=ns.max_issues,
             warn_threshold=ns.warn_threshold,
+            color_theme=ns.color_theme,
         )
 
     # v1.2.1 — both want stdout: reject before any work happens.

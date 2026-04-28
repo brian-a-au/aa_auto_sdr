@@ -15,6 +15,20 @@ _BOLD = "\033[1m"
 _GREEN = "\033[32m"
 _RED = "\033[31m"
 _YELLOW = "\033[33m"
+_BLUE = "\033[34m"
+_ORANGE = "\033[38;5;208m"
+
+_active_theme = "default"
+
+
+def set_theme(theme: str) -> None:
+    """Switch added/removed palette. 'default' = green/red, 'accessible' = blue/orange.
+
+    Invalid values are silently ignored (theme stays at the previous value).
+    """
+    global _active_theme  # noqa: PLW0603 — module-level palette state
+    if theme in ("default", "accessible"):
+        _active_theme = theme
 
 
 def _enabled() -> bool:
@@ -34,11 +48,13 @@ def bold(text: str) -> str:
 
 
 def success(text: str) -> str:
-    return _wrap(text, _GREEN)
+    code = _BLUE if _active_theme == "accessible" else _GREEN
+    return _wrap(text, code)
 
 
 def error(text: str) -> str:
-    return _wrap(text, _RED)
+    code = _ORANGE if _active_theme == "accessible" else _RED
+    return _wrap(text, code)
 
 
 def warn(text: str) -> str:

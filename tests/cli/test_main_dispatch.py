@@ -472,6 +472,7 @@ class TestV12Dispatch:
             show_only,
             max_issues,
             warn_threshold,
+            color_theme="default",
         ):
             captured.update(
                 {
