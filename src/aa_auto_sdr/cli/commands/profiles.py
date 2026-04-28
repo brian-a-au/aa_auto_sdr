@@ -70,7 +70,6 @@ def show_run(name: str, *, base: Path | None = None) -> int:
     print(f"org_id:     {data.get('org_id', '')}")
     print(f"client_id:  {masked}")
     print(f"scopes:     {data.get('scopes', '')}")
-    print(f"sandbox:    {data.get('sandbox') or '(none)'}")
     print(f"snapshots:  {snap_count}")
     return ExitCode.OK.value
 
