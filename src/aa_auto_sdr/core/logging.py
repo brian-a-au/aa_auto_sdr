@@ -16,13 +16,13 @@ import atexit
 import json  # noqa: F401 — used by JSON formatter in Task 5
 import logging
 import os
-import re  # noqa: F401 — used by redaction filter in Task 4
+import re
 import sys
 import uuid
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any  # noqa: F401 — used by JSON formatter in Task 5
+from typing import Any
 
 from aa_auto_sdr.core.version import __version__  # noqa: F401 — used by metadata header in Task 3
 
@@ -32,6 +32,50 @@ VALID_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 RUN_ID = uuid.uuid4().hex[:12]
 
 _atexit_registered = False
+
+
+_REDACTION_PATTERNS = (
+    (re.compile(r"Bearer\s+[A-Za-z0-9._\-]+"), "Bearer [REDACTED]"),
+    (re.compile(r"Authorization:\s*\S+"), "Authorization: [REDACTED]"),
+    (re.compile(r"client_secret=[A-Za-z0-9._\-]+"), "client_secret=[REDACTED]"),
+    (re.compile(r"access_token=[A-Za-z0-9._\-]+"), "access_token=[REDACTED]"),
+)
+_SENSITIVE_FIELDS = frozenset({"secret", "client_secret", "access_token", "authorization", "bearer"})
+_REDACTION_SENTINEL = "[log-redaction-error]"
+
+
+def _redact_text(text: str) -> str:
+    try:
+        for pattern, replacement in _REDACTION_PATTERNS:
+            text = re.sub(pattern, replacement, text)
+        return text
+    except Exception:
+        return _REDACTION_SENTINEL
+
+
+class SensitiveDataFilter(logging.Filter):
+    """Strip sensitive credentials from records before they reach handlers.
+
+    Operates in-place on record.msg, record.args, and any record attributes
+    whose name matches a known-sensitive field. A regex failure surfaces as
+    the sentinel '[log-redaction-error]' rather than leaking the raw value.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = _redact_text(record.msg)
+        if record.args:
+            redacted: list[Any] = []
+            for arg in record.args if isinstance(record.args, tuple) else (record.args,):
+                if isinstance(arg, str):
+                    redacted.append(_redact_text(arg))
+                else:
+                    redacted.append(arg)
+            record.args = tuple(redacted) if isinstance(record.args, tuple) else redacted[0]
+        for attr in list(vars(record)):
+            if attr in _SENSITIVE_FIELDS or attr.lower() in _SENSITIVE_FIELDS:
+                setattr(record, attr, "[REDACTED]")
+        return True
 
 
 def infer_run_mode(ns: argparse.Namespace) -> str:
@@ -140,6 +184,7 @@ def setup_logging(
     console = logging.StreamHandler(sys.stderr)
     console.setFormatter(formatter)
     console.setLevel(numeric_level)
+    console.addFilter(SensitiveDataFilter())
     logging.root.addHandler(console)
 
     # File handler — best-effort.
@@ -147,6 +192,7 @@ def setup_logging(
         fh = RotatingFileHandler(log_file, maxBytes=LOG_FILE_MAX_BYTES, backupCount=LOG_FILE_BACKUP_COUNT)
         fh.setFormatter(formatter)
         fh.setLevel(numeric_level)
+        fh.addFilter(SensitiveDataFilter())
         logging.root.addHandler(fh)
 
     logging.root.setLevel(numeric_level)
