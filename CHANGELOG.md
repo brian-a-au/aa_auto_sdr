@@ -53,6 +53,8 @@ form used in every user-facing doc example.
 - `ExitCode.AUTH` explanation (`--explain-exit-code 11`) lists the
   verified-minimum SCOPES as `openid, AdobeID, additional_info.projectedProductContext`
   (comma-separated, matching the user-facing examples).
+  *Superseded by 1.2.3 — the no-space form `openid,AdobeID,additional_info.projectedProductContext`
+  is the canonical form going forward.*
 
 ### Removed
 

@@ -341,7 +341,7 @@ aa_auto_sdr/
 │       │   ├── error_envelope.py  # JSON envelope on stderr for pipe-path failures
 │       │   ├── _helpers.py
 │       │   ├── writers/       # excel.py, csv.py, json.py, html.py, markdown.py
-│       │   └── diff_renderers/  # console.py, json.py, markdown.py
+│       │   └── diff_renderers/  # console.py, json.py, markdown.py, pr_comment.py, _filters.py
 │       ├── pipeline/          # run coordination
 │       │   ├── single.py      # single-RSID
 │       │   ├── batch.py       # multi-RSID, sequential, continue-on-error
@@ -355,6 +355,7 @@ aa_auto_sdr/
 │           ├── resolver.py    # token grammar dispatcher
 │           ├── git.py         # git show wrapper
 │           ├── comparator.py  # diff algorithm + value normalization
+│           ├── retention.py   # --keep-last / --keep-since policy
 │           └── models.py      # DiffReport, ComponentDiff, FieldDelta
 ├── tests/                     # pytest suite — unit / integration / meta
 │   └── meta/                  # CI-enforced architectural invariants

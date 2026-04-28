@@ -65,7 +65,7 @@ The snapshot file is appended to `RunResult.outputs`, so the `wrote: <path>` tra
 ## The `--diff` action
 
 ```text
-aa_auto_sdr --diff <a> <b> [--format console|json|markdown] [--output -|<path>] [--profile <name>]
+aa_auto_sdr --diff <a> <b> [--format console|json|markdown|pr-comment] [--output -|<path>] [--profile <name>]
 ```
 
 Each token is one of five forms:
@@ -138,7 +138,7 @@ If you diff snapshots of *different* report suites (e.g. `demo.prod` vs `demo.st
 
 ## Renderer formats
 
-Three pure renderers, all take a `DiffReport` and return a string:
+Four pure renderers, all take a `DiffReport` and return a string:
 
 ### `console` (default)
 
@@ -193,6 +193,14 @@ Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`.
 ### `markdown`
 
 GitHub-flavored Markdown with tables. PR-comment-friendly; pipe character escaping handled. Empty sections (no changes for a component type) are omitted entirely.
+
+### `pr-comment`
+
+Compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub's comment limit is 65,536); when exceeded, truncates at the last `</details>` boundary with a banner line. Pipe-safe via `--output -`.
+
+```bash
+uv run aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | pbcopy
+```
 
 ## Common workflows
 
