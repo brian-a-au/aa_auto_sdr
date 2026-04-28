@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.2] — 2026-04-27
+
+Cleanup release. Retires the dead `SANDBOX` config field (collected by
+`--profile-add` / `SANDBOX` env var / `config.json` but never forwarded
+to `aanalytics2.configure()` — confirmed dead by the post-#12 review
+trail). Aligns two internal SCOPES defaults with the comma-separated
+form used in every user-facing doc example.
+
+### Changed
+
+- `Credentials` dataclass loses its `sandbox` field. `_from_dict` and
+  `_from_env` no longer read `sandbox` / `SANDBOX`. Pre-existing
+  `config.json` and `~/.aa/orgs/<name>/config.json` files containing
+  `"sandbox": null` (or any value) continue to load — the loader
+  silently ignores unknown keys (regression-tested via
+  `test_legacy_sandbox_key_in_config_is_ignored`).
+- `--profile-add` no longer prompts for a SANDBOX value. The written
+  profile JSON contains the four required keys only.
+- `--show-config`, `--config-status`, and `--profile-show` no longer
+  emit a `sandbox:` line.
+- `--sample-config` template emits `{org_id, client_id, secret, scopes}`
+  only; the `scopes` default switches from space-separated to
+  comma-separated (matches every example in README / QUICKSTART /
+  CONFIGURATION and the `aanalytics2.importConfigFile` path).
+- `ExitCode.AUTH` explanation (`--explain-exit-code 11`) lists the
+  verified-minimum SCOPES as `openid, AdobeID, additional_info.projectedProductContext`
+  (comma-separated, matching the user-facing examples).
+
+### Removed
+
+- `SANDBOX` env var is no longer read.
+- `"sandbox": null` removed from `config.json.example` and from the
+  `docs/CONFIGURATION.md` Option-3 JSON example.
+- `tests/core/test_credentials_resolve.py::test_sandbox_propagates_from_env`
+  deleted (the env var is no longer plumbed).
+
+### Docs
+
+- `docs/CONFIGURATION.md`: heading `## Multi-org / sandbox setups`
+  renamed to `## Multi-org setups`; `--show-config` diagnostics line
+  no longer mentions "the sandbox value".
+- `docs/superpowers/specs/aa-auto-sdr-feature-gap-vs-cja.md`: rolling
+  tracker bumped to v1.2.2.
+
 ## [1.2.1] — 2026-04-27
 
 Polish release closing all seven Minor (M-1 … M-7) findings from the
