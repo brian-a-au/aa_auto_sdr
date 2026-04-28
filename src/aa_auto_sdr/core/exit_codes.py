@@ -59,6 +59,9 @@ What to try:
 Likely causes:
 - A required positional or option is missing.
 - A flag was combined with a mutually-exclusive flag (e.g. `--diff` + `<RSID>`).
+- `--prune-snapshots` invoked on a non-interactive stdin without `--yes` and without
+  `--dry-run` — the confirmation prompt cannot be answered, so the run
+  refuses with USAGE rather than silently no-op (changed in v1.2.1).
 
 What to try:
 - Run `aa_auto_sdr --help` to see the full surface.
@@ -98,15 +101,17 @@ What to try:
 
 Likely causes:
 - Bad client_id / secret combination.
-- Scopes missing `additional_info.job_function` (Adobe rejects reads silently
-  without it).
+- SCOPES missing the verified-minimum set (Adobe rejects reads silently).
 - Integration not added to an Adobe Analytics Product Profile in Admin Console.
 - `--profile-test` failed at OAuth or `getCompanyId()` for the named profile.
 
 What to try:
 - Verify credentials in Adobe Developer Console (https://developer.adobe.com/console).
-- Confirm SCOPES contains `openid AdobeID read_organizations
-  additional_info.projectedProductContext additional_info.job_function`.
+- Confirm SCOPES contains the verified-minimum three: `openid AdobeID
+  additional_info.projectedProductContext`. Two more are recommended for
+  fuller endpoint coverage: `read_organizations` and
+  `additional_info.job_function` (add them if `--list-reportsuites` returns
+  empty or `/dimensions` / `/metrics` return 403 despite a successful auth).
 - Run `aa_auto_sdr --profile-test NAME` to surface the underlying auth error.""",
     ExitCode.API: """An Adobe Analytics API request failed.
 

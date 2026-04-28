@@ -46,3 +46,22 @@ def test_timer_works_under_exception() -> None:
     except ValueError:
         pass
     assert [label for label, _ in timings.report()] == ["x"]
+
+
+def test_format_report_empty_returns_no_records_marker() -> None:
+    """The empty path should print a clear `(no timings recorded)` marker."""
+    timings.disable()
+    timings.clear()
+    out = timings.format_report()
+    assert "Timings:" in out
+    assert "(no timings recorded)" in out
+
+
+def test_format_report_with_records_renders_total() -> None:
+    """Each recorded label appears, and a Total line sums the seconds."""
+    out = timings.format_report([("auth", 0.250), ("resolve", 0.500)])
+    assert "auth" in out
+    assert "resolve" in out
+    assert "Total" in out
+    # total should be 0.750, formatted as "0.750s"
+    assert "0.750s" in out

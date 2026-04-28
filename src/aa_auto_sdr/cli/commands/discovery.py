@@ -57,13 +57,15 @@ def run_list_reportsuites(
         return ExitCode.AUTH.value
 
     try:
-        suites = fetch._records(client.handle.getReportSuites(extended_info=True))
+        summaries = fetch.fetch_report_suite_summaries(client)
     except ApiError as e:
         print(f"api error: {e}", flush=True)
         return ExitCode.API.value
     except AaAutoSdrError as e:
         print(f"error: {e}", flush=True)
         return ExitCode.GENERIC.value
+    # Convert to dicts for the existing renderer (which expects dict-shaped rows).
+    suites = [{"rsid": s.rsid, "name": s.name or ""} for s in summaries]
 
     return _render_with_filters(
         suites,
@@ -102,23 +104,15 @@ def run_list_virtual_reportsuites(
         return ExitCode.AUTH.value
 
     try:
-        raws = fetch._records(client.handle.getVirtualReportSuites(extended_info=True))
+        summaries = fetch.fetch_virtual_report_suite_summaries(client)
     except ApiError as e:
         print(f"api error: {e}", flush=True)
         return ExitCode.API.value
     except AaAutoSdrError as e:
         print(f"error: {e}", flush=True)
         return ExitCode.GENERIC.value
-
-    # Normalize parentRsid -> parent_rsid for sort allowlist consistency
-    normalized = [
-        {
-            "id": r.get("id"),
-            "name": r.get("name"),
-            "parent_rsid": r.get("parentRsid", ""),
-        }
-        for r in raws
-    ]
+    # Convert to dicts for the existing renderer (which expects dict-shaped rows).
+    normalized = [{"id": s.id, "name": s.name or "", "parent_rsid": s.parent_rsid} for s in summaries]
 
     return _render_with_filters(
         normalized,

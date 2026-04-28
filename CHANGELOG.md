@@ -2,6 +2,71 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.1] — 2026-04-27
+
+Polish release closing all seven Minor (M-1 … M-7) findings from the
+independent v1.2 code review.
+
+### Added
+
+- `--show-timings` reactivated — emits a per-stage timings block (auth,
+  resolve, build, write, snapshot) to stderr at end of run for both
+  `<RSID>` and `--batch` flows. (M-7)
+- `--run-summary-json PATH` reactivated — emits a structured JSON
+  summary of the run (per-RSID outcomes, durations, optional timings)
+  to a file or stdout (`-`). (M-7)
+- `api.fetch.fetch_report_suite_summaries(client)` — typed wrapper
+  that returns a sorted list of `ReportSuiteSummary` instances.
+  Replaces the v1.0–v1.2 pattern of CLI command code calling
+  `fetch._records(client.handle.getReportSuites(...))` directly. (M-1)
+- `api.fetch.fetch_virtual_report_suite_summaries(client)` — equivalent
+  typed wrapper for VRS list views; introduced as a Task-2 follow-up
+  when the M-1 meta-test surfaced the second offender. (M-1)
+- `api.models.ReportSuiteSummary` and `api.models.VirtualReportSuiteSummary`
+  dataclasses — lightweight RS / VRS summaries (rsid + name [+ parent_rsid])
+  for list-style CLI views. (M-1)
+- Read-only meta-test extended: `tests/api/test_read_only_contract.py`
+  now also fails CI if any module under `src/aa_auto_sdr/cli/commands/`
+  reaches into `client.handle.<sdk-method>(...)` directly. (M-1)
+- Regression tests for `$GITHUB_STEP_SUMMARY` reflecting the FULL diff
+  even when `--show-only` / `--max-issues` filter the rendered output. (M-4)
+- Regression test for `--diff-labels foo bar` (no `A=`/`B=` prefix) being
+  accepted. (M-5)
+
+### Changed
+
+- `cli/commands/{stats,interactive,discovery}.py` migrated to the
+  typed `fetch_report_suite_summaries` / `fetch_virtual_report_suite_summaries`
+  wrappers. No user-visible behavior change. (M-1)
+- `ExitCode.AUTH` explanation reworded: lists the verified-minimum
+  three scopes (`openid AdobeID additional_info.projectedProductContext`)
+  and frames `read_organizations` + `additional_info.job_function` as
+  recommended for fuller endpoint coverage. Matches commit `4fcf155`. (M-3)
+- `ExitCode.USAGE` explanation gains a bullet documenting the new
+  `--prune-snapshots` non-interactive refusal scenario. (M-3 / M-6)
+- `core/run_summary.py` module docstring refreshed now that
+  `--run-summary-json` is wired. (M-2)
+- `core/timings.py` gains `format_report(records=None)` rendering helper
+  used by `--show-timings`. Supporting library only — no behavior change
+  when the flag is unset.
+
+### Breaking changes
+
+- **`--prune-snapshots` non-interactive refusal exit code changed:
+  `OK` (0) → `USAGE` (2).** v1.2.0 returned exit 0 when invoked on
+  non-interactive stdin without `--yes` (printing `aborted` and silently no-op'ing).
+  v1.2.1 returns exit 2 with a clearer message naming `--yes`. CI scripts
+  that relied on the old exit 0 to mean "no-op success" need to either
+  pass `--yes`, pipe `yes |`, or expect exit 2. (M-6)
+
+### Technical
+
+- No new exit codes; M-6 maps a new scenario onto existing `USAGE` (2).
+- No new runtime dependencies.
+- Read-only AA + API 2.0-only meta-tests continue to gate; the new
+  CLI-commands meta-test joins them.
+- Test count: 670 → ~700. Coverage gate (≥ 90%) preserved.
+
 ## [1.2.0] — 2026-04-27
 
 Polish release closing all remaining Tier 1 gaps from the AA-vs-CJA review.

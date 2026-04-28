@@ -26,11 +26,13 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | Category | Feature |
 |----------|---------|
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
-| | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported (v1.1) |
-| | RSIDs and names may be mixed freely in one invocation (v1.1) |
-| | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types (v1.2) |
-| | `--dry-run` previews would-be output paths without writing (auth still validates; v1.2) |
-| | `--open` opens generated output in OS default app after writing (v1.2) |
+| | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported |
+| | RSIDs and names may be mixed freely in one invocation |
+| | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types |
+| | `--dry-run` previews would-be output paths without writing (auth still validates) |
+| | `--open` opens generated output in OS default app after writing |
+| | `--show-timings` prints per-stage timings to stderr at end of run |
+| | `--run-summary-json PATH` emits a structured JSON run summary to a file or stdout |
 | | Continue-on-error across N report suites with summary banner |
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
@@ -38,31 +40,31 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | **Discovery & Inspection** | `--list-reportsuites`, `--list-virtual-reportsuites` |
 | | `--describe-reportsuite <RSID>` — metadata + per-component counts |
 | | `--list-{metrics,dimensions,segments,calculated-metrics,classification-datasets} <RSID>` |
-| | `--stats [<RSID>...]` — quick component counts per RSID without full SDR build (v1.2) |
-| | `--interactive` — pick an RSID interactively; emits to stdout for shell composition (v1.2) |
+| | `--stats [<RSID>...]` — quick component counts per RSID without full SDR build |
+| | `--interactive` — pick an RSID interactively; emits to stdout for shell composition |
 | | `--filter`, `--exclude`, `--sort`, `--limit` on every list command |
 | **Snapshot & Diff** | `--snapshot` opt-in persist alongside generation |
-| | `--auto-snapshot` saves a snapshot per RSID on every `<RSID>` / `--batch` run (v1.1) |
-| | `--auto-prune` + `--keep-last N` / `--keep-since 30d` retention policy (v1.1) |
-| | `--list-snapshots [<RSID>]` action — table or json view (v1.1) |
-| | `--prune-snapshots [<RSID>] --dry-run` — apply retention policy with optional preview (v1.1) |
-| | `--prune-snapshots` confirms before deleting; `--yes` skips the prompt (v1.2) |
+| | `--auto-snapshot` saves a snapshot per RSID on every `<RSID>` / `--batch` run |
+| | `--auto-prune` + `--keep-last N` / `--keep-since 30d` retention policy |
+| | `--list-snapshots [<RSID>]` action — table or json view |
+| | `--prune-snapshots [<RSID>] --dry-run` — apply retention policy with optional preview |
+| | `--prune-snapshots` confirms before deleting; `--yes` skips the prompt |
 | | `--diff <a> <b>` between any two snapshots |
 | | Token grammar: bare path / `<rsid>@<ts>` / `<rsid>@latest` / `<rsid>@previous` / `git:<ref>:<path>` |
-| | Four diff renderers: console (ANSI-colored), JSON, Markdown, **`pr-comment`** (compact GFM with collapsible `<details>` for GitHub PRs, v1.1) |
-| | Diff modifiers: `--side-by-side`, `--summary`, `--ignore-fields description,tags` (v1.1) |
-| | Diff polish: `--quiet-diff`, `--diff-labels A=… B=…`, `--reverse-diff`, `--changes-only`, `--show-only TYPES`, `--max-issues N` (v1.2) |
-| | `--warn-threshold N` exits 3 when total changes ≥ N (CI signal; v1.2) |
-| | `$GITHUB_STEP_SUMMARY` auto-append for `--diff` when env var is set (v1.2) |
+| | Four diff renderers: console (ANSI-colored), JSON, Markdown, **`pr-comment`** (compact GFM with collapsible `<details>` for GitHub PRs) |
+| | Diff modifiers: `--side-by-side`, `--summary`, `--ignore-fields description,tags` |
+| | Diff polish: `--quiet-diff`, `--diff-labels A=… B=…`, `--reverse-diff`, `--changes-only`, `--show-only TYPES`, `--max-issues N` |
+| | `--warn-threshold N` exits 3 when total changes ≥ N (CI signal) |
+| | `$GITHUB_STEP_SUMMARY` auto-append for `--diff` when env var is set |
 | | Identity by component ID, never by name (a name change is *modification*) |
 | | Value normalization (whitespace, NaN/None/`""`, order-insensitive `tags`/`categories`) suppresses false-positive diffs |
 | **Authentication** | OAuth Server-to-Server (env vars / profile / `.env` / `config.json`) |
 | | Named profiles for multi-org users (`~/.aa/orgs/<name>/`) |
 | | `--show-config` reports which credential source resolved |
-| | `--config-status` / `--validate-config` / `--sample-config` for credential introspection (v1.2) |
+| | `--config-status` / `--validate-config` / `--sample-config` for credential introspection |
 | | `--profile-add <name>` interactive credential capture |
-| | `--profile-list` / `--profile-show NAME` / `--profile-test NAME` / `--profile-import NAME FILE` (v1.1) |
-| | `--profile-import` requires `--profile-overwrite` to replace an existing profile (v1.2 breaking change) |
+| | `--profile-list` / `--profile-show NAME` / `--profile-test NAME` / `--profile-import NAME FILE` |
+| | `--profile-import` requires `--profile-overwrite` to replace an existing profile |
 | **Output** | `--output -` stdout pipe for json (single-RSID generation) and json/markdown (diff) |
 | | Machine-readable JSON error envelope on stderr for pipe-path failures |
 | | Atomic file writes (temp + rename) for every output format |
@@ -136,7 +138,7 @@ The Adobe Analytics 2.0 API uses **OAuth Server-to-Server** authentication. JWT 
 
 The `SCOPES` value must include these **three** scopes (verified minimum for the read surface this tool exercises):
 
-```
+```text
 openid
 AdobeID
 additional_info.projectedProductContext
@@ -144,7 +146,7 @@ additional_info.projectedProductContext
 
 These two scopes are **recommended** for fuller endpoint coverage and broader org configurations:
 
-```
+```text
 read_organizations
 additional_info.job_function
 ```
@@ -169,22 +171,31 @@ Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes `~/.aa
 
 **Option 2 — Environment variables:**
 
+macOS / Linux:
+
 ```bash
-# macOS / Linux
 export ORG_ID="...@AdobeOrg"
 export CLIENT_ID="..."
 export SECRET="..."
 export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
+```
 
-# Windows cmd
+Windows cmd:
+
+```batch
 setx ORG_ID "...@AdobeOrg"
 setx CLIENT_ID "..."
-# ...
+setx SECRET "..."
+setx SCOPES "openid, AdobeID, additional_info.projectedProductContext"
+```
 
-# PowerShell
+PowerShell:
+
+```powershell
 $Env:ORG_ID = "...@AdobeOrg"
 $Env:CLIENT_ID = "..."
-# ...
+$Env:SECRET = "..."
+$Env:SCOPES = "openid, AdobeID, additional_info.projectedProductContext"
 ```
 
 (See [the upstream SDK env-var auth guide](https://github.com/pitchmuc/adobe-analytics-api-2.0/blob/master/docs/authenticating_without_config_json.md) for more on env-var-based setup, especially for CI/server environments.)
@@ -202,10 +213,10 @@ cp config.json.example config.json
 
 Confirm credentials and connectivity, then generate your first SDR:
 
-```bash
-uv run aa_auto_sdr --show-config        # which credential source resolved
-uv run aa_auto_sdr --list-reportsuites  # confirms auth + scope; lists visible RSes
-uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list above
+```console
+$ uv run aa_auto_sdr --show-config        # which credential source resolved
+$ uv run aa_auto_sdr --list-reportsuites  # confirms auth + scope; lists visible RSes
+$ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list above
 ```
 
 **Troubleshooting:**
@@ -218,10 +229,10 @@ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list ab
 
 Default format produces `<RSID>.xlsx` in the working directory. Use `--format` for alternates:
 
-```bash
-uv run aa_auto_sdr <RSID> --format json    # single JSON file
-uv run aa_auto_sdr <RSID> --format all     # all five formats at once
-uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
+```console
+$ uv run aa_auto_sdr <RSID> --format json    # single JSON file
+$ uv run aa_auto_sdr <RSID> --format all     # all five formats at once
+$ uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
 ```
 
 Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format looks like before running anything.
@@ -240,8 +251,8 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Single RS by RSID | `aa_auto_sdr dgeo1xxpnwcidadobestore` |
 | Single RS by name | `aa_auto_sdr "Adobe Store"` |
 | Custom output directory | `aa_auto_sdr <RSID> --output-dir /tmp/sdr` |
-| Auto-batch (v1.1) — multiple positional identifiers | `aa_auto_sdr rs1 rs2 rs3` |
-| Auto-batch with mixed RSIDs and names (v1.1) | `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod` |
+| Auto-batch — multiple positional identifiers | `aa_auto_sdr rs1 rs2 rs3` |
+| Auto-batch with mixed RSIDs and names | `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod` |
 | Batch via explicit flag | `aa_auto_sdr --batch RS1 RS2 RS3` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
@@ -257,8 +268,8 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | List as JSON for scripting | `aa_auto_sdr --list-reportsuites --format json --output -` |
 | **Snapshot** | |
 | Capture snapshot alongside generation | `aa_auto_sdr <RSID> --snapshot --profile prod` |
-| Capture snapshots for multiple RSes (auto-batch, v1.1) | `aa_auto_sdr RS1 RS2 --snapshot --profile prod` |
-| Auto-snapshot every run (v1.1) | `aa_auto_sdr <RSID> --auto-snapshot --profile prod` |
+| Capture snapshots for multiple RSes (auto-batch) | `aa_auto_sdr RS1 RS2 --snapshot --profile prod` |
+| Auto-snapshot every run | `aa_auto_sdr <RSID> --auto-snapshot --profile prod` |
 | **Diff** | |
 | Diff two snapshot files | `aa_auto_sdr --diff a.json b.json` |
 | Diff `@latest` vs `@previous` | `aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod` |

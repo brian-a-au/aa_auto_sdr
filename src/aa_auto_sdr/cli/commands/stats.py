@@ -58,8 +58,7 @@ def run(*, rsids: list[str], profile: str | None, format_name: str | None) -> in
             return ExitCode.API.value
     else:
         try:
-            records = fetch._records(client.handle.getReportSuites(extended_info=True))
-            canonical = [r.get("rsid") for r in records if r.get("rsid")]
+            canonical = [s.rsid for s in fetch.fetch_report_suite_summaries(client)]
         except ApiError as exc:
             print(f"api error: {exc}", flush=True)
             return ExitCode.API.value

@@ -37,6 +37,8 @@ def _print_help() -> int:
         "  aa_auto_sdr --sample-config          Emit a config.json template to stdout (v1.2)\n"
         "  aa_auto_sdr --stats [<RSID>...]      Quick component counts per RSID (v1.2)\n"
         "  aa_auto_sdr --interactive            Pick an RSID interactively; emit to stdout (v1.2)\n"
+        "  aa_auto_sdr <RSID> --show-timings    Print per-stage timings to stderr at end of run (v1.2.1)\n"
+        "  aa_auto_sdr <RSID> --run-summary-json PATH  Emit a JSON run summary to PATH or '-' (v1.2.1)\n"
         "  aa_auto_sdr --exit-codes             List every exit code with one-line meaning\n"
         "  aa_auto_sdr --explain-exit-code <N>  Detailed explanation for one exit code\n"
         "  aa_auto_sdr --completion <SHELL>     Emit a shell completion script (bash|zsh|fish)\n"
@@ -44,6 +46,7 @@ def _print_help() -> int:
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
         "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
+        "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
     )
     return 0
 

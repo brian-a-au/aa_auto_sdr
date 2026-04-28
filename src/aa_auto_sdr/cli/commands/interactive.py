@@ -33,21 +33,19 @@ def run(*, profile: str | None) -> int:
         return ExitCode.AUTH.value
 
     try:
-        records = fetch._records(client.handle.getReportSuites(extended_info=True))
+        summaries = fetch.fetch_report_suite_summaries(client)
     except ApiError as exc:
         print(f"api error: {exc}", flush=True)
         return ExitCode.API.value
 
-    if not records:
+    if not summaries:
         print("(no report suites visible)", flush=True)
         return ExitCode.NOT_FOUND.value
 
     # Print numbered list to stderr so stdout is reserved for the chosen RSID.
     print("Visible report suites:", file=sys.stderr)
-    for i, rec in enumerate(records, start=1):
-        rsid = rec.get("rsid", "")
-        name = rec.get("name", "")
-        print(f"  [{i}] {rsid}  —  {name}", file=sys.stderr)
+    for i, s in enumerate(summaries, start=1):
+        print(f"  [{i}] {s.rsid}  —  {s.name or ''}", file=sys.stderr)
 
     try:
         choice = input("Select index (1-N) or 'all': ").strip().lower()
@@ -57,19 +55,19 @@ def run(*, profile: str | None) -> int:
         return 130
 
     if choice == "all":
-        chosen = [rec.get("rsid", "") for rec in records if rec.get("rsid")]
+        chosen = [s.rsid for s in summaries]
     else:
         try:
             idx = int(choice)
-            if idx < 1 or idx > len(records):
+            if idx < 1 or idx > len(summaries):
                 raise ValueError
         except ValueError:
             print(
-                f"error: invalid selection '{choice}'; expected 1-{len(records)} or 'all'",
+                f"error: invalid selection '{choice}'; expected 1-{len(summaries)} or 'all'",
                 flush=True,
             )
             return ExitCode.USAGE.value
-        chosen = [records[idx - 1].get("rsid", "")]
+        chosen = [summaries[idx - 1].rsid]
 
     sys.stdout.write(" ".join(chosen) + "\n")
     sys.stdout.flush()

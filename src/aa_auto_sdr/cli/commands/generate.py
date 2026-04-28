@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json as _json
 from datetime import UTC, datetime
 from pathlib import Path
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core import credentials
+from aa_auto_sdr.core import credentials, timings
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
     ApiError,
@@ -17,10 +18,55 @@ from aa_auto_sdr.core.exceptions import (
     ReportSuiteNotFoundError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.core.run_summary import PerRsidResult, RunSummary
 from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
+
+
+def _emit_timings_if_enabled(*, show_timings: bool) -> None:
+    if not show_timings:
+        return
+    import sys as _sys
+
+    _sys.stderr.write(timings.format_report())
+    _sys.stderr.flush()
+    timings.disable()
+
+
+def _emit_run_summary(
+    *,
+    run_summary_json: str | None,
+    started_at: datetime,
+    finished_at: datetime,
+    profile: str | None,
+    per_rsid: list[PerRsidResult],
+    show_timings: bool,
+) -> None:
+    if not run_summary_json:
+        return
+    summary = RunSummary(
+        started_at=started_at.isoformat(),
+        finished_at=finished_at.isoformat(),
+        duration_seconds=(finished_at - started_at).total_seconds(),
+        tool_version=__version__,
+        profile=profile,
+        rsids=per_rsid,
+        timings=timings.report() if show_timings else [],
+    )
+    if run_summary_json == "-":
+        # Compact single-line JSON on stdout — easier to consume from scripts and
+        # plays nicely with `splitlines()[-1]` shaped pipelines.
+        payload = _json.dumps(summary.to_dict(), sort_keys=True)
+        import sys as _sys
+
+        _sys.stdout.write(payload + "\n")
+        _sys.stdout.flush()
+    else:
+        payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
+        Path(run_summary_json).write_text(payload + "\n")
+        print(f"wrote run summary: {run_summary_json}", flush=True)
 
 
 def _emit_pipe_or_print(
@@ -59,7 +105,15 @@ def run(
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
     open_after: bool = False,  # v1.2 — open first output in OS default app
     assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
+    show_timings: bool = False,  # v1.2.1
+    run_summary_json: str | None = None,  # v1.2.1
 ) -> int:
+    started_at = datetime.now(UTC)
+
+    if show_timings:
+        timings.clear()
+        timings.enable()
+
     is_pipe = output_dir == Path("-")
 
     if metrics_only and dimensions_only:
@@ -135,18 +189,23 @@ def run(
             return ExitCode.OUTPUT.value
 
     try:
-        client = AaClient.from_credentials(creds)
+        with timings.Timer("auth"):
+            client = AaClient.from_credentials(creds)
     except AuthError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"auth error: {e}", exit_code=ExitCode.AUTH.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
 
     try:
-        canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
+        with timings.Timer("resolve"):
+            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
     except ReportSuiteNotFoundError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.NOT_FOUND.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.NOT_FOUND.value
     except ApiError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"api error: {e}", exit_code=ExitCode.API.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.API.value
 
     if not is_pipe:
@@ -192,36 +251,109 @@ def run(
                 )
                 print(f"  {snap_path}")
         print("(no files were written; remove --dry-run to execute)", flush=True)
+        dry_per_rsid: list[PerRsidResult] = [
+            PerRsidResult(
+                rsid=rs,
+                name=None,
+                succeeded=True,
+                formats=list(formats),
+                output_paths=[],
+                snapshot_path=None,
+                error=None,
+            )
+            for rs in canonical_rsids
+        ]
+        _emit_run_summary(
+            run_summary_json=run_summary_json,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            profile=profile,
+            per_rsid=dry_per_rsid,
+            show_timings=show_timings,
+        )
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.OK.value
 
     if is_pipe:
         # JSON-only pipe path: build SdrDocuments and emit one JSON value
         # (single object for one RSID, array of objects for multi-match).
         docs: list[dict] = []
+        pipe_per_rsid: list[PerRsidResult] = []
         from aa_auto_sdr.output.error_envelope import emit_error_envelope
 
         for canonical_rsid in canonical_rsids:
             try:
-                doc = build_sdr(
-                    client,
-                    canonical_rsid,
-                    captured_at=captured_at,
-                    tool_version=__version__,
-                    component_filter=component_filter,
-                )
+                with timings.Timer(f"build:{canonical_rsid}"):
+                    doc = build_sdr(
+                        client,
+                        canonical_rsid,
+                        captured_at=captured_at,
+                        tool_version=__version__,
+                        component_filter=component_filter,
+                    )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
+                pipe_per_rsid.append(
+                    PerRsidResult(
+                        rsid=canonical_rsid,
+                        name=None,
+                        succeeded=False,
+                        formats=list(formats),
+                        output_paths=[],
+                        snapshot_path=None,
+                        error=str(e),
+                    ),
+                )
+                _emit_run_summary(
+                    run_summary_json=run_summary_json,
+                    started_at=started_at,
+                    finished_at=datetime.now(UTC),
+                    profile=profile,
+                    per_rsid=pipe_per_rsid,
+                    show_timings=show_timings,
+                )
+                _emit_timings_if_enabled(show_timings=show_timings)
                 return ExitCode.NOT_FOUND.value
             except ApiError as e:
                 emit_error_envelope(e, ExitCode.API.value)
+                pipe_per_rsid.append(
+                    PerRsidResult(
+                        rsid=canonical_rsid,
+                        name=None,
+                        succeeded=False,
+                        formats=list(formats),
+                        output_paths=[],
+                        snapshot_path=None,
+                        error=str(e),
+                    ),
+                )
+                _emit_run_summary(
+                    run_summary_json=run_summary_json,
+                    started_at=started_at,
+                    finished_at=datetime.now(UTC),
+                    profile=profile,
+                    per_rsid=pipe_per_rsid,
+                    show_timings=show_timings,
+                )
+                _emit_timings_if_enabled(show_timings=show_timings)
                 return ExitCode.API.value
             docs.append(doc.to_dict())
             if snapshot_dir is not None:
                 from aa_auto_sdr.snapshot.store import save_snapshot
 
                 save_snapshot(doc, snapshot_dir=snapshot_dir)
+            pipe_per_rsid.append(
+                PerRsidResult(
+                    rsid=canonical_rsid,
+                    name=doc.report_suite.name,
+                    succeeded=True,
+                    formats=list(formats),
+                    output_paths=[],
+                    snapshot_path=None,
+                    error=None,
+                ),
+            )
 
-        import json as _json
         import sys as _sys
 
         payload = docs[0] if total == 1 else docs
@@ -237,11 +369,30 @@ def run(
                 keep_since=keep_since,
             )
             if rc != ExitCode.OK.value:
+                _emit_run_summary(
+                    run_summary_json=run_summary_json,
+                    started_at=started_at,
+                    finished_at=datetime.now(UTC),
+                    profile=profile,
+                    per_rsid=pipe_per_rsid,
+                    show_timings=show_timings,
+                )
+                _emit_timings_if_enabled(show_timings=show_timings)
                 return rc
+        _emit_run_summary(
+            run_summary_json=run_summary_json,
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            profile=profile,
+            per_rsid=pipe_per_rsid,
+            show_timings=show_timings,
+        )
+        _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
     first_output: Path | None = None
+    per_rsid_results: list[PerRsidResult] = []
     for index, canonical_rsid in enumerate(canonical_rsids, start=1):
         if total > 1:
             print(f"generating SDR {index}/{total}: {canonical_rsid}")
@@ -258,21 +409,112 @@ def run(
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
+            per_rsid_results.append(
+                PerRsidResult(
+                    rsid=canonical_rsid,
+                    name=None,
+                    succeeded=False,
+                    formats=list(formats),
+                    output_paths=[],
+                    snapshot_path=None,
+                    error=str(e),
+                ),
+            )
+            _emit_run_summary(
+                run_summary_json=run_summary_json,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                profile=profile,
+                per_rsid=per_rsid_results,
+                show_timings=show_timings,
+            )
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.NOT_FOUND.value
         except ApiError as e:
             print(f"api error: {e}", flush=True)
+            per_rsid_results.append(
+                PerRsidResult(
+                    rsid=canonical_rsid,
+                    name=None,
+                    succeeded=False,
+                    formats=list(formats),
+                    output_paths=[],
+                    snapshot_path=None,
+                    error=str(e),
+                ),
+            )
+            _emit_run_summary(
+                run_summary_json=run_summary_json,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                profile=profile,
+                per_rsid=per_rsid_results,
+                show_timings=show_timings,
+            )
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.API.value
         except OutputError as e:
             print(f"output error: {e}", flush=True)
+            per_rsid_results.append(
+                PerRsidResult(
+                    rsid=canonical_rsid,
+                    name=None,
+                    succeeded=False,
+                    formats=list(formats),
+                    output_paths=[],
+                    snapshot_path=None,
+                    error=str(e),
+                ),
+            )
+            _emit_run_summary(
+                run_summary_json=run_summary_json,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                profile=profile,
+                per_rsid=per_rsid_results,
+                show_timings=show_timings,
+            )
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.OUTPUT.value
         except AaAutoSdrError as e:
             print(f"error: {e}", flush=True)
+            per_rsid_results.append(
+                PerRsidResult(
+                    rsid=canonical_rsid,
+                    name=None,
+                    succeeded=False,
+                    formats=list(formats),
+                    output_paths=[],
+                    snapshot_path=None,
+                    error=str(e),
+                ),
+            )
+            _emit_run_summary(
+                run_summary_json=run_summary_json,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                profile=profile,
+                per_rsid=per_rsid_results,
+                show_timings=show_timings,
+            )
+            _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.GENERIC.value
 
         for path in result.outputs:
             print(f"wrote: {path}")
         if first_output is None and result.outputs:
             first_output = result.outputs[0]
+        per_rsid_results.append(
+            PerRsidResult(
+                rsid=canonical_rsid,
+                name=result.report_suite_name,
+                succeeded=True,
+                formats=list(formats),
+                output_paths=[str(p) for p in result.outputs],
+                snapshot_path=None,
+                error=None,
+            ),
+        )
 
     if auto_prune and snapshot_dir is not None:
         rc = _apply_auto_prune(
@@ -283,6 +525,15 @@ def run(
             keep_since=keep_since,
         )
         if rc != ExitCode.OK.value:
+            _emit_run_summary(
+                run_summary_json=run_summary_json,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                profile=profile,
+                per_rsid=per_rsid_results,
+                show_timings=show_timings,
+            )
+            _emit_timings_if_enabled(show_timings=show_timings)
             return rc
 
     if open_after and not is_pipe and not dry_run and first_output is not None:
@@ -290,6 +541,15 @@ def run(
 
         os_open(first_output)
 
+    _emit_run_summary(
+        run_summary_json=run_summary_json,
+        started_at=started_at,
+        finished_at=datetime.now(UTC),
+        profile=profile,
+        per_rsid=per_rsid_results,
+        show_timings=show_timings,
+    )
+    _emit_timings_if_enabled(show_timings=show_timings)
     return ExitCode.OK.value
 
 

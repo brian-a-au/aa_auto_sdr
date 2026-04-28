@@ -101,6 +101,25 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     raise ReportSuiteNotFoundError(f"Report suite '{rsid}' not found")
 
 
+def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSummary]:
+    """Fetch every visible report suite as a list of ReportSuiteSummary.
+
+    Replaces the v1.0–v1.2 pattern of `_records(client.handle.getReportSuites(...))`
+    being called from CLI command code. Keeps the SDK boundary inside `api/`.
+
+    Sort order: alphabetical by rsid."""
+    raw = _records(client.handle.getReportSuites(extended_info=True))
+    summaries = [
+        models.ReportSuiteSummary(
+            rsid=str(r.get("rsid", "")),
+            name=_str_or_none(r, "name"),
+        )
+        for r in raw
+        if r.get("rsid")
+    ]
+    return sorted(summaries, key=lambda s: s.rsid)
+
+
 def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
     """Resolve a user-supplied identifier to one or more canonical RSIDs.
 
@@ -304,6 +323,28 @@ def fetch_virtual_report_suites(
         for r in raws
         if r.get("parentRsid") == parent_rsid
     ]
+
+
+def fetch_virtual_report_suite_summaries(
+    client: AaClient,
+) -> list[models.VirtualReportSuiteSummary]:
+    """Fetch every visible virtual report suite as a list of VirtualReportSuiteSummary.
+
+    Replaces the v1.0–v1.2 pattern of `_records(client.handle.getVirtualReportSuites(...))`
+    being called from CLI command code. Keeps the SDK boundary inside `api/`.
+
+    Sort order: alphabetical by id."""
+    raw = _records(client.handle.getVirtualReportSuites(extended_info=True))
+    summaries = [
+        models.VirtualReportSuiteSummary(
+            id=str(r.get("id", "")),
+            name=_str_or_none(r, "name"),
+            parent_rsid=str(r.get("parentRsid", "")),
+        )
+        for r in raw
+        if r.get("id")
+    ]
+    return sorted(summaries, key=lambda s: s.id)
 
 
 _CLASSIFICATION_ID_KEYS = ("id", "dataSetId", "datasetId", "data_set_id")

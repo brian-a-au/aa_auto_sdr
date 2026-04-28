@@ -546,3 +546,60 @@ class TestV12Dispatch:
         rc = run(["--profile-import", "prod", "/tmp/c.json", "--profile-overwrite"])
         assert rc == 0
         assert captured["overwrite"] is True
+
+
+def test_diff_labels_without_a_b_prefix_passes_through(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """M-5: --diff-labels foo bar (no `A=`/`B=` prefix) is accepted; values pass
+    through unchanged. The label-parsing code in cli/main.py uses
+    .split('=', 1)[-1], which yields the original token when no '=' is present."""
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    captured: dict = {}
+
+    def _stub(**kwargs):
+        captured.update(kwargs)
+        return 0
+
+    # The stub completely replaces diff_cmd.run, so resolve_snapshot is never
+    # called — these files exist only to satisfy argparse's positional consumption.
+    (tmp_path / "a.json").write_text("{}")
+    (tmp_path / "b.json").write_text("{}")
+
+    monkeypatch.setattr(diff_cmd, "run", _stub)
+    rc = run(
+        [
+            "--diff",
+            str(tmp_path / "a.json"),
+            str(tmp_path / "b.json"),
+            "--diff-labels",
+            "foo",
+            "bar",
+        ],
+    )
+    assert rc == 0
+    assert captured["labels"] == ("foo", "bar")
+
+
+def test_run_summary_json_dash_with_output_dash_returns_output_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both --run-summary-json - and --output - want stdout — reject before any work."""
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+    rc = run(
+        [
+            "demo.prod",
+            "--format",
+            "json",
+            "--output",
+            "-",
+            "--run-summary-json",
+            "-",
+        ],
+    )
+    assert rc == 15  # ExitCode.OUTPUT

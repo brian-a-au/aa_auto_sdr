@@ -204,14 +204,15 @@ class TestPruneSnapshots:
 
 
 class TestPruneConfirmation:
-    """v1.2 confirmation gate for destructive prune."""
+    """v1.2 confirmation gate; v1.2.1 changes refusal exit code OK → USAGE."""
 
-    def test_prune_aborts_on_non_tty_without_assume_yes(
+    def test_prune_aborts_on_non_tty_without_assume_yes_returns_usage(
         self,
         aa_home: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """v1.2: --prune-snapshots without --yes on non-tty stdin → abort, no delete."""
+        """v1.2.1: --prune-snapshots without --yes on non-tty stdin → USAGE (2),
+        no delete. Was OK (0) in v1.2.0 — breaking change for CI scripts."""
         rc = cmd.prune_run(
             profile="prod",
             rsid=None,
@@ -220,9 +221,11 @@ class TestPruneConfirmation:
             dry_run=False,
             assume_yes=False,
         )
-        assert rc == ExitCode.OK.value
+        assert rc == ExitCode.USAGE.value
         out = capsys.readouterr().out
         assert "aborted" in out
+        assert "non-interactive" in out  # new wording
+        assert "--yes" in out  # new wording references the flag
         # Files NOT deleted
         rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
         assert len(list(rs_dir.glob("*.json"))) == 2

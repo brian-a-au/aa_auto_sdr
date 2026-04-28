@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main]
 jobs:
-  test:
+  test-matrix:
     strategy:
       fail-fast: false
       matrix:
@@ -17,3 +17,19 @@ jobs:
         run: uv sync --all-extras
       - name: Run tests with coverage gate
         run: uv run pytest -q
+
+  # Rollup gate: a single `test` check that branch protection can require.
+  # Passes only when every matrix variant passed; fails (does not skip) on any
+  # matrix variant failure so the protection sees a definitive signal.
+  test:
+    needs: test-matrix
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate matrix result
+        run: |
+          if [ "${{ needs.test-matrix.result }}" != "success" ]; then
+            echo "test-matrix result: ${{ needs.test-matrix.result }}"
+            exit 1
+          fi
+          echo "all matrix variants passed"

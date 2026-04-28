@@ -347,3 +347,55 @@ class TestStepSummary:
         # No new file should appear in tmp_path beyond a/b
         files = sorted(p.name for p in tmp_path.iterdir())
         assert files == ["a.json", "b.json"]
+
+
+class TestStepSummaryUsesFullReport:
+    def test_step_summary_ignores_show_only_filter(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """M-4: step-summary reflects the FULL diff, even when --show-only or
+        --max-issues filter the rendered output. The current code in
+        cli/commands/diff.py already does this; this test locks the behavior."""
+        a = _write(
+            tmp_path / "a.json",
+            _envelope(
+                "RS1",
+                metrics=[{"id": "m1", "name": "Old"}, {"id": "m2", "name": "Old"}],
+            ),
+        )
+        b = _write(
+            tmp_path / "b.json",
+            _envelope(
+                "RS1",
+                metrics=[{"id": "m1", "name": "New"}, {"id": "m2", "name": "New"}],
+            ),
+        )
+        summary_path = tmp_path / "summary.md"
+        monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+
+        rc = run(
+            a=str(a),
+            b=str(b),
+            format_name="json",
+            output=None,
+            profile=None,
+            side_by_side=False,
+            summary=False,
+            ignore_fields=frozenset(),
+            quiet=False,
+            labels=None,
+            reverse=False,
+            changes_only=False,
+            show_only=frozenset({"dimensions"}),  # filter OUT metrics from rendered output
+            max_issues=None,
+            warn_threshold=None,
+        )
+        assert rc == ExitCode.OK.value
+        # Step summary file MUST contain the metric details (full report),
+        # even though show_only filtered them out of the rendered diff.
+        content = summary_path.read_text()
+        # Step summary should reflect the FULL diff, not the show_only-filtered render.
+        assert "m1" in content
+        assert "m2" in content

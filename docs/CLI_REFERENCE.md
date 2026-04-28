@@ -172,6 +172,10 @@ uv run aa_auto_sdr --prune-snapshots RS1 --profile prod --keep-since 90d
 
 Exit codes: `0`, `10` (no profile / no policy / bad keep-since format).
 
+**v1.2.1 behavior:** on non-interactive stdin without `--yes` the command
+now refuses with exit code 2 (`USAGE`), not exit 0. Pass `--yes`,
+pipe `yes |`, or run from a tty.
+
 ## Profile / config
 
 ### `aa_auto_sdr --profile-add <name>`
@@ -310,6 +314,37 @@ After successful generation, open the first output file (single) or output dir (
 ### `--yes` / `-y` (v1.2)
 
 Skip confirmation prompts on destructive actions. Currently only `--prune-snapshots` (without `--dry-run`) prompts. Non-tty stdin (CI / pipes) refuses to prompt and aborts safely without `--yes`.
+
+## Observability (v1.2.1)
+
+### `--show-timings`
+
+Print a per-stage timings block to stderr at end of a `<RSID>` or `--batch`
+run. Stages: `auth`, `resolve`, per-RSID `build:<rsid>`, per-format
+`write:<fmt>:<rsid>`, optional `snapshot:<rsid>`. Format is fixed-width
+(32-char label, right-aligned `{:.3f}s`, trailing `Total`).
+
+Example:
+
+    uv run aa_auto_sdr demo.prod --show-timings
+
+### `--run-summary-json PATH`
+
+Emit a structured JSON summary of the run to `PATH` (or `-` for stdout).
+Includes `started_at`, `finished_at`, `duration_seconds`, `tool_version`,
+`profile`, per-RSID `rsids` (rsid, name, succeeded, formats, output_paths,
+snapshot_path, error), and `timings` (populated only when `--show-timings`
+is also set; otherwise an empty list).
+
+Use cases: CI artifact, downstream tooling (e.g. PR-comment generators,
+dashboards), audit trail.
+
+Conflict: `--run-summary-json -` combined with `--output -` returns
+`OUTPUT` (15) before any work happens, since both want stdout.
+
+Example:
+
+    uv run aa_auto_sdr --batch demo.prod demo.staging --run-summary-json runs/$(date -u +%Y%m%dT%H%M%SZ).json
 
 ## Fast-path actions
 

@@ -231,6 +231,14 @@ def run(argv: list[str]) -> int:
             warn_threshold=ns.warn_threshold,
         )
 
+    # v1.2.1 — both want stdout: reject before any work happens.
+    if ns.run_summary_json == "-" and ns.output == "-":
+        print(
+            "error: --run-summary-json - and --output - both want stdout (use a path for one)",
+            flush=True,
+        )
+        return ExitCode.OUTPUT.value
+
     # Combine explicit --batch flag with positional RSIDs into a single list.
     # `--batch RS1 RS2` is the original v0.5 form; `aa_auto_sdr RS1 RS2` (v1.1+) is
     # the auto-inferred shorthand. Mixing them is rejected for clarity.
@@ -278,6 +286,8 @@ def run(argv: list[str]) -> int:
             dimensions_only=ns.dimensions_only,
             open_after=ns.open,
             assume_yes=ns.yes,
+            show_timings=ns.show_timings,
+            run_summary_json=ns.run_summary_json,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -297,6 +307,8 @@ def run(argv: list[str]) -> int:
         dimensions_only=ns.dimensions_only,
         open_after=ns.open,
         assume_yes=ns.yes,
+        show_timings=ns.show_timings,
+        run_summary_json=ns.run_summary_json,
     )
 
 

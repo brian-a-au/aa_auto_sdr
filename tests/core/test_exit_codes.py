@@ -48,3 +48,18 @@ def test_explanations_have_what_to_try_section_for_failures() -> None:
         if code == ExitCode.OK:
             continue
         assert "What to try:" in EXPLANATIONS[code], f"missing remediation for {code.name}"
+
+
+def test_auth_explanation_lists_verified_minimum_three_scopes() -> None:
+    """M-3: AUTH explanation must say verified-minimum 3 scopes, not 5.
+
+    Aligns with 4fcf155 and CLAUDE.md doctrine."""
+    text = EXPLANATIONS[ExitCode.AUTH]
+    assert "verified-minimum" in text
+    assert "openid AdobeID" in text
+    assert "additional_info.projectedProductContext" in text
+    # The two recommended-but-not-required scopes should be called out as
+    # *recommended* (not as part of the required set).
+    assert "recommended" in text
+    assert "read_organizations" in text
+    assert "additional_info.job_function" in text
