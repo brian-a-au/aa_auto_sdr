@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import json  # noqa: F401 — used by JSON formatter in Task 5
+import json
 import logging
 import os
 import re
@@ -24,7 +24,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.core.version import __version__  # noqa: F401 — used by metadata header in Task 3
+from aa_auto_sdr.core.version import __version__
 
 LOG_FILE_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 LOG_FILE_BACKUP_COUNT = 5
@@ -76,6 +76,53 @@ class SensitiveDataFilter(logging.Filter):
             if attr in _SENSITIVE_FIELDS or attr.lower() in _SENSITIVE_FIELDS:
                 setattr(record, attr, "[REDACTED]")
         return True
+
+
+_RESERVED_LOGRECORD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__.keys()) | {"message", "asctime"}
+
+
+class JSONFormatter(logging.Formatter):
+    """NDJSON formatter: one JSON object per record, terminated with newline.
+
+    Schema:
+        {timestamp, level, logger, message, run_id, run_mode, tool_version, ...extra}
+    Reserved LogRecord fields (pathname, lineno, etc.) are excluded.
+    """
+
+    def __init__(self, *, run_mode: str) -> None:
+        super().__init__()
+        self._run_mode = run_mode
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "run_id": RUN_ID,
+            "run_mode": self._run_mode,
+            "tool_version": __version__,
+        }
+        for key, value in record.__dict__.items():
+            if key in _RESERVED_LOGRECORD_FIELDS:
+                continue
+            if key.startswith("_"):
+                continue
+            payload[key] = value
+        try:
+            return json.dumps(payload, default=str)
+        except (TypeError, ValueError):  # fmt: skip
+            return json.dumps(
+                {
+                    "timestamp": payload["timestamp"],
+                    "level": payload["level"],
+                    "logger": payload["logger"],
+                    "message": "[json-format-error]",
+                    "run_id": RUN_ID,
+                    "run_mode": self._run_mode,
+                    "tool_version": __version__,
+                }
+            )
 
 
 def infer_run_mode(ns: argparse.Namespace) -> str:
@@ -165,10 +212,14 @@ def setup_logging(
         handler.close()
         logging.root.removeHandler(handler)
 
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    run_mode = infer_run_mode(namespace)
+    log_format = getattr(namespace, "log_format", "text")
+    if log_format == "json":
+        formatter: logging.Formatter = JSONFormatter(run_mode=run_mode)
+    else:
+        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 
     # Best-effort log directory creation.
-    run_mode = infer_run_mode(namespace)
     log_file: Path | None = None
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
