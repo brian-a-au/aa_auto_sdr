@@ -95,19 +95,19 @@ Per-platform setup:
 
 ```bash
 # macOS / Linux (current shell)
-export ORG_ID="...@AdobeOrg"
-export CLIENT_ID="..."
-export SECRET="..."
+export ORG_ID="YOUR_ORG_ID@AdobeOrg"
+export CLIENT_ID="YOUR_CLIENT_ID"
+export SECRET="YOUR_CLIENT_SECRET"
 export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 
 # Windows cmd
-setx ORG_ID "...@AdobeOrg"
-setx CLIENT_ID "..."
+setx ORG_ID "YOUR_ORG_ID@AdobeOrg"
+setx CLIENT_ID "YOUR_CLIENT_ID"
 # ...
 
 # PowerShell
-$Env:ORG_ID = "...@AdobeOrg"
-$Env:CLIENT_ID = "..."
+$Env:ORG_ID = "YOUR_ORG_ID@AdobeOrg"
+$Env:CLIENT_ID = "YOUR_CLIENT_ID"
 # ...
 ```
 

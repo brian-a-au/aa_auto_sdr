@@ -174,27 +174,27 @@ Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes `~/.aa
 macOS / Linux:
 
 ```bash
-export ORG_ID="...@AdobeOrg"
-export CLIENT_ID="..."
-export SECRET="..."
+export ORG_ID="YOUR_ORG_ID@AdobeOrg"
+export CLIENT_ID="YOUR_CLIENT_ID"
+export SECRET="YOUR_CLIENT_SECRET"
 export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 ```
 
 Windows cmd:
 
 ```batch
-setx ORG_ID "...@AdobeOrg"
-setx CLIENT_ID "..."
-setx SECRET "..."
+setx ORG_ID "YOUR_ORG_ID@AdobeOrg"
+setx CLIENT_ID "YOUR_CLIENT_ID"
+setx SECRET "YOUR_CLIENT_SECRET"
 setx SCOPES "openid, AdobeID, additional_info.projectedProductContext"
 ```
 
 PowerShell:
 
 ```powershell
-$Env:ORG_ID = "...@AdobeOrg"
-$Env:CLIENT_ID = "..."
-$Env:SECRET = "..."
+$Env:ORG_ID = "YOUR_ORG_ID@AdobeOrg"
+$Env:CLIENT_ID = "YOUR_CLIENT_ID"
+$Env:SECRET = "YOUR_CLIENT_SECRET"
 $Env:SCOPES = "openid, AdobeID, additional_info.projectedProductContext"
 ```
 
@@ -211,7 +211,7 @@ cp config.json.example config.json
 
 Confirm credentials and connectivity, then generate your first SDR:
 
-```console
+```text
 $ uv run aa_auto_sdr --show-config        # which credential source resolved
 $ uv run aa_auto_sdr --list-reportsuites  # confirms auth + scope; lists visible RSes
 $ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list above
@@ -227,7 +227,7 @@ $ uv run aa_auto_sdr <RSID>               # default Excel; <RSID> from the list 
 
 Default format produces `<RSID>.xlsx` in the working directory. Use `--format` for alternates:
 
-```console
+```text
 $ uv run aa_auto_sdr <RSID> --format json    # single JSON file
 $ uv run aa_auto_sdr <RSID> --format all     # all five formats at once
 $ uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory

@@ -22,9 +22,9 @@ Pick one — environment variables (fastest) or a profile (recommended for daily
 
 ```bash
 # Option A: env vars
-export ORG_ID="...@AdobeOrg"
-export CLIENT_ID="..."
-export SECRET="..."
+export ORG_ID="YOUR_ORG_ID@AdobeOrg"
+export CLIENT_ID="YOUR_CLIENT_ID"
+export SECRET="YOUR_CLIENT_SECRET"
 export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 ```
 
@@ -44,7 +44,7 @@ If the list shows your report suites, credentials are wired correctly.
 
 ## 4. Generate one SDR
 
-```bash
+```text
 uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr
 ```
 
@@ -52,7 +52,7 @@ Replace `<RSID>` with any value from the list. Default output is Excel; other fo
 
 ## 5. Capture a snapshot
 
-```bash
+```text
 uv run aa_auto_sdr <RSID> --profile prod --snapshot --output-dir /tmp/sdr
 ```
 
@@ -62,13 +62,13 @@ The snapshot lands at `~/.aa/orgs/prod/snapshots/<RSID>/<ISO-timestamp>.json` �
 
 (After the report suite changes — new dimension, renamed metric, etc.)
 
-```bash
+```text
 uv run aa_auto_sdr <RSID> --profile prod --snapshot --output-dir /tmp/sdr
 ```
 
 ## 7. Diff the two
 
-```bash
+```text
 uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod
 ```
 
