@@ -39,23 +39,8 @@ _REDACTION_PATTERNS = (
     (re.compile(r"Authorization:\s*[^\r\n]+", re.IGNORECASE), "Authorization: [REDACTED]"),
     (re.compile(r"client_secret=[A-Za-z0-9._\-]+", re.IGNORECASE), "client_secret=[REDACTED]"),
     (re.compile(r"access_token=[A-Za-z0-9._\-]+", re.IGNORECASE), "access_token=[REDACTED]"),
-    # Adobe IMS token-response shapes — surface at --log-level DEBUG via urllib3 body dumps.
-    (re.compile(r"id_token=[A-Za-z0-9._\-]+", re.IGNORECASE), "id_token=[REDACTED]"),
-    (re.compile(r"refresh_token=[A-Za-z0-9._\-]+", re.IGNORECASE), "refresh_token=[REDACTED]"),
-    (re.compile(r"jwt[_-]?token=[A-Za-z0-9._\-]+", re.IGNORECASE), "jwt_token=[REDACTED]"),
 )
-_SENSITIVE_FIELDS = frozenset(
-    {
-        "secret",
-        "client_secret",
-        "access_token",
-        "authorization",
-        "bearer",
-        "id_token",
-        "refresh_token",
-        "jwt_token",
-    }
-)
+_SENSITIVE_FIELDS = frozenset({"secret", "client_secret", "access_token", "authorization", "bearer"})
 _REDACTION_SENTINEL = "[log-redaction-error]"
 
 

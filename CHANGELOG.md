@@ -14,10 +14,10 @@ debuggability.
 - `core/logging.py`: trimmed port of the CJA equivalent. Provides
   `setup_logging(namespace)` (single call site from `cli/main.run()`),
   `infer_run_mode(namespace)`, `SensitiveDataFilter` (redacts bearer
-  tokens, `Authorization:` headers, `client_secret=` / `access_token=` /
-  `id_token=` / `refresh_token=` / `jwt_token=` query/body values —
-  case-insensitive, full-value-to-EOL for `Authorization:`), and
-  `JSONFormatter` (NDJSON; Splunk/ELK/Datadog ingest directly).
+  tokens, `Authorization:` headers, `client_secret=` and `access_token=`
+  query/body values — case-insensitive, full-value-to-EOL for
+  `Authorization:`), and `JSONFormatter` (NDJSON; Splunk/ELK/Datadog
+  ingest directly).
 - `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` flag (default `INFO`,
   with `LOG_LEVEL` environment-variable fallback).
 - `--log-format {text,json}` flag (default `text`).

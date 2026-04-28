@@ -194,10 +194,9 @@ Every non-fast-path invocation writes a per-run log file under `./logs/` (relati
 - `Authorization: <value>` → `Authorization: [REDACTED]` (full header value, not just the scheme)
 - `client_secret=<value>` → `client_secret=[REDACTED]`
 - `access_token=<value>` → `access_token=[REDACTED]`
-- `id_token=<value>` → `id_token=[REDACTED]` *(Adobe IMS — JWT containing PII)*
-- `refresh_token=<value>` → `refresh_token=[REDACTED]`
-- `jwt_token=<value>` and `jwt-token=<value>` → `jwt_token=[REDACTED]`
-- `extra={"client_secret": "..."}` and other known sensitive keys (including `id_token`, `refresh_token`, `jwt_token`) are also redacted in JSON output.
+- `extra={"client_secret": "..."}` and other known sensitive keys are also redacted in JSON output.
+
+**Scoped to OAuth Server-to-Server.** The redaction patterns cover the credential shapes that actually appear on the OAuth S2S wire — `Bearer` headers, the `Authorization:` line, and `client_secret`/`access_token` form/query values. Patterns for `id_token`, `refresh_token`, and `jwt_token` are deliberately not included: OAuth S2S responses do not emit them, JWT auth is sunset, and `CLAUDE.md` mandates OAuth S2S as the only supported path. If a future Adobe API change adds new shapes, extend `_REDACTION_PATTERNS` in `src/aa_auto_sdr/core/logging.py`.
 
 **`logs/` is git-ignored.** Treat as ephemeral run artifacts.
 
