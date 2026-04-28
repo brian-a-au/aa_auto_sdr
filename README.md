@@ -124,7 +124,7 @@ uv sync --all-extras
 
 ### 3. Configure Credentials (Adobe Analytics API 2.0, OAuth Server-to-Server)
 
-The Adobe Analytics 2.0 API uses **OAuth Server-to-Server** authentication. JWT auth is fully deprecated as of 2025-01-01 — do not use it.
+The Adobe Analytics 2.0 API uses **OAuth Server-to-Server** authentication.
 
 #### a. Create an Adobe Developer Console project
 
@@ -197,8 +197,6 @@ $Env:CLIENT_ID = "..."
 $Env:SECRET = "..."
 $Env:SCOPES = "openid, AdobeID, additional_info.projectedProductContext"
 ```
-
-(See [the upstream SDK env-var auth guide](https://github.com/pitchmuc/adobe-analytics-api-2.0/blob/master/docs/authenticating_without_config_json.md) for more on env-var-based setup, especially for CI/server environments.)
 
 **Option 3 — `config.json` in repo root:**
 
