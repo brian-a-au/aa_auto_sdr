@@ -13,5 +13,5 @@ def test_version_matches_semver_dev() -> None:
     assert re.fullmatch(r"\d+\.\d+\.\d+(?:[ab]\d+|rc\d+)?", aa_auto_sdr.__version__)
 
 
-def test_version_is_1_2_2() -> None:
-    assert aa_auto_sdr.__version__ == "1.2.2"
+def test_version_is_1_2_3() -> None:
+    assert aa_auto_sdr.__version__ == "1.2.3"

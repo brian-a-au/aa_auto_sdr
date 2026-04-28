@@ -107,7 +107,7 @@ Likely causes:
 
 What to try:
 - Verify credentials in Adobe Developer Console (https://developer.adobe.com/console).
-- Confirm SCOPES contains the verified-minimum three: `openid, AdobeID,
+- Confirm SCOPES contains the verified-minimum three: `openid,AdobeID,
   additional_info.projectedProductContext`. Two more are recommended for
   fuller endpoint coverage: `read_organizations` and
   `additional_info.job_function` (add them if `--list-reportsuites` returns

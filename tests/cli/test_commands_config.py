@@ -65,10 +65,12 @@ def test_show_config_does_not_print_sandbox_line(
 def test_sample_config_emits_four_keys_with_comma_separated_scopes(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """v1.2.2: --sample-config emits {org_id, client_id, secret, scopes} only,
-    with comma-separated scopes (matches every user-facing example in the docs)."""
+    """v1.2.3: --sample-config emits {org_id, client_id, secret, scopes} only,
+    with no-space comma-separated scopes (the canonical form per
+    docs/CONFIGURATION.md; matches every user-facing example in README /
+    QUICKSTART / CONFIGURATION)."""
     rc = cmd.sample_config()
     assert rc == 0
     payload = json.loads(capsys.readouterr().out)
     assert set(payload.keys()) == {"org_id", "client_id", "secret", "scopes"}
-    assert payload["scopes"] == "openid, AdobeID, additional_info.projectedProductContext"
+    assert payload["scopes"] == "openid,AdobeID,additional_info.projectedProductContext"

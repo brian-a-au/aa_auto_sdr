@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.3] — 2026-04-28
+
+Cosmetic alignment release. Brings two internal SCOPES strings — the
+`--sample-config` template and the `--explain-exit-code 11` AUTH block —
+into line with the no-space comma-separated form declared canonical in
+`docs/CONFIGURATION.md` and used by every example in README / QUICKSTART /
+CONFIGURATION since #15. No new flags, no new exit codes, no behavior
+change. Existing config files using the comma-with-space form continue to
+authenticate unchanged (the `aanalytics2` SDK normalizes whitespace before
+requesting tokens).
+
+### Changed
+
+- `--sample-config` template emits
+  `"scopes": "openid,AdobeID,additional_info.projectedProductContext"`
+  (no spaces) — matches the user-facing examples a reader sees in the
+  docs.
+- `ExitCode.AUTH` explanation (`--explain-exit-code 11`) lists the
+  verified-minimum SCOPES as `openid,AdobeID,additional_info.projectedProductContext`
+  (no spaces).
+- `CLAUDE.md` verified-minimum SCOPES reference switched to the no-space
+  canonical form, with a note pointing at `docs/CONFIGURATION.md` as the
+  source of truth for the format.
+
 ## [1.2.2] — 2026-04-27
 
 Cleanup release. Retires the dead `SANDBOX` config field (collected by

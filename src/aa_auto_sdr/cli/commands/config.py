@@ -50,7 +50,7 @@ def sample_config() -> int:
         "org_id": "<org-id>@AdobeOrg",
         "client_id": "<client-id>",
         "secret": "<client-secret>",
-        "scopes": "openid, AdobeID, additional_info.projectedProductContext",
+        "scopes": "openid,AdobeID,additional_info.projectedProductContext",
     }
     sys.stdout.write(json.dumps(template, sort_keys=True, indent=2) + "\n")
     return ExitCode.OK.value
