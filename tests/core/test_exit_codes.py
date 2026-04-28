@@ -56,7 +56,7 @@ def test_auth_explanation_lists_verified_minimum_three_scopes() -> None:
     Aligns with 4fcf155 and CLAUDE.md doctrine."""
     text = EXPLANATIONS[ExitCode.AUTH]
     assert "verified-minimum" in text
-    assert "openid, AdobeID," in text
+    assert "openid,AdobeID," in text
     assert "additional_info.projectedProductContext" in text
     # The two recommended-but-not-required scopes should be called out as
     # *recommended* (not as part of the required set).
