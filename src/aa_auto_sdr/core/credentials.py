@@ -23,7 +23,6 @@ class Credentials:
     client_id: str
     secret: str
     scopes: str
-    sandbox: str | None
     source: str  # 'profile:<name>' | 'env' | '.env' | 'config.json'
 
     def validate(self) -> None:
@@ -39,7 +38,6 @@ def _from_dict(d: dict, source: str) -> Credentials:
         client_id=str(d.get("client_id", "")).strip(),
         secret=str(d.get("secret", "")).strip(),
         scopes=str(d.get("scopes", "")).strip(),
-        sandbox=(str(d["sandbox"]).strip() or None) if d.get("sandbox") else None,
         source=source,
     )
 
@@ -55,7 +53,6 @@ def _from_env() -> Credentials:
             "client_id": os.environ.get("CLIENT_ID", ""),
             "secret": os.environ.get("SECRET", ""),
             "scopes": os.environ.get("SCOPES", ""),
-            "sandbox": os.environ.get("SANDBOX"),
         },
         source="env",
     )

@@ -28,7 +28,6 @@ def _seed_profile(base: Path, name: str, **fields: str) -> None:
         "client_id": "abcdefgh12345678",
         "secret": "supersecret",
         "scopes": "openid",
-        "sandbox": None,
         **fields,
     }
     (pdir / "config.json").write_text(json.dumps(data))
@@ -70,6 +69,7 @@ class TestProfileShow:
         out = capsys.readouterr().out
         assert "abcd…5678" in out
         assert "supersecret" not in out
+        assert "sandbox" not in out.lower()  # v1.2.2: sandbox printer line dropped
 
     def test_missing_profile(
         self,

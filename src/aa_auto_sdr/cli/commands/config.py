@@ -18,14 +18,12 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
     client_id = input("CLIENT_ID: ").strip()
     secret = input("SECRET: ").strip()
     scopes = input("SCOPES: ").strip()
-    sandbox = input("SANDBOX (optional, press enter to skip): ").strip()
 
     data = {
         "org_id": org_id,
         "client_id": client_id,
         "secret": secret,
         "scopes": scopes,
-        "sandbox": sandbox or None,
     }
     path = profiles.write_profile(name, data, base=base)
     print(f"profile written: {path}")
@@ -43,7 +41,6 @@ def show_config(*, profile: str | None, profiles_base: Path | None = None) -> in
     print(f"source:    {creds.source}")
     print(f"org_id:    {creds.org_id}")
     print(f"client_id: {creds.client_id[:4]}…{creds.client_id[-4:] if len(creds.client_id) > 8 else ''}")
-    print(f"sandbox:   {creds.sandbox or '(none)'}")
     return ExitCode.OK.value
 
 
@@ -53,8 +50,7 @@ def sample_config() -> int:
         "org_id": "<org-id>@AdobeOrg",
         "client_id": "<client-id>",
         "secret": "<client-secret>",
-        "scopes": "openid AdobeID additional_info.projectedProductContext",
-        "sandbox": None,
+        "scopes": "openid, AdobeID, additional_info.projectedProductContext",
     }
     sys.stdout.write(json.dumps(template, sort_keys=True, indent=2) + "\n")
     return ExitCode.OK.value
@@ -91,5 +87,4 @@ def config_status(*, profile: str | None) -> int:
     print(f"  org_id:    {creds.org_id}")
     print(f"  client_id: {masked}")
     print(f"  scopes:    {creds.scopes}")
-    print(f"  sandbox:   {creds.sandbox or '(none)'}")
     return ExitCode.OK.value

@@ -2,6 +2,5 @@
   "org_id": "YOUR_ORG_ID@AdobeOrg",
   "client_id": "YOUR_CLIENT_ID",
   "secret": "YOUR_CLIENT_SECRET",
-  "scopes": "your_scopes_from_developer_console",
-  "sandbox": null
+  "scopes": "your_scopes_from_developer_console"
 }

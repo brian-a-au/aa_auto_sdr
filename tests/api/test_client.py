@@ -14,7 +14,6 @@ def _creds() -> Credentials:
         client_id="C",
         secret="S",
         scopes="X",
-        sandbox=None,
         source="env",
     )
 

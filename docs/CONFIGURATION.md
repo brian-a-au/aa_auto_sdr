@@ -125,8 +125,7 @@ cp config.json.example config.json
   "org_id": "...@AdobeOrg",
   "client_id": "...",
   "secret": "...",
-  "scopes": "openid, AdobeID, additional_info.projectedProductContext",
-  "sandbox": null
+  "scopes": "openid, AdobeID, additional_info.projectedProductContext"
 }
 ```
 
@@ -143,7 +142,7 @@ SCOPES=openid, AdobeID, additional_info.projectedProductContext
 
 Same fields, same gitignore.
 
-## Multi-org / sandbox setups
+## Multi-org setups
 
 Each Adobe organization needs its own profile (or its own credential set). The named-profile workflow is built for this:
 
@@ -162,7 +161,7 @@ Profiles are isolated under `~/.aa/orgs/<name>/`. Snapshot files are also profil
 uv run aa_auto_sdr --show-config
 ```
 
-Prints which credential source resolved, the truncated client_id (no secret exposure), and the sandbox value.
+Prints which credential source resolved, the truncated client_id (no secret exposure).
 
 ## Common failure modes
 

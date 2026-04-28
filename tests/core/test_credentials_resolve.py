@@ -122,11 +122,22 @@ def test_resolve_raises_when_no_source_provides_creds(monkeypatch: pytest.Monkey
         credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
 
 
-def test_sandbox_propagates_from_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("ORG_ID", "E")
-    monkeypatch.setenv("CLIENT_ID", "Ec")
-    monkeypatch.setenv("SECRET", "Es")
-    monkeypatch.setenv("SCOPES", "Ex")
-    monkeypatch.setenv("SANDBOX", "dev1")
+def test_legacy_sandbox_key_in_config_is_ignored(tmp_path: Path) -> None:
+    """Forward-compat: pre-1.2.2 config.json files contain `"sandbox": null`
+    (or any value). After v1.2.2 the field is gone from `Credentials`, but the
+    loader silently ignores the unknown key."""
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "org_id": "F",
+                "client_id": "Fc",
+                "secret": "Fs",
+                "scopes": "Fx",
+                "sandbox": "legacy-value",
+            }
+        )
+    )
     creds = credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
-    assert creds.sandbox == "dev1"
+    assert creds.org_id == "F"
+    assert creds.scopes == "Fx"
+    assert not hasattr(creds, "sandbox")

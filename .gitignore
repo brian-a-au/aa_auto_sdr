@@ -1,5 +1,6 @@
 # Local-only working areas
 .claude/
+.worktrees/
 docs/superpowers/
 
 # Python
