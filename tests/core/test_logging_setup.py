@@ -188,3 +188,25 @@ def test_idempotent_reinit_with_file_handler(tmp_path: Path) -> None:
     setup_logging(_ns(rsids=["abc"]), log_dir=tmp_path / "logs")
     rotating = [h for h in logging.root.handlers if isinstance(h, RotatingFileHandler)]
     assert len(rotating) == 1
+
+
+def test_startup_banner_emits_five_info_records(tmp_path: Path) -> None:
+    """setup_logging emits five INFO records on init: log-file path, version,
+    Python+platform, deps, run mode/level/format."""
+    setup_logging(_ns(rsids=["abc"]), log_dir=tmp_path / "logs")
+    log_file = next((tmp_path / "logs").glob("SDR_Generation_abc_*.log"))
+    text = log_file.read_text(encoding="utf-8")
+    assert "Logging initialized. Log file:" in text
+    assert "aa_auto_sdr version:" in text
+    assert "Python " in text
+    assert "Dependencies:" in text
+    assert "Run mode: single" in text
+
+
+def test_dep_summary_lists_three_packages() -> None:
+    from aa_auto_sdr.core.logging import _dep_summary
+
+    s = _dep_summary()
+    assert "aanalytics2=" in s
+    assert "pandas=" in s
+    assert "xlsxwriter=" in s

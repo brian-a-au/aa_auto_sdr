@@ -232,9 +232,10 @@ def setup_logging(
         )
 
     # Console handler — stderr, not stdout.
+    quiet = bool(getattr(namespace, "quiet", False))
     console = logging.StreamHandler(sys.stderr)
     console.setFormatter(formatter)
-    console.setLevel(numeric_level)
+    console.setLevel(logging.WARNING if quiet else numeric_level)
     console.addFilter(SensitiveDataFilter())
     logging.root.addHandler(console)
 
@@ -254,4 +255,38 @@ def setup_logging(
 
     logger = logging.getLogger("aa_auto_sdr")
     logger.setLevel(logging.NOTSET)
+
+    # Startup banner — five INFO records, always emitted (file handler always
+    # captures them; console may suppress under --quiet).
+    if log_file is not None:
+        logger.info("Logging initialized. Log file: %s", log_file)
+    else:
+        logger.info("Logging initialized. Console output only.")
+    logger.info("aa_auto_sdr version: %s", __version__)
+    logger.info("Python %s on %s", sys.version.split()[0], sys.platform)
+    logger.info("Dependencies: %s", _dep_summary())
+    logger.info(
+        "Run mode: %s | log level: %s | log format: %s",
+        run_mode,
+        log_level,
+        log_format,
+    )
+    for handler in logging.root.handlers:
+        handler.flush()
+
     return logger
+
+
+def _dep_summary() -> str:
+    """Comma-separated 'pkg=version' string for the three runtime deps that
+    matter for triage. Missing packages report '?'."""
+    from importlib.metadata import PackageNotFoundError, version
+
+    pkgs = ("aanalytics2", "pandas", "xlsxwriter")
+    parts: list[str] = []
+    for p in pkgs:
+        try:
+            parts.append(f"{p}={version(p)}")
+        except PackageNotFoundError:
+            parts.append(f"{p}=?")
+    return ", ".join(parts)
