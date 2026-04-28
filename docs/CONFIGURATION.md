@@ -4,7 +4,7 @@ How to authenticate `aa_auto_sdr` against your Adobe Analytics 2.0 API. See [`QU
 
 ## Adobe Developer Console setup
 
-`aa_auto_sdr` uses **OAuth Server-to-Server**. JWT auth was deprecated 2025-01-01 — do not use it.
+`aa_auto_sdr` uses **OAuth Server-to-Server**.
 
 ### 1. Create a project
 
@@ -87,8 +87,7 @@ Use with `--profile prod` on subsequent commands. Multi-org users create one pro
 | `ORG_ID` | yes | e.g. `D0F83C645C5E1CC60A495CB3@AdobeOrg` |
 | `CLIENT_ID` | yes | from Developer Console |
 | `SECRET` | yes | the OAuth client secret |
-| `SCOPES` | yes | space-separated list (see above) |
-| `SANDBOX` | no | optional for sandbox environments |
+| `SCOPES` | yes | comma-separated list (see above) |
 | `AA_PROFILE` | no | shorthand to set `--profile` |
 | `LOG_LEVEL` | no | honored by the CLI's logging |
 
@@ -96,23 +95,21 @@ Per-platform setup:
 
 ```bash
 # macOS / Linux (current shell)
-export ORG_ID="...@AdobeOrg"
-export CLIENT_ID="..."
-export SECRET="..."
+export ORG_ID="YOUR_ORG_ID@AdobeOrg"
+export CLIENT_ID="YOUR_CLIENT_ID"
+export SECRET="YOUR_CLIENT_SECRET"
 export SCOPES="openid, AdobeID, additional_info.projectedProductContext"
 
 # Windows cmd
-setx ORG_ID "...@AdobeOrg"
-setx CLIENT_ID "..."
+setx ORG_ID "YOUR_ORG_ID@AdobeOrg"
+setx CLIENT_ID "YOUR_CLIENT_ID"
 # ...
 
 # PowerShell
-$Env:ORG_ID = "...@AdobeOrg"
-$Env:CLIENT_ID = "..."
+$Env:ORG_ID = "YOUR_ORG_ID@AdobeOrg"
+$Env:CLIENT_ID = "YOUR_CLIENT_ID"
 # ...
 ```
-
-See the [upstream SDK env-var auth guide](https://github.com/pitchmuc/adobe-analytics-api-2.0/blob/master/docs/authenticating_without_config_json.md) for more on env-based setup, especially in CI / server environments.
 
 ### Option 3 — `config.json` in working directory
 
