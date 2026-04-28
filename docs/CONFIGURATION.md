@@ -194,7 +194,10 @@ Every non-fast-path invocation writes a per-run log file under `./logs/` (relati
 - `Authorization: <value>` → `Authorization: [REDACTED]` (full header value, not just the scheme)
 - `client_secret=<value>` → `client_secret=[REDACTED]`
 - `access_token=<value>` → `access_token=[REDACTED]`
-- `extra={"client_secret": "..."}` and other known sensitive keys are also redacted in JSON output.
+- `id_token=<value>` → `id_token=[REDACTED]` *(Adobe IMS — JWT containing PII)*
+- `refresh_token=<value>` → `refresh_token=[REDACTED]`
+- `jwt_token=<value>` and `jwt-token=<value>` → `jwt_token=[REDACTED]`
+- `extra={"client_secret": "..."}` and other known sensitive keys (including `id_token`, `refresh_token`, `jwt_token`) are also redacted in JSON output.
 
 **`logs/` is git-ignored.** Treat as ephemeral run artifacts.
 

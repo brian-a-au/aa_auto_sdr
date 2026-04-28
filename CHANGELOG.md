@@ -14,8 +14,9 @@ debuggability.
 - `core/logging.py`: trimmed port of the CJA equivalent. Provides
   `setup_logging(namespace)` (single call site from `cli/main.run()`),
   `infer_run_mode(namespace)`, `SensitiveDataFilter` (redacts bearer
-  tokens, `Authorization:` headers, `client_secret=` and `access_token=`
-  query/body values — case-insensitive, full-value-to-EOL), and
+  tokens, `Authorization:` headers, `client_secret=` / `access_token=` /
+  `id_token=` / `refresh_token=` / `jwt_token=` query/body values —
+  case-insensitive, full-value-to-EOL for `Authorization:`), and
   `JSONFormatter` (NDJSON; Splunk/ELK/Datadog ingest directly).
 - `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` flag (default `INFO`,
   with `LOG_LEVEL` environment-variable fallback).
@@ -43,10 +44,11 @@ debuggability.
 
 ### Changed
 
-- Console banner / progress output channel: stdout → **stderr**. The
-  rationale: `aa_auto_sdr <RSID> --output -` pipes SDR JSON to stdout,
-  and logger banners must not corrupt that stream. Final result prints
-  (file paths, list bodies, `--show-config` output) are unchanged.
+- New `setup_logging()`-emitted banner / progress records go to **stderr**
+  (so `aa_auto_sdr <RSID> --output -` keeps stdout clean for piping).
+  Existing command stdout/stderr behavior is unchanged: final result
+  prints (file paths, `--show-config` output, list-reportsuites tables)
+  still go to stdout exactly as before.
 - `core/colors.py` learns a `set_theme()` switch consulted by `success()`
   and `error()`. `bold()` and `warn()` are theme-agnostic.
 

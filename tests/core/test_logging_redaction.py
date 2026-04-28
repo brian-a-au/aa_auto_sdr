@@ -41,6 +41,18 @@ def _record(msg: str, *args: object) -> logging.LogRecord:
         ("BEARER eyJtest.abc.123", "eyJtest.abc.123"),
         ("CLIENT_SECRET=p1-secretvalue", "p1-secretvalue"),
         ("ACCESS_TOKEN=token-xyz-123", "token-xyz-123"),
+        # v1.3.0 pre-merge review — Adobe IMS token-response shapes (id_token / refresh_token / jwt_token)
+        ("id_token=eyJpdGVzdC5hYmMuZGVm", "eyJpdGVzdC5hYmMuZGVm"),
+        ("ID_TOKEN=eyJpZHRva2VuLmFiYy5kZWY", "eyJpZHRva2VuLmFiYy5kZWY"),
+        ("refresh_token=p1-refresh-secret-value", "p1-refresh-secret-value"),
+        ("REFRESH_TOKEN=rt-XYZ-123", "rt-XYZ-123"),
+        ("jwt_token=eyJqd3QtdG9rZW4tdmFs", "eyJqd3QtdG9rZW4tdmFs"),
+        ("jwt-token=eyJkYXNoLXZhcmlhbnQ", "eyJkYXNoLXZhcmlhbnQ"),
+        # POST body shape — `aanalytics2` SDK at DEBUG dumps form-encoded responses
+        (
+            "POST /ims/token: id_token=eyJtest.abc.def&access_token=mytoken123&refresh_token=rt456",
+            "eyJtest.abc.def",
+        ),
     ],
 )
 def test_redacts_pattern(msg: str, raw_secret_must_not_appear: str) -> None:
@@ -73,10 +85,16 @@ def test_redacts_extra_dict_keys() -> None:
     rec = _record("login result")
     rec.client_secret = "p1-secret-value"  # type: ignore[attr-defined]
     rec.access_token = "raw-bearer"  # type: ignore[attr-defined]
+    rec.id_token = "raw-id-token"  # type: ignore[attr-defined]
+    rec.refresh_token = "raw-refresh-token"  # type: ignore[attr-defined]
+    rec.jwt_token = "raw-jwt-token"  # type: ignore[attr-defined]
     rec.normal_field = "ok"  # type: ignore[attr-defined]
     f.filter(rec)
     assert rec.client_secret == "[REDACTED]"  # type: ignore[attr-defined]
     assert rec.access_token == "[REDACTED]"  # type: ignore[attr-defined]
+    assert rec.id_token == "[REDACTED]"  # type: ignore[attr-defined]
+    assert rec.refresh_token == "[REDACTED]"  # type: ignore[attr-defined]
+    assert rec.jwt_token == "[REDACTED]"  # type: ignore[attr-defined]
     assert rec.normal_field == "ok"  # type: ignore[attr-defined]
 
 
