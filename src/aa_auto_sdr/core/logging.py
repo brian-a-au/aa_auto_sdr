@@ -19,8 +19,8 @@ import os
 import re  # noqa: F401 — used by redaction filter in Task 4
 import sys
 import uuid
-from datetime import UTC, datetime  # noqa: F401 — used by file handler in Task 3
-from logging.handlers import RotatingFileHandler  # noqa: F401 — used by file handler in Task 3
+from datetime import UTC, datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any  # noqa: F401 — used by JSON formatter in Task 5
 
@@ -81,18 +81,33 @@ def infer_run_mode(ns: argparse.Namespace) -> str:
     return "other"
 
 
+def _log_filename(run_mode: str, ns: argparse.Namespace, ts: str) -> str:
+    """Map run mode + namespace to log filename (no path prefix)."""
+    if run_mode == "single":
+        rsids = getattr(ns, "rsids", []) or []
+        if rsids:
+            return f"SDR_Generation_{rsids[0]}_{ts}.log"
+    if run_mode == "batch":
+        return f"SDR_Batch_Generation_{ts}.log"
+    if run_mode == "diff":
+        return f"SDR_Diff_{ts}.log"
+    return f"SDR_Run_{ts}.log"
+
+
 def setup_logging(
     namespace: argparse.Namespace,
     *,
-    log_dir: Path = Path("logs"),  # noqa: ARG001 — used by file handler in Task 3
+    log_dir: Path = Path("logs"),
 ) -> logging.Logger:
     """Configure root logger from a parsed argparse Namespace.
 
     Idempotent: a second call replaces handlers cleanly. Returns the package
     logger (``aa_auto_sdr``).
 
-    Skeleton form (Task 2): console-only handler, default level resolution.
-    File handler / redaction / JSON formatter land in Tasks 3-5.
+    Wires a stderr console handler plus a best-effort ``RotatingFileHandler``
+    whose filename is run-mode-aware. If the log directory cannot be created
+    (PermissionError / OSError) the file handler is skipped and a warning is
+    emitted on stderr — the run continues with console-only logging.
     """
     global _atexit_registered  # noqa: PLW0603 — module-level guard for atexit registration
 
@@ -107,10 +122,33 @@ def setup_logging(
         logging.root.removeHandler(handler)
 
     formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    # Best-effort log directory creation.
+    run_mode = infer_run_mode(namespace)
+    log_file: Path | None = None
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        log_file = log_dir / _log_filename(run_mode, namespace, ts)
+    except (PermissionError, OSError) as exc:
+        print(  # noqa: T201
+            f"Warning: Cannot create logs directory: {exc}. Logging to console only.",
+            file=sys.stderr,
+        )
+
+    # Console handler — stderr, not stdout.
     console = logging.StreamHandler(sys.stderr)
     console.setFormatter(formatter)
     console.setLevel(numeric_level)
     logging.root.addHandler(console)
+
+    # File handler — best-effort.
+    if log_file is not None:
+        fh = RotatingFileHandler(log_file, maxBytes=LOG_FILE_MAX_BYTES, backupCount=LOG_FILE_BACKUP_COUNT)
+        fh.setFormatter(formatter)
+        fh.setLevel(numeric_level)
+        logging.root.addHandler(fh)
+
     logging.root.setLevel(numeric_level)
 
     if not _atexit_registered:
