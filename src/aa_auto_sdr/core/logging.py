@@ -35,7 +35,8 @@ _atexit_registered = False
 
 
 _REDACTION_PATTERNS = (
-    (re.compile(r"Bearer\s+[A-Za-z0-9._\-]+", re.IGNORECASE), "Bearer [REDACTED]"),
+    # Character class covers URL-safe base64 (`-`, `_`) and standard base64 (`+`, `/`, `=`).
+    (re.compile(r"Bearer\s+[A-Za-z0-9._\-+/=]+", re.IGNORECASE), "Bearer [REDACTED]"),
     (re.compile(r"Authorization:\s*[^\r\n]+", re.IGNORECASE), "Authorization: [REDACTED]"),
     (re.compile(r"client_secret=[A-Za-z0-9._\-]+", re.IGNORECASE), "client_secret=[REDACTED]"),
     (re.compile(r"access_token=[A-Za-z0-9._\-]+", re.IGNORECASE), "access_token=[REDACTED]"),
@@ -199,6 +200,10 @@ def setup_logging(
     whose filename is run-mode-aware. If the log directory cannot be created
     (PermissionError / OSError) the file handler is skipped and a warning is
     emitted on stderr — the run continues with console-only logging.
+
+    Closes and removes any preexisting handlers on the root logger before
+    wiring its own. Embedders that pre-configure logging on the root logger
+    will lose those handlers — attach to a named logger instead.
     """
     global _atexit_registered  # noqa: PLW0603 — module-level guard for atexit registration
 
@@ -254,6 +259,9 @@ def setup_logging(
         _atexit_registered = True
 
     logger = logging.getLogger("aa_auto_sdr")
+    # NOTSET on the package logger means "inherit effective level from root" —
+    # so a single root.setLevel() call above gates filtering for every child
+    # logger created via logging.getLogger("aa_auto_sdr.<module>").
     logger.setLevel(logging.NOTSET)
 
     # Startup banner — five INFO records, always emitted (file handler always
