@@ -22,9 +22,10 @@ modules where customer-shared log triage starts. Lands the binding
 - `batch_id: str` on `BatchResult` — internally generated 8-char hex,
   emitted on every `pipeline/batch.py` log record so a customer-shared
   batch log is grep-able by batch.
-- ~30 new tests covering per-module event emission, vocabulary drift
+- 24 new tests covering per-module event emission, vocabulary drift
   (AST meta-test), NDJSON schema (golden fixture for `run_complete`), and
-  bearer-token redaction regression at the new call sites.
+  redaction regression for the rendered-message, non-str ``record.msg``,
+  and ``exc_info`` traceback paths at new call sites.
 - `docs/CONFIGURATION.md` — "Reading the log file (v1.4.0)" subsection
   enumerating the eight active events.
 
@@ -47,6 +48,13 @@ modules where customer-shared log triage starts. Lands the binding
   string, defeating per-component redaction. Existing redaction patterns
   unchanged; only the application point shifted. Caught by the v1.4
   regression guard at `tests/core/test_logging_redaction_regression.py`.
+- `core/logging.SensitiveDataFilter` — also closes two adjacent v1.3 leak
+  shapes: (a) non-str `record.msg` (e.g. `logger.error(some_exc)` where the
+  exception's `str()` carries a token) is now coerced and redacted before
+  format time; (b) `record.exc_info` tracebacks from `logger.exception(...)`
+  / `exc_info=True` are pre-formatted, redacted, and stuffed into
+  `record.exc_text` with `exc_info` cleared so the formatter cannot
+  re-render the raw traceback. Both paths covered by regression tests.
 
 ### Notes
 

@@ -30,12 +30,6 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     setup_logging(ns)
-    # If setup_logging coerced an invalid --log-level back to INFO, mirror
-    # that decision into the file handler now that it is attached. Spec §7.2
-    # row 4 — soft warning, no extras required.
-    requested_level = (getattr(ns, "log_level", None) or "INFO").upper()
-    if requested_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
-        logger.warning("invalid log_level=%s coerced to INFO", requested_level)
     run_mode = infer_run_mode(ns)
     logger.info(
         "run_start run_mode=%s",

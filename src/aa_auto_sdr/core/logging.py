@@ -57,13 +57,25 @@ def _redact_text(text: str) -> str:
 class SensitiveDataFilter(logging.Filter):
     """Strip sensitive credentials from records before they reach handlers.
 
-    Renders ``record.msg % record.args`` first, then applies redaction
-    patterns to the result. This catches leaks where the credential lives
-    in an arg and the surrounding context (e.g. ``Bearer``, ``Authorization:``)
-    lives in the format string — a pattern that would otherwise defeat
-    per-component redaction. After redaction, ``record.msg`` holds the
-    redacted rendered text and ``record.args`` is cleared so downstream
-    formatters see the finalized message.
+    Coverage:
+
+    - **Message + args**: renders ``record.msg % record.args`` first then
+      redacts the result, so credentials that live in an arg with surrounding
+      context (e.g. ``Bearer``, ``Authorization:``) in the format string are
+      caught — a shape that defeats per-component redaction. After redaction,
+      ``record.msg`` holds the redacted rendered text and ``record.args`` is
+      cleared so downstream formatters see the finalized message.
+    - **Non-str msg**: any non-str ``record.msg`` (e.g. an exception object
+      passed to ``logger.error(exc)``) is coerced to ``str`` and redacted.
+    - **exc_info traceback**: when ``logger.exception(...)`` or
+      ``exc_info=True`` populates ``record.exc_info``, the traceback is
+      pre-formatted, redacted, and stuffed into ``record.exc_text`` so
+      downstream formatters use the redacted copy. ``exc_info`` is cleared
+      to prevent re-formatting.
+    - **stack_info**: redacted in place when present.
+    - **Sensitive attrs**: any record attribute whose name matches a
+      known-sensitive field (``secret``, ``client_secret``, etc.) is replaced
+      with ``[REDACTED]``.
 
     A regex failure surfaces as the sentinel ``[log-redaction-error]`` rather
     than leaking the raw value.
@@ -79,6 +91,23 @@ class SensitiveDataFilter(logging.Filter):
                 rendered = record.msg
             record.msg = _redact_text(rendered)
             record.args = None
+        else:
+            # Non-str msg (e.g. exception object). Coerce + redact so the
+            # record's str() doesn't surface a credential at format time.
+            record.msg = _redact_text(str(record.msg))
+            record.args = None
+        if record.exc_info:
+            # Pre-format the traceback so we can redact it; downstream
+            # formatters use record.exc_text when set instead of re-formatting
+            # exc_info. Clearing exc_info prevents the re-format leak.
+            try:
+                exc_text = record.exc_text or logging.Formatter().formatException(record.exc_info)
+            except Exception:
+                exc_text = _REDACTION_SENTINEL
+            record.exc_text = _redact_text(exc_text)
+            record.exc_info = None
+        if record.stack_info:
+            record.stack_info = _redact_text(record.stack_info)
         for attr in list(vars(record)):
             if attr in _SENSITIVE_FIELDS or attr.lower() in _SENSITIVE_FIELDS:
                 setattr(record, attr, "[REDACTED]")
