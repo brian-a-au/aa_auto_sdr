@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
 import time
@@ -66,7 +67,7 @@ def run(argv: list[str]) -> int:
     return exit_code
 
 
-def _dispatch(ns, parser) -> int:
+def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """All command dispatch that previously lived directly in run().
 
     Extracted so run() can wrap it in a single try/except for run_failure
