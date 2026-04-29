@@ -14,6 +14,7 @@ Bootstrap order (validated by spike — see docs/superpowers/spikes/...):
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,8 @@ import aanalytics2  # type: ignore[import-untyped]
 from aa_auto_sdr.api.auth import credentials_to_aanalytics2_config
 from aa_auto_sdr.core.credentials import Credentials
 from aa_auto_sdr.core.exceptions import AuthError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -46,10 +49,24 @@ class AaClient:
         creds.validate()
         config = credentials_to_aanalytics2_config(creds)
         aanalytics2.configure(**config)
+        logger.debug(
+            "aanalytics2 configured client_id_prefix=%s",
+            creds.client_id[:8],
+            extra={"client_id_prefix": creds.client_id[:8]},
+        )
 
         login = aanalytics2.Login()
         companies = login.getCompanyId() or []
+        logger.debug(
+            "getCompanyId returned count=%s",
+            len(companies),
+            extra={"count": len(companies)},
+        )
         if not companies:
+            logger.error(
+                "auth_failure reason=no_companies",
+                extra={"error_class": "AuthError", "reason": "no_companies"},
+            )
             raise AuthError(
                 "No companies visible to these credentials. Verify the integration "
                 "is added to an Adobe Analytics Product Profile in Admin Console.",
@@ -57,7 +74,20 @@ class AaClient:
 
         chosen = company_id or companies[0].get("globalCompanyId")
         if not chosen:
+            logger.error(
+                "auth_failure reason=missing_global_company_id",
+                extra={"error_class": "AuthError", "reason": "missing_global_company_id"},
+            )
             raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
 
         handle = aanalytics2.Analytics(chosen)
+        logger.info(
+            "auth bootstrap ok company_id=%s source=%s",
+            chosen,
+            "explicit" if company_id else "first_of_n",
+            extra={
+                "company_id": chosen,
+                "company_id_source": "explicit" if company_id else "first_of_n",
+            },
+        )
         return cls(handle=handle, company_id=chosen)
