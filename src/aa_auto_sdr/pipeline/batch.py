@@ -12,8 +12,10 @@ without `capsys`."""
 from __future__ import annotations
 
 import dataclasses
+import logging
 import os
 import time
+import uuid
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +33,8 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter
+
+logger = logging.getLogger(__name__)
 
 # Mirrors the per-exception exit codes in cli/commands/generate.py so a single-
 # RSID equivalent invocation would have returned the same code.
@@ -85,6 +89,7 @@ def run_batch(
     Returns BatchResult with per-RSID successes, failures, total wall-clock seconds,
     and total output bytes (across successful runs only).
     """
+    batch_id = uuid.uuid4().hex[:8]
     successes: list[RunResult] = []
     failures: list[BatchFailure] = []
     total_bytes = 0
@@ -95,6 +100,14 @@ def run_batch(
         if progress_callback is not None:
             progress_callback(index, total, rsid)
         run_started = time.monotonic()
+        logger.info(
+            "rsid_start rsid=%s batch_id=%s (%s/%s)",
+            rsid,
+            batch_id,
+            index,
+            total,
+            extra={"rsid": rsid, "batch_id": batch_id},
+        )
         try:
             result = single.run_single(
                 client=client,
@@ -108,6 +121,19 @@ def run_batch(
             )
         except AaAutoSdrError as exc:
             message = str(exc)
+            exit_code = _exit_code_for(exc)
+            logger.error(
+                "rsid_failure rsid=%s batch_id=%s error_class=%s",
+                rsid,
+                batch_id,
+                type(exc).__name__,
+                extra={
+                    "rsid": rsid,
+                    "batch_id": batch_id,
+                    "exit_code": exit_code,
+                    "error_class": type(exc).__name__,
+                },
+            )
             if failure_callback is not None:
                 failure_callback(index, total, rsid, message)
             failures.append(
@@ -115,7 +141,7 @@ def run_batch(
                     rsid=rsid,
                     error_type=type(exc).__name__,
                     message=message,
-                    exit_code=_exit_code_for(exc),
+                    exit_code=exit_code,
                 ),
             )
             continue
@@ -124,11 +150,38 @@ def run_batch(
         result = dataclasses.replace(result, duration_seconds=time.monotonic() - run_started)
         successes.append(result)
         total_bytes += _bytes_for(result)
+        logger.info(
+            "rsid_complete rsid=%s batch_id=%s duration_ms=%s count=%s",
+            rsid,
+            batch_id,
+            int(result.duration_seconds * 1000),
+            len(result.outputs),
+            extra={
+                "rsid": rsid,
+                "batch_id": batch_id,
+                "duration_ms": int(result.duration_seconds * 1000),
+                "count": len(result.outputs),
+            },
+        )
 
     elapsed = time.monotonic() - started
+    logger.info(
+        "batch_summary batch_id=%s ok=%s failed=%s duration_ms=%s",
+        batch_id,
+        len(successes),
+        len(failures),
+        int(elapsed * 1000),
+        extra={
+            "batch_id": batch_id,
+            "count": len(successes),
+            "count_failed": len(failures),
+            "duration_ms": int(elapsed * 1000),
+        },
+    )
     return BatchResult(
         successes=successes,
         failures=failures,
         total_duration_seconds=elapsed,
         total_output_bytes=total_bytes,
+        batch_id=batch_id,
     )

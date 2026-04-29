@@ -200,6 +200,26 @@ Every non-fast-path invocation writes a per-run log file under `./logs/` (relati
 
 **`logs/` is git-ignored.** Treat as ephemeral run artifacts.
 
+### Reading the log file (v1.4.0)
+
+Beyond the v1.3 startup banner, v1.4 emits the following events at INFO/ERROR
+from four core modules. See [`LOGGING_STYLE.md`](LOGGING_STYLE.md) for the
+binding contract.
+
+| Event | Level | Source | Meaning |
+|---|---|---|---|
+| `run_start` | INFO | `cli/main.py` | Top-level invocation begins. Carries `run_mode`, `argv_summary`. |
+| `run_complete` | INFO | `cli/main.py` | Top-level invocation succeeded. Carries `exit_code`, `duration_ms`. |
+| `run_failure` | ERROR | `cli/main.py` | Top-level exception escaped command dispatch. Carries `exit_code`, `error_class`. |
+| `rsid_start` | INFO | `pipeline/batch.py` | Per-RSID processing begins. Carries `rsid`, `batch_id`. |
+| `rsid_complete` | INFO | `pipeline/batch.py` | Per-RSID processing succeeded. Carries `rsid`, `batch_id`, `duration_ms`, `count`. |
+| `rsid_failure` | ERROR | `pipeline/batch.py` | Per-RSID processing failed (continue-on-error swallowed it). Carries `rsid`, `batch_id`, `exit_code`, `error_class`. |
+| `auth_failure` | ERROR | `api/client.py` | Credentials bootstrap failed. Carries `error_class`, `reason`. |
+| `snapshot_save` | INFO | `snapshot/store.py` | Snapshot persisted to disk. Carries `snapshot_id`, `rsid`, `output_path`, `count`, `duration_ms`. |
+
+Note: `component_fetch` and `output_write` are reserved in the style-guide
+vocabulary but do not fire in v1.4. They activate in v1.5.
+
 ## Diagnostics
 
 ```bash

@@ -2,6 +2,72 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.0] — 2026-04-28
+
+Second Tier 2 release. Wires the v1.3 logging framework into the four
+modules where customer-shared log triage starts. Lands the binding
+`docs/LOGGING_STYLE.md` so future instrumentation passes have a contract.
+
+### Added
+
+- `docs/LOGGING_STYLE.md` — binding style guide. Levels table, structured-
+  fields vocabulary, ten canonical event names (eight active in v1.4, two
+  reserved for v1.5), message-style rules, de-dup rule.
+- 21 `logger.*(...)` call sites across `api/client.py` (5), `cli/main.py`
+  (4), `pipeline/batch.py` (4), `snapshot/store.py` (8).
+- Eight v1.4-active canonical events: `run_start`, `run_complete`,
+  `run_failure`, `rsid_start`, `rsid_complete`, `rsid_failure`,
+  `auth_failure`, `snapshot_save`.
+- Two reserved canonical events for v1.5: `component_fetch`, `output_write`.
+- `batch_id: str` on `BatchResult` — internally generated 8-char hex,
+  emitted on every `pipeline/batch.py` log record so a customer-shared
+  batch log is grep-able by batch.
+- 24 new tests covering per-module event emission, vocabulary drift
+  (AST meta-test), NDJSON schema (golden fixture for `run_complete`), and
+  redaction regression for the rendered-message, non-str ``record.msg``,
+  and ``exc_info`` traceback paths at new call sites.
+- `docs/CONFIGURATION.md` — "Reading the log file (v1.4.0)" subsection
+  enumerating the eight active events.
+
+### Changed
+
+- `cli/main.run` extracts `_dispatch(ns, parser) -> int` so `run_start`,
+  `run_complete`, and `run_failure` have well-defined emit points around
+  a single try/except. Behavior is otherwise unchanged — every previously
+  reachable `ExitCode` value is still reached on the same input.
+- `snapshot/store.prune_snapshots` — per-file `OSError` on `unlink` is now
+  logged at WARNING and the loop continues, instead of aborting the whole
+  prune. Multi-RSID prunes no longer fail on a single corrupt/locked file.
+
+### Fixed
+
+- `core/logging.SensitiveDataFilter` — redaction now applies to the
+  rendered `record.msg % record.args` instead of msg/args separately. The
+  v1.3 surface left a leak shape where a credential lived in an arg with
+  surrounding context (e.g. `"Bearer"`, `"Authorization:"`) in the format
+  string, defeating per-component redaction. Existing redaction patterns
+  unchanged; only the application point shifted. Caught by the v1.4
+  regression guard at `tests/core/test_logging_redaction_regression.py`.
+- `core/logging.SensitiveDataFilter` — also closes two adjacent v1.3 leak
+  shapes: (a) non-str `record.msg` (e.g. `logger.error(some_exc)` where the
+  exception's `str()` carries a token) is now coerced and redacted before
+  format time; (b) `record.exc_info` tracebacks from `logger.exception(...)`
+  / `exc_info=True` are pre-formatted, redacted, and stuffed into
+  `record.exc_text` with `exc_info` cleared so the formatter cannot
+  re-render the raw traceback. Both paths covered by regression tests.
+
+### Notes
+
+- `LOG_LEVEL` env var, `--log-level`, `--log-format`, `--quiet` from v1.3
+  continue to control the new records.
+- Reserved events (`component_fetch`, `output_write`) and reserved fields
+  (`worker_id`, `cache_event`) are documented but unused in v1.4. They
+  activate in v1.5 alongside `api/fetch.py` / `output/writers/*`
+  instrumentation and parallel-batch / validation-cache features.
+- Tier 2 carryover (parallel batch workers, retry/backoff CLI knobs,
+  validation cache, agent mode, sampling, memory caps, naming audits,
+  field-level shaping) — defer to v1.5+.
+
 ## [1.3.0] — 2026-04-28
 
 First Tier 2 release. Adds structured per-run logging — the only

@@ -57,22 +57,57 @@ def _redact_text(text: str) -> str:
 class SensitiveDataFilter(logging.Filter):
     """Strip sensitive credentials from records before they reach handlers.
 
-    Operates in-place on record.msg, record.args, and any record attributes
-    whose name matches a known-sensitive field. A regex failure surfaces as
-    the sentinel '[log-redaction-error]' rather than leaking the raw value.
+    Coverage:
+
+    - **Message + args**: renders ``record.msg % record.args`` first then
+      redacts the result, so credentials that live in an arg with surrounding
+      context (e.g. ``Bearer``, ``Authorization:``) in the format string are
+      caught — a shape that defeats per-component redaction. After redaction,
+      ``record.msg`` holds the redacted rendered text and ``record.args`` is
+      cleared so downstream formatters see the finalized message.
+    - **Non-str msg**: any non-str ``record.msg`` (e.g. an exception object
+      passed to ``logger.error(exc)``) is coerced to ``str`` and redacted.
+    - **exc_info traceback**: when ``logger.exception(...)`` or
+      ``exc_info=True`` populates ``record.exc_info``, the traceback is
+      pre-formatted, redacted, and stuffed into ``record.exc_text`` so
+      downstream formatters use the redacted copy. ``exc_info`` is cleared
+      to prevent re-formatting.
+    - **stack_info**: redacted in place when present.
+    - **Sensitive attrs**: any record attribute whose name matches a
+      known-sensitive field (``secret``, ``client_secret``, etc.) is replaced
+      with ``[REDACTED]``.
+
+    A regex failure surfaces as the sentinel ``[log-redaction-error]`` rather
+    than leaking the raw value.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.msg, str):
-            record.msg = _redact_text(record.msg)
-        if record.args:
-            redacted: list[Any] = []
-            for arg in record.args if isinstance(record.args, tuple) else (record.args,):
-                if isinstance(arg, str):
-                    redacted.append(_redact_text(arg))
-                else:
-                    redacted.append(arg)
-            record.args = tuple(redacted) if isinstance(record.args, tuple) else redacted[0]
+            try:
+                rendered = record.getMessage()
+            except (TypeError, ValueError):  # fmt: skip
+                # %-format mismatch (rare; usually a malformed call site).
+                # Falling back to raw msg is safer than dropping the record.
+                rendered = record.msg
+            record.msg = _redact_text(rendered)
+            record.args = None
+        else:
+            # Non-str msg (e.g. exception object). Coerce + redact so the
+            # record's str() doesn't surface a credential at format time.
+            record.msg = _redact_text(str(record.msg))
+            record.args = None
+        if record.exc_info:
+            # Pre-format the traceback so we can redact it; downstream
+            # formatters use record.exc_text when set instead of re-formatting
+            # exc_info. Clearing exc_info prevents the re-format leak.
+            try:
+                exc_text = record.exc_text or logging.Formatter().formatException(record.exc_info)
+            except Exception:
+                exc_text = _REDACTION_SENTINEL
+            record.exc_text = _redact_text(exc_text)
+            record.exc_info = None
+        if record.stack_info:
+            record.stack_info = _redact_text(record.stack_info)
         for attr in list(vars(record)):
             if attr in _SENSITIVE_FIELDS or attr.lower() in _SENSITIVE_FIELDS:
                 setattr(record, attr, "[REDACTED]")
