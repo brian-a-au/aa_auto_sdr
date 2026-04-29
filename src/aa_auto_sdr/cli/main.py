@@ -2,20 +2,78 @@
 
 from __future__ import annotations
 
+import logging
 import sys
+import time
 from pathlib import Path
 
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
 from aa_auto_sdr.cli.parser import build_parser
 from aa_auto_sdr.core.exit_codes import ExitCode
-from aa_auto_sdr.core.logging import setup_logging
+from aa_auto_sdr.core.logging import infer_run_mode, setup_logging
+
+logger = logging.getLogger(__name__)
+
+
+def _argv_summary(argv: list[str]) -> list[str]:
+    """Return only the flag names from argv (anything starting with '-').
+
+    Used as ``extra={"argv_summary": ...}`` on run_start. Positional values
+    (RSIDs, file paths) are never included — they ride on their own
+    structured fields. See LOGGING_STYLE.md §message-style rules."""
+    return [a for a in argv if a.startswith("-")]
 
 
 def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     setup_logging(ns)
+    # If setup_logging coerced an invalid --log-level back to INFO, mirror
+    # that decision into the file handler now that it is attached. Spec §7.2
+    # row 4 — soft warning, no extras required.
+    requested_level = (getattr(ns, "log_level", None) or "INFO").upper()
+    if requested_level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+        logger.warning("invalid log_level=%s coerced to INFO", requested_level)
+    run_mode = infer_run_mode(ns)
+    logger.info(
+        "run_start mode=%s",
+        run_mode,
+        extra={"run_mode": run_mode, "argv_summary": _argv_summary(argv)},
+    )
+    started = time.monotonic()
+    try:
+        exit_code = _dispatch(ns, parser)
+    except Exception as exc:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.error(
+            "run_failure error_class=%s",
+            type(exc).__name__,
+            extra={
+                "exit_code": ExitCode.GENERIC.value,
+                "error_class": type(exc).__name__,
+                "duration_ms": duration_ms,
+            },
+        )
+        raise
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "run_complete exit_code=%s duration_ms=%s",
+        exit_code,
+        duration_ms,
+        extra={"exit_code": exit_code, "duration_ms": duration_ms},
+    )
+    return exit_code
+
+
+def _dispatch(ns, parser) -> int:
+    """All command dispatch that previously lived directly in run().
+
+    Extracted so run() can wrap it in a single try/except for run_failure
+    instrumentation without proliferating log calls before every existing
+    ``return X.value`` in the dispatch chain. Verbatim move — no behavior
+    changes inside this helper. ``parser`` is threaded through so the
+    no-args USAGE branch can still call ``parser.print_usage(sys.stderr)``."""
     from aa_auto_sdr.core import colors
 
     colors.set_theme(getattr(ns, "color_theme", "default"))
