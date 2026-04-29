@@ -57,22 +57,28 @@ def _redact_text(text: str) -> str:
 class SensitiveDataFilter(logging.Filter):
     """Strip sensitive credentials from records before they reach handlers.
 
-    Operates in-place on record.msg, record.args, and any record attributes
-    whose name matches a known-sensitive field. A regex failure surfaces as
-    the sentinel '[log-redaction-error]' rather than leaking the raw value.
+    Renders ``record.msg % record.args`` first, then applies redaction
+    patterns to the result. This catches leaks where the credential lives
+    in an arg and the surrounding context (e.g. ``Bearer``, ``Authorization:``)
+    lives in the format string — a pattern that would otherwise defeat
+    per-component redaction. After redaction, ``record.msg`` holds the
+    redacted rendered text and ``record.args`` is cleared so downstream
+    formatters see the finalized message.
+
+    A regex failure surfaces as the sentinel ``[log-redaction-error]`` rather
+    than leaking the raw value.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.msg, str):
-            record.msg = _redact_text(record.msg)
-        if record.args:
-            redacted: list[Any] = []
-            for arg in record.args if isinstance(record.args, tuple) else (record.args,):
-                if isinstance(arg, str):
-                    redacted.append(_redact_text(arg))
-                else:
-                    redacted.append(arg)
-            record.args = tuple(redacted) if isinstance(record.args, tuple) else redacted[0]
+            try:
+                rendered = record.getMessage()
+            except (TypeError, ValueError):  # fmt: skip
+                # %-format mismatch (rare; usually a malformed call site).
+                # Falling back to raw msg is safer than dropping the record.
+                rendered = record.msg
+            record.msg = _redact_text(rendered)
+            record.args = None
         for attr in list(vars(record)):
             if attr in _SENSITIVE_FIELDS or attr.lower() in _SENSITIVE_FIELDS:
                 setattr(record, attr, "[REDACTED]")
