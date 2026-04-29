@@ -34,3 +34,4 @@ class BatchResult:
     failures: list[BatchFailure] = field(default_factory=list)
     total_duration_seconds: float = 0.0
     total_output_bytes: int = 0
+    batch_id: str = ""
