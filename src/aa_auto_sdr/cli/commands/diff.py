@@ -39,7 +39,11 @@ def run(
     show_only: frozenset[str] = frozenset(),
     max_issues: int | None = None,
     warn_threshold: int | None = None,
+    color_theme: str = "default",
 ) -> int:
+    from aa_auto_sdr.core import colors
+
+    colors.set_theme(color_theme)
     fmt = format_name or "console"
     if fmt not in _VALID_FORMATS:
         print(

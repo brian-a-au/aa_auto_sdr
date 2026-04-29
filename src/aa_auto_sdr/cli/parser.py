@@ -413,4 +413,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit a JSON run summary to PATH (or '-' for stdout)",
     )
 
+    # v1.3.0 — logging
+    p.add_argument(
+        "--log-level",
+        type=str,
+        default=None,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging level (default: INFO, or LOG_LEVEL env var)",
+    )
+    p.add_argument(
+        "--log-format",
+        type=str,
+        default="text",
+        choices=["text", "json"],
+        help='Log output format: "text" (default, human-readable) or "json" (NDJSON for Splunk/ELK)',
+    )
+    p.add_argument(
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Suppress progress banners and INFO console output. Errors and final paths still print. Log file is unaffected.",
+    )
+    p.add_argument(
+        "--color-theme",
+        type=str,
+        choices=["default", "accessible"],
+        default="default",
+        help="Diff color palette: 'default' (green/red) or 'accessible' (blue/orange — better for red-green deuteranopia)",
+    )
+
     return p

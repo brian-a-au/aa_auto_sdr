@@ -45,3 +45,6 @@ config.json
 !tests/fixtures/**/*.xlsx
 !sample_outputs/**/*.csv
 !sample_outputs/**/*.xlsx
+
+# v1.3.0 — per-run log files written by core/logging.py
+logs/
