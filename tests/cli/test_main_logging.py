@@ -5,9 +5,11 @@ with the documented extras. Test discipline: assert event-prefix substring
 Implementation note on log capture: ``setup_logging`` strips root handlers
 when it (re)installs its console + file pair, which removes pytest's
 default caplog handler. To survive that, we attach ``caplog.handler``
-directly to the ``aa_auto_sdr`` package logger before calling ``run()`` —
-records propagate up to it before reaching root, so they reach caplog
-regardless of what setup_logging does to the root handler list."""
+directly to the ``aa_auto_sdr`` package logger via the autouse fixture
+below. Records propagate up to it before reaching root, so caplog still
+captures them regardless of what setup_logging does to the root handler
+list. The fixture snapshots and restores the package logger's handlers
+so each test is hermetic — no handler leaks across tests or files."""
 
 from __future__ import annotations
 
@@ -19,22 +21,32 @@ import pytest
 from aa_auto_sdr.cli.main import run
 
 
-def _records_with_event(caplog, event: str) -> list[logging.LogRecord]:
-    return [r for r in caplog.records if event in r.getMessage()]
-
-
-def _attach_caplog_to_package_logger(caplog) -> None:
-    """Attach caplog's handler to the aa_auto_sdr package logger so it
-    survives setup_logging's root-handler reset."""
+@pytest.fixture(autouse=True)
+def _attach_caplog_to_package_logger(caplog):
+    """Attach caplog's handler to the aa_auto_sdr package logger so records
+    survive setup_logging's root-handler reset, then restore on teardown so
+    handlers don't leak into other tests."""
     pkg = logging.getLogger("aa_auto_sdr")
+    saved_handlers = pkg.handlers[:]
+    saved_level = pkg.level
     pkg.addHandler(caplog.handler)
     pkg.setLevel(logging.DEBUG)
+    try:
+        yield
+    finally:
+        pkg.handlers.clear()
+        for h in saved_handlers:
+            pkg.addHandler(h)
+        pkg.setLevel(saved_level)
+
+
+def _records_with_event(caplog, event: str) -> list[logging.LogRecord]:
+    return [r for r in caplog.records if event in r.getMessage()]
 
 
 def test_run_emits_run_start_with_run_mode_and_argv_summary(caplog, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     caplog.set_level(logging.INFO)
-    _attach_caplog_to_package_logger(caplog)
     # --show-config is a no-auth path; deterministic exit, no Adobe call.
     run(["--show-config"])
     starts = _records_with_event(caplog, "run_start")
@@ -50,7 +62,6 @@ def test_run_emits_run_start_with_run_mode_and_argv_summary(caplog, tmp_path, mo
 def test_run_emits_run_complete_with_exit_code_and_duration_ms(caplog, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     caplog.set_level(logging.INFO)
-    _attach_caplog_to_package_logger(caplog)
     run(["--show-config"])
     completes = _records_with_event(caplog, "run_complete")
     assert len(completes) == 1
@@ -64,7 +75,6 @@ def test_run_emits_run_complete_with_exit_code_and_duration_ms(caplog, tmp_path,
 def test_run_emits_run_failure_on_exception(caplog, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     caplog.set_level(logging.ERROR)
-    _attach_caplog_to_package_logger(caplog)
     # Force the dispatch helper to raise.
     with (
         patch("aa_auto_sdr.cli.main._dispatch", side_effect=RuntimeError("boom")),
@@ -87,7 +97,6 @@ def test_fast_path_commands_emit_no_records(caplog, tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
     caplog.set_level(logging.DEBUG)
-    _attach_caplog_to_package_logger(caplog)
     main(["--version"])
     main(["--help"])
     main(["--exit-codes"])
