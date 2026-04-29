@@ -13,8 +13,8 @@ modules where customer-shared log triage starts. Lands the binding
 - `docs/LOGGING_STYLE.md` — binding style guide. Levels table, structured-
   fields vocabulary, ten canonical event names (eight active in v1.4, two
   reserved for v1.5), message-style rules, de-dup rule.
-- ~20 `logger.*(...)` call sites across `api/client.py` (5), `cli/main.py`
-  (4), `pipeline/batch.py` (4), `snapshot/store.py` (6).
+- 21 `logger.*(...)` call sites across `api/client.py` (5), `cli/main.py`
+  (4), `pipeline/batch.py` (4), `snapshot/store.py` (8).
 - Eight v1.4-active canonical events: `run_start`, `run_complete`,
   `run_failure`, `rsid_start`, `rsid_complete`, `rsid_failure`,
   `auth_failure`, `snapshot_save`.

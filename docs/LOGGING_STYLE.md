@@ -36,6 +36,14 @@ text. The vocabulary meta-test enforces presence on the events listed in
 | `batch_id` | str | All batch-mode records (replaces CJA's `[batch_id]` message-text prefix). |
 | `error_class` | str (exception class name) | Every `ERROR` and `CRITICAL` record. |
 | `retry_attempt` | int | Retry/backoff records (DEBUG). |
+| `run_mode` | str — `single`/`batch`/`diff`/`config`/`discovery`/`inspect`/etc. | `run_start` records — derived from `infer_run_mode(ns)`. |
+| `argv_summary` | list[str] | `run_start` records — flag names only (anything starting with `-`); never positional values like RSIDs or file paths. |
+| `exit_code` | int | `run_complete`, `run_failure`, `rsid_failure` — the exit code being returned/escalated. |
+| `count_failed` | int | Batch summary records — count of RSIDs that failed (paired with `count` for successes). |
+| `company_id` | str | `api/client.py` bootstrap-success record — the resolved AA `globalCompanyId`. |
+| `company_id_source` | str — `explicit`/`first_of_n` | `api/client.py` bootstrap-success record — provenance of the chosen company id. |
+| `client_id_prefix` | str (8 chars) | `api/client.py` post-configure DEBUG record — first 8 chars of the OAuth client id; full client id is never logged. |
+| `reason` | str — discriminator | `auth_failure` records — short stable reason code (`no_companies` / `missing_global_company_id`). |
 
 **Reserved fields (do not use yet, will activate when their underlying feature lands):**
 

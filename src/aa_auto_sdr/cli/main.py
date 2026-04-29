@@ -38,7 +38,7 @@ def run(argv: list[str]) -> int:
         logger.warning("invalid log_level=%s coerced to INFO", requested_level)
     run_mode = infer_run_mode(ns)
     logger.info(
-        "run_start mode=%s",
+        "run_start run_mode=%s",
         run_mode,
         extra={"run_mode": run_mode, "argv_summary": _argv_summary(argv)},
     )
