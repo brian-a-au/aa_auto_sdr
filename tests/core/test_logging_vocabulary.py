@@ -1,10 +1,21 @@
-"""v1.4 meta-test — the four target modules' logger.* calls must use the
-structured-fields vocabulary defined in docs/LOGGING_STYLE.md (spec §6.2).
+"""v1.5 meta-test — every instrumented module's logger.* calls must use the
+structured-fields vocabulary defined in docs/LOGGING_STYLE.md (spec §6.1).
 
 Drift the meta-test catches:
-- Message text mentions a vocabulary keyword but `extra={...}` doesn't carry
-  the corresponding key.
-- `extra={...}` carries a key not in the canonical vocabulary.
+- Message text mentions a vocabulary keyword (as ``key=``) but ``extra={...}``
+  doesn't carry the corresponding key.
+- ``extra={...}`` carries a key not in the canonical vocabulary.
+- A canonical event prefix appears in a message but the call site is missing
+  the required extras for that event.
+
+v1.5 changes vs v1.4:
+- Reserved-events exemption dropped: ``component_fetch`` and ``output_write``
+  are now ordinary canonical events with the same enforcement as the v1.4
+  events (``run_start``, ``rsid_start``, etc.).
+- Vocabulary expanded with ``component_type``, ``format``, ``command``,
+  ``creds_source``, ``snapshot_spec`` (spec §6.1).
+- Instrumented-modules enumeration extended from 4 → 26 to cover every
+  module that emits ``logger.*`` calls in v1.5.
 """
 
 from __future__ import annotations
@@ -14,7 +25,10 @@ from pathlib import Path
 
 import pytest
 
+# Canonical vocabulary — every key allowed in `extra={}` on a logger call.
+# Keep in sync with docs/LOGGING_STYLE.md §"Structured fields vocabulary".
 VOCAB = {
+    # v1.4 carry-overs
     "rsid",
     "component_type",
     "count",
@@ -33,15 +47,52 @@ VOCAB = {
     "count_failed",
     "argv_summary",
     "run_mode",
+    # v1.5 additions
+    "command",
+    "creds_source",
+    "snapshot_spec",
+    "tool_version",
 }
-# `format` is also a Python builtin, so we treat it as vocab only when it
-# appears as a `key=` token in a message string, not as a substring.
 
-TARGET_MODULES = [
+# Canonical events whose presence in a message string mandates a fixed set of
+# extras. Each entry: event prefix → required extras keys.
+# (Per spec §6.2, v1.5 lifts the v1.4 reserved-events exemption — these are
+# now ordinary canonical events with full keyword-extras enforcement.)
+CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
+    "component_fetch": {"rsid", "component_type", "count", "duration_ms"},
+    "output_write": {"format", "output_path", "count", "duration_ms", "rsid"},
+    "command_start": {"command"},
+    "command_complete": {"command", "exit_code", "duration_ms"},
+    "creds_resolved": {"creds_source"},
+}
+
+INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/api/client.py"),
+    Path("src/aa_auto_sdr/api/fetch.py"),
     Path("src/aa_auto_sdr/cli/main.py"),
+    Path("src/aa_auto_sdr/cli/commands/generate.py"),
+    Path("src/aa_auto_sdr/cli/commands/batch.py"),
+    Path("src/aa_auto_sdr/cli/commands/diff.py"),
+    Path("src/aa_auto_sdr/cli/commands/discovery.py"),
+    Path("src/aa_auto_sdr/cli/commands/inspect.py"),
+    Path("src/aa_auto_sdr/cli/commands/snapshots.py"),
+    Path("src/aa_auto_sdr/cli/commands/profiles.py"),
+    Path("src/aa_auto_sdr/cli/commands/config.py"),
+    Path("src/aa_auto_sdr/cli/commands/stats.py"),
+    Path("src/aa_auto_sdr/cli/commands/interactive.py"),
+    Path("src/aa_auto_sdr/core/credentials.py"),
+    Path("src/aa_auto_sdr/core/profiles.py"),
+    Path("src/aa_auto_sdr/output/writers/excel.py"),
+    Path("src/aa_auto_sdr/output/writers/csv.py"),
+    Path("src/aa_auto_sdr/output/writers/json.py"),
+    Path("src/aa_auto_sdr/output/writers/html.py"),
+    Path("src/aa_auto_sdr/output/writers/markdown.py"),
     Path("src/aa_auto_sdr/pipeline/batch.py"),
+    Path("src/aa_auto_sdr/sdr/builder.py"),
     Path("src/aa_auto_sdr/snapshot/store.py"),
+    Path("src/aa_auto_sdr/snapshot/comparator.py"),
+    Path("src/aa_auto_sdr/snapshot/resolver.py"),
+    Path("src/aa_auto_sdr/snapshot/git.py"),
 ]
 
 
@@ -79,7 +130,7 @@ def _message_string(call: ast.Call) -> str | None:
     return None
 
 
-@pytest.mark.parametrize("module_path", TARGET_MODULES, ids=lambda p: p.name)
+@pytest.mark.parametrize("module_path", INSTRUMENTED_MODULES, ids=lambda p: p.name)
 def test_logger_calls_use_canonical_vocabulary(module_path):
     src = module_path.read_text()
     tree = ast.parse(src)
@@ -90,7 +141,7 @@ def test_logger_calls_use_canonical_vocabulary(module_path):
         unknown = set(extras) - VOCAB
         assert not unknown, (
             f"{module_path}: logger call uses extras keys not in canonical "
-            f"vocabulary: {unknown}. Add to docs/LOGGING_STYLE.md §6.2 first, "
+            f"vocabulary: {unknown}. Add to docs/LOGGING_STYLE.md §6.1 first, "
             f"then to the VOCAB set in this test."
         )
         # Rule 2: if message contains `key=` for a vocabulary key, that key
@@ -105,4 +156,34 @@ def test_logger_calls_use_canonical_vocabulary(module_path):
                     f"{module_path}: logger call message mentions "
                     f"`{key}=` but `extra={{}}` does not carry the key. "
                     f"Message: {msg!r}"
+                )
+
+
+@pytest.mark.parametrize("module_path", INSTRUMENTED_MODULES, ids=lambda p: p.name)
+def test_canonical_event_calls_carry_required_extras(module_path):
+    """Every logger.* call whose message starts with a canonical event prefix
+    must carry the full set of extras documented for that event in spec §6.2.
+
+    Token-boundary-aware: matches the prefix only at message start followed by
+    a space or end-of-string, so a comment-style substring (e.g. ``"see
+    component_fetch in fetch.py"``) doesn't trigger.
+    """
+    src = module_path.read_text()
+    tree = ast.parse(src)
+    for call in _logger_calls(tree):
+        msg = _message_string(call)
+        if msg is None:
+            continue
+        extras = _extras_dict(call) or {}
+        for prefix, required in CANONICAL_EVENT_EXTRAS.items():
+            # Only match at the start of the message, followed by a space or
+            # end-of-string. This is the canonical-event-prefix shape per
+            # LOGGING_STYLE.md §message-style rules.
+            if msg == prefix or msg.startswith(prefix + " "):
+                missing = required - set(extras)
+                assert not missing, (
+                    f"{module_path}: logger call with canonical event "
+                    f"prefix '{prefix}' is missing required extras: "
+                    f"{sorted(missing)}. Required: {sorted(required)}. "
+                    f"Got: {sorted(extras)}. Message: {msg!r}"
                 )

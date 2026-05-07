@@ -10,12 +10,16 @@ runs with different filters remain meaningful."""
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.sdr.document import SdrDocument
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,8 +74,15 @@ def build_sdr(
 ) -> SdrDocument:
     """Fetch components for `rsid` (per `component_filter`) and assemble an SdrDocument."""
     flt = component_filter or ComponentFilter()
+    started = time.monotonic()
+    logger.debug(
+        "build_sdr starting rsid=%s tool_version=%s",
+        rsid,
+        tool_version,
+        extra={"rsid": rsid, "tool_version": tool_version},
+    )
     rs = fetch.fetch_report_suite(client, rsid)
-    return SdrDocument(
+    doc = SdrDocument(
         report_suite=rs,
         dimensions=sorted(
             fetch.fetch_dimensions(client, rsid) if flt.dimensions else [],
@@ -100,3 +111,20 @@ def build_sdr(
         captured_at=captured_at,
         tool_version=tool_version,
     )
+    duration_ms = int((time.monotonic() - started) * 1000)
+    component_count = (
+        len(doc.dimensions)
+        + len(doc.metrics)
+        + len(doc.segments)
+        + len(doc.calculated_metrics)
+        + len(doc.virtual_report_suites)
+        + len(doc.classifications)
+    )
+    logger.debug(
+        "build_sdr complete rsid=%s count=%s duration_ms=%s",
+        rsid,
+        component_count,
+        duration_ms,
+        extra={"rsid": rsid, "count": component_count, "duration_ms": duration_ms},
+    )
+    return doc

@@ -8,6 +8,8 @@ run_describe_reportsuite returns metadata + counts (no full SDR generated)."""
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
@@ -26,6 +28,8 @@ from aa_auto_sdr.core.exceptions import (
     ReportSuiteNotFoundError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
+
+logger = logging.getLogger(__name__)
 
 _METRIC_COLS = [
     "id",
@@ -116,6 +120,7 @@ def _bootstrap(profile: str | None) -> tuple[AaClient | None, int]:
 
 def _list_per_component(
     *,
+    command: str,
     identifier: str,
     profile: str | None,
     format_name: str | None,
@@ -129,71 +134,97 @@ def _list_per_component(
     sort_allowlist: tuple[str, ...],
 ) -> int:
     """Generic list-X handler: resolve identifier → fetch per RSID → flatten →
-    filter → render."""
-    client, rc = _bootstrap(profile)
-    if client is None:
-        return rc
-
+    filter → render. Pattern 9B.3 — one start/complete pair covers all five
+    list-X entry points (each passes its own ``command`` value)."""
+    started_ms = time.monotonic()
+    logger.info("command_start command=%s", command, extra={"command": command})
+    exit_code = ExitCode.GENERIC.value
     try:
-        canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
-    except ReportSuiteNotFoundError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.NOT_FOUND.value
-    except ApiError as e:
-        print(f"api error: {e}", flush=True)
-        return ExitCode.API.value
+        client, rc = _bootstrap(profile)
+        if client is None:
+            exit_code = rc
+            return exit_code
 
-    multi = len(canonical_rsids) > 1
-    if multi:
-        import sys
-
-        print(
-            f"{identifier!r} matches {len(canonical_rsids)} report suites: {', '.join(canonical_rsids)}",
-            file=sys.stderr,
-            flush=True,
-        )
-
-    records: list[dict[str, Any]] = []
-    cols = (["rsid", *columns]) if multi else columns
-    for canonical_rsid in canonical_rsids:
         try:
-            items = fetcher(client, canonical_rsid)
+            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
+        except ReportSuiteNotFoundError as e:
+            print(f"error: {e}", flush=True)
+            exit_code = ExitCode.NOT_FOUND.value
+            return exit_code
         except ApiError as e:
             print(f"api error: {e}", flush=True)
-            return ExitCode.API.value
-        except AaAutoSdrError as e:
+            exit_code = ExitCode.API.value
+            return exit_code
+
+        multi = len(canonical_rsids) > 1
+        if multi:
+            import sys
+
+            print(
+                f"{identifier!r} matches {len(canonical_rsids)} report suites: {', '.join(canonical_rsids)}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+        records: list[dict[str, Any]] = []
+        cols = (["rsid", *columns]) if multi else columns
+        for canonical_rsid in canonical_rsids:
+            try:
+                items = fetcher(client, canonical_rsid)
+            except ApiError as e:
+                print(f"api error: {e}", flush=True)
+                exit_code = ExitCode.API.value
+                return exit_code
+            except AaAutoSdrError as e:
+                print(f"error: {e}", flush=True)
+                exit_code = ExitCode.GENERIC.value
+                return exit_code
+            for item in items:
+                row = asdict(item)
+                if multi:
+                    row = {"rsid": canonical_rsid, **row}
+                records.append(row)
+
+        chosen_sort = sort_field or sort_allowlist[0]
+        try:
+            filtered = apply_filters(
+                records,
+                name_filter=name_filter,
+                name_exclude=name_exclude,
+                sort_field=chosen_sort,
+                limit=limit,
+                sort_field_allowlist=sort_allowlist,
+            )
+        except ValueError as e:
             print(f"error: {e}", flush=True)
-            return ExitCode.GENERIC.value
-        for item in items:
-            row = asdict(item)
-            if multi:
-                row = {"rsid": canonical_rsid, **row}
-            records.append(row)
+            exit_code = ExitCode.USAGE.value
+            return exit_code
 
-    chosen_sort = sort_field or sort_allowlist[0]
-    try:
-        filtered = apply_filters(
-            records,
-            name_filter=name_filter,
-            name_exclude=name_exclude,
-            sort_field=chosen_sort,
-            limit=limit,
-            sort_field_allowlist=sort_allowlist,
+        exit_code = render_records(
+            filtered,
+            format_name=format_name,
+            output=_resolve_output(output),
+            columns=cols,
         )
-    except ValueError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.USAGE.value
-
-    return render_records(
-        filtered,
-        format_name=format_name,
-        output=_resolve_output(output),
-        columns=cols,
-    )
+        return exit_code
+    finally:
+        duration_ms = int((time.monotonic() - started_ms) * 1000)
+        logger.info(
+            "command_complete command=%s exit_code=%s duration_ms=%s",
+            command,
+            exit_code,
+            duration_ms,
+            extra={
+                "command": command,
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            },
+        )
 
 
 def run_list_metrics(**kwargs: Any) -> int:
     return _list_per_component(
+        command="list_metrics",
         fetcher=fetch.fetch_metrics,
         columns=_METRIC_COLS,
         sort_allowlist=_METRIC_SORT,
@@ -203,6 +234,7 @@ def run_list_metrics(**kwargs: Any) -> int:
 
 def run_list_dimensions(**kwargs: Any) -> int:
     return _list_per_component(
+        command="list_dimensions",
         fetcher=fetch.fetch_dimensions,
         columns=_DIMENSION_COLS,
         sort_allowlist=_DIMENSION_SORT,
@@ -212,6 +244,7 @@ def run_list_dimensions(**kwargs: Any) -> int:
 
 def run_list_segments(**kwargs: Any) -> int:
     return _list_per_component(
+        command="list_segments",
         fetcher=fetch.fetch_segments,
         columns=_SEGMENT_COLS,
         sort_allowlist=_SEGMENT_SORT,
@@ -221,6 +254,7 @@ def run_list_segments(**kwargs: Any) -> int:
 
 def run_list_calculated_metrics(**kwargs: Any) -> int:
     return _list_per_component(
+        command="list_calculated_metrics",
         fetcher=fetch.fetch_calculated_metrics,
         columns=_CALCULATED_COLS,
         sort_allowlist=_CALCULATED_SORT,
@@ -230,6 +264,7 @@ def run_list_calculated_metrics(**kwargs: Any) -> int:
 
 def run_list_classification_datasets(**kwargs: Any) -> int:
     return _list_per_component(
+        command="list_classification_datasets",
         fetcher=fetch.fetch_classification_datasets,
         columns=_CLASSIFICATION_COLS,
         sort_allowlist=_CLASSIFICATION_SORT,
@@ -245,55 +280,80 @@ def run_describe_reportsuite(
     output: str | None,
 ) -> int:
     """Print metadata + per-component counts for one RS (or several on multi-match)."""
-    client, rc = _bootstrap(profile)
-    if client is None:
-        return rc
-
+    started_ms = time.monotonic()
+    logger.info(
+        "command_start command=describe_reportsuite",
+        extra={"command": "describe_reportsuite"},
+    )
+    exit_code = ExitCode.GENERIC.value
     try:
-        canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
-    except ReportSuiteNotFoundError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.NOT_FOUND.value
-    except ApiError as e:
-        print(f"api error: {e}", flush=True)
-        return ExitCode.API.value
+        client, rc = _bootstrap(profile)
+        if client is None:
+            exit_code = rc
+            return exit_code
 
-    records: list[dict[str, Any]] = []
-    for canonical_rsid in canonical_rsids:
         try:
-            rs = fetch.fetch_report_suite(client, canonical_rsid)
-            dims = fetch.fetch_dimensions(client, canonical_rsid)
-            mets = fetch.fetch_metrics(client, canonical_rsid)
-            segs = fetch.fetch_segments(client, canonical_rsid)
-            cms = fetch.fetch_calculated_metrics(client, canonical_rsid)
-            vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid)
-            cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid)
+            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
+        except ReportSuiteNotFoundError as e:
+            print(f"error: {e}", flush=True)
+            exit_code = ExitCode.NOT_FOUND.value
+            return exit_code
         except ApiError as e:
             print(f"api error: {e}", flush=True)
-            return ExitCode.API.value
-        except AaAutoSdrError as e:
-            print(f"error: {e}", flush=True)
-            return ExitCode.GENERIC.value
+            exit_code = ExitCode.API.value
+            return exit_code
 
-        records.append(
-            {
-                "rsid": rs.rsid,
-                "name": rs.name,
-                "timezone": rs.timezone,
-                "currency": rs.currency,
-                "parent_rsid": rs.parent_rsid,
-                "dimensions": len(dims),
-                "metrics": len(mets),
-                "segments": len(segs),
-                "calculated_metrics": len(cms),
-                "virtual_report_suites": len(vrs),
-                "classifications": len(cls_ds),
-            }
+        records: list[dict[str, Any]] = []
+        for canonical_rsid in canonical_rsids:
+            try:
+                rs = fetch.fetch_report_suite(client, canonical_rsid)
+                dims = fetch.fetch_dimensions(client, canonical_rsid)
+                mets = fetch.fetch_metrics(client, canonical_rsid)
+                segs = fetch.fetch_segments(client, canonical_rsid)
+                cms = fetch.fetch_calculated_metrics(client, canonical_rsid)
+                vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid)
+                cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid)
+            except ApiError as e:
+                print(f"api error: {e}", flush=True)
+                exit_code = ExitCode.API.value
+                return exit_code
+            except AaAutoSdrError as e:
+                print(f"error: {e}", flush=True)
+                exit_code = ExitCode.GENERIC.value
+                return exit_code
+
+            records.append(
+                {
+                    "rsid": rs.rsid,
+                    "name": rs.name,
+                    "timezone": rs.timezone,
+                    "currency": rs.currency,
+                    "parent_rsid": rs.parent_rsid,
+                    "dimensions": len(dims),
+                    "metrics": len(mets),
+                    "segments": len(segs),
+                    "calculated_metrics": len(cms),
+                    "virtual_report_suites": len(vrs),
+                    "classifications": len(cls_ds),
+                }
+            )
+
+        exit_code = render_records(
+            records,
+            format_name=format_name,
+            output=_resolve_output(output),
+            columns=_DESCRIBE_COLS,
         )
-
-    return render_records(
-        records,
-        format_name=format_name,
-        output=_resolve_output(output),
-        columns=_DESCRIBE_COLS,
-    )
+        return exit_code
+    finally:
+        duration_ms = int((time.monotonic() - started_ms) * 1000)
+        logger.info(
+            "command_complete command=describe_reportsuite exit_code=%s duration_ms=%s",
+            exit_code,
+            duration_ms,
+            extra={
+                "command": "describe_reportsuite",
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            },
+        )

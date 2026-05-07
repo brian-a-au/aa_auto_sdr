@@ -85,10 +85,14 @@ def test_generate_resolves_unique_name_to_rsid(
     mock_client_cls,
     env_creds,
     tmp_path: Path,
-    capsys,
+    caplog,
 ) -> None:
     """User passes a unique name; the canonical RSID is logged and used.
-    Output filename keyed off canonical RSID, not the input name."""
+    Output filename keyed off canonical RSID, not the input name. v1.5.0
+    moved the human-facing 'using report suite: …' line to a structured
+    rsid_resolved INFO record (no more stdout)."""
+    import logging
+
     raw = json.loads(FIXTURE.read_text())
     handle = _build_handle(raw)
     mock_client_cls.from_credentials.return_value = MagicMock(
@@ -96,6 +100,7 @@ def test_generate_resolves_unique_name_to_rsid(
         company_id="testco",
     )
 
+    caplog.set_level(logging.INFO, logger="aa_auto_sdr.cli.commands.generate")
     # The fixture's report_suite has rsid=demo.prod, name="Demo Production"
     rc = cmd.run(
         rsid="Demo Production",  # name, not rsid
@@ -106,8 +111,9 @@ def test_generate_resolves_unique_name_to_rsid(
     assert rc == 0
     # Output filename is keyed off the canonical RSID
     assert (tmp_path / "demo.prod.json").exists()
-    captured = capsys.readouterr()
-    assert "using report suite: 'Demo Production' (rsid: demo.prod)" in captured.out
+    resolved = [r for r in caplog.records if "rsid_resolved" in r.getMessage()]
+    assert resolved
+    assert any(getattr(r, "rsid", None) == "demo.prod" and "was_name_lookup=True" in r.getMessage() for r in resolved)
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")

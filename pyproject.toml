@@ -99,7 +99,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/aa_auto_sdr/__main__.py"          = ["T201"]
 "src/aa_auto_sdr/cli/main.py"          = ["T201"]
-"src/aa_auto_sdr/cli/commands/*.py"    = ["T201"]
+"src/aa_auto_sdr/cli/commands/*.py"    = ["T201", "RET504"]  # RET504: v1.5 try/finally + sentinel pattern requires assign-before-return
 "src/aa_auto_sdr/cli/list_output.py"   = ["T201"]
 "src/aa_auto_sdr/output/diff_renderers/console.py" = ["T201"]
 "src/aa_auto_sdr/api/fetch.py"         = ["T201"]   # warning: stderr print for classifications fallback

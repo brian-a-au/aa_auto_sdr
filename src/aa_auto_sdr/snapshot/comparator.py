@@ -9,7 +9,9 @@ See v0.7 design spec §5 + §5.1 for design rationale."""
 
 from __future__ import annotations
 
+import logging
 import math
+import time
 from typing import Any
 
 from aa_auto_sdr.snapshot.models import (
@@ -19,6 +21,8 @@ from aa_auto_sdr.snapshot.models import (
     FieldDelta,
     ModifiedItem,
 )
+
+logger = logging.getLogger(__name__)
 
 # Component types in canonical render order.
 _COMPONENT_TYPES = (
@@ -45,6 +49,7 @@ def compare(
     `ignore_fields` is a set of field names to skip during compare. The match is
     exact at every nesting level — `description` skips both top-level and nested
     `description` fields."""
+    started = time.monotonic()
     a_components = a["components"]
     b_components = b["components"]
 
@@ -65,7 +70,7 @@ def compare(
         for ctype in _COMPONENT_TYPES
     ]
 
-    return DiffReport(
+    report = DiffReport(
         a_rsid=a["rsid"],
         b_rsid=b["rsid"],
         a_captured_at=a["captured_at"],
@@ -76,6 +81,21 @@ def compare(
         components=components,
         rsid_mismatch=a["rsid"] != b["rsid"],
     )
+    duration_ms = int((time.monotonic() - started) * 1000)
+    total_changes = sum(len(c.added) + len(c.removed) + len(c.modified) for c in report.components)
+    rsid = a.get("rsid") or b.get("rsid") or ""
+    logger.debug(
+        "compare done rsid=%s count=%s duration_ms=%s",
+        rsid,
+        total_changes,
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "count": total_changes,
+            "duration_ms": duration_ms,
+        },
+    )
+    return report
 
 
 def _diff_component_list(

@@ -139,12 +139,30 @@ class JSONFormatter(logging.Formatter):
             "run_mode": self._run_mode,
             "tool_version": __version__,
         }
+        # Framework keys (timestamp/level/logger/message/run_id/run_mode/
+        # tool_version) are owned by the formatter; an `extra={}` from a
+        # call site cannot override them. Two existing call sites pass
+        # redundant `tool_version` / `run_mode` keys for the vocabulary
+        # meta-test (which keys on message+extras pairs); their values
+        # always equal the framework values, so the guard is a no-op
+        # today. The guard exists to prevent a future call site from
+        # silently overwriting these fields.
+        framework_keys = frozenset(payload)
         for key, value in record.__dict__.items():
             if key in _RESERVED_LOGRECORD_FIELDS:
                 continue
             if key.startswith("_"):
                 continue
+            if key in framework_keys:
+                continue
             payload[key] = value
+        # v1.5 carry-over #1: surface exc_text in JSON output. v1.4's
+        # SensitiveDataFilter pre-formats and redacts tracebacks into
+        # record.exc_text; v1.4 excluded it via _RESERVED_LOGRECORD_FIELDS,
+        # leaving JSON consumers without traceback parity. Surface it here
+        # (already redacted, safe to emit).
+        if record.exc_text:
+            payload["exc_text"] = record.exc_text
         try:
             return json.dumps(payload, default=str)
         except (TypeError, ValueError):  # fmt: skip

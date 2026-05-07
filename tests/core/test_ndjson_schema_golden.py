@@ -13,7 +13,7 @@ from pathlib import Path
 from aa_auto_sdr.cli.main import run
 
 GOLDEN = Path(__file__).parent.parent / "fixtures" / "logging" / "ndjson_run_complete_golden.json"
-VOLATILE_KEYS = {"timestamp", "run_id", "duration_ms", "message"}
+VOLATILE_KEYS = {"timestamp", "run_id", "duration_ms", "message", "tool_version"}
 
 
 def _strip_volatile(record: dict) -> dict:
@@ -32,6 +32,10 @@ def test_run_complete_ndjson_matches_golden_schema(tmp_path, monkeypatch):
     records = [json.loads(line) for line in lines if line.strip()]
     completes = [r for r in records if "run_complete" in r.get("message", "")]
     assert len(completes) == 1
+    # tool_version is volatile (excluded from value compare) but the field
+    # itself must always be present — guard against accidental removal of
+    # the JSONFormatter line that emits it.
+    assert "tool_version" in completes[0], "tool_version field missing from NDJSON record"
     actual = _strip_volatile(completes[0])
 
     golden = json.loads(GOLDEN.read_text())

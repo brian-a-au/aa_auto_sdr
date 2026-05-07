@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.5.0] — 2026-04-29
+
+Third Tier 2 release. **Closes the Tier 2 logging gap**: completes
+codebase-wide instrumentation per the binding `LOGGING_STYLE.md` contract,
+activates the two reserved canonical events from v1.4, and lands three
+v1.4-review carry-over fixes. After this release, the gap doc shows
+Tier 2 logging as closed.
+
+### Added
+
+- ~89 logger calls across 22 newly-instrumented modules (codebase total post-v1.5: ~110 calls across 26 modules). Breakdown: `api/fetch.py` (13 — six `component_fetch` INFO + classifications WARNING + 4 metadata DEBUG/ERROR), all five `output/writers/*` (one `output_write` INFO each), `sdr/builder.py` (2 DEBUG), 10 `cli/commands/*` modules (50 calls = 24 entry-function lifecycle pairs + 2 print conversions), `core/credentials.py` (10 — duplicated INFO across four resolve branches), `core/profiles.py` (4), `snapshot/comparator.py` (1), `snapshot/resolver.py` (3), `snapshot/git.py` (1).
+- Two canonical events activated: `component_fetch`, `output_write`. Total active canonical events: 10 (was 8).
+- Five vocabulary fields activated/added: `component_type`, `format`, `command`, `creds_source`, `snapshot_spec`.
+- 12 new test files / ~50 test functions / ~75 parametrized cases. New: per-component fetch logging (`tests/api/test_fetch_logging.py`), parametrized writer logging (`tests/output/test_writer_logging.py`), builder logging, command logging across 10 modules, credentials logging, profiles logging, three snapshot logging files, INFO budget assertion (`tests/core/test_logging_info_budget.py`), `exc_text` JSON parity (`tests/core/test_logging_exc_text_json.py`), `stack_info` redaction coverage (`tests/core/test_logging_stack_info_redaction.py`).
+- `docs/LOGGING_STYLE.md`: vocabulary table + canonical events flips, INFO budget table refreshed for v1.5 line counts, new subsections "Per-component fetch records" and "Output file write records."
+- `docs/CONFIGURATION.md`: ten-event "Reading the log file" enumeration; new "Per-RSID instrumentation (v1.5.0)" and "Reading credential resolution (v1.5.0)" subsections.
+
+### Changed
+
+- Three progress prints in `cli/commands/{generate,batch}.py` and one warning print in `cli/commands/batch.py` move to logger records: now persisted to log file and gated by `--quiet`. Specifically: `using credentials from: <source>` (both files), the elif/else of `using report suite: <rsid>` in generate.py (the multi-name match `'name' matches N report suites:` print is preserved), `warning: prune failed for <rs>: <exc>` in batch.py, and one `warning: classifications fetch failed (...)` from `api/fetch.py`. **No user-facing result prints (`wrote: <path>`, batch summary banner, multi-name match line, `DRY RUN ...`) are converted.**
+- `tests/core/test_logging_redaction_regression.py`: migrated from manual `try/finally` teardown to autouse-fixture pattern matching sibling v1.4 logging test files (v1.4 review carry-over #2). Behavior unchanged.
+- `tests/core/test_logging_vocabulary.py`: dropped v1.4 reserved-events exemption; expanded module enumeration from 4 files to 26; extended keyword-to-extras map with v1.5 vocabulary additions.
+
+### Fixed
+
+- `core/logging.JSONFormatter.format` now surfaces `record.exc_text` in NDJSON output when truthy. v1.4's `SensitiveDataFilter` already pre-formats and redacts the traceback; v1.4 excluded it via the reserved-fields filter, leaving JSON consumers (Splunk/ELK/Datadog) without traceback parity. v1.5 surfaces it (already-redacted, safe to emit). Pre-existing v1.3 behavior; not a regression. Closes v1.4 review carry-over #1. **Forward-compatibility-only:** no current call site uses `logger.exception` per v1.4 style guide §6.3 (which prefers `logger.error(..., extra={"error_class": ...})`), so the fix has no immediate effect on any v1.5 record. It activates the moment a future module uses `logger.exception` with `--log-format=json`.
+
+### Notes
+
+- `LOG_LEVEL` env var, `--log-level`, `--log-format`, `--quiet` from v1.3 continue to control the new records.
+- `worker_id` and `cache_event` vocabulary fields stay reserved; they activate when parallel batch workers and validation cache ship as separate Tier 2 releases.
+- INFO budget at default level grows: single-RSID `--format excel` = 19 lines (was 8–12 in v1.4), batch ≈ 12 + 9N (was 9 + 2N). Justified by the v1.5 success criterion that customer-shared logs answer "for each RSID processed: which component types were fetched and how many" without re-running the tool. RotatingFileHandler defaults (10 MB / 5 backups) handle even N=200 batch runs comfortably.
+- Tier 2 logging is **closed.** The next picks are parallel batch workers (recommended first), retry/backoff CLI knobs, validation cache, agent mode, sampling, memory caps, naming audits, field-level shaping. Each ships separately.
+- No new exit codes; no new runtime dependencies; no breaking change to CLI surface.
+
 ## [1.4.0] — 2026-04-28
 
 Second Tier 2 release. Wires the v1.3 logging framework into the four

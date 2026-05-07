@@ -14,7 +14,9 @@ The runner in pipeline/batch.py is pure; this module owns all stdout printing
 from __future__ import annotations
 
 import json as _json
+import logging
 import os
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -34,6 +36,8 @@ from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
+
+logger = logging.getLogger(__name__)
 
 
 def _emit_timings_if_enabled(*, show_timings: bool) -> None:
@@ -95,11 +99,70 @@ def run(
     dimensions_only: bool = False,  # v1.2
     dry_run: bool = False,  # v1.2 — preview-only; no component fetch, no writes
     open_after: bool = False,  # v1.2 — open output_dir in OS default app
-    assume_yes: bool = False,  # noqa: ARG001 — v1.2; accepted for parity, not currently consumed
+    assume_yes: bool = False,  # v1.2; accepted for parity, not currently consumed
     show_timings: bool = False,  # v1.2.1
     run_summary_json: str | None = None,  # v1.2.1
 ) -> int:
-    """Entry point for `--batch RSID1 RSID2 ...`.
+    """Pattern 9B.1 wrapper: emit command_start/command_complete around the
+    real body in ``_run_impl`` so all the existing early returns flow
+    through without restructuring."""
+    started_ms = time.monotonic()
+    logger.info("command_start command=batch", extra={"command": "batch"})
+    exit_code = ExitCode.GENERIC.value
+    try:
+        exit_code = _run_impl(
+            rsids=rsids,
+            output_dir=output_dir,
+            format_name=format_name,
+            profile=profile,
+            snapshot=snapshot,
+            auto_snapshot=auto_snapshot,
+            auto_prune=auto_prune,
+            keep_last=keep_last,
+            keep_since=keep_since,
+            metrics_only=metrics_only,
+            dimensions_only=dimensions_only,
+            dry_run=dry_run,
+            open_after=open_after,
+            assume_yes=assume_yes,
+            show_timings=show_timings,
+            run_summary_json=run_summary_json,
+        )
+        return exit_code
+    finally:
+        duration_ms = int((time.monotonic() - started_ms) * 1000)
+        logger.info(
+            "command_complete command=batch exit_code=%s duration_ms=%s",
+            exit_code,
+            duration_ms,
+            extra={
+                "command": "batch",
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            },
+        )
+
+
+def _run_impl(
+    *,
+    rsids: list[str],
+    output_dir: Path,
+    format_name: str,
+    profile: str | None,
+    snapshot: bool = False,
+    auto_snapshot: bool = False,
+    auto_prune: bool = False,
+    keep_last: int | None = None,
+    keep_since: str | None = None,
+    metrics_only: bool = False,
+    dimensions_only: bool = False,
+    dry_run: bool = False,
+    open_after: bool = False,
+    assume_yes: bool = False,  # noqa: ARG001 — accepted for parity, not currently consumed
+    show_timings: bool = False,
+    run_summary_json: str | None = None,
+) -> int:
+    """Entry point body for `--batch RSID1 RSID2 ...`.
 
     `rsids` here is the raw list from argparse; identifier resolution + dedup
     happen below before `run_batch` sees the list.
@@ -151,8 +214,6 @@ def run(
         from aa_auto_sdr.core.profiles import default_base
 
         snapshot_dir = default_base() / "orgs" / profile / "snapshots"
-
-    print(f"using credentials from: {creds.source}")
 
     try:
         formats = registry.resolve_formats(format_name or "excel")
@@ -411,7 +472,12 @@ def _apply_auto_prune(
         try:
             prune_snapshots(snapshot_dir, policy, rsid=rs)
         except OSError as exc:
-            print(f"warning: prune failed for {rs}: {exc}", flush=True)
+            logger.warning(
+                "prune failed rsid=%s error_class=%s",
+                rs,
+                type(exc).__name__,
+                extra={"rsid": rs, "error_class": type(exc).__name__},
+            )
     return ExitCode.OK.value
 
 
