@@ -14,6 +14,7 @@ snapshot.comparator.compare()."""
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,8 @@ from aa_auto_sdr.core.json_io import read_json
 from aa_auto_sdr.snapshot.git import git_show
 from aa_auto_sdr.snapshot.schema import validate_envelope
 
+logger = logging.getLogger(__name__)
+
 
 def resolve_snapshot(
     token: str,
@@ -31,13 +34,60 @@ def resolve_snapshot(
     repo_root: Path | None,
 ) -> dict[str, Any]:
     """Resolve `token` to a validated snapshot envelope dict."""
+    logger.debug(
+        "resolve_snapshot start snapshot_spec=%s",
+        token,
+        extra={"snapshot_spec": str(token)},
+    )
+    try:
+        env, resolved_path = _dispatch(
+            token,
+            profile_snapshot_dir=profile_snapshot_dir,
+            repo_root=repo_root,
+        )
+    except SnapshotResolveError as exc:
+        logger.error(
+            "resolve_snapshot failed snapshot_spec=%s error_class=%s",
+            token,
+            type(exc).__name__,
+            extra={
+                "snapshot_spec": str(token),
+                "error_class": type(exc).__name__,
+            },
+        )
+        raise
+    logger.debug(
+        "resolve_snapshot ok snapshot_spec=%s output_path=%s",
+        token,
+        resolved_path,
+        extra={
+            "snapshot_spec": str(token),
+            "output_path": resolved_path,
+        },
+    )
+    return env
+
+
+def _dispatch(
+    token: str,
+    *,
+    profile_snapshot_dir: Path | None,
+    repo_root: Path | None,
+) -> tuple[dict[str, Any], str]:
+    """Route `token` to the right resolver. Returns (envelope, resolved-path-string).
+
+    The resolved-path string is the file path for path / @-spec tokens, or the
+    full git: token for git refs (since there's no on-disk path)."""
     if token.startswith("git:"):
-        return _resolve_git(token, repo_root=repo_root)
+        env = _resolve_git(token, repo_root=repo_root)
+        return env, token
     if "@" in token and not _looks_like_path(token):
-        return _resolve_rsid_at(token, profile_snapshot_dir=profile_snapshot_dir)
+        env, path = _resolve_rsid_at(token, profile_snapshot_dir=profile_snapshot_dir)
+        return env, str(path)
     path = Path(token).expanduser()
     if path.exists():
-        return _resolve_path(path)
+        env = _resolve_path(path)
+        return env, str(path)
     # Token doesn't match any known form. Use the spec §4 message when the token
     # has no path-shape signals; otherwise surface the path-not-found error.
     if not _looks_like_path(token):
@@ -69,7 +119,11 @@ def _resolve_path(path: Path) -> dict[str, Any]:
     return env
 
 
-def _resolve_rsid_at(token: str, *, profile_snapshot_dir: Path | None) -> dict[str, Any]:
+def _resolve_rsid_at(
+    token: str,
+    *,
+    profile_snapshot_dir: Path | None,
+) -> tuple[dict[str, Any], Path]:
     if profile_snapshot_dir is None:
         raise SnapshotResolveError(f"'{token}' requires --profile (snapshots are profile-scoped)")
     rsid, _, spec = token.rpartition("@")
@@ -82,16 +136,16 @@ def _resolve_rsid_at(token: str, *, profile_snapshot_dir: Path | None) -> dict[s
     if not files:
         raise SnapshotResolveError(f"no snapshots for {rsid} in {rs_dir}")
     if spec == "latest":
-        return _resolve_path(files[-1])
+        return _resolve_path(files[-1]), files[-1]
     if spec == "previous":
         if len(files) < 2:
             raise SnapshotResolveError(f"only one snapshot for {rsid}; @previous needs at least two")
-        return _resolve_path(files[-2])
+        return _resolve_path(files[-2]), files[-2]
     # exact timestamp
     target = rs_dir / f"{spec}.json"
     if not target.exists():
         raise SnapshotResolveError(f"snapshot {token} not found at {target}")
-    return _resolve_path(target)
+    return _resolve_path(target), target
 
 
 def _resolve_git(token: str, *, repo_root: Path | None) -> dict[str, Any]:
