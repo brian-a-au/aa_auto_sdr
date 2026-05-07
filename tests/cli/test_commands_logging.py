@@ -408,9 +408,11 @@ def test_command_emits_start_and_complete(
     fn = getattr(mod, fn_name)
     try:
         fn(**args)
-    except SystemExit, Exception:
+    except (SystemExit, Exception):  # fmt: skip
         # Some entry functions may raise on missing fixtures (input(),
         # missing files, etc). Lifecycle records still fire around the call.
+        # Parens preserved (would otherwise be stripped under PEP 758) to
+        # disambiguate from the deprecated `except Exception, name:` form.
         pass
 
     starts = [r for r in caplog.records if "command_start" in r.getMessage()]

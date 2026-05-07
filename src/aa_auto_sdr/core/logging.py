@@ -139,10 +139,14 @@ class JSONFormatter(logging.Formatter):
             "run_mode": self._run_mode,
             "tool_version": __version__,
         }
-        # Framework keys are owned by the formatter; an `extra={}` from a
-        # call site cannot override them. Without this guard, a future
-        # logger.X(..., extra={"tool_version": ...}) call would silently
-        # replace the framework value.
+        # Framework keys (timestamp/level/logger/message/run_id/run_mode/
+        # tool_version) are owned by the formatter; an `extra={}` from a
+        # call site cannot override them. Two existing call sites pass
+        # redundant `tool_version` / `run_mode` keys for the vocabulary
+        # meta-test (which keys on message+extras pairs); their values
+        # always equal the framework values, so the guard is a no-op
+        # today. The guard exists to prevent a future call site from
+        # silently overwriting these fields.
         framework_keys = frozenset(payload)
         for key, value in record.__dict__.items():
             if key in _RESERVED_LOGRECORD_FIELDS:
