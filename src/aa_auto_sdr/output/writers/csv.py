@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import csv as _csv
 import io
+import logging
 import os
 import tempfile
+import time
 from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Any
@@ -16,6 +18,8 @@ from typing import Any
 from aa_auto_sdr.output._helpers import stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
+
+logger = logging.getLogger(__name__)
 
 _COMPONENT_FIELDS: dict[str, str] = {
     "dimensions": "Dimension",
@@ -95,6 +99,7 @@ class CsvWriter:
     extension = ".csv"
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
+        started = time.monotonic()
         # Output filenames are derived from output_path. If the user passed
         # `out.csv`, we strip the .csv suffix and append `.<component>.csv` for
         # each file. If they passed `out` (no suffix), we use it as a stem.
@@ -130,6 +135,20 @@ class CsvWriter:
             _atomic_write_text(file_path, body, encoding="utf-8-sig")
             paths.append(file_path)
 
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "output_write format=csv output_path=%s count=%s duration_ms=%s",
+            str(paths[0]),
+            len(paths),
+            duration_ms,
+            extra={
+                "format": "csv",
+                "output_path": str(paths[0]),
+                "count": len(paths),
+                "duration_ms": duration_ms,
+                "rsid": doc.report_suite.rsid,
+            },
+        )
         return paths
 
 

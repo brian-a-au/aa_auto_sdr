@@ -7,6 +7,8 @@ Self-registers with the registry on import."""
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -15,11 +17,14 @@ from aa_auto_sdr.output._helpers import stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
+logger = logging.getLogger(__name__)
+
 
 class ExcelWriter:
     extension = ".xlsx"
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
+        started = time.monotonic()
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
 
         import pandas as pd
@@ -60,6 +65,19 @@ class ExcelWriter:
                 for col_idx, col in enumerate(df.columns):
                     width = max(len(str(col)), int(df[col].astype(str).str.len().max() or 10))
                     ws.set_column(col_idx, col_idx, min(width + 2, 60))
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "output_write format=excel output_path=%s count=1 duration_ms=%s",
+            str(target),
+            duration_ms,
+            extra={
+                "format": "excel",
+                "output_path": str(target),
+                "count": 1,
+                "duration_ms": duration_ms,
+                "rsid": doc.report_suite.rsid,
+            },
+        )
         return [target]
 
 

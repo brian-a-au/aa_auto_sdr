@@ -4,6 +4,8 @@ Self-registers with the registry on import. Returns a single Path."""
 
 from __future__ import annotations
 
+import logging
+import time
 from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Any
@@ -12,6 +14,8 @@ from aa_auto_sdr.api import models
 from aa_auto_sdr.output._helpers import escape_pipe, stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
+
+logger = logging.getLogger(__name__)
 
 _COMPONENT_SECTIONS: list[tuple[str, str, str]] = [
     # (heading, doc-attribute, model-class-name)
@@ -97,9 +101,23 @@ class MarkdownWriter:
     extension = ".md"
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
+        started = time.monotonic()
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(_document(doc), encoding="utf-8")
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "output_write format=markdown output_path=%s count=1 duration_ms=%s",
+            str(target),
+            duration_ms,
+            extra={
+                "format": "markdown",
+                "output_path": str(target),
+                "count": 1,
+                "duration_ms": duration_ms,
+                "rsid": doc.report_suite.rsid,
+            },
+        )
         return [target]
 
 
