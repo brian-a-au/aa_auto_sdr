@@ -2,6 +2,17 @@
 
 <img width="2750" height="1536" alt="Gemini_Generated_Image_fmlfuefmlfuefmlf" src="https://github.com/user-attachments/assets/28bea7c7-918b-4402-802b-b4a34f4cd77f" />
 
+[![Tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)
+[![Lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)
+[![Version Sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/downloads/)
+[![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-830-brightgreen.svg)](tests/)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/brian-a-au/aa_auto_sdr)](https://github.com/brian-a-au/aa_auto_sdr/commits/main)
+
 A production-ready Python CLI that automates the creation of **Solution Design Reference (SDR)** documentation from your Adobe Analytics implementation. **Read-only** against Adobe Analytics. **API 2.0 only**.
 
 Sister project to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does **not** share code.
@@ -372,10 +383,6 @@ aa_auto_sdr/
 ├── config.json.example
 └── .env.example
 ```
-
-## License
-
-See [LICENSE](LICENSE) for details (MIT).
 
 ## Additional Resources
 
