@@ -6,11 +6,14 @@ see Task 10.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import ConfigError
+
+logger = logging.getLogger(__name__)
 
 _REQUIRED_FIELDS = ("org_id", "client_id", "secret", "scopes")
 
@@ -101,27 +104,53 @@ def resolve(
     """
     working_dir = working_dir or Path.cwd()
     chosen_profile = profile or os.environ.get("AA_PROFILE")
+    logger.debug("resolve start chosen_profile_set=%s", bool(chosen_profile))
 
     if chosen_profile:
+        logger.debug("resolve attempt source=profile:%s", chosen_profile)
         creds = _from_profile(chosen_profile, profiles_base)
         creds.validate()
+        logger.info(
+            "creds_resolved source=%s",
+            creds.source,
+            extra={"creds_source": creds.source},
+        )
         return creds
 
+    logger.debug("resolve attempt source=env")
     env_creds = _from_env()
     if _is_complete(env_creds):
         env_creds.validate()
+        logger.info(
+            "creds_resolved source=env",
+            extra={"creds_source": "env"},
+        )
         return env_creds
 
+    logger.debug("resolve attempt source=.env")
     dotenv_creds = _from_dotenv(working_dir)
     if dotenv_creds and _is_complete(dotenv_creds):
         dotenv_creds.validate()
+        logger.info(
+            "creds_resolved source=.env",
+            extra={"creds_source": ".env"},
+        )
         return dotenv_creds
 
+    logger.debug("resolve attempt source=config.json")
     cfg_creds = _from_config_json(working_dir)
     if cfg_creds and _is_complete(cfg_creds):
         cfg_creds.validate()
+        logger.info(
+            "creds_resolved source=config.json",
+            extra={"creds_source": "config.json"},
+        )
         return cfg_creds
 
+    logger.error(
+        "creds_not_found",
+        extra={"error_class": "ConfigError"},
+    )
     raise ConfigError(
         "No credentials found. Set ORG_ID/CLIENT_ID/SECRET/SCOPES env vars, "
         "create a profile (--profile-add), or place a config.json in the working directory."
