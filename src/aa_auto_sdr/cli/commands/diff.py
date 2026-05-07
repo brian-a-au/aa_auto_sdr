@@ -3,8 +3,10 @@ changes-only, show-only, max-issues, $GITHUB_STEP_SUMMARY append)."""
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import SnapshotError
@@ -18,6 +20,8 @@ from aa_auto_sdr.output.diff_renderers.pr_comment import render_pr_comment
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.models import DiffReport
 from aa_auto_sdr.snapshot.resolver import resolve_snapshot
+
+logger = logging.getLogger(__name__)
 
 _VALID_FORMATS = ("console", "json", "markdown", "pr-comment")
 
@@ -41,102 +45,123 @@ def run(
     warn_threshold: int | None = None,
     color_theme: str = "default",
 ) -> int:
-    from aa_auto_sdr.core import colors
-
-    colors.set_theme(color_theme)
-    fmt = format_name or "console"
-    if fmt not in _VALID_FORMATS:
-        print(
-            f"error: format '{fmt}' is not available for --diff (use console|json|markdown|pr-comment)",
-            flush=True,
-        )
-        return ExitCode.OUTPUT.value
-    if fmt == "console" and output == "-":
-        print(
-            "error: --format console cannot pipe to stdout (use --format json|markdown for pipes)",
-            flush=True,
-        )
-        return ExitCode.OUTPUT.value
-
-    if reverse:
-        a, b = b, a
-
-    profile_snapshot_dir = default_base() / "orgs" / profile / "snapshots" if profile else None
-    repo_root = Path.cwd()
-
+    started_ms = time.monotonic()
+    logger.info("command_start command=diff", extra={"command": "diff"})
+    exit_code = ExitCode.GENERIC.value
     try:
-        env_a = resolve_snapshot(
-            a,
-            profile_snapshot_dir=profile_snapshot_dir,
-            repo_root=repo_root,
-        )
-        env_b = resolve_snapshot(
-            b,
-            profile_snapshot_dir=profile_snapshot_dir,
-            repo_root=repo_root,
-        )
-    except SnapshotError as exc:
-        if fmt in ("json", "markdown") and output == "-":
-            from aa_auto_sdr.output.error_envelope import emit_error_envelope
+        from aa_auto_sdr.core import colors
 
-            emit_error_envelope(exc, ExitCode.SNAPSHOT.value)
+        colors.set_theme(color_theme)
+        fmt = format_name or "console"
+        if fmt not in _VALID_FORMATS:
+            print(
+                f"error: format '{fmt}' is not available for --diff (use console|json|markdown|pr-comment)",
+                flush=True,
+            )
+            exit_code = ExitCode.OUTPUT.value
+            return exit_code
+        if fmt == "console" and output == "-":
+            print(
+                "error: --format console cannot pipe to stdout (use --format json|markdown for pipes)",
+                flush=True,
+            )
+            exit_code = ExitCode.OUTPUT.value
+            return exit_code
+
+        if reverse:
+            a, b = b, a
+
+        profile_snapshot_dir = default_base() / "orgs" / profile / "snapshots" if profile else None
+        repo_root = Path.cwd()
+
+        try:
+            env_a = resolve_snapshot(
+                a,
+                profile_snapshot_dir=profile_snapshot_dir,
+                repo_root=repo_root,
+            )
+            env_b = resolve_snapshot(
+                b,
+                profile_snapshot_dir=profile_snapshot_dir,
+                repo_root=repo_root,
+            )
+        except SnapshotError as exc:
+            if fmt in ("json", "markdown") and output == "-":
+                from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+                emit_error_envelope(exc, ExitCode.SNAPSHOT.value)
+            else:
+                print(f"snapshot error: {exc}", flush=True)
+            exit_code = ExitCode.SNAPSHOT.value
+            return exit_code
+
+        full_report = compare(env_a, env_b, ignore_fields=ignore_fields)
+        # Compute warn-threshold against the FULL (unfiltered) report — per spec section 2.4.
+        total_changes = sum(len(c.added) + len(c.removed) + len(c.modified) for c in full_report.components)
+
+        # Apply presentational filters before render. The filters are pure copies;
+        # full_report stays intact for warn-threshold and step-summary computation.
+        report = filter_for_render(
+            full_report,
+            changes_only=changes_only,
+            show_only=show_only,
+            max_issues=max_issues,
+        )
+
+        if fmt == "console":
+            rendered = render_console(
+                report,
+                side_by_side=side_by_side,
+                summary=summary,
+                quiet=quiet,
+                labels=labels,
+            )
+        elif fmt == "json":
+            rendered = render_json(report, summary=summary, labels=labels)
+        elif fmt == "markdown":
+            rendered = render_markdown(
+                report,
+                side_by_side=side_by_side,
+                summary=summary,
+                quiet=quiet,
+                labels=labels,
+            )
+        else:  # pr-comment
+            rendered = render_pr_comment(report, summary=summary, labels=labels)
+
+        if output is None or output == "-":
+            sys.stdout.write(rendered)
+            if not rendered.endswith("\n"):
+                sys.stdout.write("\n")
+            sys.stdout.flush()
         else:
-            print(f"snapshot error: {exc}", flush=True)
-        return ExitCode.SNAPSHOT.value
+            target = Path(output)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(rendered)
+            print(f"wrote: {target}", flush=True)
 
-    full_report = compare(env_a, env_b, ignore_fields=ignore_fields)
-    # Compute warn-threshold against the FULL (unfiltered) report — per spec section 2.4.
-    total_changes = sum(len(c.added) + len(c.removed) + len(c.modified) for c in full_report.components)
+        # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view
+        # using the FULL report (no presentational filters) so CI surfaces are
+        # never misleadingly trimmed.
+        _maybe_append_step_summary(full_report, labels=labels)
 
-    # Apply presentational filters before render. The filters are pure copies;
-    # full_report stays intact for warn-threshold and step-summary computation.
-    report = filter_for_render(
-        full_report,
-        changes_only=changes_only,
-        show_only=show_only,
-        max_issues=max_issues,
-    )
-
-    if fmt == "console":
-        rendered = render_console(
-            report,
-            side_by_side=side_by_side,
-            summary=summary,
-            quiet=quiet,
-            labels=labels,
+        if warn_threshold is not None and total_changes >= warn_threshold:
+            exit_code = ExitCode.WARN.value
+            return exit_code
+        exit_code = ExitCode.OK.value
+        return exit_code
+    finally:
+        duration_ms = int((time.monotonic() - started_ms) * 1000)
+        logger.info(
+            "command_complete command=diff exit_code=%s duration_ms=%s",
+            exit_code,
+            duration_ms,
+            extra={
+                "command": "diff",
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            },
         )
-    elif fmt == "json":
-        rendered = render_json(report, summary=summary, labels=labels)
-    elif fmt == "markdown":
-        rendered = render_markdown(
-            report,
-            side_by_side=side_by_side,
-            summary=summary,
-            quiet=quiet,
-            labels=labels,
-        )
-    else:  # pr-comment
-        rendered = render_pr_comment(report, summary=summary, labels=labels)
-
-    if output is None or output == "-":
-        sys.stdout.write(rendered)
-        if not rendered.endswith("\n"):
-            sys.stdout.write("\n")
-        sys.stdout.flush()
-    else:
-        target = Path(output)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(rendered)
-        print(f"wrote: {target}", flush=True)
-
-    # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view
-    # using the FULL report (no presentational filters) so CI surfaces are
-    # never misleadingly trimmed.
-    _maybe_append_step_summary(full_report, labels=labels)
-
-    if warn_threshold is not None and total_changes >= warn_threshold:
-        return ExitCode.WARN.value
-    return ExitCode.OK.value
 
 
 def _maybe_append_step_summary(

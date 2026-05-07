@@ -5,6 +5,8 @@ and render via list_output."""
 
 from __future__ import annotations
 
+import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,8 @@ from aa_auto_sdr.core.exceptions import (
     ConfigError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
+
+logger = logging.getLogger(__name__)
 
 _REPORTSUITES_SORT_ALLOWLIST = ("rsid", "name")
 _VRS_SORT_ALLOWLIST = ("id", "name", "parent_rsid")
@@ -44,40 +48,64 @@ def run_list_reportsuites(
     limit: int | None,
 ) -> int:
     """List all report suites visible to the org."""
-    try:
-        creds = credentials.resolve(profile=profile)
-    except ConfigError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.CONFIG.value
-
-    try:
-        client = AaClient.from_credentials(creds)
-    except AuthError as e:
-        print(f"auth error: {e}", flush=True)
-        return ExitCode.AUTH.value
-
-    try:
-        summaries = fetch.fetch_report_suite_summaries(client)
-    except ApiError as e:
-        print(f"api error: {e}", flush=True)
-        return ExitCode.API.value
-    except AaAutoSdrError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.GENERIC.value
-    # Convert to dicts for the existing renderer (which expects dict-shaped rows).
-    suites = [{"rsid": s.rsid, "name": s.name or ""} for s in summaries]
-
-    return _render_with_filters(
-        suites,
-        sort_allowlist=_REPORTSUITES_SORT_ALLOWLIST,
-        format_name=format_name,
-        output=output,
-        name_filter=name_filter,
-        name_exclude=name_exclude,
-        sort_field=sort_field,
-        limit=limit,
-        columns=["rsid", "name"],
+    started_ms = time.monotonic()
+    logger.info(
+        "command_start command=list_reportsuites",
+        extra={"command": "list_reportsuites"},
     )
+    exit_code = ExitCode.GENERIC.value
+    try:
+        try:
+            creds = credentials.resolve(profile=profile)
+        except ConfigError as e:
+            print(f"error: {e}", flush=True)
+            exit_code = ExitCode.CONFIG.value
+            return exit_code
+
+        try:
+            client = AaClient.from_credentials(creds)
+        except AuthError as e:
+            print(f"auth error: {e}", flush=True)
+            exit_code = ExitCode.AUTH.value
+            return exit_code
+
+        try:
+            summaries = fetch.fetch_report_suite_summaries(client)
+        except ApiError as e:
+            print(f"api error: {e}", flush=True)
+            exit_code = ExitCode.API.value
+            return exit_code
+        except AaAutoSdrError as e:
+            print(f"error: {e}", flush=True)
+            exit_code = ExitCode.GENERIC.value
+            return exit_code
+        # Convert to dicts for the existing renderer (which expects dict-shaped rows).
+        suites = [{"rsid": s.rsid, "name": s.name or ""} for s in summaries]
+
+        exit_code = _render_with_filters(
+            suites,
+            sort_allowlist=_REPORTSUITES_SORT_ALLOWLIST,
+            format_name=format_name,
+            output=output,
+            name_filter=name_filter,
+            name_exclude=name_exclude,
+            sort_field=sort_field,
+            limit=limit,
+            columns=["rsid", "name"],
+        )
+        return exit_code
+    finally:
+        duration_ms = int((time.monotonic() - started_ms) * 1000)
+        logger.info(
+            "command_complete command=list_reportsuites exit_code=%s duration_ms=%s",
+            exit_code,
+            duration_ms,
+            extra={
+                "command": "list_reportsuites",
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            },
+        )
 
 
 def run_list_virtual_reportsuites(
@@ -91,40 +119,64 @@ def run_list_virtual_reportsuites(
     limit: int | None,
 ) -> int:
     """List all virtual report suites."""
-    try:
-        creds = credentials.resolve(profile=profile)
-    except ConfigError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.CONFIG.value
-
-    try:
-        client = AaClient.from_credentials(creds)
-    except AuthError as e:
-        print(f"auth error: {e}", flush=True)
-        return ExitCode.AUTH.value
-
-    try:
-        summaries = fetch.fetch_virtual_report_suite_summaries(client)
-    except ApiError as e:
-        print(f"api error: {e}", flush=True)
-        return ExitCode.API.value
-    except AaAutoSdrError as e:
-        print(f"error: {e}", flush=True)
-        return ExitCode.GENERIC.value
-    # Convert to dicts for the existing renderer (which expects dict-shaped rows).
-    normalized = [{"id": s.id, "name": s.name or "", "parent_rsid": s.parent_rsid} for s in summaries]
-
-    return _render_with_filters(
-        normalized,
-        sort_allowlist=_VRS_SORT_ALLOWLIST,
-        format_name=format_name,
-        output=output,
-        name_filter=name_filter,
-        name_exclude=name_exclude,
-        sort_field=sort_field,
-        limit=limit,
-        columns=["id", "name", "parent_rsid"],
+    started_ms = time.monotonic()
+    logger.info(
+        "command_start command=list_virtual_reportsuites",
+        extra={"command": "list_virtual_reportsuites"},
     )
+    exit_code = ExitCode.GENERIC.value
+    try:
+        try:
+            creds = credentials.resolve(profile=profile)
+        except ConfigError as e:
+            print(f"error: {e}", flush=True)
+            exit_code = ExitCode.CONFIG.value
+            return exit_code
+
+        try:
+            client = AaClient.from_credentials(creds)
+        except AuthError as e:
+            print(f"auth error: {e}", flush=True)
+            exit_code = ExitCode.AUTH.value
+            return exit_code
+
+        try:
+            summaries = fetch.fetch_virtual_report_suite_summaries(client)
+        except ApiError as e:
+            print(f"api error: {e}", flush=True)
+            exit_code = ExitCode.API.value
+            return exit_code
+        except AaAutoSdrError as e:
+            print(f"error: {e}", flush=True)
+            exit_code = ExitCode.GENERIC.value
+            return exit_code
+        # Convert to dicts for the existing renderer (which expects dict-shaped rows).
+        normalized = [{"id": s.id, "name": s.name or "", "parent_rsid": s.parent_rsid} for s in summaries]
+
+        exit_code = _render_with_filters(
+            normalized,
+            sort_allowlist=_VRS_SORT_ALLOWLIST,
+            format_name=format_name,
+            output=output,
+            name_filter=name_filter,
+            name_exclude=name_exclude,
+            sort_field=sort_field,
+            limit=limit,
+            columns=["id", "name", "parent_rsid"],
+        )
+        return exit_code
+    finally:
+        duration_ms = int((time.monotonic() - started_ms) * 1000)
+        logger.info(
+            "command_complete command=list_virtual_reportsuites exit_code=%s duration_ms=%s",
+            exit_code,
+            duration_ms,
+            extra={
+                "command": "list_virtual_reportsuites",
+                "exit_code": exit_code,
+                "duration_ms": duration_ms,
+            },
+        )
 
 
 def _render_with_filters(
