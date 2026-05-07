@@ -20,6 +20,8 @@ method because the underlying API has none.
 
 from __future__ import annotations
 
+import logging
+import time
 from typing import Any
 
 import pandas as pd
@@ -27,6 +29,8 @@ import pandas as pd
 from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 def _records(value: Any) -> list[dict[str, Any]]:
@@ -88,7 +92,15 @@ def _extra(d: dict[str, Any], known: set[str]) -> dict[str, Any]:
 def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     """Find the report suite with the given rsid. Uses extended_info to get
     currency / parentRsid / timezone fields."""
+    started = time.monotonic()
     suites = _records(client.handle.getReportSuites(extended_info=True))
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.debug(
+        "fetch_report_suite count=%s duration_ms=%s",
+        len(suites),
+        duration_ms,
+        extra={"rsid": rsid, "count": len(suites), "duration_ms": duration_ms},
+    )
     for raw in suites:
         if raw.get("rsid") == rsid:
             return models.ReportSuite(
@@ -98,6 +110,11 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
                 currency=_str_or_none(raw, "currency"),
                 parent_rsid=_str_or_none(raw, "parentRsid"),
             )
+    logger.error(
+        "fetch_report_suite not_found rsid=%s",
+        rsid,
+        extra={"rsid": rsid, "error_class": "ReportSuiteNotFoundError"},
+    )
     raise ReportSuiteNotFoundError(f"Report suite '{rsid}' not found")
 
 
@@ -108,6 +125,7 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     being called from CLI command code. Keeps the SDK boundary inside `api/`.
 
     Sort order: alphabetical by rsid."""
+    started = time.monotonic()
     raw = _records(client.handle.getReportSuites(extended_info=True))
     summaries = [
         models.ReportSuiteSummary(
@@ -117,6 +135,13 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
         for r in raw
         if r.get("rsid")
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.debug(
+        "fetch_report_suite_summaries count=%s duration_ms=%s",
+        len(summaries),
+        duration_ms,
+        extra={"count": len(summaries), "duration_ms": duration_ms},
+    )
     return sorted(summaries, key=lambda s: s.rsid)
 
 
@@ -134,11 +159,17 @@ def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
 
     Returns (rsids, was_name_lookup). `rsids` is always a non-empty list.
     """
+    logger.debug("resolve_rsid identifier-input")
     suites = _records(client.handle.getReportSuites(extended_info=True))
 
     # 1) Exact RSID match — RSIDs are distinct
     for raw in suites:
         if raw.get("rsid") == identifier:
+            logger.debug(
+                "resolve_rsid resolved count=%s was_name_lookup=false",
+                1,
+                extra={"count": 1},
+            )
             return [identifier], False
 
     # 2) Case-insensitive exact name match — may match multiple suites
@@ -147,6 +178,11 @@ def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
         str(raw["rsid"]) for raw in suites if raw.get("name") is not None and str(raw["name"]).casefold() == target
     ]
     if name_matches:
+        logger.debug(
+            "resolve_rsid resolved count=%s was_name_lookup=true",
+            len(name_matches),
+            extra={"count": len(name_matches)},
+        )
         return name_matches, True
 
     raise ReportSuiteNotFoundError(
@@ -155,11 +191,12 @@ def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
 
 
 def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
+    started = time.monotonic()
     raws = _records(
         client.handle.getDimensions(rsid=rsid, description=True, tags=True),
     )
     known = {"id", "name", "type", "category", "parent", "pathable", "description", "tags"}
-    return [
+    out = [
         models.Dimension(
             id=str(r["id"]),
             name=str(r.get("name", r["id"])),
@@ -173,6 +210,20 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
         )
         for r in raws
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=dimension count=%s duration_ms=%s",
+        rsid,
+        len(out),
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "component_type": "dimension",
+            "count": len(out),
+            "duration_ms": duration_ms,
+        },
+    )
+    return out
 
 
 def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
@@ -182,6 +233,7 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
     # which raises `KeyError: "['dataGroup'] not in index"`. Until upstream fixes
     # the slice or we figure out which RS shapes are safe, we skip the flag and
     # leave `data_group` as None on the Metric model.
+    started = time.monotonic()
     raws = _records(
         client.handle.getMetrics(rsid=rsid, description=True, tags=True),
     )
@@ -196,7 +248,7 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
         "tags",
         "dataGroup",
     }
-    return [
+    out = [
         models.Metric(
             id=str(r["id"]),
             name=str(r.get("name", r["id"])),
@@ -211,10 +263,25 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
         )
         for r in raws
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=metric count=%s duration_ms=%s",
+        rsid,
+        len(out),
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "component_type": "metric",
+            "count": len(out),
+            "duration_ms": duration_ms,
+        },
+    )
+    return out
 
 
 def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     """Pulls segments for the rsid, with extended_info for the `definition` body."""
+    started = time.monotonic()
     raws = _records(
         client.handle.getSegments(rsids_list=[rsid], extended_info=True),
     )
@@ -230,7 +297,7 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
         "created",
         "modified",
     }
-    return [
+    out = [
         models.Segment(
             id=str(r["id"]),
             name=str(r.get("name", r["id"])),
@@ -246,6 +313,20 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
         )
         for r in raws
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=segment count=%s duration_ms=%s",
+        rsid,
+        len(out),
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "component_type": "segment",
+            "count": len(out),
+            "duration_ms": duration_ms,
+        },
+    )
+    return out
 
 
 def fetch_calculated_metrics(
@@ -253,6 +334,7 @@ def fetch_calculated_metrics(
     rsid: str,
 ) -> list[models.CalculatedMetric]:
     """Pulls calculated metrics for the rsid, with extended_info for `definition`."""
+    started = time.monotonic()
     raws = _records(
         client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True),
     )
@@ -269,7 +351,7 @@ def fetch_calculated_metrics(
         "tags",
         "categories",
     }
-    return [
+    out = [
         models.CalculatedMetric(
             id=str(r["id"]),
             name=str(r.get("name", r["id"])),
@@ -286,6 +368,20 @@ def fetch_calculated_metrics(
         )
         for r in raws
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=calculated_metric count=%s duration_ms=%s",
+        rsid,
+        len(out),
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "component_type": "calculated_metric",
+            "count": len(out),
+            "duration_ms": duration_ms,
+        },
+    )
+    return out
 
 
 def fetch_virtual_report_suites(
@@ -296,6 +392,7 @@ def fetch_virtual_report_suites(
 
     The SDK call has no rsid filter — we filter client-side after pulling all
     VRS via extended_info=True (which gives us `parentRsid`)."""
+    started = time.monotonic()
     raws = _records(client.handle.getVirtualReportSuites(extended_info=True))
     known = {
         "id",
@@ -308,7 +405,7 @@ def fetch_virtual_report_suites(
         "curatedComponents",
         "modified",
     }
-    return [
+    out = [
         models.VirtualReportSuite(
             id=str(r["id"]),
             name=str(r.get("name", r["id"])),
@@ -323,6 +420,20 @@ def fetch_virtual_report_suites(
         for r in raws
         if r.get("parentRsid") == parent_rsid
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=virtual_report_suite count=%s duration_ms=%s",
+        parent_rsid,
+        len(out),
+        duration_ms,
+        extra={
+            "rsid": parent_rsid,
+            "component_type": "virtual_report_suite",
+            "count": len(out),
+            "duration_ms": duration_ms,
+        },
+    )
+    return out
 
 
 def fetch_virtual_report_suite_summaries(
@@ -334,6 +445,7 @@ def fetch_virtual_report_suite_summaries(
     being called from CLI command code. Keeps the SDK boundary inside `api/`.
 
     Sort order: alphabetical by id."""
+    started = time.monotonic()
     raw = _records(client.handle.getVirtualReportSuites(extended_info=True))
     summaries = [
         models.VirtualReportSuiteSummary(
@@ -344,6 +456,13 @@ def fetch_virtual_report_suite_summaries(
         for r in raw
         if r.get("id")
     ]
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.debug(
+        "fetch_virtual_report_suite_summaries count=%s duration_ms=%s",
+        len(summaries),
+        duration_ms,
+        extra={"count": len(summaries), "duration_ms": duration_ms},
+    )
     return sorted(summaries, key=lambda s: s.id)
 
 
@@ -381,15 +500,19 @@ def fetch_classification_datasets(
     for the human-readable name. Records missing both id-like keys are skipped.
     Any failure of the underlying call returns an empty list rather than
     breaking the whole SDR — classifications are best-effort in v0.1.x."""
+    started = time.monotonic()
     try:
         raws = _records(client.handle.getClassificationDatasets(rsid=rsid))
     except Exception as e:  # wrapper raises various exception types
-        import sys
-
-        print(
-            f"warning: classifications fetch failed ({type(e).__name__}: {e}); skipping",
-            file=sys.stderr,
-            flush=True,
+        logger.warning(
+            "classifications fetch failed rsid=%s error_class=%s",
+            rsid,
+            type(e).__name__,
+            extra={
+                "rsid": rsid,
+                "component_type": "classification",
+                "error_class": type(e).__name__,
+            },
         )
         return []
 
@@ -408,4 +531,17 @@ def fetch_classification_datasets(
                 extra=_extra(r, known),
             ),
         )
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=classification count=%s duration_ms=%s",
+        rsid,
+        len(out),
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "component_type": "classification",
+            "count": len(out),
+            "duration_ms": duration_ms,
+        },
+    )
     return out

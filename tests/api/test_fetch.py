@@ -224,9 +224,14 @@ def test_fetch_classification_datasets_skips_records_without_id_keys() -> None:
     assert cs[0].id == "ds_keep"
 
 
-def test_fetch_classification_datasets_returns_empty_on_wrapper_error(capsys) -> None:
-    """If the SDK call itself raises, return [] with a stderr warning rather
-    than breaking the entire SDR pipeline (classifications are best-effort)."""
+def test_fetch_classification_datasets_returns_empty_on_wrapper_error(caplog) -> None:
+    """If the SDK call itself raises, return [] with a WARNING log rather
+    than breaking the entire SDR pipeline (classifications are best-effort).
+    v1.5 replaced the v1.0 stderr print with a logger.warning call —
+    see api/fetch_logging tests for the structured-record contract."""
+    import logging as _logging
+
+    caplog.set_level(_logging.WARNING, logger="aa_auto_sdr.api.fetch")
     handle = MagicMock()
     handle.getClassificationDatasets.side_effect = KeyError("['id'] not in index")
     client = AaClient(handle=handle, company_id="testco")
@@ -234,8 +239,7 @@ def test_fetch_classification_datasets_returns_empty_on_wrapper_error(capsys) ->
     cs = fetch.fetch_classification_datasets(client, "demo.prod")
 
     assert cs == []
-    captured = capsys.readouterr()
-    assert "classifications fetch failed" in captured.err
+    assert any("classifications fetch failed" in r.getMessage() for r in caplog.records)
 
 
 def test_fetch_report_suite_summaries_normalizes_records(mock_client: AaClient) -> None:
