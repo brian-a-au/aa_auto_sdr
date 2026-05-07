@@ -216,9 +216,58 @@ binding contract.
 | `rsid_failure` | ERROR | `pipeline/batch.py` | Per-RSID processing failed (continue-on-error swallowed it). Carries `rsid`, `batch_id`, `exit_code`, `error_class`. |
 | `auth_failure` | ERROR | `api/client.py` | Credentials bootstrap failed. Carries `error_class`, `reason`. |
 | `snapshot_save` | INFO | `snapshot/store.py` | Snapshot persisted to disk. Carries `snapshot_id`, `rsid`, `output_path`, `count`, `duration_ms`. |
+| `component_fetch` | INFO | `api/fetch.py` | Per-component AA fetch returned. Carries `rsid`, `component_type` (one of: dimension/metric/segment/calculated_metric/virtual_report_suite/classification), `count`, `duration_ms`. **New in v1.5.** |
+| `output_write` | INFO | `output/writers/*` | Output file written. Carries `format` (one of: excel/csv/json/html/markdown), `output_path`, `count` (1 for excel/json/html/markdown, 7 for csv), `duration_ms`, `rsid`. **New in v1.5.** |
 
-Note: `component_fetch` and `output_write` are reserved in the style-guide
-vocabulary but do not fire in v1.4. They activate in v1.5.
+### Per-RSID instrumentation (v1.5.0)
+
+Each RSID processed in a single or batch run emits **per-component fetch records** and **output write records** in the log file.
+
+**Component fetch records** trace each AA API fetch:
+```
+2026-05-06 12:34:56 - aa_auto_sdr.api.fetch - INFO - component_fetch rsid=demo.prod component_type=dimension count=42 duration_ms=180
+2026-05-06 12:34:57 - aa_auto_sdr.api.fetch - INFO - component_fetch rsid=demo.prod component_type=metric count=15 duration_ms=125
+```
+
+Six records per RSID, one per component type. Use these to triage where time is spent or which fetch failed:
+```
+grep "component_fetch" logs/SDR_*.log | wc -l   # should be 6 × N RSIDs
+grep "component_fetch" logs/SDR_*.log | grep duration_ms=$(seq -s'\|' 1000 5000)   # find slow fetches
+```
+
+**Output write records** trace each format file written:
+```
+2026-05-06 12:35:01 - aa_auto_sdr.output.writers.excel - INFO - output_write format=excel output_path=output/demo.prod.xlsx count=1 duration_ms=820
+2026-05-06 12:35:02 - aa_auto_sdr.output.writers.csv - INFO - output_write format=csv output_path=output/demo.prod_summary.csv count=7 duration_ms=140
+```
+
+CSV emits ONE record with `count=7` (the writer produces a summary file plus six per-component files); other formats emit `count=1`. To verify the run wrote everything expected:
+```
+grep "output_write" logs/SDR_*.log
+```
+
+### Reading credential resolution (v1.5.0)
+
+Every non-fast-path invocation logs which credentials source resolved:
+
+```
+2026-05-06 12:34:55 - aa_auto_sdr.core.credentials - INFO - creds_resolved source=env
+```
+
+The four `creds_source` values are:
+- `profile:<name>` — a named profile under `~/.aa/orgs/<name>/`
+- `env` — environment variables (`ORG_ID`, `CLIENT_ID`, `SECRET`, `SCOPES`)
+- `.env` — a `.env` file in the working directory
+- `config.json` — a `config.json` file in the working directory
+
+Each command also emits a lifecycle pair:
+```
+2026-05-06 12:34:55 - aa_auto_sdr.cli.commands.generate - INFO - command_start command=generate
+[... fetches and writes ...]
+2026-05-06 12:35:02 - aa_auto_sdr.cli.commands.generate - INFO - command_complete command=generate exit_code=0 duration_ms=7400
+```
+
+Use these to triage which command path was dispatched and how long the work took.
 
 ## Diagnostics
 
