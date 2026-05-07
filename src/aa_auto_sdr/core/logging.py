@@ -145,6 +145,13 @@ class JSONFormatter(logging.Formatter):
             if key.startswith("_"):
                 continue
             payload[key] = value
+        # v1.5 carry-over #1: surface exc_text in JSON output. v1.4's
+        # SensitiveDataFilter pre-formats and redacts tracebacks into
+        # record.exc_text; v1.4 excluded it via _RESERVED_LOGRECORD_FIELDS,
+        # leaving JSON consumers without traceback parity. Surface it here
+        # (already redacted, safe to emit).
+        if record.exc_text:
+            payload["exc_text"] = record.exc_text
         try:
             return json.dumps(payload, default=str)
         except (TypeError, ValueError):  # fmt: skip
