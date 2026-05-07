@@ -139,10 +139,17 @@ class JSONFormatter(logging.Formatter):
             "run_mode": self._run_mode,
             "tool_version": __version__,
         }
+        # Framework keys are owned by the formatter; an `extra={}` from a
+        # call site cannot override them. Without this guard, a future
+        # logger.X(..., extra={"tool_version": ...}) call would silently
+        # replace the framework value.
+        framework_keys = frozenset(payload)
         for key, value in record.__dict__.items():
             if key in _RESERVED_LOGRECORD_FIELDS:
                 continue
             if key.startswith("_"):
+                continue
+            if key in framework_keys:
                 continue
             payload[key] = value
         # v1.5 carry-over #1: surface exc_text in JSON output. v1.4's
