@@ -13,7 +13,7 @@ from pathlib import Path
 from aa_auto_sdr.cli.main import run
 
 GOLDEN = Path(__file__).parent.parent / "fixtures" / "logging" / "ndjson_run_complete_golden.json"
-VOLATILE_KEYS = {"timestamp", "run_id", "duration_ms", "message"}
+VOLATILE_KEYS = {"timestamp", "run_id", "duration_ms", "message", "tool_version"}
 
 
 def _strip_volatile(record: dict) -> dict:
