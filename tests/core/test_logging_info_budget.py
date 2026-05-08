@@ -177,6 +177,97 @@ def test_batch_n2_excel_info_budget(tmp_path, monkeypatch):
     assert 28 <= len(lines) <= 32, f"expected 28..32 lines (spec §8.3: 30 ±2); got {len(lines)}: {lines!r}"
 
 
+def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
+    """v1.7.0 — VRS-degraded run hits the SAME INFO count as a healthy run.
+
+    The full-expansion rung exhausts its retry budget on
+    ``KeyError("content")`` (mimicking aanalytics2 0.5.1's swallowed-stub
+    failure mode); the minimal-expansion rung succeeds. The degradation
+    surfaces at WARNING (``vrs_expansion_fallback``), NEVER at INFO — so
+    the INFO budget is unchanged from the healthy single-RSID excel run
+    (spec §8.1: 19 ±2). A future change that promotes a DEBUG/WARNING
+    record on this path to INFO would silently inflate the budget; this
+    test locks that down.
+    """
+    monkeypatch.chdir(tmp_path)
+    _set_env(monkeypatch)
+    # Default RetryPolicy(max_retries=3) → 4 attempts per rung × 2 rungs =
+    # up to 8 SDK calls on the unhappy path. Patch sleep so the test stays
+    # fast without changing the retry budget.
+    monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+
+    fetcher_patches = _empty_fetcher_patches()
+    with ExitStack() as stack:
+        for p in fetcher_patches:
+            stack.enter_context(p)
+        stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.configure"))
+        login = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Login"))
+        analytics = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Analytics"))
+        rs_patch = stack.enter_context(patch("aa_auto_sdr.api.fetch.fetch_report_suite"))
+        stack.enter_context(
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["RS1"], False)),
+        )
+
+        login.return_value.getCompanyId.return_value = [{"globalCompanyId": "co"}]
+        rs_patch.return_value = _make_report_suite_mock("RS1")
+
+        # Drive the VRS ladder: full-expansion rung (extended_info=True)
+        # exhausts its 4-attempt budget on KeyError("content"); the
+        # minimal-expansion rung (extended_info=False) succeeds on its
+        # first try, returning an empty result list (which `_records`
+        # coerces to []). Total side-effect length = 4 + 1 = 5.
+        handle = analytics.return_value
+        handle.getVirtualReportSuites.side_effect = [
+            KeyError("content"),
+            KeyError("content"),
+            KeyError("content"),
+            KeyError("content"),
+            [],
+        ]
+
+        caplog.set_level(logging.DEBUG)
+        exit_code = run(
+            [
+                "RS1",
+                "--format",
+                "excel",
+                "--output-dir",
+                str(tmp_path / "out"),
+            ]
+        )
+
+    assert exit_code == 0, f"unexpected exit code {exit_code}"
+
+    info_records = [r for r in caplog.records if r.levelname == "INFO"]
+    warning_records = [r for r in caplog.records if r.levelname == "WARNING"]
+
+    # 19 ±2 — same envelope as the healthy single-RSID excel scenario.
+    # Locks down the spec §8.1 budget against accidental DEBUG→INFO promotions
+    # on the VRS-degraded path.
+    assert 17 <= len(info_records) <= 21, (
+        f"expected 17..21 INFO records (spec §8.1: 19 ±2); "
+        f"got {len(info_records)}: {[r.message for r in info_records]!r}"
+    )
+    # Exactly one WARNING — the vrs_expansion_fallback record. If a second
+    # WARNING shows up, something else regressed.
+    assert len(warning_records) == 1, (
+        f"expected exactly 1 WARNING (vrs_expansion_fallback); "
+        f"got {len(warning_records)}: {[r.message for r in warning_records]!r}"
+    )
+    msg = warning_records[0].getMessage()
+    assert "vrs_expansion_fallback" in msg, msg
+    assert "minimal" in msg, msg
+    # Belt-and-suspenders: confirm the SDK was actually called the expected
+    # number of times — 4 attempts on the full rung (max_retries=3 → 4 tries)
+    # plus 1 successful call on the minimal rung = 5 total. If aanalytics2
+    # gets called fewer times, the side_effect didn't drive both rungs and
+    # the test isn't proving what it claims to prove.
+    assert handle.getVirtualReportSuites.call_count == 5, (
+        f"expected 5 SDK calls (4 full-rung retries + 1 minimal-rung success); "
+        f"got {handle.getVirtualReportSuites.call_count}"
+    )
+
+
 def test_diff_info_budget(tmp_path, monkeypatch):
     """Spec §8.5: diff = 9 lines ±2 → 7..11.
 
