@@ -3,6 +3,7 @@
 import pytest
 
 from aa_auto_sdr.core import exceptions as exc
+from aa_auto_sdr.core.exceptions import ApiError, TransientApiError
 
 
 def test_base_class_is_aaautosdrerror() -> None:
@@ -34,3 +35,11 @@ def test_unsupported_by_api20_is_apierror() -> None:
 )
 def test_snapshot_children_inherit_snapshoterror(child: type[Exception]) -> None:
     assert issubclass(child, exc.SnapshotError)
+
+
+def test_transient_api_error_is_api_error_subclass() -> None:
+    """TransientApiError must subclass ApiError so the CLI's existing
+    except-ApiError catches treat it as an API failure (exit 12)."""
+    assert issubclass(TransientApiError, ApiError)
+    err = TransientApiError("transient")
+    assert isinstance(err, ApiError)

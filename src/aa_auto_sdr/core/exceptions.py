@@ -24,6 +24,20 @@ class UnsupportedByApi20(ApiError):
     """
 
 
+class TransientApiError(ApiError):
+    """Retryable transient API failure surfaced through the AA SDK boundary.
+
+    Per `docs/superpowers/spikes/2026-05-08-aanalytics2-resilience-spike.md`,
+    `aanalytics2` 0.5.1 sets `urllib3.Retry(raise_on_status=False)` which
+    swallows non-2xx responses into stub dicts. Downstream SDK code then
+    indexes into those stubs and raises `KeyError`/`ValueError`. The
+    `_retry_and_normalize` helper in `api/fetch.py` catches that pattern
+    and re-raises as `TransientApiError` so `is_retryable` (in
+    `api/resilience.py`) can dispatch on a typed signal rather than
+    guessing about exception classes that the SDK never actually emits.
+    """
+
+
 class ReportSuiteNotFoundError(AaAutoSdrError):
     """The requested RSID does not exist in this org."""
 
