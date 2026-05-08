@@ -50,12 +50,13 @@ Supports `--filter PATTERN`, `--exclude PATTERN`, `--limit N`, `--sort FIELD`.
 ### Inspection (per report suite)
 
 ```bash
+uv run aa_auto_sdr --describe-reportsuite      <RSID_OR_NAME> [--format json|csv] [--output -]
 uv run aa_auto_sdr --list-metrics              <RSID_OR_NAME> [--format json|csv] [--output -]
 uv run aa_auto_sdr --list-dimensions           <RSID_OR_NAME> [--format json|csv] [--output -]
 uv run aa_auto_sdr --list-segments             <RSID_OR_NAME> [--format json|csv] [--output -]
 uv run aa_auto_sdr --list-calculated-metrics   <RSID_OR_NAME> [--format json|csv] [--output -]
 uv run aa_auto_sdr --list-classification-datasets <RSID_OR_NAME> [--format json|csv] [--output -]
-uv run aa_auto_sdr --stats [<RSID>...]                          [--format json] [--output -]
+uv run aa_auto_sdr --stats [<RSID>...]                          [--format json]
 ```
 
 Supports `--filter`, `--exclude`, `--sort`, `--limit`.
@@ -102,19 +103,19 @@ Key flags: `--changes-only`, `--summary`, `--show-only TYPES`, `--max-issues N`,
 ### Snapshots
 
 ```bash
-# Save a snapshot alongside generation
-uv run aa_auto_sdr <RSID> --snapshot
+# Save a snapshot alongside generation (requires --profile)
+uv run aa_auto_sdr <RSID> --profile <name> --snapshot
 
-# Auto-snapshot + retention (per-RSID)
-uv run aa_auto_sdr <RSID> --auto-snapshot --auto-prune --keep-last 20 --keep-since 30d
+# Auto-snapshot + retention (per-RSID; requires --profile)
+uv run aa_auto_sdr <RSID> --profile <name> --auto-snapshot --auto-prune --keep-last 20 --keep-since 30d
 
-# List / prune snapshots
-uv run aa_auto_sdr --list-snapshots [<RSID>]
-uv run aa_auto_sdr --prune-snapshots --keep-last 20 --dry-run
-uv run aa_auto_sdr --prune-snapshots --keep-since 30d --yes
+# List / prune snapshots (both require --profile)
+uv run aa_auto_sdr --profile <name> --list-snapshots [<RSID>]
+uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-last 20 --dry-run
+uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-since 30d --yes
 ```
 
-Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise.
+Snapshot lifecycle commands all require `--profile` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise.
 
 ### Diagnostics
 
@@ -131,8 +132,8 @@ uv run aa_auto_sdr --completion {bash,zsh,fish}   # shell completion script
 # Shape-only validation, no Adobe API call
 uv run aa_auto_sdr --validate-config
 
-# Machine-readable config state
-uv run aa_auto_sdr --config-status [--config-json]
+# Full credential resolution chain (text output)
+uv run aa_auto_sdr --config-status
 
 # Full-pipeline auth-and-resolve dry run (requires <RSID>)
 uv run aa_auto_sdr <RSID> --dry-run
@@ -148,7 +149,7 @@ uv run aa_auto_sdr <RSID> --dry-run
 | `1`  | Generic / uncategorized failure                             | Abort; parse stderr JSON for `error`/`error_type`  |
 | `2`  | Argument / usage error                                      | Abort; check `--help`                              |
 | `3`  | Diff `--warn-threshold` exceeded (diff itself ran OK)       | Notify; optionally escalate                        |
-| `10` | Bad config / missing credentials                            | Abort; run `--config-status --config-json`         |
+| `10` | Bad config / missing credentials                            | Abort; run `--config-status` or `--validate-config` |
 | `11` | OAuth Server-to-Server failure                              | Abort; verify scopes, integration profile          |
 | `12` | Adobe Analytics API request failed                          | Retry if transient                                 |
 | `13` | Report suite or other resource not found                    | Abort; verify RSID                                 |
@@ -170,20 +171,20 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
   ```json
   {"error": "Configuration error: Missing credentials", "error_type": "ConfigError"}
   ```
-- `--run-summary-json PATH` writes a structured run summary to file or stdout (`-`).
-- **Mutex:** `--run-summary-json -` + `--output -` exits `OUTPUT` (15) before any work. `--agent-mode` applies the implicit `--output -`, so explicit `--run-summary-json -` triggers this.
-- `--explain-exit-code CODE` writes the explanation to stdout. With `--run-summary-json -`, the explanation moves to stderr and run-summary JSON to stdout, keeping streams independently parseable.
+- `--run-summary-json PATH` writes a structured run summary to file or stdout (`-`). Generate / batch only — discovery, inspect, and diff routes ignore it.
+- **Mutex:** `--run-summary-json -` + `--output -` exits `OUTPUT` (15) before any work. `--agent-mode` applies the implicit `--output -`, so explicit `--run-summary-json -` triggers this on generate / batch routes.
+- `--explain-exit-code CODE` writes the explanation to stdout (always). It is a fast-path action that does not interact with `--run-summary-json` or `--agent-mode`.
 
 ---
 
 ## File Conventions
 
-| Artifact      | Location                          | Override flag                          |
-|---------------|-----------------------------------|----------------------------------------|
-| SDR reports   | Current directory (default)       | `--output-dir PATH`                    |
-| Snapshots     | `./snapshots/`                    | `--snapshot-dir DIR`                   |
-| Log output    | `logs/` (per-run rotating files, 10 MB / 5 backups) | `--log-level`, `--log-format {text,json}`, `--quiet` |
-| Profiles      | `~/.aa/orgs/<name>/`              | `--profile NAME`, `AA_PROFILE` env     |
+| Artifact      | Location                                                         | Override flag                                                |
+|---------------|------------------------------------------------------------------|--------------------------------------------------------------|
+| SDR reports   | Current directory (default)                                      | `--output-dir PATH`                                          |
+| Snapshots     | `~/.aa/orgs/<profile>/snapshots/<RSID>/<ts>.json` (per-RSID)     | `--profile NAME` (selects the profile-scoped snapshot store) |
+| Log output    | `logs/` (per-run rotating files, 10 MB / 5 backups)              | `--log-level`, `--log-format {text,json}`, `--quiet`         |
+| Profiles      | `~/.aa/orgs/<name>/`                                             | `--profile NAME`, `AA_PROFILE` env                           |
 
 Log levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Log formats: `text` (default), `json` (NDJSON for Splunk/ELK/Datadog).
 
@@ -215,7 +216,7 @@ Config preflight before running unattended:
 
 ```bash
 uv run aa_auto_sdr --validate-config                     # shape-only, no API call
-uv run aa_auto_sdr --config-status --config-json         # machine-readable config state
+uv run aa_auto_sdr --config-status                       # full credential resolution chain
 ```
 
 ### Command-Family Applicability
@@ -227,9 +228,9 @@ uv run aa_auto_sdr --config-status --config-json         # machine-readable conf
 | Discovery / Inspection    | ✅              | JSON or CSV on stdout; prefer exact RSIDs for unattended inspection. |
 | Diff Family               | ✅              | JSON on stdout for `--diff`. PR-comment renderer (`--format pr-comment`) is file-only. |
 | Stats                     | ✅              | JSON on stdout (`--format json`). |
-| Validation / Preflight    | Partial        | Use `--config-status --config-json` for JSON state. `--validate-config` remains exit-code driven. |
+| Validation / Preflight    | Partial        | Both `--config-status` (text) and `--validate-config` are exit-code driven. No JSON output mode today; use exit codes for branching. |
 | Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, `--completion {bash,zsh,fish}` tolerate `--agent-mode` but the preset is not applied before early exit. |
-| Snapshots (list / prune)  | Partial        | `--list-snapshots --format json --output -` supported. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
+| Snapshots (list / prune)  | Partial        | `--profile <name> --list-snapshots --format json --output -` supported (lifecycle commands require `--profile`). `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
 
 ### Exact-ID Guidance
 
