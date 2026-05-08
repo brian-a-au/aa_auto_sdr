@@ -140,3 +140,4 @@ uv run aa_auto_sdr --diff <a> <b>        # Compare snapshots
 - Reference `cja_auto_sdr` for CLI flag names, env-var contract, output format aliases, profile layout, and exit-code conventions — divergence from those is a regression for users who use both tools.
 - Reference `aanalytics2` documentation (https://github.com/pitchmuc/adobe-analytics-api-2.0) for SDK shapes — but never let those shapes leak past `api/`.
 - If a feature exists in `cja_auto_sdr` and it isn't on the "Initial Scope" list above, do not port it without asking the user. The point of starting fresh is to leave behind organic complexity.
+- `AGENTS.md` at the repo root is the machine-readable contract for unattended and agent-driven runs. Keep it in sync with CLI surface changes (new flags, new commands, exit-code additions).
