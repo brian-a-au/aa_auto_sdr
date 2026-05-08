@@ -16,7 +16,35 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras
       - name: Run tests with coverage gate
-        run: uv run pytest -q
+        shell: bash
+        run: |
+          # `set -o pipefail` so pytest's exit code propagates through the
+          # tee. Without it, tee's success would mask test failures and the
+          # matrix gate would silently green-light a broken run.
+          set -o pipefail
+          uv run pytest -q 2>&1 | tee pytest-output.txt
+      - name: Emit coverage + test count to step summary
+        # Surface the same metrics the `update-badges` workflow consumes,
+        # but on EVERY tests run (PRs and main alike), so reviewers see
+        # the current values in the PR's Checks tab without scraping logs.
+        # Only ubuntu emits — running it on all three matrix variants
+        # would just duplicate the same numbers. `success()` keeps the
+        # output honest (no metrics emitted on a failed test run).
+        if: ${{ matrix.os == 'ubuntu-latest' && success() }}
+        shell: bash
+        run: |
+          COV=$(grep -E '^TOTAL' pytest-output.txt | awk '{print $NF}' | tr -d '%')
+          TESTS=$(grep -oE '[0-9]+ passed' pytest-output.txt | tail -1 | awk '{print $1}')
+          {
+            echo "## Test metrics"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Coverage | **${COV}%** |"
+            echo "| Tests passed | **${TESTS}** |"
+            echo ""
+            echo "_Source: \`update-badges\` workflow consumes the same parse from this run on \`main\` to refresh the README badges. PR drift from main is informational here, not gated._"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Rollup gate: a single `test` check that branch protection can require.
   # Passes only when every matrix variant passed; fails (does not skip) on any
