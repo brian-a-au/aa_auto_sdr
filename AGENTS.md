@@ -42,10 +42,11 @@ Profiles stored in `~/.aa/orgs/<name>/`. Profile overrides env vars.
 ```bash
 uv run aa_auto_sdr --list-reportsuites [--format json|csv] [--output -]
 uv run aa_auto_sdr --list-virtual-reportsuites [--format json|csv] [--output -]
-uv run aa_auto_sdr --describe-reportsuite <RSID_OR_NAME>
 ```
 
 Supports `--filter PATTERN`, `--exclude PATTERN`, `--limit N`, `--sort FIELD`.
+
+For per-RSID metadata + component counts, see `--describe-reportsuite` under Inspection below.
 
 ### Inspection (per report suite)
 
@@ -166,7 +167,8 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
 
 - Use `--format json --output -` for machine-parseable stdout where supported.
 - Machine-readable stdout uses `json` or `csv` (where supported by the command family).
-- `--output -` implies `--quiet` (banner/progress to stderr suppressed; errors and final result paths still print).
+- `--output -` implies `--quiet` (banner/progress and INFO records on stderr suppressed; errors, warnings, and final result paths still print; the per-run log file is unaffected). Same for `--run-summary-json -`.
+- Under `--agent-mode`, the preset always applies the implicit `--output -` *before* the per-command-family resolver suppresses it for file-only formats (single SDR / batch). The implicit `--quiet` is derived from that pre-suppression output, so `aa_auto_sdr <RSID> --agent-mode --format excel` runs silently on stderr even though the SDR artifact is written to a file. This is the intended UX for unattended runs — for verbose stderr under agent-mode, pass `--log-level DEBUG` to widen the file logger or `--quiet=false` is not supported (use a non-stdout `--output PATH` instead).
 - On failure, **stderr** receives a JSON error envelope:
   ```json
   {"error": "Configuration error: Missing credentials", "error_type": "ConfigError"}

@@ -498,7 +498,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help=(
             "Agent-friendly preset: defaults to --format json --output - --log-format json "
-            "for options the user did not explicitly pass. Existing --output - implies --quiet."
+            "for options the user did not explicitly pass. --output - implies --quiet "
+            "(banner / progress / INFO on stderr suppressed; errors and final result paths still print)."
         ),
     )
 

@@ -110,11 +110,10 @@ def test_documented_long_flags_exist_in_parser():
     # Allow-list: tokens that look like flags but are placeholders or values.
     # `--format` values like `json|csv|markdown|excel|html|all|reports|data|ci|pr-comment`
     # and config / value placeholders that share the `--` prefix syntactically.
+    # Allow-list — only fast-path flags handled in ``__main__.py`` before
+    # argparse runs. Everything else must appear on the actual parser.
     allowlist = {
-        "--diff-labels",  # accepted in argparse via `--diff-labels A=foo B=bar`
-        # Fast-path flags handled in `__main__.py` before the argparse parser runs.
         "--version",
-        "--help",
     }
 
     missing = documented - real_flags - allowlist

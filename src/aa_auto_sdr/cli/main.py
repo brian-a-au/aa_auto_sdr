@@ -13,7 +13,6 @@ from aa_auto_sdr.cli.agent_output import (
     DISCOVERY_STDOUT_FORMATS,
     is_stdout_path,
     resolve_agent_output_path,
-    resolve_agent_quiet,
 )
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
@@ -37,18 +36,46 @@ def _argv_summary(argv: list[str]) -> list[str]:
     return [a for a in argv if a.startswith("-")]
 
 
+def _derive_quiet_from_output_destination(ns: argparse.Namespace) -> None:
+    """Honor the documented contract that stdout-bound output implies --quiet.
+
+    Mutates ``ns.quiet`` in place. Without this, INFO records on stderr leak
+    into streams agents / scripts are reading on stdout. Applies to both
+    ``--output -`` and ``--run-summary-json -``. Idempotent when ``--quiet``
+    was already explicit. Must run AFTER ``_apply_agent_mode_defaults`` so
+    the preset's implicit ``--output -`` is visible, and BEFORE
+    ``setup_logging`` so the console handler is wired at the right level.
+    """
+    if getattr(ns, "quiet", False):
+        return
+    if is_stdout_path(getattr(ns, "output", None)) or is_stdout_path(getattr(ns, "run_summary_json", None)):
+        ns.quiet = True
+
+
 def run(argv: list[str]) -> int:
+    """CLI entry point.
+
+    Order of namespace mutations (each step reads the post-step state of
+    the previous one):
+      1. ``parser.parse_args(argv)`` — argparse defaults applied.
+      2. ``_apply_agent_mode_defaults`` — `--agent-mode` preset fills in
+         `format` / `output` / `log_format` for options the user did not
+         explicitly pass on argv.
+      3. quiet-from-output prelude — if the resolved `output` or
+         `run_summary_json` targets stdout and `--quiet` was not explicit,
+         flip ``ns.quiet = True`` so INFO records do not leak onto stderr
+         alongside the stdout payload.
+      4. ``setup_logging(ns)`` — wires console + file handlers from the
+         now-final ``ns``.
+
+    After step 4, ``ns`` is read-only by convention; downstream dispatch
+    threads ``argv`` separately so per-command resolvers can re-derive
+    explicit-vs-implicit decisions without re-mutating the namespace.
+    """
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
-    # Honor the documented contract that stdout-bound output implies --quiet.
-    # Without this, INFO records on stderr leak into streams agents/scripts
-    # are reading. Applies to both ``--output -`` and ``--run-summary-json -``;
-    # explicit ``--quiet`` is already True so this is idempotent there.
-    if not getattr(ns, "quiet", False) and (
-        is_stdout_path(getattr(ns, "output", None)) or is_stdout_path(getattr(ns, "run_summary_json", None))
-    ):
-        ns.quiet = True
+    _derive_quiet_from_output_destination(ns)
     setup_logging(ns)
     run_mode = infer_run_mode(ns)
     logger.info(
@@ -328,7 +355,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             output_format=fmt_for_resolve,
             stdout_formats=DIFF_STDOUT_FORMATS,
         )
-        resolved_quiet = resolve_agent_quiet(ns, argv=argv, output_path=resolved_output)
+        # NOTE: ``diff_cmd.run``'s ``quiet=`` is the *renderer-level* "drop
+        # unchanged trailers" flag — distinct from the *logger-level* quiet
+        # that the prelude in ``run()`` already applied to ``ns.quiet`` for
+        # stdout-bound runs. Don't conflate them: pass only ``ns.quiet_diff``.
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
@@ -338,7 +368,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             side_by_side=ns.side_by_side,
             summary=ns.summary,
             ignore_fields=ignore,
-            quiet=resolved_quiet or ns.quiet_diff,
+            quiet=ns.quiet_diff,
             labels=labels,
             reverse=ns.reverse_diff,
             changes_only=ns.changes_only,
