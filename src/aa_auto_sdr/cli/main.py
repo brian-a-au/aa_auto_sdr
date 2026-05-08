@@ -10,6 +10,7 @@ from pathlib import Path
 
 from aa_auto_sdr.cli.agent_output import (
     DIFF_STDOUT_FORMATS,
+    DISCOVERY_STDOUT_FORMATS,
     resolve_agent_output_path,
     resolve_agent_quiet,
 )
@@ -215,10 +216,15 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if ns.list_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd
 
+        resolved_output = resolve_agent_output_path(
+            ns,
+            output_format=(ns.format or "json"),
+            stdout_formats=DISCOVERY_STDOUT_FORMATS,
+        )
         return discovery_cmd.run_list_reportsuites(
             profile=ns.profile,
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
             name_filter=ns.filter,
             name_exclude=ns.exclude,
             sort_field=ns.sort,
@@ -227,10 +233,15 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if ns.list_virtual_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd
 
+        resolved_output = resolve_agent_output_path(
+            ns,
+            output_format=(ns.format or "json"),
+            stdout_formats=DISCOVERY_STDOUT_FORMATS,
+        )
         return discovery_cmd.run_list_virtual_reportsuites(
             profile=ns.profile,
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
             name_filter=ns.filter,
             name_exclude=ns.exclude,
             sort_field=ns.sort,

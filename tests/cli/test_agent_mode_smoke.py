@@ -55,3 +55,48 @@ def test_diff_under_agent_mode_emits_json_to_stdout(tmp_path, monkeypatch, capsy
     assert exit_code == 0
     payload = json.loads(captured.out)
     assert "components" in payload  # DiffReport JSON shape
+
+
+def test_list_reportsuites_under_agent_mode_emits_json(monkeypatch, capsys, tmp_path):
+    """`--list-reportsuites --agent-mode` emits a JSON array on stdout."""
+    monkeypatch.chdir(tmp_path)
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.models import ReportSuiteSummary
+    from aa_auto_sdr.core import credentials
+    from aa_auto_sdr.core.credentials import Credentials
+
+    monkeypatch.setattr(
+        credentials,
+        "resolve",
+        lambda profile=None: Credentials(  # noqa: ARG005
+            org_id="x",
+            client_id="y",
+            secret="z",
+            scopes="openid,AdobeID,additional_info.projectedProductContext",
+            source="test",
+        ),
+    )
+    monkeypatch.setattr(
+        AaClient,
+        "from_credentials",
+        classmethod(lambda cls, creds: object()),  # noqa: ARG005
+    )
+    monkeypatch.setattr(
+        fetch,
+        "fetch_report_suite_summaries",
+        lambda client: [  # noqa: ARG005
+            ReportSuiteSummary(rsid="RS1", name="Suite 1"),
+            ReportSuiteSummary(rsid="RS2", name="Suite 2"),
+        ],
+    )
+
+    from aa_auto_sdr.cli.main import run
+
+    exit_code = run(["--list-reportsuites", "--agent-mode"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    payload = json.loads(captured.out)
+    assert isinstance(payload, list)
+    assert any(row["rsid"] == "RS1" for row in payload)
