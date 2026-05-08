@@ -22,15 +22,117 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 import pandas as pd
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
+from aa_auto_sdr.api.resilience import RetryPolicy, with_retries
+from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError, TransientApiError
 
 logger = logging.getLogger(__name__)
+
+
+def _classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str | None = None) -> T:
+    """Run `fn`, classifying SDK-shape failures as `TransientApiError`.
+
+    Per spike (docs/superpowers/spikes/2026-05-08-aanalytics2-resilience-spike.md):
+    aanalytics2 0.5.1 surfaces transient HTTP failures (5xx after urllib3
+    retries, malformed bodies) as bare KeyError (from indexing into stub
+    error dicts like vrsid['content']) or ValueError (from pandas DataFrame
+    construction over malformed payloads). This helper translates those to
+    TransientApiError so is_retryable can dispatch on a typed signal — used
+    by both _retry_and_normalize (bubbling fetchers) and the VRS ladder
+    rungs (where each rung needs the classifier independently so the outer
+    try/except can fall to the next rung).
+    """
+    try:
+        return fn()
+    except (KeyError, ValueError) as e:
+        ctx = f"{component_type} " if component_type else ""
+        raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
+
+
+def _log_retry_attempt(
+    attempt: int,
+    max_attempts: int,
+    delay_s: float,
+    exc: BaseException,
+    *,
+    rsid: str | None = None,
+    component_type: str | None = None,
+) -> None:
+    """on_attempt callback for with_retries. Emits a DEBUG record per retry.
+
+    Vocabulary-compliant fields (per docs/LOGGING_STYLE.md §6.1): only
+    ``retry_attempt``, ``error_class``, ``rsid``, ``component_type`` go into
+    ``extra={}``. ``max_attempts`` / ``delay_s`` ride along the message string
+    for human readability without being formally indexed (the structured
+    sink can still parse the message if it cares)."""
+    logger.debug(
+        "retry_attempt attempt=%s/%s delay_s=%.3f error_class=%s",
+        attempt,
+        max_attempts,
+        delay_s,
+        type(exc).__name__,
+        extra={
+            "retry_attempt": attempt,
+            "error_class": type(exc).__name__,
+            "rsid": rsid,
+            "component_type": component_type,
+        },
+    )
+
+
+def _retry_and_normalize[T](
+    fn: Callable[[], T],
+    *,
+    policy: RetryPolicy,
+    rsid: str | None = None,
+    component_type: str | None = None,
+) -> T:
+    """Run `fn` under `policy`, classifying SDK-shape failures as transient.
+
+    Two responsibilities:
+
+    1. Inner classifier (via _classify_transient_sdk_call) — translates the SDK's
+       heterogeneous failure shapes into our TransientApiError so with_retries/
+       is_retryable can dispatch on a typed signal.
+    2. Outer normalizer — any non-ApiError exception that escapes with_retries
+       (genuine bugs: AttributeError, TypeError; or unexpected SDK shapes) is
+       wrapped as plain ApiError so the CLI's existing except-ApiError catches
+       translate to ExitCode.API (12) without exposing internal exception types.
+       TransientApiError (subclass of ApiError) and plain ApiError pass through.
+
+    Used by bubbling fetchers (dimensions, metrics, segments, calc-metrics,
+    report-suite, report-suite-summaries, resolve_rsid). Graceful-degrade
+    fetchers (VRS ladder, classifications, VRS-summary discovery) call
+    with_retries directly inside their existing try/except envelopes because
+    they need to inspect the underlying exception type to decide between
+    fallback rungs / [] / ApiError-normalization.
+    """
+    try:
+        return with_retries(
+            lambda: _classify_transient_sdk_call(fn, component_type=component_type),
+            policy=policy,
+            on_attempt=lambda a, m, d, e: _log_retry_attempt(
+                a,
+                m,
+                d,
+                e,
+                rsid=rsid,
+                component_type=component_type,
+            ),
+        )
+    except ApiError:
+        raise  # TransientApiError or plain ApiError — both pass through
+    except Exception as e:
+        # Defensive: AttributeError / TypeError / etc. — non-transient bugs
+        # that the inner classifier doesn't catch.
+        ctx = f"{component_type} " if component_type else ""
+        raise ApiError(f"{ctx}fetch failed: {type(e).__name__}: {e}") from e
 
 
 def _records(value: Any) -> list[dict[str, Any]]:
@@ -93,7 +195,13 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     """Find the report suite with the given rsid. Uses extended_info to get
     currency / parentRsid / timezone fields."""
     started = time.monotonic()
-    suites = _records(client.handle.getReportSuites(extended_info=True))
+    suites = _records(
+        _retry_and_normalize(
+            lambda: client.handle.getReportSuites(extended_info=True),
+            policy=client.retry_policy,
+            rsid=rsid,
+        )
+    )
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.debug(
         "fetch_report_suite count=%s duration_ms=%s",
@@ -126,7 +234,12 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
 
     Sort order: alphabetical by rsid."""
     started = time.monotonic()
-    raw = _records(client.handle.getReportSuites(extended_info=True))
+    raw = _records(
+        _retry_and_normalize(
+            lambda: client.handle.getReportSuites(extended_info=True),
+            policy=client.retry_policy,
+        )
+    )
     summaries = [
         models.ReportSuiteSummary(
             rsid=str(r.get("rsid", "")),
@@ -160,7 +273,12 @@ def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
     Returns (rsids, was_name_lookup). `rsids` is always a non-empty list.
     """
     logger.debug("resolve_rsid identifier-input")
-    suites = _records(client.handle.getReportSuites(extended_info=True))
+    suites = _records(
+        _retry_and_normalize(
+            lambda: client.handle.getReportSuites(extended_info=True),
+            policy=client.retry_policy,
+        )
+    )
 
     # 1) Exact RSID match — RSIDs are distinct
     for raw in suites:
@@ -193,7 +311,12 @@ def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
 def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     started = time.monotonic()
     raws = _records(
-        client.handle.getDimensions(rsid=rsid, description=True, tags=True),
+        _retry_and_normalize(
+            lambda: client.handle.getDimensions(rsid=rsid, description=True, tags=True),
+            policy=client.retry_policy,
+            rsid=rsid,
+            component_type="dimension",
+        )
     )
     known = {"id", "name", "type", "category", "parent", "pathable", "description", "tags"}
     out = [
@@ -235,7 +358,12 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
     # leave `data_group` as None on the Metric model.
     started = time.monotonic()
     raws = _records(
-        client.handle.getMetrics(rsid=rsid, description=True, tags=True),
+        _retry_and_normalize(
+            lambda: client.handle.getMetrics(rsid=rsid, description=True, tags=True),
+            policy=client.retry_policy,
+            rsid=rsid,
+            component_type="metric",
+        )
     )
     known = {
         "id",
@@ -283,7 +411,12 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     """Pulls segments for the rsid, with extended_info for the `definition` body."""
     started = time.monotonic()
     raws = _records(
-        client.handle.getSegments(rsids_list=[rsid], extended_info=True),
+        _retry_and_normalize(
+            lambda: client.handle.getSegments(rsids_list=[rsid], extended_info=True),
+            policy=client.retry_policy,
+            rsid=rsid,
+            component_type="segment",
+        )
     )
     known = {
         "id",
@@ -336,7 +469,12 @@ def fetch_calculated_metrics(
     """Pulls calculated metrics for the rsid, with extended_info for `definition`."""
     started = time.monotonic()
     raws = _records(
-        client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True),
+        _retry_and_normalize(
+            lambda: client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True),
+            policy=client.retry_policy,
+            rsid=rsid,
+            component_type="calculated_metric",
+        )
     )
     known = {
         "id",
@@ -401,7 +539,23 @@ def fetch_virtual_report_suites(
     which is absent on error. Mirrors the classifications pattern below."""
     started = time.monotonic()
     try:
-        raws = _records(client.handle.getVirtualReportSuites(extended_info=True))
+        raws = _records(
+            with_retries(
+                lambda: _classify_transient_sdk_call(
+                    lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    component_type="virtual_report_suite",
+                ),
+                policy=client.retry_policy,
+                on_attempt=lambda a, m, d, e: _log_retry_attempt(
+                    a,
+                    m,
+                    d,
+                    e,
+                    rsid=parent_rsid,
+                    component_type="virtual_report_suite",
+                ),
+            )
+        )
     except Exception as e:  # SDK raises KeyError on HTTP 500, plus other shapes
         logger.warning(
             "virtual report suites fetch failed rsid=%s error_class=%s",
@@ -475,7 +629,22 @@ def fetch_virtual_report_suite_summaries(
     crashed the generate path."""
     started = time.monotonic()
     try:
-        raw = _records(client.handle.getVirtualReportSuites(extended_info=True))
+        raw = _records(
+            with_retries(
+                lambda: _classify_transient_sdk_call(
+                    lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    component_type="virtual_report_suite",
+                ),
+                policy=client.retry_policy,
+                on_attempt=lambda a, m, d, e: _log_retry_attempt(
+                    a,
+                    m,
+                    d,
+                    e,
+                    component_type="virtual_report_suite",
+                ),
+            )
+        )
     except ApiError:
         raise  # already typed; let it bubble
     except Exception as e:
@@ -548,7 +717,23 @@ def fetch_classification_datasets(
     breaking the whole SDR — classifications are best-effort in v0.1.x."""
     started = time.monotonic()
     try:
-        raws = _records(client.handle.getClassificationDatasets(rsid=rsid))
+        raws = _records(
+            with_retries(
+                lambda: _classify_transient_sdk_call(
+                    lambda: client.handle.getClassificationDatasets(rsid=rsid),
+                    component_type="classification",
+                ),
+                policy=client.retry_policy,
+                on_attempt=lambda a, m, d, e: _log_retry_attempt(
+                    a,
+                    m,
+                    d,
+                    e,
+                    rsid=rsid,
+                    component_type="classification",
+                ),
+            )
+        )
     except Exception as e:  # wrapper raises various exception types
         logger.warning(
             "classifications fetch failed rsid=%s error_class=%s",
