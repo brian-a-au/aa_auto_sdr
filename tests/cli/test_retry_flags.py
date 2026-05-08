@@ -44,7 +44,7 @@ class TestRetryFlagParsing:
 class TestRetryFlagMutex:
     """Cross-flag mutex (max < base) is enforced inside cli/main.run before any work."""
 
-    def test_max_less_than_base_exits_usage(self) -> None:
+    def test_max_less_than_base_exits_usage(self, capsys: pytest.CaptureFixture[str]) -> None:
         from aa_auto_sdr.cli.main import run
 
         rc = run(
@@ -57,3 +57,11 @@ class TestRetryFlagMutex:
             ]
         )
         assert rc == ExitCode.USAGE.value
+        # The CLI translates the library's internal field names (max_delay /
+        # base_delay) into user-facing flag names so the error is actionable
+        # without needing knowledge of the resilience module's vocabulary.
+        captured = capsys.readouterr()
+        assert "--retry-max-delay" in captured.err
+        assert "--retry-base-delay" in captured.err
+        assert "max_delay" not in captured.err
+        assert "base_delay" not in captured.err

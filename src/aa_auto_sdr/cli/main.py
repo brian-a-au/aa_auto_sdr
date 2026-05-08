@@ -82,7 +82,15 @@ def run(argv: list[str]) -> int:
     try:
         ns.retry_policy = RetryPolicy.from_namespace(ns)
     except ValueError as e:
-        print(f"error: {e}", file=sys.stderr)
+        # Map internal field names to user-facing flag names so the user gets
+        # an actionable error without needing the library's vocabulary.
+        msg = (
+            str(e)
+            .replace("max_delay", "--retry-max-delay")
+            .replace("base_delay", "--retry-base-delay")
+            .replace("max_retries", "--max-retries")
+        )
+        print(f"error: {msg}", file=sys.stderr)
         return ExitCode.USAGE.value
     _derive_quiet_from_output_destination(ns)
     setup_logging(ns)

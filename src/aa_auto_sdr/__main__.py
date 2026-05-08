@@ -45,6 +45,11 @@ def _print_help() -> int:
         "  aa_auto_sdr -V | --version           Print version\n"
         "  aa_auto_sdr -h | --help              Print this help\n"
         "\n"
+        "Retry tuning:\n"
+        "  --max-retries N           Max retries on transient API failures (default: 3)\n"
+        "  --retry-base-delay SECS   Base delay for exponential backoff (default: 0.5)\n"
+        "  --retry-max-delay SECS    Maximum delay between retries (default: 10.0)\n"
+        "\n"
         "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
         "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
     )
