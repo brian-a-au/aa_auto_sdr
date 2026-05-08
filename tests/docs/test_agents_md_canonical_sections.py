@@ -88,3 +88,37 @@ def test_read_only_invariant_stated():
 def test_error_envelope_shape_documented():
     text = AGENTS_MD.read_text()
     assert "error_type" in text
+
+
+def test_documented_long_flags_exist_in_parser():
+    """Every ``--long-flag`` referenced in AGENTS.md must be a real CLI option.
+
+    Catches the doc-drift class where the contract describes flags that don't
+    exist (e.g. an earlier draft mentioned a non-existent ``--snapshot-dir``).
+    A small allow-list covers placeholders and documentation-only tokens
+    (e.g. ``--format`` values or shell-prompt examples).
+    """
+    from aa_auto_sdr.cli.parser import build_parser
+
+    parser = build_parser()
+    real_flags = {opt for action in parser._actions for opt in action.option_strings if opt.startswith("--")}
+
+    text = AGENTS_MD.read_text()
+    # Match `--word-with-hyphens` (anchor on word boundary, allow trailing words like A=, B=)
+    documented = set(re.findall(r"--[a-z][a-z0-9-]+", text))
+
+    # Allow-list: tokens that look like flags but are placeholders or values.
+    # `--format` values like `json|csv|markdown|excel|html|all|reports|data|ci|pr-comment`
+    # and config / value placeholders that share the `--` prefix syntactically.
+    allowlist = {
+        "--diff-labels",  # accepted in argparse via `--diff-labels A=foo B=bar`
+        # Fast-path flags handled in `__main__.py` before the argparse parser runs.
+        "--version",
+        "--help",
+    }
+
+    missing = documented - real_flags - allowlist
+    assert not missing, (
+        f"AGENTS.md references flags that don't exist on the parser: {sorted(missing)}. "
+        "Either add them to the parser, fix the doc, or add to the allowlist with a comment."
+    )

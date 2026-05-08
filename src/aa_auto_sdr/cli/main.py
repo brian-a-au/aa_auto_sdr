@@ -52,8 +52,9 @@ def run(argv: list[str]) -> int:
         },
     )
     started = time.monotonic()
+    agent_mode = getattr(ns, "agent_mode", False)
     try:
-        exit_code = _dispatch(ns, parser)
+        exit_code = _dispatch(ns, parser, argv)
     except Exception as exc:
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.error(
@@ -63,6 +64,7 @@ def run(argv: list[str]) -> int:
                 "exit_code": ExitCode.GENERIC.value,
                 "error_class": type(exc).__name__,
                 "duration_ms": duration_ms,
+                "agent_mode": agent_mode,
             },
         )
         raise
@@ -71,12 +73,12 @@ def run(argv: list[str]) -> int:
         "run_complete exit_code=%s duration_ms=%s",
         exit_code,
         duration_ms,
-        extra={"exit_code": exit_code, "duration_ms": duration_ms},
+        extra={"exit_code": exit_code, "duration_ms": duration_ms, "agent_mode": agent_mode},
     )
     return exit_code
 
 
-def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: list[str]) -> int:
     """All command dispatch that previously lived directly in run().
 
     Extracted so run() can wrap it in a single try/except for run_failure
@@ -218,6 +220,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
         resolved_output = resolve_agent_output_path(
             ns,
+            argv=argv,
             output_format=(ns.format or "json"),
             stdout_formats=DISCOVERY_STDOUT_FORMATS,
         )
@@ -235,6 +238,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
         resolved_output = resolve_agent_output_path(
             ns,
+            argv=argv,
             output_format=(ns.format or "json"),
             stdout_formats=DISCOVERY_STDOUT_FORMATS,
         )
@@ -252,6 +256,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
         resolved_output = resolve_agent_output_path(
             ns,
+            argv=argv,
             output_format=(ns.format or "json"),
             stdout_formats=DISCOVERY_STDOUT_FORMATS,
         )
@@ -277,6 +282,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             handler = getattr(inspect_cmd, fn_name)
             resolved_output = resolve_agent_output_path(
                 ns,
+                argv=argv,
                 output_format=(ns.format or "json"),
                 stdout_formats=DISCOVERY_STDOUT_FORMATS,
             )
@@ -309,10 +315,11 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         fmt_for_resolve = ns.format or "console"
         resolved_output = resolve_agent_output_path(
             ns,
+            argv=argv,
             output_format=fmt_for_resolve,
             stdout_formats=DIFF_STDOUT_FORMATS,
         )
-        resolved_quiet = resolve_agent_quiet(ns, output_path=resolved_output)
+        resolved_quiet = resolve_agent_quiet(ns, argv=argv, output_path=resolved_output)
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
@@ -365,6 +372,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if explicit_batch or len(rsids) > 1:
         resolved_output = resolve_agent_output_path(
             ns,
+            argv=argv,
             output_format=(ns.format or "excel"),
             stdout_formats=frozenset(),
         )
@@ -399,6 +407,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     # Single identifier → generate. Default --format to "excel" if omitted.
     resolved_output = resolve_agent_output_path(
         ns,
+        argv=argv,
         output_format=(ns.format or "excel"),
         stdout_formats=frozenset(),
     )

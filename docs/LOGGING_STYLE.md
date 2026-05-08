@@ -47,7 +47,7 @@ text. The vocabulary meta-test enforces presence on the events listed in
 | `command` | str — dispatch attribute name | Emitted on `command_start` / `command_complete` un-prefixed records from `cli/commands/*`. Values match dispatch attribute names (e.g., `generate`, `batch`, `diff`, `list_metrics`, etc.). Vocabulary meta-test enforces presence of *some* `command` extra on cli/commands/*.py INFO records, not a fixed enum. |
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the v1.5 INFO record from `core/credentials.resolve()` indicating which source matched. Four values: `profile:<name>` / `env` / `.env` / `config.json`. |
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
-| `agent_mode` | bool | `run_start` records — `True` when `--agent-mode` preset was active; `False` otherwise. |
+| `agent_mode` | bool | `run_start` / `run_complete` / `run_failure` records — `True` when `--agent-mode` preset was active; `False` otherwise. Lets log-aggregation queries filter by agent-driven runs without joining on `argv_summary`. |
 
 **Reserved fields (do not use yet, will activate when their underlying feature lands):**
 

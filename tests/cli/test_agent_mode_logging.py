@@ -92,3 +92,20 @@ def test_run_start_ndjson_includes_agent_mode(tmp_path, monkeypatch):
     run_start_lines = [json.loads(line) for line in lines if "run_start" in line]
     assert run_start_lines
     assert run_start_lines[0].get("agent_mode") is True
+
+
+def test_run_complete_records_agent_mode(tmp_path, monkeypatch):
+    """run_complete record also carries agent_mode for log-aggregation queries."""
+    monkeypatch.chdir(tmp_path)
+    _stub_aa_pipeline(monkeypatch)
+
+    from aa_auto_sdr.cli.main import run
+
+    run(["--list-reportsuites", "--agent-mode"])
+
+    log_files = sorted((tmp_path / "logs").glob("*.log"))
+    assert log_files, "no log file written"
+    lines = log_files[-1].read_text().splitlines()
+    run_complete_lines = [json.loads(line) for line in lines if "run_complete" in line]
+    assert run_complete_lines, "run_complete log record missing"
+    assert run_complete_lines[0].get("agent_mode") is True
