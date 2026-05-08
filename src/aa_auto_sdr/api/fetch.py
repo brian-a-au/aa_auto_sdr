@@ -627,6 +627,27 @@ def fetch_virtual_report_suites(
         for r in raws
         if r.get("parentRsid") == parent_rsid
     ]
+    # Item D (v1.7.0): structured DEBUG when client-side parentRsid filter
+    # drops rows. Fires only on the unhappy path (some rows dropped) so the
+    # happy path stays quiet. Surfaces "where my VRS went" under --log-level=DEBUG.
+    if len(out) != len(raws):
+        dropped_no_parent = sum(1 for r in raws if not r.get("parentRsid"))
+        dropped_other_parent = len(raws) - len(out) - dropped_no_parent
+        logger.debug(
+            "vrs_parent_filter rsid=%s pulled=%s filtered=%s dropped_no_parent=%s dropped_other_parent=%s",
+            parent_rsid,
+            len(raws),
+            len(out),
+            dropped_no_parent,
+            dropped_other_parent,
+            extra={
+                "rsid": parent_rsid,
+                "pulled": len(raws),
+                "filtered": len(out),
+                "dropped_no_parent": dropped_no_parent,
+                "dropped_other_parent": dropped_other_parent,
+            },
+        )
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
         "component_fetch rsid=%s component_type=virtual_report_suite count=%s duration_ms=%s expansion_level=%s",

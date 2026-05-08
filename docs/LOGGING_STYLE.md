@@ -49,6 +49,10 @@ text. The vocabulary meta-test enforces presence on the events listed in
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
 | `agent_mode` | bool | `run_start` / `run_complete` / `run_failure` records — `True` when `--agent-mode` preset was active; `False` otherwise. Lets log-aggregation queries filter by agent-driven runs without joining on `argv_summary`. |
 | `expansion_level` | str — `full`/`minimal`/`exhausted` | VRS-fetch records (`api/fetch.py::fetch_virtual_report_suites`). Records which rung of the v1.7.0 two-rung ladder produced the result: `full` (extended_info=True succeeded), `minimal` (fell back to extended_info=False), or `exhausted` (both rungs failed; result is `[]`). Emitted on the `component_fetch` INFO record and on the `vrs_expansion_fallback` WARNING record. |
+| `pulled` | int | `vrs_parent_filter` DEBUG record (`api/fetch.py::fetch_virtual_report_suites`). Number of VRS rows the SDK returned before client-side parent filtering. |
+| `filtered` | int | `vrs_parent_filter` DEBUG record. Number of VRS rows kept after the `parentRsid == parent_rsid` filter. |
+| `dropped_no_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was missing/empty. |
+| `dropped_other_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was set but didn't match the requested parent. |
 
 **Reserved fields (do not use yet, will activate when their underlying feature lands):**
 
@@ -258,6 +262,16 @@ return `[]`, and let the SDR build complete. The WARNING record carries
 `rsid`, `component_type` (`"classification"` or `"virtual_report_suite"`),
 and `error_class` — but not `count` or `duration_ms` (the call did not
 complete). All other component fetchers fail the run on exception.
+
+**VRS parent-filter visibility (v1.7.0, Item D).** After the SDK call
+returns, `fetch_virtual_report_suites` filters VRS rows client-side to
+those whose `parentRsid` matches the requested parent. When that filter
+drops one or more rows, a single DEBUG record with prefix
+`vrs_parent_filter` fires carrying `rsid`, `pulled`, `filtered`,
+`dropped_no_parent`, and `dropped_other_parent` — so an operator
+investigating "where my VRS went" can find the answer under
+`--log-level=DEBUG` without needing to instrument anything. No record
+fires on the happy path (all pulled rows kept).
 
 **Discovery-path counterpart.** `fetch_virtual_report_suite_summaries`
 (used by `--list-virtual-reportsuites`) does NOT graceful-degrade —

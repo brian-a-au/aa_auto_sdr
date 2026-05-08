@@ -56,6 +56,10 @@ VOCAB = {
     "agent_mode",
     # v1.7 additions
     "expansion_level",
+    "pulled",
+    "filtered",
+    "dropped_no_parent",
+    "dropped_other_parent",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
