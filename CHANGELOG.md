@@ -2,6 +2,51 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.1] — 2026-05-08
+
+Patch release. Fixes a hard crash when Adobe's virtual-report-suites endpoint
+fails for an org.
+
+### Fixed
+
+- **Generate path** (`aa_auto_sdr <RSID>`):
+  `fetch_virtual_report_suites` now catches any exception from the SDK call,
+  logs a `WARNING` (with `rsid` / `component_type` / `error_class`), and
+  returns `[]` instead of aborting the caller. Field repro: customer org
+  returned HTTP 500 from `/reportsuites/virtualreportsuites` four times
+  running (initial + three retries); `aanalytics2` 0.5.1 indexes
+  `vrsid['content']` on the response envelope without checking for an error
+  shape, raising `KeyError: 'content'`. The exception bubbled up through
+  `fetch_virtual_report_suites` → `build_sdr` → CLI and killed the entire
+  generate run after every other component (331 dimensions, 122 metrics,
+  16 segments, 0 calculated metrics) had already fetched cleanly. Mirrors
+  the long-standing best-effort pattern used for classifications. The 500
+  itself is server-side and out of scope for this tool — the customer's VRS
+  list will appear empty until Adobe resolves the endpoint failure, but the
+  rest of the SDR now generates normally.
+- **Discovery path** (`--list-virtual-reportsuites`):
+  `fetch_virtual_report_suite_summaries` now normalizes any SDK-side
+  exception (e.g. raw `KeyError`, `RuntimeError`) to `ApiError` so the CLI's
+  existing typed-catch contract returns exit code `API` (12) with a clean
+  error message instead of an unhandled-exception traceback. Discovery does
+  NOT graceful-degrade like the generate path — silently returning `[]` on
+  a broken endpoint would falsely suggest the org has no VRS, hiding the
+  failure from a user who explicitly asked for the list.
+
+### Tests
+
+- `tests/api/test_fetch.py`: added
+  `test_fetch_virtual_report_suites_returns_empty_on_wrapper_error`,
+  `test_fetch_virtual_report_suite_summaries_raises_api_error_on_wrapper_failure`,
+  and `test_fetch_virtual_report_suite_summaries_passes_through_api_error`.
+  Field-shape `KeyError("content")` is the side effect for the failure tests.
+- `tests/api/test_fetch_logging.py`: added
+  `test_virtual_report_suites_failure_emits_warning` (generate path —
+  asserts structured `rsid` / `component_type` / `error_class` fields on
+  the WARNING record) and
+  `test_virtual_report_suite_summaries_failure_normalizes_to_api_error`
+  (discovery path — asserts `ApiError` is raised, no WARNING).
+
 ## [1.6.0] — 2026-05-07
 
 Closes Tier 2 "Agent mode" from the feature gap doc.
