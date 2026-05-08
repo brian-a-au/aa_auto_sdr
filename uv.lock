@@ -8,6 +8,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aanalytics2" },
     { name = "pandas" },
+    { name = "requests" },
     { name = "xlsxwriter" },
 ]
 
@@ -33,6 +34,7 @@ requires-dist = [
     { name = "argcomplete", marker = "extra == 'completion'", specifier = ">=3.0.0" },
     { name = "pandas", specifier = ">=2.3.3,<3" },
     { name = "python-dotenv", marker = "extra == 'env'", specifier = ">=1.0.0" },
+    { name = "requests", specifier = ">=2.0" },
     { name = "xlsxwriter", specifier = ">=3.2.9" },
 ]
 provides-extras = ["completion", "env"]
