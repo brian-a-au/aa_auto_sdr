@@ -2,6 +2,82 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.7.0] — 2026-05-08
+
+Closes Tier 2 "Retry / backoff knobs" from the feature gap doc, plus
+Items C and D from the VRS hardening audit spec.
+
+### Added
+
+- `--max-retries N` (default 3), `--retry-base-delay SECONDS` (default 0.5),
+  `--retry-max-delay SECONDS` (default 10.0) under a new "Retry" argparse
+  group. Cross-flag mutex (`--retry-max-delay < --retry-base-delay`) exits
+  `USAGE` (2) before any work.
+- `src/aa_auto_sdr/api/resilience.py` — greenfield module exposing
+  `RetryPolicy` (frozen dataclass with validation), `DEFAULT_RETRY_POLICY`,
+  `is_retryable(exc)`, `with_retries(fn, *, policy, on_attempt)`. Per
+  CLAUDE.md: retry-with-jitter only; no circuit breaker.
+- `TransientApiError(ApiError)` typed signal in `core/exceptions.py`. Per
+  the 2026-05-08 spike, aanalytics2 0.5.1 sets
+  `urllib3.Retry(raise_on_status=False)` so non-2xx responses surface as
+  `KeyError`/`ValueError` from the SDK indexing into stub error responses,
+  not as `requests.HTTPError`. `_classify_transient_sdk_call` in
+  `api/fetch.py` translates these to `TransientApiError` so `is_retryable`
+  dispatches on a typed signal.
+- Every `client.handle.getX(...)` call in `api/fetch.py` is wrapped via
+  either `with_retries(...)` or `_retry_and_normalize(...)`. AST meta-test
+  `tests/api/test_retry_threading.py` guards against future drift.
+- `_retry_and_normalize` helper at the `api/fetch.py` boundary normalizes
+  non-`ApiError` exceptions to `ApiError` so the existing CLI command-level
+  `except ApiError` catches translate cleanly to `ExitCode.API` (12).
+  Closes a latent v1.6.1 gap where transient fetcher failures would bubble
+  past the typed catches and exit 1 + traceback.
+- `AaClient.retry_policy` field; `from_credentials` accepts `retry_policy=`
+  kwarg. `getCompanyId` bootstrap is wrapped under the same policy.
+- Three new canonical events in `LOGGING_STYLE.md`: `retry_attempt` (DEBUG),
+  `vrs_expansion_fallback` (WARNING), `vrs_parent_filter` (DEBUG). Five new
+  structured fields: `expansion_level`, `pulled`, `filtered`,
+  `dropped_no_parent`, `dropped_other_parent`.
+
+### Fixed
+
+- **VRS reduced-expansion ladder (Item C from VRS hardening spec).**
+  `fetch_virtual_report_suites` now falls back to `extended_info=False`
+  when the full-expansion call exhausts the retry budget, returning
+  partial VRS data (id / name / parent_rsid only) instead of the v1.6.1
+  empty-list graceful-degrade. Approach C (2-rung ladder) confirmed by
+  spike — Approach A's reduced-expansion middle rung would require ~40
+  lines of SDK-bypass and is not feasible. The fallback emits a
+  `vrs_expansion_fallback` WARNING carrying `expansion_level=minimal`.
+  The previous "all rungs fail → return []" floor is preserved as the
+  final defense.
+- **`vrs_parent_filter` DEBUG record (Item D from VRS hardening spec).**
+  When `fetch_virtual_report_suites` drops rows whose `parentRsid` doesn't
+  match the requested RSID (or is missing), a structured DEBUG record fires
+  with `pulled` / `filtered` / `dropped_no_parent` / `dropped_other_parent`.
+
+### Documentation
+
+- `AGENTS.md`: Output Conventions concrete retry tuning example. New
+  `## VRS Reduced Expansion` subsection documents the snapshot-diff
+  false-modified caveat pending v1.8.0 (VRS hardening spec Item A).
+- `README.md`: retry tuning example.
+- `docs/LOGGING_STYLE.md`: three new canonical events activated; expanded
+  "Best-effort fetchers" section consolidates v1.7.0 resilience-layer
+  narrative.
+- Feature gap doc (`docs/superpowers/specs/aa-auto-sdr-feature-gap-vs-cja.md`):
+  Tier 2 "Retry / backoff knobs" row struck through with `✅ v1.7.0`.
+  VRS hardening spec: Items C and D struck through.
+
+### Reliability
+
+- No new exit codes. No new env vars. No new runtime dependencies.
+- v1.6.1 graceful-degrade preserved on full ladder exhaustion (VRS returns
+  `[]`, never aborts the SDR).
+- v1.6.1 discovery-path `ApiError` normalization preserved unchanged
+  (`--list-virtual-reportsuites` still raises clean exit 12; the ladder
+  is generate-path only).
+
 ## [1.6.1] — 2026-05-08
 
 Patch release. Fixes a hard crash when Adobe's virtual-report-suites endpoint
