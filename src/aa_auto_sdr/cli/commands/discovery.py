@@ -12,6 +12,7 @@ from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli._filters import apply_filters
 from aa_auto_sdr.cli.list_output import render_records
 from aa_auto_sdr.core import credentials
@@ -46,6 +47,7 @@ def run_list_reportsuites(
     name_exclude: str | None,
     sort_field: str | None,
     limit: int | None,
+    retry_policy: RetryPolicy | None = None,
 ) -> int:
     """List all report suites visible to the org."""
     started_ms = time.monotonic()
@@ -63,7 +65,7 @@ def run_list_reportsuites(
             return exit_code
 
         try:
-            client = AaClient.from_credentials(creds)
+            client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as e:
             print(f"auth error: {e}", flush=True)
             exit_code = ExitCode.AUTH.value
@@ -117,6 +119,7 @@ def run_list_virtual_reportsuites(
     name_exclude: str | None,
     sort_field: str | None,
     limit: int | None,
+    retry_policy: RetryPolicy | None = None,
 ) -> int:
     """List all virtual report suites."""
     started_ms = time.monotonic()
@@ -134,7 +137,7 @@ def run_list_virtual_reportsuites(
             return exit_code
 
         try:
-            client = AaClient.from_credentials(creds)
+            client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as e:
             print(f"auth error: {e}", flush=True)
             exit_code = ExitCode.AUTH.value

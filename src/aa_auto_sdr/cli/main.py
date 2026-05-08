@@ -192,13 +192,18 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.stats:
         from aa_auto_sdr.cli.commands import stats as stats_cmd
 
-        return stats_cmd.run(rsids=rsids, profile=ns.profile, format_name=ns.format)
+        return stats_cmd.run(
+            rsids=rsids,
+            profile=ns.profile,
+            format_name=ns.format,
+            retry_policy=ns.retry_policy,
+        )
 
     # v1.2 — interactive action
     if ns.interactive:
         from aa_auto_sdr.cli.commands import interactive as interactive_cmd
 
-        return interactive_cmd.run(profile=ns.profile)
+        return interactive_cmd.run(profile=ns.profile, retry_policy=ns.retry_policy)
 
     # v1.1 — snapshot lifecycle. Optional positional <RSID> narrows to one suite;
     # multiple positionals are a usage error (the filter is single-valued).
@@ -242,7 +247,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.profile_test:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 
-        return prof_cmd.test_run(ns.profile_test)
+        return prof_cmd.test_run(ns.profile_test, retry_policy=ns.retry_policy)
     if ns.profile_show:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 
@@ -285,6 +290,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             name_exclude=ns.exclude,
             sort_field=ns.sort,
             limit=ns.limit,
+            retry_policy=ns.retry_policy,
         )
     if ns.list_virtual_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd
@@ -303,6 +309,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             name_exclude=ns.exclude,
             sort_field=ns.sort,
             limit=ns.limit,
+            retry_policy=ns.retry_policy,
         )
     if ns.describe_reportsuite:
         from aa_auto_sdr.cli.commands import inspect as inspect_cmd
@@ -318,6 +325,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             profile=ns.profile,
             format_name=ns.format,
             output=resolved_output,
+            retry_policy=ns.retry_policy,
         )
 
     list_inspect_actions = (
@@ -348,6 +356,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
                 name_exclude=ns.exclude,
                 sort_field=ns.sort,
                 limit=ns.limit,
+                retry_policy=ns.retry_policy,
             )
 
     # Diff (v0.7) — snapshot comparison
@@ -458,6 +467,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             assume_yes=ns.yes,
             show_timings=ns.show_timings,
             run_summary_json=ns.run_summary_json,
+            retry_policy=ns.retry_policy,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -485,6 +495,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         assume_yes=ns.yes,
         show_timings=ns.show_timings,
         run_summary_json=ns.run_summary_json,
+        retry_policy=ns.retry_policy,
     )
 
 

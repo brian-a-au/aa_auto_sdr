@@ -21,6 +21,7 @@ from typing import Any
 import aanalytics2  # type: ignore[import-untyped]
 
 from aa_auto_sdr.api.auth import credentials_to_aanalytics2_config
+from aa_auto_sdr.api.resilience import DEFAULT_RETRY_POLICY, RetryPolicy, with_retries
 from aa_auto_sdr.core.credentials import Credentials
 from aa_auto_sdr.core.exceptions import AuthError
 
@@ -33,6 +34,7 @@ class AaClient:
 
     handle: Any  # aanalytics2.Analytics
     company_id: str  # globalCompanyId actually used
+    retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY  # v1.7.0 — shared retry budget
 
     @classmethod
     def from_credentials(
@@ -40,12 +42,19 @@ class AaClient:
         creds: Credentials,
         *,
         company_id: str | None = None,
+        retry_policy: RetryPolicy | None = None,
     ) -> AaClient:
         """Build an authenticated client.
 
         If `company_id` is None and the user has access to multiple companies,
         the first is picked deterministically. Pass an explicit `company_id`
-        to override (e.g. when the user has multiple AA orgs)."""
+        to override (e.g. when the user has multiple AA orgs).
+
+        ``retry_policy`` controls retry-with-jitter for the ``getCompanyId``
+        bootstrap call AND is stored on the returned client so downstream
+        fetch helpers (api/fetch.py) share the same budget. When ``None``,
+        ``DEFAULT_RETRY_POLICY`` is used (max_retries=3, base_delay=0.5s,
+        max_delay=10s)."""
         creds.validate()
         config = credentials_to_aanalytics2_config(creds)
         aanalytics2.configure(**config)
@@ -55,8 +64,16 @@ class AaClient:
             extra={"client_id_prefix": creds.client_id[:8]},
         )
 
+        policy = retry_policy or DEFAULT_RETRY_POLICY
         login = aanalytics2.Login()
-        companies = login.getCompanyId() or []
+        # Wrap getCompanyId — it can fail with transient 5xx; auth failures
+        # (401/403) are non-retryable per is_retryable. Per spike D1, the
+        # aanalytics2 SDK's swallowed-stub behavior on exhausted urllib3
+        # retries surfaces as KeyError/ValueError; api/fetch.py classifies
+        # those into TransientApiError. Bootstrap currently raises raw
+        # SDK shapes (non-retryable here) — this hook lets test/code paths
+        # that DO raise TransientApiError exercise the retry budget.
+        companies = with_retries(login.getCompanyId, policy=policy) or []
         logger.debug(
             "getCompanyId returned count=%s",
             len(companies),
@@ -90,4 +107,4 @@ class AaClient:
                 "company_id_source": "explicit" if company_id else "first_of_n",
             },
         )
-        return cls(handle=handle, company_id=chosen)
+        return cls(handle=handle, company_id=chosen, retry_policy=policy)

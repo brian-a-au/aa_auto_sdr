@@ -80,7 +80,7 @@ def test_list_reportsuites_under_agent_mode_emits_json(monkeypatch, capsys, tmp_
     monkeypatch.setattr(
         AaClient,
         "from_credentials",
-        classmethod(lambda cls, creds: object()),  # noqa: ARG005
+        classmethod(lambda cls, creds, **kwargs: object()),  # noqa: ARG005
     )
     monkeypatch.setattr(
         fetch,
@@ -122,7 +122,7 @@ def test_list_metrics_under_agent_mode_emits_json(monkeypatch, capsys, tmp_path)
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
     monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
@@ -171,7 +171,7 @@ def test_single_sdr_under_agent_mode_writes_file_not_stdout(monkeypatch, tmp_pat
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
     monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
@@ -226,7 +226,7 @@ def test_describe_reportsuite_under_agent_mode_emits_json(monkeypatch, capsys, t
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
     monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
@@ -276,7 +276,7 @@ def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, cap
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
     monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: ([ident], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,

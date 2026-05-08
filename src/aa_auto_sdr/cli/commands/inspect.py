@@ -17,6 +17,7 @@ from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli._filters import apply_filters
 from aa_auto_sdr.cli.list_output import render_records
 from aa_auto_sdr.core import credentials
@@ -101,7 +102,11 @@ def _resolve_output(output: str | None) -> Path | None:
     return Path(output)
 
 
-def _bootstrap(profile: str | None) -> tuple[AaClient | None, int]:
+def _bootstrap(
+    profile: str | None,
+    *,
+    retry_policy: RetryPolicy | None = None,
+) -> tuple[AaClient | None, int]:
     """Resolve credentials and build a client. Returns (client, 0) on success
     or (None, exit_code) on failure."""
     try:
@@ -111,7 +116,7 @@ def _bootstrap(profile: str | None) -> tuple[AaClient | None, int]:
         return None, ExitCode.CONFIG.value
 
     try:
-        client = AaClient.from_credentials(creds)
+        client = AaClient.from_credentials(creds, retry_policy=retry_policy)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
         return None, ExitCode.AUTH.value
@@ -132,6 +137,7 @@ def _list_per_component(
     fetcher: Callable[[AaClient, str], list[Any]],
     columns: list[str],
     sort_allowlist: tuple[str, ...],
+    retry_policy: RetryPolicy | None = None,
 ) -> int:
     """Generic list-X handler: resolve identifier → fetch per RSID → flatten →
     filter → render. Pattern 9B.3 — one start/complete pair covers all five
@@ -140,7 +146,7 @@ def _list_per_component(
     logger.info("command_start command=%s", command, extra={"command": command})
     exit_code = ExitCode.GENERIC.value
     try:
-        client, rc = _bootstrap(profile)
+        client, rc = _bootstrap(profile, retry_policy=retry_policy)
         if client is None:
             exit_code = rc
             return exit_code
@@ -278,6 +284,7 @@ def run_describe_reportsuite(
     profile: str | None,
     format_name: str | None,
     output: str | None,
+    retry_policy: RetryPolicy | None = None,
 ) -> int:
     """Print metadata + per-component counts for one RS (or several on multi-match)."""
     started_ms = time.monotonic()
@@ -287,7 +294,7 @@ def run_describe_reportsuite(
     )
     exit_code = ExitCode.GENERIC.value
     try:
-        client, rc = _bootstrap(profile)
+        client, rc = _bootstrap(profile, retry_policy=retry_policy)
         if client is None:
             exit_code = rc
             return exit_code

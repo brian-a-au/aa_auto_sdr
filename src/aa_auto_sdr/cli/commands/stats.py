@@ -12,6 +12,7 @@ import time
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     ApiError,
@@ -26,7 +27,13 @@ logger = logging.getLogger(__name__)
 _VALID_FORMATS = ("table", "json")
 
 
-def run(*, rsids: list[str], profile: str | None, format_name: str | None) -> int:
+def run(
+    *,
+    rsids: list[str],
+    profile: str | None,
+    format_name: str | None,
+    retry_policy: RetryPolicy | None = None,
+) -> int:
     started_ms = time.monotonic()
     logger.info("command_start command=stats", extra={"command": "stats"})
     exit_code = ExitCode.GENERIC.value
@@ -48,7 +55,7 @@ def run(*, rsids: list[str], profile: str | None, format_name: str | None) -> in
             return exit_code
 
         try:
-            client = AaClient.from_credentials(creds)
+            client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as exc:
             print(f"auth error: {exc}", flush=True)
             exit_code = ExitCode.AUTH.value

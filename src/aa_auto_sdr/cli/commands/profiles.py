@@ -7,6 +7,7 @@ import logging
 import time
 from pathlib import Path
 
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import credentials, profiles
 from aa_auto_sdr.core.exceptions import AuthError, ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -59,7 +60,12 @@ def list_run(
         )
 
 
-def test_run(name: str, *, base: Path | None = None) -> int:  # noqa: PT028
+def test_run(
+    name: str,
+    *,
+    base: Path | None = None,  # noqa: PT028 — not a pytest test, naming collision is unavoidable
+    retry_policy: RetryPolicy | None = None,  # noqa: PT028
+) -> int:
     """Resolve creds and perform a real OAuth + getCompanyId() round trip."""
     started_ms = time.monotonic()
     logger.info("command_start command=profile_test", extra={"command": "profile_test"})
@@ -74,7 +80,7 @@ def test_run(name: str, *, base: Path | None = None) -> int:  # noqa: PT028
         try:
             from aa_auto_sdr.api.client import AaClient
 
-            client = AaClient.from_credentials(creds)
+            client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as exc:
             print(f"FAIL [auth]: {exc}", flush=True)
             exit_code = ExitCode.AUTH.value

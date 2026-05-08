@@ -15,6 +15,7 @@ import time
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import ApiError, AuthError, ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -22,7 +23,7 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 logger = logging.getLogger(__name__)
 
 
-def run(*, profile: str | None) -> int:
+def run(*, profile: str | None, retry_policy: RetryPolicy | None = None) -> int:
     """List RSes, prompt for index (or 'all'), print chosen RSID(s) to stdout."""
     started_ms = time.monotonic()
     logger.info("command_start command=interactive", extra={"command": "interactive"})
@@ -36,7 +37,7 @@ def run(*, profile: str | None) -> int:
             return exit_code
 
         try:
-            client = AaClient.from_credentials(creds)
+            client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as exc:
             print(f"auth error: {exc}", flush=True)
             exit_code = ExitCode.AUTH.value
