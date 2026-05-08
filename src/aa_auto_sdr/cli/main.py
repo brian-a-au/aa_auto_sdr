@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli.agent_output import (
     DIFF_STDOUT_FORMATS,
     DISCOVERY_STDOUT_FORMATS,
@@ -75,6 +76,14 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+    # v1.7.0 — resolve retry policy before any auth or expensive work so
+    # cross-flag errors (e.g. retry_max_delay < retry_base_delay) fail-fast
+    # with USAGE rather than after a network round-trip.
+    try:
+        ns.retry_policy = RetryPolicy.from_namespace(ns)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return ExitCode.USAGE.value
     _derive_quiet_from_output_destination(ns)
     setup_logging(ns)
     run_mode = infer_run_mode(ns)

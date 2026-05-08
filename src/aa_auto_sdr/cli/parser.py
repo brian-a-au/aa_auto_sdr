@@ -33,6 +33,20 @@ _AGENT_MODE_DEFAULTS: dict[str, str] = {
 }
 
 
+def _non_negative_int(s: str) -> int:
+    v = int(s)
+    if v < 0:
+        raise argparse.ArgumentTypeError(f"must be non-negative, got {v}")
+    return v
+
+
+def _positive_float(s: str) -> float:
+    v = float(s)
+    if v <= 0:
+        raise argparse.ArgumentTypeError(f"must be positive, got {v}")
+    return v
+
+
 def _configured_long_options(parser: argparse.ArgumentParser) -> frozenset[str]:
     """Extract all configured long-option strings from an ArgumentParser."""
     options: set[str] = set()
@@ -501,6 +515,30 @@ def build_parser() -> argparse.ArgumentParser:
             "for options the user did not explicitly pass. --output - implies --quiet "
             "(banner / progress / INFO on stderr suppressed; errors and final result paths still print)."
         ),
+    )
+
+    # v1.7.0 — retry tuning
+    retry = p.add_argument_group("Retry")
+    retry.add_argument(
+        "--max-retries",
+        type=_non_negative_int,
+        default=None,
+        metavar="N",
+        help="Max retries on transient API failures (429 / 5xx, connection timeout). Default 3.",
+    )
+    retry.add_argument(
+        "--retry-base-delay",
+        type=_positive_float,
+        default=None,
+        metavar="SECONDS",
+        help="Base delay for exponential backoff in seconds. Default 0.5.",
+    )
+    retry.add_argument(
+        "--retry-max-delay",
+        type=_positive_float,
+        default=None,
+        metavar="SECONDS",
+        help="Maximum delay between retries in seconds. Default 10.0.",
     )
 
     return p
