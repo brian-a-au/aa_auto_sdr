@@ -297,6 +297,18 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Explain one exit code | `aa_auto_sdr --explain-exit-code 11` |
 | Generate completion script | `aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr` |
 
+### Retry tuning (v1.7.0+)
+
+For flaky AA orgs or noisy CI environments, tune retry behavior:
+
+```bash
+aa_auto_sdr RSID --max-retries 6 --retry-base-delay 1.0 --retry-max-delay 30.0
+```
+
+Defaults are conservative (3 retries, 0.5s base, 10s cap). Retries fire only
+on transient failures; permanent errors (auth, validation, unknown RSID)
+surface immediately.
+
 ## Documentation
 
 | Guide | Description |
