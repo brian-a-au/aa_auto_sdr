@@ -250,11 +250,16 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if ns.describe_reportsuite:
         from aa_auto_sdr.cli.commands import inspect as inspect_cmd
 
+        resolved_output = resolve_agent_output_path(
+            ns,
+            output_format=(ns.format or "json"),
+            stdout_formats=DISCOVERY_STDOUT_FORMATS,
+        )
         return inspect_cmd.run_describe_reportsuite(
             identifier=ns.describe_reportsuite,
             profile=ns.profile,
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
         )
 
     list_inspect_actions = (
@@ -270,11 +275,16 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             from aa_auto_sdr.cli.commands import inspect as inspect_cmd
 
             handler = getattr(inspect_cmd, fn_name)
+            resolved_output = resolve_agent_output_path(
+                ns,
+                output_format=(ns.format or "json"),
+                stdout_formats=DISCOVERY_STDOUT_FORMATS,
+            )
             return handler(
                 identifier=identifier,
                 profile=ns.profile,
                 format_name=ns.format,
-                output=ns.output,
+                output=resolved_output,
                 name_filter=ns.filter,
                 name_exclude=ns.exclude,
                 sort_field=ns.sort,
