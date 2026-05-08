@@ -531,13 +531,28 @@ def fetch_virtual_report_suites(
     The SDK call has no rsid filter — we filter client-side after pulling all
     VRS via extended_info=True (which gives us `parentRsid`).
 
-    Any failure of the underlying call returns an empty list rather than
-    breaking the whole SDR — VRS are best-effort. v1.6.1 added this guard
-    after a customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when
-    the Adobe VRS endpoint returned HTTP 500 for their org; the SDK
-    unconditionally indexes `vrsid['content']` on the response envelope,
-    which is absent on error. Mirrors the classifications pattern below."""
+    Two-rung ladder per v1.7.0 (Approach C, spike D2):
+      1. Full expansion — extended_info=True (heavy 16-field expansion).
+      2. Minimal expansion — extended_info=False (id/name/parentRsid only).
+
+    Each rung gets the full retry budget. On all-rung exhaustion, returns []
+    (preserves v1.6.1 graceful-degrade after a customer hit
+    `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS endpoint
+    returned HTTP 500 — the SDK unconditionally indexes `vrsid['content']`
+    on the response envelope, which is absent on error)."""
     started = time.monotonic()
+    expansion_level = "full"
+
+    def _on_attempt(a: int, m: int, d: float, e: BaseException) -> None:
+        _log_retry_attempt(
+            a,
+            m,
+            d,
+            e,
+            rsid=parent_rsid,
+            component_type="virtual_report_suite",
+        )
+
     try:
         raws = _records(
             with_retries(
@@ -546,28 +561,46 @@ def fetch_virtual_report_suites(
                     component_type="virtual_report_suite",
                 ),
                 policy=client.retry_policy,
-                on_attempt=lambda a, m, d, e: _log_retry_attempt(
-                    a,
-                    m,
-                    d,
-                    e,
-                    rsid=parent_rsid,
-                    component_type="virtual_report_suite",
-                ),
+                on_attempt=_on_attempt,
             )
         )
-    except Exception as e:  # SDK raises KeyError on HTTP 500, plus other shapes
-        logger.warning(
-            "virtual report suites fetch failed rsid=%s error_class=%s",
-            parent_rsid,
-            type(e).__name__,
-            extra={
-                "rsid": parent_rsid,
-                "component_type": "virtual_report_suite",
-                "error_class": type(e).__name__,
-            },
-        )
-        return []
+    except Exception as e:  # full rung exhausted — try minimal-expansion fallback
+        try:
+            raws = _records(
+                with_retries(
+                    lambda: _classify_transient_sdk_call(
+                        lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        component_type="virtual_report_suite",
+                    ),
+                    policy=client.retry_policy,
+                    on_attempt=_on_attempt,
+                )
+            )
+            expansion_level = "minimal"
+            logger.warning(
+                "vrs_expansion_fallback rsid=%s expansion_level=minimal error_class=%s",
+                parent_rsid,
+                type(e).__name__,
+                extra={
+                    "rsid": parent_rsid,
+                    "component_type": "virtual_report_suite",
+                    "expansion_level": "minimal",
+                    "error_class": type(e).__name__,
+                },
+            )
+        except Exception as e2:  # both rungs exhausted — graceful-degrade to []
+            logger.warning(
+                "virtual report suites fetch failed rsid=%s expansion_level=exhausted error_class=%s",
+                parent_rsid,
+                type(e2).__name__,
+                extra={
+                    "rsid": parent_rsid,
+                    "component_type": "virtual_report_suite",
+                    "expansion_level": "exhausted",
+                    "error_class": type(e2).__name__,
+                },
+            )
+            return []
     known = {
         "id",
         "name",
@@ -596,15 +629,17 @@ def fetch_virtual_report_suites(
     ]
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(
-        "component_fetch rsid=%s component_type=virtual_report_suite count=%s duration_ms=%s",
+        "component_fetch rsid=%s component_type=virtual_report_suite count=%s duration_ms=%s expansion_level=%s",
         parent_rsid,
         len(out),
         duration_ms,
+        expansion_level,
         extra={
             "rsid": parent_rsid,
             "component_type": "virtual_report_suite",
             "count": len(out),
             "duration_ms": duration_ms,
+            "expansion_level": expansion_level,
         },
     )
     return out

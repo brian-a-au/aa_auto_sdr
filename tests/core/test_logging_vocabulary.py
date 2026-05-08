@@ -54,6 +54,8 @@ VOCAB = {
     "tool_version",
     # v1.6 additions
     "agent_mode",
+    # v1.7 additions
+    "expansion_level",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of

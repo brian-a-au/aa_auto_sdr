@@ -48,6 +48,7 @@ text. The vocabulary meta-test enforces presence on the events listed in
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the v1.5 INFO record from `core/credentials.resolve()` indicating which source matched. Four values: `profile:<name>` / `env` / `.env` / `config.json`. |
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
 | `agent_mode` | bool | `run_start` / `run_complete` / `run_failure` records — `True` when `--agent-mode` preset was active; `False` otherwise. Lets log-aggregation queries filter by agent-driven runs without joining on `argv_summary`. |
+| `expansion_level` | str — `full`/`minimal`/`exhausted` | VRS-fetch records (`api/fetch.py::fetch_virtual_report_suites`). Records which rung of the v1.7.0 two-rung ladder produced the result: `full` (extended_info=True succeeded), `minimal` (fell back to extended_info=False), or `exhausted` (both rungs failed; result is `[]`). Emitted on the `component_fetch` INFO record and on the `vrs_expansion_fallback` WARNING record. |
 
 **Reserved fields (do not use yet, will activate when their underlying feature lands):**
 
