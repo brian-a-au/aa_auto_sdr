@@ -72,6 +72,11 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "command_start": {"command"},
     "command_complete": {"command", "exit_code", "duration_ms"},
     "creds_resolved": {"creds_source"},
+    # v1.7.0 resilience-layer additions (per docs/LOGGING_STYLE.md
+    # "Canonical event names" → v1.7.0 sub-block).
+    "retry_attempt": {"retry_attempt", "error_class", "rsid", "component_type"},
+    "vrs_expansion_fallback": {"rsid", "component_type", "expansion_level", "error_class"},
+    "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
 }
 
 INSTRUMENTED_MODULES = [
