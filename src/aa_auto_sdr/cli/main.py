@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli.agent_output import (
     DIFF_STDOUT_FORMATS,
     DISCOVERY_STDOUT_FORMATS,
@@ -52,6 +53,25 @@ def _derive_quiet_from_output_destination(ns: argparse.Namespace) -> None:
         ns.quiet = True
 
 
+def _resolve_retry_policy(ns: argparse.Namespace) -> RetryPolicy:
+    """Build a RetryPolicy from the parsed CLI namespace.
+
+    Lives in cli/ (not api/resilience.py) so the resilience module stays
+    ignorant of CLI vocabulary — argparse dest names (`retry_base_delay`,
+    `retry_max_delay`) are a CLI concern, not a policy-domain concern.
+    Defaults are filled from RetryPolicy()'s own defaults; the constructor's
+    __post_init__ raises ValueError on cross-flag invariant violations
+    (e.g., max_delay < base_delay), which run() catches and translates to
+    USAGE (2) before any expensive work.
+    """
+    defaults = RetryPolicy()
+    return RetryPolicy(
+        max_retries=ns.max_retries if ns.max_retries is not None else defaults.max_retries,
+        base_delay=ns.retry_base_delay if ns.retry_base_delay is not None else defaults.base_delay,
+        max_delay=ns.retry_max_delay if ns.retry_max_delay is not None else defaults.max_delay,
+    )
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -75,6 +95,22 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+    # v1.7.0 — resolve retry policy before any auth or expensive work so
+    # cross-flag errors (e.g. retry_max_delay < retry_base_delay) fail-fast
+    # with USAGE rather than after a network round-trip.
+    try:
+        ns.retry_policy = _resolve_retry_policy(ns)
+    except ValueError as e:
+        # Map internal field names to user-facing flag names so the user gets
+        # an actionable error without needing the library's vocabulary.
+        msg = (
+            str(e)
+            .replace("max_delay", "--retry-max-delay")
+            .replace("base_delay", "--retry-base-delay")
+            .replace("max_retries", "--max-retries")
+        )
+        print(f"error: {msg}", file=sys.stderr)
+        return ExitCode.USAGE.value
     _derive_quiet_from_output_destination(ns)
     setup_logging(ns)
     run_mode = infer_run_mode(ns)
@@ -175,13 +211,18 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.stats:
         from aa_auto_sdr.cli.commands import stats as stats_cmd
 
-        return stats_cmd.run(rsids=rsids, profile=ns.profile, format_name=ns.format)
+        return stats_cmd.run(
+            rsids=rsids,
+            profile=ns.profile,
+            format_name=ns.format,
+            retry_policy=ns.retry_policy,
+        )
 
     # v1.2 — interactive action
     if ns.interactive:
         from aa_auto_sdr.cli.commands import interactive as interactive_cmd
 
-        return interactive_cmd.run(profile=ns.profile)
+        return interactive_cmd.run(profile=ns.profile, retry_policy=ns.retry_policy)
 
     # v1.1 — snapshot lifecycle. Optional positional <RSID> narrows to one suite;
     # multiple positionals are a usage error (the filter is single-valued).
@@ -225,7 +266,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.profile_test:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 
-        return prof_cmd.test_run(ns.profile_test)
+        return prof_cmd.test_run(ns.profile_test, retry_policy=ns.retry_policy)
     if ns.profile_show:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 
@@ -268,6 +309,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             name_exclude=ns.exclude,
             sort_field=ns.sort,
             limit=ns.limit,
+            retry_policy=ns.retry_policy,
         )
     if ns.list_virtual_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd
@@ -286,6 +328,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             name_exclude=ns.exclude,
             sort_field=ns.sort,
             limit=ns.limit,
+            retry_policy=ns.retry_policy,
         )
     if ns.describe_reportsuite:
         from aa_auto_sdr.cli.commands import inspect as inspect_cmd
@@ -301,6 +344,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             profile=ns.profile,
             format_name=ns.format,
             output=resolved_output,
+            retry_policy=ns.retry_policy,
         )
 
     list_inspect_actions = (
@@ -331,6 +375,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
                 name_exclude=ns.exclude,
                 sort_field=ns.sort,
                 limit=ns.limit,
+                retry_policy=ns.retry_policy,
             )
 
     # Diff (v0.7) — snapshot comparison
@@ -441,6 +486,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             assume_yes=ns.yes,
             show_timings=ns.show_timings,
             run_summary_json=ns.run_summary_json,
+            retry_policy=ns.retry_policy,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -468,6 +514,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         assume_yes=ns.yes,
         show_timings=ns.show_timings,
         run_summary_json=ns.run_summary_json,
+        retry_policy=ns.retry_policy,
     )
 
 

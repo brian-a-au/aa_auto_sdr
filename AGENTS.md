@@ -177,6 +177,58 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
 - **Mutex:** `--run-summary-json -` + `--output -` exits `OUTPUT` (15) before any work. `--agent-mode` applies the implicit `--output -`, so explicit `--run-summary-json -` triggers this on generate / batch routes.
 - `--explain-exit-code CODE` writes the explanation to stdout (always). It is a fast-path action that does not interact with `--run-summary-json` or `--agent-mode`.
 
+For unattended runs against the live AA API, tune retry behavior with:
+
+```bash
+aa_auto_sdr <RSID> --max-retries 6 --retry-base-delay 1.0 --retry-max-delay 30.0
+```
+
+Defaults: `--max-retries 3`, `--retry-base-delay 0.5`, `--retry-max-delay 10.0`.
+Retries fire on transient SDK failures (the spike-confirmed shape — `KeyError`/
+`ValueError` from indexing into urllib3-stub error responses, plus
+`requests.ConnectionError`/`Timeout`); permanent failures (auth, validation,
+unknown RSID) surface immediately. Retry attempts emit `retry_attempt` DEBUG
+records under `--log-format json` so log aggregation can quantify retries
+per run.
+
+**Note on stall budget.** `aanalytics2` performs its own urllib3-level retries
+inside each outer attempt (4 internal retries with `backoff_factor=1`,
+hardcoded). Our `--max-retries` runs *outside* that, so the worst-case
+HTTP-request count for a hard-failing endpoint scales as
+`(urllib3_retries + 1) × (--max-retries + 1)`. At the default `--max-retries 3`
+that's up to 16 requests; at `--max-retries 6` it's up to 28. Wall-clock
+stalls scale similarly because urllib3 honors `Retry-After` and exponential
+backoff. Tune `--max-retries` deliberately for unattended runs where total
+budget matters.
+
+**VRS doubles this budget.** `fetch_virtual_report_suites` runs the v1.7.0
+reduced-expansion ladder as two sequential retry rungs (full → minimal),
+and each rung consumes the full `--max-retries` budget independently.
+So VRS worst case is `2 × (urllib3_retries + 1) × (--max-retries + 1)` —
+up to **32 requests** at default, **56** at `--max-retries 6`. Other
+fetchers (dimensions / metrics / segments / calculated metrics /
+classifications / report-suite / VRS-summary discovery) use the
+single-rung formula above.
+
+---
+
+## VRS Reduced Expansion
+
+When Adobe's `/reportsuites/virtualreportsuites` endpoint fails on the full
+expansion request (after the configured retry budget exhausts), `aa_auto_sdr`
+v1.7.0+ falls back to a minimal-expansion call (`extended_info=False`) so the
+SDR still gets a partial VRS list. The structured `expansion_level` field on
+the `component_fetch` INFO record carries `full` / `minimal` / `exhausted` so
+operators can spot when an org is hitting the fallback. A separate
+`vrs_expansion_fallback` WARNING fires for the minimal/exhausted paths.
+
+**Snapshot caveat.** A snapshot taken at `expansion_level=minimal` will, when
+diffed against a `full` snapshot, show false-modified rows for VRS records
+(because fields like `description`, `segment_list`, `curated_components` are
+None at minimal expansion). v1.8.0 will close this with a snapshot-schema
+extension (VRS hardening spec Item A); until then, treat such diffs as
+informational and check the log records for `expansion_level` field values.
+
 ---
 
 ## File Conventions

@@ -35,7 +35,7 @@ def _stub_aa_pipeline(monkeypatch):
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
         "fetch_report_suite_summaries",

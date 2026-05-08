@@ -10,6 +10,20 @@ import pandas as pd
 import pytest
 
 from aa_auto_sdr.api import fetch
+from aa_auto_sdr.api.client import AaClient
+
+
+def _make_client() -> AaClient:
+    """Real AaClient with a mocked SDK handle. v1.7.0+ fetchers read
+    ``client.retry_policy`` (a real RetryPolicy), so a bare MagicMock for
+    the whole client fails arithmetic inside ``with_retries``."""
+    return AaClient(handle=MagicMock(), company_id="testco")
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_sleep(monkeypatch):
+    """Keep tests fast: with_retries calls time.sleep on retryable failures."""
+    monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
 
 
 def _records_with_event(caplog, event: str) -> list[logging.LogRecord]:
@@ -49,7 +63,7 @@ def _isolate_package_logger():
 )
 def test_each_component_fetcher_emits_component_fetch_info(caplog, fn_name, sdk_method, expected_component_type):
     caplog.set_level(logging.INFO, logger="aa_auto_sdr.api.fetch")
-    fake_client = MagicMock()
+    fake_client = _make_client()
     sdk = getattr(fake_client.handle, sdk_method)
     sdk.return_value = pd.DataFrame([{"id": "x", "name": "X", "rsid": "RS1", "parentRsid": "RS1"}])
     fn = getattr(fetch, fn_name)
@@ -67,7 +81,7 @@ def test_each_component_fetcher_emits_component_fetch_info(caplog, fn_name, sdk_
 
 def test_classifications_failure_emits_warning(caplog):
     caplog.set_level(logging.WARNING, logger="aa_auto_sdr.api.fetch")
-    fake_client = MagicMock()
+    fake_client = _make_client()
     fake_client.handle.getClassificationDatasets.side_effect = RuntimeError("boom")
     out = fetch.fetch_classification_datasets(fake_client, "RS1")
     assert out == []
@@ -84,7 +98,7 @@ def test_virtual_report_suites_failure_emits_warning(caplog):
     when the SDK call raises (e.g. KeyError('content') from aanalytics2 0.5.1
     on an HTTP 500 response). rsid carries the parent_rsid for correlation."""
     caplog.set_level(logging.WARNING, logger="aa_auto_sdr.api.fetch")
-    fake_client = MagicMock()
+    fake_client = _make_client()
     fake_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     out = fetch.fetch_virtual_report_suites(fake_client, "RS1")
     assert out == []
@@ -93,7 +107,9 @@ def test_virtual_report_suites_failure_emits_warning(caplog):
     rec = warnings[0]
     assert rec.rsid == "RS1"
     assert rec.component_type == "virtual_report_suite"
-    assert rec.error_class == "KeyError"
+    # v1.7.0: KeyError → TransientApiError after retry classification.
+    # The outer warning catch records the post-classification class.
+    assert rec.error_class == "TransientApiError"
 
 
 def test_virtual_report_suite_summaries_failure_normalizes_to_api_error():
@@ -103,7 +119,7 @@ def test_virtual_report_suite_summaries_failure_normalizes_to_api_error():
     already carries the error_class field."""
     from aa_auto_sdr.core.exceptions import ApiError
 
-    fake_client = MagicMock()
+    fake_client = _make_client()
     fake_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     with pytest.raises(ApiError):
         fetch.fetch_virtual_report_suite_summaries(fake_client)
@@ -111,7 +127,7 @@ def test_virtual_report_suite_summaries_failure_normalizes_to_api_error():
 
 def test_fetch_report_suite_debug_and_error(caplog):
     caplog.set_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch")
-    fake_client = MagicMock()
+    fake_client = _make_client()
     fake_client.handle.getReportSuites.return_value = pd.DataFrame([{"rsid": "OTHER", "name": "x"}])
     from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
 
@@ -126,7 +142,7 @@ def test_fetch_report_suite_debug_and_error(caplog):
 
 def test_resolve_rsid_emits_two_debug_records(caplog):
     caplog.set_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch")
-    fake_client = MagicMock()
+    fake_client = _make_client()
     fake_client.handle.getReportSuites.return_value = pd.DataFrame([{"rsid": "RS1", "name": "a"}])
     fetch.resolve_rsid(fake_client, "RS1")
     debugs = [r for r in caplog.records if r.levelno == logging.DEBUG]

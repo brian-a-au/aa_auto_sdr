@@ -397,7 +397,7 @@ class TestV12Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, rsids, profile, format_name):
+        def _stub(*, rsids, profile, format_name, **_v17):
             captured["rsids"] = rsids
             captured["profile"] = profile
             captured["format_name"] = format_name
@@ -414,7 +414,7 @@ class TestV12Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, profile):
+        def _stub(*, profile, **_v17):
             captured["profile"] = profile
             return 0
 

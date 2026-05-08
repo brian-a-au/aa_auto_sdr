@@ -172,16 +172,21 @@ def test_fetch_virtual_report_suites_passes_extended_info(mock_client: AaClient)
     assert kwargs.get("extended_info") is True
 
 
-def test_fetch_virtual_report_suites_returns_empty_on_wrapper_error(caplog) -> None:
+def test_fetch_virtual_report_suites_returns_empty_on_wrapper_error(caplog, monkeypatch) -> None:
     """If the SDK call itself raises, return [] with a WARNING log rather
     than breaking the entire SDR pipeline (VRS are best-effort).
 
     Regression test for v1.6.1: customer hit `KeyError: 'content'` from
     `aanalytics2` 0.5.1 when the Adobe VRS endpoint returned HTTP 500 for
     their org. The SDK indexes `vrsid['content']` unconditionally, which
-    crashes on the error envelope. We swallow it and let the SDR finish."""
+    crashes on the error envelope. We swallow it and let the SDR finish.
+
+    v1.7.0 update: the SDK call now goes through with_retries; on exhaustion
+    the underlying KeyError surfaces as TransientApiError, which the outer
+    except still catches and logs as a WARNING before returning []."""
     import logging as _logging
 
+    monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
     caplog.set_level(_logging.WARNING, logger="aa_auto_sdr.api.fetch")
     handle = MagicMock()
     handle.getVirtualReportSuites.side_effect = KeyError("content")
@@ -193,19 +198,25 @@ def test_fetch_virtual_report_suites_returns_empty_on_wrapper_error(caplog) -> N
     assert any("virtual report suites fetch failed" in r.getMessage() for r in caplog.records)
 
 
-def test_fetch_virtual_report_suite_summaries_raises_api_error_on_wrapper_failure() -> None:
+def test_fetch_virtual_report_suite_summaries_raises_api_error_on_wrapper_failure(monkeypatch) -> None:
     """Discovery path (`--list-virtual-reportsuites`) does NOT graceful-degrade
     — silently returning [] on a broken endpoint would suggest the org has no
     VRS. Instead, normalize any SDK-side exception to ApiError so the CLI's
     existing `except ApiError → exit 12` contract surfaces the failure
-    regardless of which underlying shape the SDK threw (KeyError, etc.)."""
+    regardless of which underlying shape the SDK threw (KeyError, etc.).
+
+    v1.7.0 update: with retry-and-classify wired in, exhaustion surfaces as
+    TransientApiError (subclass of ApiError). The CLI still catches via
+    `except ApiError → exit 12`. The error message now reflects the typed
+    classification rather than the v1.6.1 one-shot wording."""
     from aa_auto_sdr.core.exceptions import ApiError
 
+    monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
     handle = MagicMock()
     handle.getVirtualReportSuites.side_effect = KeyError("content")
     client = AaClient(handle=handle, company_id="testco")
 
-    with pytest.raises(ApiError, match="virtual report suites fetch failed"):
+    with pytest.raises(ApiError, match="transient SDK failure"):
         fetch.fetch_virtual_report_suite_summaries(client)
 
 

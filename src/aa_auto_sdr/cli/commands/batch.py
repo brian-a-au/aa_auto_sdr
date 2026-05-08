@@ -22,6 +22,7 @@ from pathlib import Path
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import colors, credentials, timings
 from aa_auto_sdr.core.constants import BANNER_WIDTH
 from aa_auto_sdr.core.exceptions import (
@@ -102,6 +103,7 @@ def run(
     assume_yes: bool = False,  # v1.2; accepted for parity, not currently consumed
     show_timings: bool = False,  # v1.2.1
     run_summary_json: str | None = None,  # v1.2.1
+    retry_policy: RetryPolicy | None = None,  # v1.7.0 — shared retry budget
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -127,6 +129,7 @@ def run(
             assume_yes=assume_yes,
             show_timings=show_timings,
             run_summary_json=run_summary_json,
+            retry_policy=retry_policy,
         )
         return exit_code
     finally:
@@ -161,6 +164,7 @@ def _run_impl(
     assume_yes: bool = False,  # noqa: ARG001 — accepted for parity, not currently consumed
     show_timings: bool = False,
     run_summary_json: str | None = None,
+    retry_policy: RetryPolicy | None = None,
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -231,7 +235,7 @@ def _run_impl(
 
     try:
         with timings.Timer("auth"):
-            client = AaClient.from_credentials(creds)
+            client = AaClient.from_credentials(creds, retry_policy=retry_policy)
     except AuthError as e:
         print(f"auth error: {e}", flush=True)
         _emit_timings_if_enabled(show_timings=show_timings)

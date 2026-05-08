@@ -131,7 +131,7 @@ class TestProfileTest:
         class _StubClient:
             company_id = "TEST_COMPANY"
 
-        def _stub_from_credentials(cls, creds, *, company_id=None):
+        def _stub_from_credentials(cls, creds, *, company_id=None, retry_policy=None):
             return _StubClient()
 
         monkeypatch.setattr(
@@ -152,7 +152,7 @@ class TestProfileTest:
         _seed_profile(aa_base, "prod")
         from aa_auto_sdr.api import client as api_client
 
-        def _raise(cls, creds, *, company_id=None):
+        def _raise(cls, creds, *, company_id=None, retry_policy=None):
             raise AuthError("bad creds")
 
         monkeypatch.setattr(

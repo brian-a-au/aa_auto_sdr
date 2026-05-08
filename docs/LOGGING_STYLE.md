@@ -48,6 +48,11 @@ text. The vocabulary meta-test enforces presence on the events listed in
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the v1.5 INFO record from `core/credentials.resolve()` indicating which source matched. Four values: `profile:<name>` / `env` / `.env` / `config.json`. |
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
 | `agent_mode` | bool | `run_start` / `run_complete` / `run_failure` records — `True` when `--agent-mode` preset was active; `False` otherwise. Lets log-aggregation queries filter by agent-driven runs without joining on `argv_summary`. |
+| `expansion_level` | str — `full`/`minimal`/`exhausted` | VRS-fetch records (`api/fetch.py::fetch_virtual_report_suites`). Records which rung of the v1.7.0 two-rung ladder produced the result: `full` (extended_info=True succeeded), `minimal` (fell back to extended_info=False), or `exhausted` (both rungs failed; result is `[]`). Per-value emission sites: `full` and `minimal` appear on the `component_fetch` INFO record (the success path); `minimal` also appears on the `vrs_expansion_fallback` WARNING record (the fallback transition); `exhausted` appears ONLY on the bare `"virtual report suites fetch failed"` WARNING (the function `return []`s before reaching the `component_fetch` INFO emit, so no exhausted INFO record is ever produced). Log-aggregation queries that filter `component_fetch` records by `expansion_level=exhausted` will silently never match — query the WARNING records instead. |
+| `pulled` | int | `vrs_parent_filter` DEBUG record (`api/fetch.py::fetch_virtual_report_suites`). Number of VRS rows the SDK returned before client-side parent filtering. |
+| `filtered` | int | `vrs_parent_filter` DEBUG record. Number of VRS rows kept after the `parentRsid == parent_rsid` filter. |
+| `dropped_no_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was missing/empty. |
+| `dropped_other_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was set but didn't match the requested parent. |
 
 **Reserved fields (do not use yet, will activate when their underlying feature lands):**
 
@@ -73,8 +78,9 @@ text. The vocabulary meta-test enforces presence on the events listed in
 ## Canonical event names
 
 Records intended for assertion tests use a stable verb-noun message prefix
-so `caplog` can match by substring without coupling to wording. The ten
-canonical events, all active in v1.5:
+so `caplog` can match by substring without coupling to wording. The
+canonical events, all active in v1.5 with three resilience-layer additions
+in v1.7.0:
 
 **Lifecycle (7):**
 
@@ -92,7 +98,13 @@ canonical events, all active in v1.5:
 - `rsid_failure` — per-RSID processing failed (batch with `continue_on_error=True`)
 - `run_failure` — top-level exception bubbled past command dispatch
 
-**Vocabulary meta-test treatment.** All 10 canonical events are active in v1.5; the v1.4 reserved-events exemption is removed. The vocabulary meta-test enforces extras presence on every canonical event when its substring appears in a message.
+**v1.7.0 — Resilience layer (3):**
+
+- `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call (both bubbling fetchers via `_retry_and_normalize` and graceful-degrade fetchers that call `with_retries` directly). Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
+- `vrs_expansion_fallback` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires when the full-expansion VRS call (`extended_info=True`) exhausts the retry budget and the minimal-expansion fallback rung (`extended_info=False`) is attempted. Carries `rsid`, `component_type=virtual_report_suite`, `expansion_level=minimal`, and `error_class` (the class name of the full-rung failure that triggered the fallback).
+- `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response — the happy path stays quiet. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
+
+**Vocabulary meta-test treatment.** All canonical events are active; the v1.4 reserved-events exemption was lifted in v1.5. The vocabulary meta-test enforces extras presence on every canonical event when its substring appears at the start of a message (token-boundary aware).
 
 ## De-dup rule
 
@@ -247,16 +259,43 @@ fetchers — its values are `dimension`, `metric`, `segment`,
 Required extras on every `component_fetch` INFO record: `rsid`,
 `component_type`, `count`, `duration_ms`.
 
-**Best-effort fetchers.** Two fetchers degrade gracefully instead of
-failing the run: `fetch_classification_datasets` (since v1.0) and
-`fetch_virtual_report_suites` (since v1.6.1, after a customer hit
+**Best-effort fetchers (v1.6.1, v1.7.0).** Two fetchers degrade gracefully
+instead of failing the run: `fetch_classification_datasets` (since v1.0)
+and `fetch_virtual_report_suites` (since v1.6.1, after a customer hit
 `KeyError: 'content'` from `aanalytics2` 0.5.1 when the VRS endpoint
-returned HTTP 500). On SDK-side exception, both fetchers emit a
-WARNING (no canonical event prefix) instead of `component_fetch` INFO,
-return `[]`, and let the SDR build complete. The WARNING record carries
-`rsid`, `component_type` (`"classification"` or `"virtual_report_suite"`),
-and `error_class` — but not `count` or `duration_ms` (the call did not
-complete). All other component fetchers fail the run on exception.
+returned HTTP 500). On SDK-side exception, both fetchers emit a WARNING
+instead of `component_fetch` INFO, return `[]`, and let the SDR build
+complete. The WARNING record carries `rsid`, `component_type`
+(`"classification"` or `"virtual_report_suite"`), and `error_class` — but
+not `count` or `duration_ms` (the call did not complete). All other
+component fetchers fail the run on exception.
+
+**v1.7.0 — Retry layer + VRS expansion ladder.** Every SDK call in
+`api/fetch.py` is now wrapped in either `_retry_and_normalize` (bubbling
+fetchers — dimensions, metrics, segments, calculated metrics, report-suite,
+report-suite-summaries, `resolve_rsid`) or `with_retries(_classify_transient_sdk_call(...))`
+inside the try/except envelope (graceful-degrade fetchers — VRS ladder,
+classifications, VRS-summary discovery). Each retry emits a `retry_attempt`
+DEBUG record carrying `retry_attempt` (1-indexed attempt index) and
+`error_class`, scoped with `rsid` / `component_type` when the call site
+supplies them. For VRS specifically, `fetch_virtual_report_suites` runs a
+2-rung ladder: the `full` rung calls `getVirtualReportSuites(extended_info=True)`;
+on full-rung exhaustion, the `minimal` fallback rung calls `extended_info=False`
+and emits a `vrs_expansion_fallback` WARNING with
+`expansion_level=minimal`. Both rungs exhausted → a final WARNING with
+`expansion_level=exhausted` and `error_class` fires before graceful-degrade
+to `[]`. The successful `component_fetch` INFO record carries
+`expansion_level` so log aggregation can distinguish full-coverage
+results from fallback results without grep-and-correlate.
+
+**VRS parent-filter visibility (v1.7.0, Item D).** After the SDK call
+returns, `fetch_virtual_report_suites` filters rows client-side to those
+whose `parentRsid` matches the requested parent. When that filter drops
+one or more rows, a single `vrs_parent_filter` DEBUG record fires carrying
+`rsid`, `pulled`, `filtered`, `dropped_no_parent`, and `dropped_other_parent`
+— so an operator investigating "where my VRS went" can find the answer
+under `--log-level=DEBUG` without needing to instrument anything. No
+record fires on the happy path (all pulled rows kept).
 
 **Discovery-path counterpart.** `fetch_virtual_report_suite_summaries`
 (used by `--list-virtual-reportsuites`) does NOT graceful-degrade —
