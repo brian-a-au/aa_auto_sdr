@@ -10,7 +10,11 @@ from pathlib import Path
 
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
-from aa_auto_sdr.cli.parser import build_parser
+from aa_auto_sdr.cli.parser import (
+    _apply_agent_mode_defaults,
+    _configured_long_options,
+    build_parser,
+)
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.logging import infer_run_mode, setup_logging
 
@@ -29,12 +33,17 @@ def _argv_summary(argv: list[str]) -> list[str]:
 def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
+    _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
     setup_logging(ns)
     run_mode = infer_run_mode(ns)
     logger.info(
         "run_start run_mode=%s",
         run_mode,
-        extra={"run_mode": run_mode, "argv_summary": _argv_summary(argv)},
+        extra={
+            "run_mode": run_mode,
+            "argv_summary": _argv_summary(argv),
+            "agent_mode": getattr(ns, "agent_mode", False),
+        },
     )
     started = time.monotonic()
     try:
