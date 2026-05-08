@@ -281,9 +281,9 @@ def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, cap
     monkeypatch.setattr(
         fetch,
         "fetch_report_suite",
-        lambda client, rsid: ReportSuite(
+        lambda _client, rsid: ReportSuite(
             rsid=rsid, name=f"Suite {rsid}", timezone="UTC", currency="USD", parent_rsid=None
-        ),  # noqa: ARG005
+        ),
     )
     monkeypatch.setattr(fetch, "fetch_dimensions", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_metrics", lambda c, r: [])  # noqa: ARG005
