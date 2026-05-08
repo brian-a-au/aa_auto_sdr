@@ -168,7 +168,7 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
 - Use `--format json --output -` for machine-parseable stdout where supported.
 - Machine-readable stdout uses `json` or `csv` (where supported by the command family).
 - `--output -` implies `--quiet` (banner/progress and INFO records on stderr suppressed; errors, warnings, and final result paths still print; the per-run log file is unaffected). Same for `--run-summary-json -`.
-- Under `--agent-mode`, the preset always applies the implicit `--output -` *before* the per-command-family resolver suppresses it for file-only formats (single SDR / batch). The implicit `--quiet` is derived from that pre-suppression output, so `aa_auto_sdr <RSID> --agent-mode --format excel` runs silently on stderr even though the SDR artifact is written to a file. This is the intended UX for unattended runs — for verbose stderr under agent-mode, pass `--log-level DEBUG` to widen the file logger or `--quiet=false` is not supported (use a non-stdout `--output PATH` instead).
+- Under `--agent-mode`, the preset always applies the implicit `--output -` *before* the per-command-family resolver suppresses it for file-only formats (single SDR / batch). The implicit `--quiet` is derived from that pre-suppression output, so `aa_auto_sdr <RSID> --agent-mode --format excel` runs silently on stderr even though the SDR artifact is written to a file. This is the intended UX for unattended runs. For verbose stderr under agent-mode, pass `--log-level DEBUG` (widens the file logger; the console stays quiet by contract). `--quiet=false` is not a supported override — for verbose stderr you must avoid the implicit `--output -` by passing a non-stdout `--output PATH` (or, for SDR generation, simply omit `--agent-mode`).
 - On failure, **stderr** receives a JSON error envelope:
   ```json
   {"error": "Configuration error: Missing credentials", "error_type": "ConfigError"}
@@ -225,13 +225,13 @@ uv run aa_auto_sdr --config-status                       # full credential resol
 
 | Command Family            | `--agent-mode` | Notes |
 |---------------------------|----------------|-------|
-| Single SDR                | Limited        | Preset applies for `--log-format json`; `--output -` is suppressed (no stdout-capable format); artifacts written under `--output-dir`. |
-| Batch SDR                 | Limited        | Same as Single SDR; one artifact set per RSID. |
+| Single SDR                | Limited        | Preset applies for `--log-format json`; `--output -` is suppressed (no stdout-capable format); artifacts are written under `--output-dir DIR` (default cwd). **`--output PATH` is silently ignored for SDR generation** — only `--output-dir DIR` controls the artifact destination. To override the destination under agent-mode, pass `--output-dir /path/to/dir`. |
+| Batch SDR                 | Limited        | Same as Single SDR — `--output-dir DIR` controls destination, `--output PATH` ignored. One artifact set per RSID. |
 | Discovery / Inspection    | ✅              | JSON or CSV on stdout; prefer exact RSIDs for unattended inspection. |
-| Diff Family               | ✅              | JSON on stdout for `--diff`. PR-comment renderer (`--format pr-comment`) is file-only. |
+| Diff Family               | ✅              | JSON on stdout for `--diff` (the only stdout-capable diff format under the agent contract). PR-comment markdown (`--format pr-comment`) also writes to stdout when `--output PATH` is omitted — the agent-mode preset's implicit `--output -` does not suppress this, since `output=None` and `output="-"` follow the same stdout-write code path in the diff command. Agents using `--format pr-comment` should pipe to a file, pass an explicit `--output PATH`, or use `$GITHUB_STEP_SUMMARY` (auto-append on CI). |
 | Stats                     | ✅              | JSON on stdout (`--format json`). |
 | Validation / Preflight    | Partial        | Both `--config-status` (text) and `--validate-config` are exit-code driven. No JSON output mode today; use exit codes for branching. |
-| Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, `--completion {bash,zsh,fish}` tolerate `--agent-mode` but the preset is not applied before early exit. |
+| Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, `--completion {bash,zsh,fish}` are detected positionally (must be first on argv). Place them before `--agent-mode`, e.g. `aa_auto_sdr --version` or `aa_auto_sdr --exit-codes`. Forms like `aa_auto_sdr --agent-mode --version` fall through to argparse and error with `unrecognized arguments`. The agent-mode preset is intentionally not applied for fast-path flags — they exit before logging or output resolution. |
 | Snapshots (list / prune)  | Partial        | `--profile <name> --list-snapshots --format json --output -` supported (lifecycle commands require `--profile`). `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
 
 ### Exact-ID Guidance

@@ -200,3 +200,108 @@ def test_single_sdr_under_agent_mode_writes_file_not_stdout(monkeypatch, tmp_pat
         if p.is_file() and p.suffix == ".json" and "logs" not in p.parts and p.name not in ("a.json", "b.json")
     ]
     assert written, f"expected an SDR JSON artifact under {tmp_path}, got {list(tmp_path.iterdir())}"
+
+
+def test_describe_reportsuite_under_agent_mode_emits_json(monkeypatch, capsys, tmp_path):
+    """Round-3 smoke: `--describe-reportsuite RS1 --agent-mode` emits JSON on stdout.
+
+    Covers the 6th inspect dispatch site, which the v1.6 wiring routes through
+    the same resolver as the five `--list-X` actions.
+    """
+    monkeypatch.chdir(tmp_path)
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.models import ReportSuite
+    from aa_auto_sdr.core import credentials
+    from aa_auto_sdr.core.credentials import Credentials
+
+    monkeypatch.setattr(
+        credentials,
+        "resolve",
+        lambda profile=None: Credentials(  # noqa: ARG005
+            org_id="x",
+            client_id="y",
+            secret="z",
+            scopes="openid,AdobeID,additional_info.projectedProductContext",
+            source="test",
+        ),
+    )
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
+    monkeypatch.setattr(
+        fetch,
+        "fetch_report_suite",
+        lambda client, rsid: ReportSuite(rsid="RS1", name="Suite 1", timezone="UTC", currency="USD", parent_rsid=None),  # noqa: ARG005
+    )
+    monkeypatch.setattr(fetch, "fetch_dimensions", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_metrics", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: [])  # noqa: ARG005
+
+    from aa_auto_sdr.cli.main import run
+
+    exit_code = run(["--describe-reportsuite", "RS1", "--agent-mode"])
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    # Confirm the output is parseable JSON and the RSID is in the payload.
+    json.loads(captured.out)  # raises if not valid JSON
+    assert "RS1" in captured.out
+
+
+def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, capsys):
+    """Round-3 smoke: `RS1 RS2 --agent-mode` writes one artifact set per RSID to cwd.
+
+    Exercises the batch dispatch resolver wiring (Option A: `stdout_formats=frozenset()`),
+    which suppresses the agent-mode implicit `--output -` so the existing batch error
+    (`--output - is ambiguous for batch runs`) does not spuriously fire.
+    """
+    monkeypatch.chdir(tmp_path)
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.models import ReportSuite
+    from aa_auto_sdr.core import credentials
+    from aa_auto_sdr.core.credentials import Credentials
+
+    monkeypatch.setattr(
+        credentials,
+        "resolve",
+        lambda profile=None: Credentials(  # noqa: ARG005
+            org_id="x",
+            client_id="y",
+            secret="z",
+            scopes="openid,AdobeID,additional_info.projectedProductContext",
+            source="test",
+        ),
+    )
+    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds: object()))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: ([ident], False))  # noqa: ARG005
+    monkeypatch.setattr(
+        fetch,
+        "fetch_report_suite",
+        lambda client, rsid: ReportSuite(
+            rsid=rsid, name=f"Suite {rsid}", timezone="UTC", currency="USD", parent_rsid=None
+        ),  # noqa: ARG005
+    )
+    monkeypatch.setattr(fetch, "fetch_dimensions", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_metrics", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: [])  # noqa: ARG005
+
+    from aa_auto_sdr.cli.main import run
+
+    exit_code = run(["RS1", "RS2", "--agent-mode", "--format", "json"])
+    capsys.readouterr()  # consume any stdout
+
+    assert exit_code == 0
+    written = [
+        p for p in tmp_path.glob("**/*.json") if p.is_file() and "logs" not in p.parts and "snapshots" not in p.parts
+    ]
+    rsids_in_filenames = {rsid for rsid in ("RS1", "RS2") if any(rsid in p.name for p in written)}
+    assert rsids_in_filenames == {"RS1", "RS2"}, (
+        f"expected SDR artifacts for both RS1 and RS2, got files: {[p.name for p in written]}"
+    )
