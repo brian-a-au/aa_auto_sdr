@@ -247,13 +247,25 @@ fetchers — its values are `dimension`, `metric`, `segment`,
 Required extras on every `component_fetch` INFO record: `rsid`,
 `component_type`, `count`, `duration_ms`.
 
-**Failure path for `fetch_classification_datasets`.** Classifications are
-best-effort: if the underlying SDK call raises, the fetcher emits a
-WARNING (no canonical event prefix) instead of `component_fetch` INFO.
-The WARNING record carries `rsid`, `component_type="classification"`,
+**Best-effort fetchers.** Two fetchers degrade gracefully instead of
+failing the run: `fetch_classification_datasets` (since v1.0) and
+`fetch_virtual_report_suites` (since v1.6.1, after a customer hit
+`KeyError: 'content'` from `aanalytics2` 0.5.1 when the VRS endpoint
+returned HTTP 500). On SDK-side exception, both fetchers emit a
+WARNING (no canonical event prefix) instead of `component_fetch` INFO,
+return `[]`, and let the SDR build complete. The WARNING record carries
+`rsid`, `component_type` (`"classification"` or `"virtual_report_suite"`),
 and `error_class` — but not `count` or `duration_ms` (the call did not
-complete). All other fetchers fail the run on exception; only
-classifications degrade gracefully.
+complete). All other component fetchers fail the run on exception.
+
+**Discovery-path counterpart.** `fetch_virtual_report_suite_summaries`
+(used by `--list-virtual-reportsuites`) does NOT graceful-degrade —
+silently returning `[]` would falsely suggest the org has no VRS to a
+user who explicitly asked for the list. Instead it normalizes any
+SDK-side exception to `ApiError` so the CLI's typed catch returns
+exit 12. A DEBUG record carrying `component_type="virtual_report_suite"`
+and `error_class` fires before the raise so log aggregation can
+correlate the failure without adding interactive console noise.
 
 ## Output file write records
 
