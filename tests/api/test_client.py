@@ -137,3 +137,72 @@ class TestRetryPolicyThreading:
             client = AaClient.from_credentials(creds)
         assert client.company_id == "co"
         assert get_company_id.call_count == 3
+
+    def test_get_company_id_is_retried_on_raw_keyerror(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Bootstrap retries on the production-shape SDK failure (raw KeyError
+        from urllib3-stub indexing — the v1.6.1 customer's failure mode).
+
+        Without the `classify_transient_sdk_call` wrapper around `getCompanyId`,
+        a raw KeyError would NOT match `is_retryable`'s typed signal and the
+        outer retry budget would be a no-op on the bootstrap path — making
+        `--max-retries N` silently broken for the spike-confirmed production
+        shape. This test pins the wrapping in place.
+
+        Note: with default `max_retries=3`, total attempts cap at 4 (1 initial
+        + 3 retries). 3 KeyErrors then success exercises the full retry budget.
+        """
+        monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+        creds = _build_creds()
+        get_company_id = MagicMock(
+            side_effect=[
+                KeyError("content"),
+                KeyError("content"),
+                KeyError("content"),
+                [{"globalCompanyId": "co"}],
+            ]
+        )
+        with (
+            patch("aa_auto_sdr.api.client.aanalytics2.configure"),
+            patch("aa_auto_sdr.api.client.aanalytics2.Login") as login_cls,
+            patch("aa_auto_sdr.api.client.aanalytics2.Analytics") as analytics_cls,
+        ):
+            login_cls.return_value.getCompanyId = get_company_id
+            analytics_cls.return_value = MagicMock()
+            client = AaClient.from_credentials(creds)
+        assert client.company_id == "co"
+        assert get_company_id.call_count == 4
+
+    def test_get_company_id_emits_retry_attempt_debug_records(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Bootstrap retries emit `retry_attempt` DEBUG records via `log_retry_attempt`,
+        so operators can grep them under `--log-format json` alongside fetcher retries.
+
+        Originally an observability gap (bootstrap retries were silent because
+        `on_attempt` defaulted to None); pinned by this test.
+        """
+        import logging as _logging
+
+        monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+        creds = _build_creds()
+        get_company_id = MagicMock(
+            side_effect=[
+                KeyError("content"),
+                KeyError("content"),
+                [{"globalCompanyId": "co"}],
+            ]
+        )
+        with (
+            caplog.at_level(_logging.DEBUG, logger="aa_auto_sdr.api.resilience"),
+            patch("aa_auto_sdr.api.client.aanalytics2.configure"),
+            patch("aa_auto_sdr.api.client.aanalytics2.Login") as login_cls,
+            patch("aa_auto_sdr.api.client.aanalytics2.Analytics") as analytics_cls,
+        ):
+            login_cls.return_value.getCompanyId = get_company_id
+            analytics_cls.return_value = MagicMock()
+            AaClient.from_credentials(creds)
+        retry_records = [r for r in caplog.records if "retry_attempt" in r.message]
+        # Two retries fired (initial + 2 retries = 3 attempts), so two DEBUG records.
+        assert len(retry_records) == 2
+        assert all(r.levelname == "DEBUG" for r in retry_records)
+        assert all(getattr(r, "error_class", None) == "TransientApiError" for r in retry_records)

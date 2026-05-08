@@ -11,25 +11,39 @@ configures urllib3.Retry(total=max(max_retries, 3), backoff_factor=1,
 status_forcelist=[429, 500, 502, 503, 504], raise_on_status=False).
 A 5xx that exhausts urllib3's budget surfaces as a swallowed stub dict,
 which the SDK then indexes into and raises KeyError/ValueError. The
-`_retry_and_normalize` helper in `api/fetch.py` translates those to
+`_classify_transient_sdk_call` helper translates those to
 `TransientApiError` so `is_retryable` can dispatch on a typed signal.
 
 Worst-case total attempt count for a hard-failing endpoint at default
 settings: (urllib3_retries + 1) * (max_retries + 1) = 4 * 4 = 16 HTTP
-requests. With --max-retries 6, that climbs to 28. Document this so
-operators tuning --max-retries aren't surprised by minute-long stalls.
+requests. With --max-retries 6, that climbs to 28. **VRS doubles this
+budget** because `fetch_virtual_report_suites` runs two sequential
+retry rungs (full-expansion + minimal-expansion ladder, see Item C),
+each consuming the full --max-retries budget — so VRS worst case is
+2 * (urllib3_retries + 1) * (max_retries + 1) = 32 at default, 56 at
+--max-retries 6. Document this so operators tuning --max-retries
+aren't surprised by minute-long stalls.
+
+The helpers ``_classify_transient_sdk_call`` and ``_log_retry_attempt``
+live here (not in ``api/fetch.py``) so ``api/client.py`` can use them
+for the auth bootstrap retry without creating a circular import
+(``api/fetch.py`` already imports ``AaClient`` from ``api/client.py``).
 """
 
 from __future__ import annotations
 
+import logging
 import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 import requests
 
 from aa_auto_sdr.core.exceptions import TransientApiError
+
+logger = logging.getLogger(__name__)
 
 OnAttemptCb = Callable[[int, int, float, BaseException], None]
 
@@ -113,3 +127,62 @@ def with_retries[T](
     # Unreachable — the loop either returns or raises. Defensive:
     assert last_exc is not None
     raise last_exc
+
+
+def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str | None = None) -> T:
+    """Run ``fn``, classifying SDK-shape failures as ``TransientApiError``.
+
+    Per spike (docs/superpowers/spikes/2026-05-08-aanalytics2-resilience-spike.md):
+    aanalytics2 0.5.1 surfaces transient HTTP failures (5xx after urllib3
+    retries, malformed bodies) as bare ``KeyError`` (from indexing into stub
+    error dicts like ``vrsid['content']``) or ``ValueError`` (from pandas
+    DataFrame construction over malformed payloads). This helper translates
+    those to ``TransientApiError`` so ``is_retryable`` can dispatch on a
+    typed signal.
+
+    Used by ``_retry_and_normalize`` (bubbling fetchers in ``api/fetch.py``),
+    the VRS ladder rungs (each rung needs the classifier independently so
+    the outer try/except can fall to the next rung), AND the auth bootstrap
+    in ``api/client.py``. Lives here (not ``api/fetch.py``) to avoid a
+    circular import on the bootstrap path.
+    """
+    try:
+        return fn()
+    except (KeyError, ValueError) as e:
+        ctx = f"{component_type} " if component_type else ""
+        raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
+
+
+def log_retry_attempt(
+    attempt: int,
+    max_attempts: int,
+    delay_s: float,
+    exc: BaseException,
+    *,
+    rsid: str | None = None,
+    component_type: str | None = None,
+) -> None:
+    """``on_attempt`` callback for ``with_retries``. Emits a DEBUG record per retry.
+
+    Vocabulary-compliant fields (per ``docs/LOGGING_STYLE.md`` §6.1): only
+    ``retry_attempt``, ``error_class``, ``rsid``, ``component_type`` go into
+    ``extra={}``. ``max_attempts`` / ``delay_s`` ride along the message string
+    for human readability without being formally indexed (the structured
+    sink can still parse the message if it cares).
+    """
+    extras: dict[str, Any] = {
+        "retry_attempt": attempt,
+        "error_class": type(exc).__name__,
+    }
+    if rsid is not None:
+        extras["rsid"] = rsid
+    if component_type is not None:
+        extras["component_type"] = component_type
+    logger.debug(
+        "retry_attempt attempt=%s/%s delay_s=%.3f error_class=%s",
+        attempt,
+        max_attempts,
+        delay_s,
+        type(exc).__name__,
+        extra=extras,
+    )

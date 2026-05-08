@@ -21,7 +21,13 @@ from typing import Any
 import aanalytics2  # type: ignore[import-untyped]
 
 from aa_auto_sdr.api.auth import credentials_to_aanalytics2_config
-from aa_auto_sdr.api.resilience import DEFAULT_RETRY_POLICY, RetryPolicy, with_retries
+from aa_auto_sdr.api.resilience import (
+    DEFAULT_RETRY_POLICY,
+    RetryPolicy,
+    classify_transient_sdk_call,
+    log_retry_attempt,
+    with_retries,
+)
 from aa_auto_sdr.core.credentials import Credentials
 from aa_auto_sdr.core.exceptions import AuthError
 
@@ -66,14 +72,24 @@ class AaClient:
 
         policy = retry_policy or DEFAULT_RETRY_POLICY
         login = aanalytics2.Login()
-        # Wrap getCompanyId — it can fail with transient 5xx; auth failures
-        # (401/403) are non-retryable per is_retryable. Per spike D1, the
-        # aanalytics2 SDK's swallowed-stub behavior on exhausted urllib3
-        # retries surfaces as KeyError/ValueError; api/fetch.py classifies
-        # those into TransientApiError. Bootstrap currently raises raw
-        # SDK shapes (non-retryable here) — this hook lets test/code paths
-        # that DO raise TransientApiError exercise the retry budget.
-        companies = with_retries(login.getCompanyId, policy=policy) or []
+        # Wrap getCompanyId in the same retry pattern as fetchers (per spike
+        # D1, aanalytics2 0.5.1's swallowed-stub behavior surfaces transient
+        # 5xx as KeyError/ValueError on indexing — `classify_transient_sdk_call`
+        # translates those to TransientApiError so `is_retryable` recognizes
+        # them and `with_retries` honors --max-retries on the bootstrap path).
+        # Auth failures (401/403) bypass urllib3 retry and surface as
+        # ConnectionError or AttributeError-style shapes — non-retryable.
+        # `log_retry_attempt` threads bootstrap retries into the same
+        # `retry_attempt` DEBUG record stream as fetcher retries so operators
+        # can grep them under `--log-format json`.
+        companies = (
+            with_retries(
+                lambda: classify_transient_sdk_call(login.getCompanyId),
+                policy=policy,
+                on_attempt=log_retry_attempt,
+            )
+            or []
+        )
         logger.debug(
             "getCompanyId returned count=%s",
             len(companies),

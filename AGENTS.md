@@ -201,6 +201,15 @@ stalls scale similarly because urllib3 honors `Retry-After` and exponential
 backoff. Tune `--max-retries` deliberately for unattended runs where total
 budget matters.
 
+**VRS doubles this budget.** `fetch_virtual_report_suites` runs the v1.7.0
+reduced-expansion ladder as two sequential retry rungs (full → minimal),
+and each rung consumes the full `--max-retries` budget independently.
+So VRS worst case is `2 × (urllib3_retries + 1) × (--max-retries + 1)` —
+up to **32 requests** at default, **56** at `--max-retries 6`. Other
+fetchers (dimensions / metrics / segments / calculated metrics /
+classifications / report-suite / VRS-summary discovery) use the
+single-rung formula above.
+
 ---
 
 ## VRS Reduced Expansion

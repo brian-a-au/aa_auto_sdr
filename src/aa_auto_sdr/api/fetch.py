@@ -29,61 +29,15 @@ import pandas as pd
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.api.resilience import RetryPolicy, with_retries
-from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError, TransientApiError
+from aa_auto_sdr.api.resilience import (
+    RetryPolicy,
+    classify_transient_sdk_call,
+    log_retry_attempt,
+    with_retries,
+)
+from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
 
 logger = logging.getLogger(__name__)
-
-
-def _classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str | None = None) -> T:
-    """Run `fn`, classifying SDK-shape failures as `TransientApiError`.
-
-    Per spike (docs/superpowers/spikes/2026-05-08-aanalytics2-resilience-spike.md):
-    aanalytics2 0.5.1 surfaces transient HTTP failures (5xx after urllib3
-    retries, malformed bodies) as bare KeyError (from indexing into stub
-    error dicts like vrsid['content']) or ValueError (from pandas DataFrame
-    construction over malformed payloads). This helper translates those to
-    TransientApiError so is_retryable can dispatch on a typed signal — used
-    by both _retry_and_normalize (bubbling fetchers) and the VRS ladder
-    rungs (where each rung needs the classifier independently so the outer
-    try/except can fall to the next rung).
-    """
-    try:
-        return fn()
-    except (KeyError, ValueError) as e:
-        ctx = f"{component_type} " if component_type else ""
-        raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
-
-
-def _log_retry_attempt(
-    attempt: int,
-    max_attempts: int,
-    delay_s: float,
-    exc: BaseException,
-    *,
-    rsid: str | None = None,
-    component_type: str | None = None,
-) -> None:
-    """on_attempt callback for with_retries. Emits a DEBUG record per retry.
-
-    Vocabulary-compliant fields (per docs/LOGGING_STYLE.md §6.1): only
-    ``retry_attempt``, ``error_class``, ``rsid``, ``component_type`` go into
-    ``extra={}``. ``max_attempts`` / ``delay_s`` ride along the message string
-    for human readability without being formally indexed (the structured
-    sink can still parse the message if it cares)."""
-    logger.debug(
-        "retry_attempt attempt=%s/%s delay_s=%.3f error_class=%s",
-        attempt,
-        max_attempts,
-        delay_s,
-        type(exc).__name__,
-        extra={
-            "retry_attempt": attempt,
-            "error_class": type(exc).__name__,
-            "rsid": rsid,
-            "component_type": component_type,
-        },
-    )
 
 
 def _retry_and_normalize[T](
@@ -97,7 +51,7 @@ def _retry_and_normalize[T](
 
     Two responsibilities:
 
-    1. Inner classifier (via _classify_transient_sdk_call) — translates the SDK's
+    1. Inner classifier (via classify_transient_sdk_call) — translates the SDK's
        heterogeneous failure shapes into our TransientApiError so with_retries/
        is_retryable can dispatch on a typed signal.
     2. Outer normalizer — any non-ApiError exception that escapes with_retries
@@ -115,9 +69,9 @@ def _retry_and_normalize[T](
     """
     try:
         return with_retries(
-            lambda: _classify_transient_sdk_call(fn, component_type=component_type),
+            lambda: classify_transient_sdk_call(fn, component_type=component_type),
             policy=policy,
-            on_attempt=lambda a, m, d, e: _log_retry_attempt(
+            on_attempt=lambda a, m, d, e: log_retry_attempt(
                 a,
                 m,
                 d,
@@ -549,7 +503,7 @@ def fetch_virtual_report_suites(
     expansion_level = "full"
 
     def _on_attempt(a: int, m: int, d: float, e: BaseException) -> None:
-        _log_retry_attempt(
+        log_retry_attempt(
             a,
             m,
             d,
@@ -561,7 +515,7 @@ def fetch_virtual_report_suites(
     try:
         raws = _records(
             with_retries(
-                lambda: _classify_transient_sdk_call(
+                lambda: classify_transient_sdk_call(
                     lambda: client.handle.getVirtualReportSuites(extended_info=True),
                     component_type="virtual_report_suite",
                 ),
@@ -573,7 +527,7 @@ def fetch_virtual_report_suites(
         try:
             raws = _records(
                 with_retries(
-                    lambda: _classify_transient_sdk_call(
+                    lambda: classify_transient_sdk_call(
                         lambda: client.handle.getVirtualReportSuites(extended_info=False),
                         component_type="virtual_report_suite",
                     ),
@@ -692,12 +646,12 @@ def fetch_virtual_report_suite_summaries(
     try:
         raw = _records(
             with_retries(
-                lambda: _classify_transient_sdk_call(
+                lambda: classify_transient_sdk_call(
                     lambda: client.handle.getVirtualReportSuites(extended_info=True),
                     component_type="virtual_report_suite",
                 ),
                 policy=client.retry_policy,
-                on_attempt=lambda a, m, d, e: _log_retry_attempt(
+                on_attempt=lambda a, m, d, e: log_retry_attempt(
                     a,
                     m,
                     d,
@@ -780,12 +734,12 @@ def fetch_classification_datasets(
     try:
         raws = _records(
             with_retries(
-                lambda: _classify_transient_sdk_call(
+                lambda: classify_transient_sdk_call(
                     lambda: client.handle.getClassificationDatasets(rsid=rsid),
                     component_type="classification",
                 ),
                 policy=client.retry_policy,
-                on_attempt=lambda a, m, d, e: _log_retry_attempt(
+                on_attempt=lambda a, m, d, e: log_retry_attempt(
                     a,
                     m,
                     d,

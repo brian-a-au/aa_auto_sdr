@@ -30,6 +30,12 @@ classifiers = [
 dependencies = [
     "aanalytics2>=0.4.0",
     "pandas>=2.3.3,<3",
+    # `requests` is imported directly by api/resilience.py (`is_retryable`
+    # checks `ConnectionError` / `Timeout` subclasses). aanalytics2 already
+    # brings it transitively; declared here to keep the import surface
+    # explicit so a future SDK-backend swap doesn't break us at module-
+    # import time.
+    "requests>=2.0",
     "xlsxwriter>=3.2.9",
 ]
 
