@@ -52,6 +52,8 @@ VOCAB = {
     "creds_source",
     "snapshot_spec",
     "tool_version",
+    # v1.6 additions
+    "agent_mode",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of

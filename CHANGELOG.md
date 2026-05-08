@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.6.0] — 2026-05-07
+
+Closes Tier 2 "Agent mode" from the feature gap doc.
+
+### Added
+
+- `--agent-mode` CLI preset that defaults `--format json --output - --log-format json` for options the user did not explicitly pass. Explicit user options always win. (Spec §4.1.)
+- `cli/option_resolution.py` — explicit-long-option detector (recognizes `--option value` and `--option=value` forms).
+- `cli/agent_output.py` — per-command-family stdout capability resolver. Generate / batch suppress the agent-mode `--output -` default (no stdout-capable format); diff / discovery / inspection / stats stream JSON or CSV on stdout under `--agent-mode`.
+- Repo-root [`AGENTS.md`](AGENTS.md) — machine-readable contract for unattended / agent-driven runs. Sections covering setup, auth, command reference, exit codes, output conventions, file conventions, agent integration, and see-also.
+- `agent_mode: bool` structured field on `run_start`, `run_complete`, and `run_failure` log records (NDJSON-visible under `--log-format json`). Lets log-aggregation queries filter agent-driven runs without joining on `argv_summary`. Spec §4.5 specified `run_start` only; round-1 review extended it to the other two so failure / completion records can be correlated by the same field.
+
+### Changed
+
+- **Argparse abbreviations of long options now reject** instead of silently expanding. Forms like `--prof myprofile` (for `--profile`), `--forma json` (for `--format`), and `--list-rs` (for `--list-reportsuites`) error with `unrecognized arguments` under v1.6.0. The change closes a correctness gap in `--agent-mode`: the explicit-option detector that backs the preset only recognizes canonical long forms, so an abbreviation that argparse silently expanded would have let the preset overwrite the user's explicit choice. Workaround for any pinned scripts: run `aa_auto_sdr --help` and replace each abbreviated flag with its canonical long form. (Set via `allow_abbrev=False` on the parser; round-2 Codex review.)
+- **`--output -` and `--run-summary-json -` now consistently imply `--quiet`.** Previously v1.5 advertised this contract in `--quiet` help text but did not enforce it at the logger level — INFO records still landed on stderr alongside stdout JSON. v1.6.0 derives the effective `--quiet` from the resolved output path before `setup_logging` runs, so console INFO chatter is silenced whenever output is stdout-bound. Errors / warnings still print on stderr, the log file is unaffected (`RotatingFileHandler` level is independent), and explicit `--quiet` users see no change. (Round-2 Codex review.)
+
+### Removed
+
+- None.
+
+### Reliability
+
+- No new exit codes. No new env vars. No new runtime dependencies. Existing `--run-summary-json -` + `--output -` mutex (exit `OUTPUT` 15) preserved; `--agent-mode --run-summary-json -` triggers it before any work.
+
+### Tests
+
+- `tests/cli/test_option_resolution.py`, `tests/cli/test_agent_mode_preset.py`, `tests/cli/test_agent_output_resolver.py`, `tests/cli/test_agent_mode_mutex.py`, `tests/cli/test_agent_mode_logging.py`, `tests/cli/test_agent_mode_smoke.py`, `tests/docs/test_agents_md_canonical_sections.py`. ~40 new test cases.
+- v1.5 INFO budget asserted unchanged by `tests/core/test_logging_info_budget.py` (`agent_mode` field added to existing `run_start` record; no new record).
+
 ## [1.5.0] — 2026-04-29
 
 Third Tier 2 release. **Closes the Tier 2 logging gap**: completes

@@ -87,6 +87,25 @@ def test_run_emits_run_failure_on_exception(caplog, tmp_path, monkeypatch):
     assert rec.levelno == logging.ERROR
     assert rec.error_class == "RuntimeError"
     assert isinstance(rec.exit_code, int)
+    # v1.6 — agent_mode is carried on run_failure too so log-aggregation
+    # queries can correlate failures with agent-driven runs.
+    assert hasattr(rec, "agent_mode")
+    assert rec.agent_mode is False
+
+
+def test_run_emits_run_failure_with_agent_mode_true(caplog, tmp_path, monkeypatch):
+    """Round-2 review: prove the agent_mode field reflects the actual run mode
+    on the run_failure path (not just hard-coded False)."""
+    monkeypatch.chdir(tmp_path)
+    caplog.set_level(logging.ERROR)
+    with (
+        patch("aa_auto_sdr.cli.main._dispatch", side_effect=RuntimeError("boom")),
+        pytest.raises(RuntimeError),
+    ):
+        run(["--show-config", "--agent-mode"])
+    failures = _records_with_event(caplog, "run_failure")
+    assert len(failures) == 1
+    assert failures[0].agent_mode is True
 
 
 def test_fast_path_commands_emit_no_records(caplog, tmp_path, monkeypatch):

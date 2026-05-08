@@ -307,6 +307,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, common workflows |
 | [Output Formats](docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
 | [Sample Outputs](sample_outputs/) | Browse representative outputs without installing |
+| [`AGENTS.md`](AGENTS.md) | Machine-readable contract for unattended / agent-driven runs (`--agent-mode`) |
 
 ## Requirements
 

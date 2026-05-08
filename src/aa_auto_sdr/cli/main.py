@@ -8,9 +8,19 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.cli.agent_output import (
+    DIFF_STDOUT_FORMATS,
+    DISCOVERY_STDOUT_FORMATS,
+    is_stdout_path,
+    resolve_agent_output_path,
+)
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
-from aa_auto_sdr.cli.parser import build_parser
+from aa_auto_sdr.cli.parser import (
+    _apply_agent_mode_defaults,
+    _configured_long_options,
+    build_parser,
+)
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.logging import infer_run_mode, setup_logging
 
@@ -26,19 +36,61 @@ def _argv_summary(argv: list[str]) -> list[str]:
     return [a for a in argv if a.startswith("-")]
 
 
+def _derive_quiet_from_output_destination(ns: argparse.Namespace) -> None:
+    """Honor the documented contract that stdout-bound output implies --quiet.
+
+    Mutates ``ns.quiet`` in place. Without this, INFO records on stderr leak
+    into streams agents / scripts are reading on stdout. Applies to both
+    ``--output -`` and ``--run-summary-json -``. Idempotent when ``--quiet``
+    was already explicit. Must run AFTER ``_apply_agent_mode_defaults`` so
+    the preset's implicit ``--output -`` is visible, and BEFORE
+    ``setup_logging`` so the console handler is wired at the right level.
+    """
+    if getattr(ns, "quiet", False):
+        return
+    if is_stdout_path(getattr(ns, "output", None)) or is_stdout_path(getattr(ns, "run_summary_json", None)):
+        ns.quiet = True
+
+
 def run(argv: list[str]) -> int:
+    """CLI entry point.
+
+    Order of namespace mutations (each step reads the post-step state of
+    the previous one):
+      1. ``parser.parse_args(argv)`` — argparse defaults applied.
+      2. ``_apply_agent_mode_defaults`` — `--agent-mode` preset fills in
+         `format` / `output` / `log_format` for options the user did not
+         explicitly pass on argv.
+      3. quiet-from-output prelude — if the resolved `output` or
+         `run_summary_json` targets stdout and `--quiet` was not explicit,
+         flip ``ns.quiet = True`` so INFO records do not leak onto stderr
+         alongside the stdout payload.
+      4. ``setup_logging(ns)`` — wires console + file handlers from the
+         now-final ``ns``.
+
+    After step 4, ``ns`` is read-only by convention; downstream dispatch
+    threads ``argv`` separately so per-command resolvers can re-derive
+    explicit-vs-implicit decisions without re-mutating the namespace.
+    """
     parser = build_parser()
     ns = parser.parse_args(argv)
+    _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+    _derive_quiet_from_output_destination(ns)
     setup_logging(ns)
     run_mode = infer_run_mode(ns)
     logger.info(
         "run_start run_mode=%s",
         run_mode,
-        extra={"run_mode": run_mode, "argv_summary": _argv_summary(argv)},
+        extra={
+            "run_mode": run_mode,
+            "argv_summary": _argv_summary(argv),
+            "agent_mode": getattr(ns, "agent_mode", False),
+        },
     )
     started = time.monotonic()
+    agent_mode = getattr(ns, "agent_mode", False)
     try:
-        exit_code = _dispatch(ns, parser)
+        exit_code = _dispatch(ns, parser, argv)
     except Exception as exc:
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.error(
@@ -48,6 +100,7 @@ def run(argv: list[str]) -> int:
                 "exit_code": ExitCode.GENERIC.value,
                 "error_class": type(exc).__name__,
                 "duration_ms": duration_ms,
+                "agent_mode": agent_mode,
             },
         )
         raise
@@ -56,12 +109,12 @@ def run(argv: list[str]) -> int:
         "run_complete exit_code=%s duration_ms=%s",
         exit_code,
         duration_ms,
-        extra={"exit_code": exit_code, "duration_ms": duration_ms},
+        extra={"exit_code": exit_code, "duration_ms": duration_ms, "agent_mode": agent_mode},
     )
     return exit_code
 
 
-def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: list[str]) -> int:
     """All command dispatch that previously lived directly in run().
 
     Extracted so run() can wrap it in a single try/except for run_failure
@@ -201,10 +254,16 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if ns.list_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd
 
+        resolved_output = resolve_agent_output_path(
+            ns,
+            argv=argv,
+            output_format=(ns.format or "json"),
+            stdout_formats=DISCOVERY_STDOUT_FORMATS,
+        )
         return discovery_cmd.run_list_reportsuites(
             profile=ns.profile,
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
             name_filter=ns.filter,
             name_exclude=ns.exclude,
             sort_field=ns.sort,
@@ -213,10 +272,16 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if ns.list_virtual_reportsuites:
         from aa_auto_sdr.cli.commands import discovery as discovery_cmd
 
+        resolved_output = resolve_agent_output_path(
+            ns,
+            argv=argv,
+            output_format=(ns.format or "json"),
+            stdout_formats=DISCOVERY_STDOUT_FORMATS,
+        )
         return discovery_cmd.run_list_virtual_reportsuites(
             profile=ns.profile,
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
             name_filter=ns.filter,
             name_exclude=ns.exclude,
             sort_field=ns.sort,
@@ -225,11 +290,17 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     if ns.describe_reportsuite:
         from aa_auto_sdr.cli.commands import inspect as inspect_cmd
 
+        resolved_output = resolve_agent_output_path(
+            ns,
+            argv=argv,
+            output_format=(ns.format or "json"),
+            stdout_formats=DISCOVERY_STDOUT_FORMATS,
+        )
         return inspect_cmd.run_describe_reportsuite(
             identifier=ns.describe_reportsuite,
             profile=ns.profile,
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
         )
 
     list_inspect_actions = (
@@ -245,11 +316,17 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             from aa_auto_sdr.cli.commands import inspect as inspect_cmd
 
             handler = getattr(inspect_cmd, fn_name)
+            resolved_output = resolve_agent_output_path(
+                ns,
+                argv=argv,
+                output_format=(ns.format or "json"),
+                stdout_formats=DISCOVERY_STDOUT_FORMATS,
+            )
             return handler(
                 identifier=identifier,
                 profile=ns.profile,
                 format_name=ns.format,
-                output=ns.output,
+                output=resolved_output,
                 name_filter=ns.filter,
                 name_exclude=ns.exclude,
                 sort_field=ns.sort,
@@ -271,11 +348,22 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             b_label = ns.diff_labels[1].split("=", 1)[-1]
             labels = (a_label, b_label)
         show_only = frozenset(t.strip() for t in (ns.show_only or "").split(",") if t.strip())
+        fmt_for_resolve = ns.format or "console"
+        resolved_output = resolve_agent_output_path(
+            ns,
+            argv=argv,
+            output_format=fmt_for_resolve,
+            stdout_formats=DIFF_STDOUT_FORMATS,
+        )
+        # NOTE: ``diff_cmd.run``'s ``quiet=`` is the *renderer-level* "drop
+        # unchanged trailers" flag — distinct from the *logger-level* quiet
+        # that the prelude in ``run()`` already applied to ``ns.quiet`` for
+        # stdout-bound runs. Don't conflate them: pass only ``ns.quiet_diff``.
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
             profile=ns.profile,
             side_by_side=ns.side_by_side,
             summary=ns.summary,
@@ -321,7 +409,13 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     # path. (Note: `--batch RS1` with one RSID still uses batch — the flag opts in
     # to the batch summary banner / partial-success exit code even for one RSID.)
     if explicit_batch or len(rsids) > 1:
-        if ns.output == "-":
+        resolved_output = resolve_agent_output_path(
+            ns,
+            argv=argv,
+            output_format=(ns.format or "excel"),
+            stdout_formats=frozenset(),
+        )
+        if resolved_output == "-":
             print(
                 "error: --output - is ambiguous for batch runs "
                 "(multiple SDRs cannot share a single stream); use --output-dir instead",
@@ -350,7 +444,13 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
-    output_dir: Path = Path("-") if ns.output == "-" else ns.output_dir
+    resolved_output = resolve_agent_output_path(
+        ns,
+        argv=argv,
+        output_format=(ns.format or "excel"),
+        stdout_formats=frozenset(),
+    )
+    output_dir: Path = Path("-") if resolved_output == "-" else ns.output_dir
     return generate_cmd.run(
         rsid=rsids[0],
         output_dir=output_dir,
