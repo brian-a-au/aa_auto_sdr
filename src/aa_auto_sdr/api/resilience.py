@@ -25,6 +25,10 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 
+import requests
+
+from aa_auto_sdr.core.exceptions import TransientApiError
+
 
 @dataclass(slots=True, frozen=True)
 class RetryPolicy:
@@ -56,3 +60,26 @@ class RetryPolicy:
 
 
 DEFAULT_RETRY_POLICY = RetryPolicy()
+
+
+def is_retryable(exc: BaseException) -> bool:
+    """True for transient failures worth retrying, False for permanent errors.
+
+    Retryable signals (spike D1):
+      - TransientApiError: typed wrapper raised by api/fetch.py's
+        _retry_and_normalize for the SDK-shape failures (KeyError/ValueError
+        from indexing into urllib3.Retry stub responses). Per spike: the
+        aanalytics2 0.5.1 SDK never lets requests.HTTPError reach our code,
+        so this typed wrapper is what we dispatch on.
+      - requests.exceptions.ConnectionError / Timeout: genuine network
+        failures that escape urllib3's retry budget (DNS failure, connection
+        reset before any request). Always retryable.
+
+    Non-retryable: bare KeyError/ValueError (must be classified by
+    _retry_and_normalize first), plain ApiError (permanent), AuthError,
+    ReportSuiteNotFoundError, AttributeError, TypeError, anything else.
+    """
+    return isinstance(
+        exc,
+        (TransientApiError, requests.exceptions.ConnectionError, requests.exceptions.Timeout),
+    )
