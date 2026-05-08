@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+from typing import Any
 
 import pytest
 import requests
 
-from aa_auto_sdr.api.resilience import DEFAULT_RETRY_POLICY, RetryPolicy, is_retryable
+from aa_auto_sdr.api.resilience import (
+    DEFAULT_RETRY_POLICY,
+    RetryPolicy,
+    is_retryable,
+    with_retries,
+)
 from aa_auto_sdr.core.exceptions import (
     ApiError,
     AuthError,
@@ -97,3 +103,107 @@ class TestIsRetryable:
         TransientApiError before is_retryable sees them. Plain ApiError stays
         non-retryable so permanent API failures don't get retried."""
         assert is_retryable(exc) is False
+
+
+class TestWithRetries:
+    def test_succeeds_first_attempt(self) -> None:
+        calls = []
+
+        def fn() -> str:
+            calls.append(1)
+            return "ok"
+
+        result = with_retries(fn, policy=RetryPolicy(max_retries=3))
+        assert result == "ok"
+        assert len(calls) == 1
+
+    def test_retries_until_success(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+        calls = []
+
+        def fn() -> str:
+            calls.append(1)
+            if len(calls) < 3:
+                raise TransientApiError("transient")
+            return "ok"
+
+        result = with_retries(fn, policy=RetryPolicy(max_retries=3))
+        assert result == "ok"
+        assert len(calls) == 3
+
+    def test_raises_last_exception_after_exhaustion(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+
+        def fn() -> str:
+            raise TransientApiError("permanently transient")
+
+        with pytest.raises(TransientApiError):
+            with_retries(fn, policy=RetryPolicy(max_retries=2))
+
+    def test_max_retries_zero_makes_one_attempt(self) -> None:
+        calls = []
+
+        def fn() -> str:
+            calls.append(1)
+            raise TransientApiError("transient")
+
+        with pytest.raises(TransientApiError):
+            with_retries(fn, policy=RetryPolicy(max_retries=0))
+        assert len(calls) == 1
+
+    def test_non_retryable_exception_raises_immediately(self) -> None:
+        """Bare ValueError is non-retryable (would only become retryable after
+        _retry_and_normalize translates it to TransientApiError). At the
+        with_retries layer, untranslated ValueError raises on first attempt."""
+        calls = []
+
+        def fn() -> str:
+            calls.append(1)
+            raise ValueError("boom")
+
+        with pytest.raises(ValueError):
+            with_retries(fn, policy=RetryPolicy(max_retries=5))
+        assert len(calls) == 1
+
+    def test_on_attempt_callback_fires_per_retry(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+        attempts: list[tuple[int, int, float, str]] = []
+        calls = []
+
+        def fn() -> str:
+            calls.append(1)
+            if len(calls) < 3:
+                raise TransientApiError("transient")
+            return "ok"
+
+        def on_attempt(attempt: int, max_attempts: int, delay_s: float, exc: BaseException) -> None:
+            attempts.append((attempt, max_attempts, delay_s, type(exc).__name__))
+
+        with_retries(fn, policy=RetryPolicy(max_retries=3), on_attempt=on_attempt)
+        # Initial attempt is NOT a retry — callback fires for retries 1 and 2.
+        assert len(attempts) == 2
+        assert attempts[0][0] == 1  # attempt index of the retry
+        assert attempts[0][1] == 4  # max_attempts = max_retries + 1
+        assert attempts[1][0] == 2
+        assert all(a[3] == "TransientApiError" for a in attempts)
+
+    def test_jitter_within_bounds(self, monkeypatch: Any) -> None:
+        sleeps: list[float] = []
+        monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", sleeps.append)
+        calls = []
+
+        def fn() -> str:
+            calls.append(1)
+            if len(calls) < 5:
+                raise TransientApiError("transient")
+            return "ok"
+
+        policy = RetryPolicy(max_retries=4, base_delay=1.0, max_delay=8.0)
+        with_retries(fn, policy=policy)
+        # 4 retries fired; each delay ∈ [base * 2^(n-1), base * 2^(n-1) + base], capped at max_delay
+        assert len(sleeps) == 4
+        for n, delay in enumerate(sleeps, start=1):
+            backoff = 1.0 * (2 ** (n - 1))
+            upper = min(backoff + 1.0, 8.0)  # jitter is uniform(0, base_delay)
+            lower = min(backoff, 8.0)
+            assert lower <= delay <= upper, f"retry {n}: {delay} not in [{lower}, {upper}]"

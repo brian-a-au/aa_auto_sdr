@@ -23,11 +23,16 @@ operators tuning --max-retries aren't surprised by minute-long stalls.
 from __future__ import annotations
 
 import argparse
+import random
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import requests
 
 from aa_auto_sdr.core.exceptions import TransientApiError
+
+OnAttemptCb = Callable[[int, int, float, BaseException], None]
 
 
 @dataclass(slots=True, frozen=True)
@@ -83,3 +88,41 @@ def is_retryable(exc: BaseException) -> bool:
         exc,
         (TransientApiError, requests.exceptions.ConnectionError, requests.exceptions.Timeout),
     )
+
+
+def with_retries[T](
+    fn: Callable[[], T],
+    *,
+    policy: RetryPolicy,
+    on_attempt: OnAttemptCb | None = None,
+) -> T:
+    """Run ``fn()`` with exponential backoff + jitter on retryable failures.
+
+    The initial call counts as attempt 0; up to ``policy.max_retries`` retries
+    follow on retryable exceptions (per :func:`is_retryable`). Total attempts
+    cap at ``max_retries + 1``. On exhaustion, the last underlying exception
+    bubbles unchanged — no ``RetryExhausted`` wrapper.
+
+    ``on_attempt(attempt, max_attempts, delay_s, exc)`` fires once per RETRY
+    (not the initial attempt), before the sleep. ``attempt`` ∈ [1..max_retries].
+    Callback exceptions are NOT caught — a buggy logger will surface to the
+    caller.
+    """
+    max_attempts = policy.max_retries + 1
+    last_exc: BaseException | None = None
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except BaseException as exc:
+            last_exc = exc
+            if not is_retryable(exc) or attempt >= policy.max_retries:
+                raise
+            backoff = policy.base_delay * (2**attempt)
+            jitter = random.uniform(0, policy.base_delay)  # noqa: S311
+            delay = min(backoff + jitter, policy.max_delay)
+            if on_attempt is not None:
+                on_attempt(attempt + 1, max_attempts, delay, exc)
+            time.sleep(delay)
+    # Unreachable — the loop either returns or raises. Defensive:
+    assert last_exc is not None
+    raise last_exc
