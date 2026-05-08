@@ -109,3 +109,46 @@ def test_run_complete_records_agent_mode(tmp_path, monkeypatch):
     run_complete_lines = [json.loads(line) for line in lines if "run_complete" in line]
     assert run_complete_lines, "run_complete log record missing"
     assert run_complete_lines[0].get("agent_mode") is True
+
+
+def test_agent_mode_stdout_suppresses_info_on_console(tmp_path, monkeypatch, capsys):
+    """Codex review (P2): ``--list-reportsuites --agent-mode`` routes to stdout,
+    so the documented ``--output -`` ⇒ ``--quiet`` contract must silence INFO
+    records on stderr. Errors and the final result still print, but progress /
+    startup chatter does not."""
+    monkeypatch.chdir(tmp_path)
+    _stub_aa_pipeline(monkeypatch)
+
+    from aa_auto_sdr.cli.main import run
+
+    run(["--list-reportsuites", "--agent-mode"])
+    captured = capsys.readouterr()
+
+    # The JSON payload still lands on stdout.
+    assert '"rsid"' in captured.out
+    # INFO chatter — run_start, command_start, run_complete — must NOT appear on stderr.
+    assert "run_start" not in captured.err
+    assert "command_start" not in captured.err
+    assert "run_complete" not in captured.err
+    # The log file is unaffected — records are still captured for triage.
+    log_files = sorted((tmp_path / "logs").glob("*.log"))
+    assert log_files, "no log file written"
+    log_text = log_files[-1].read_text()
+    assert "run_start" in log_text
+    assert "run_complete" in log_text
+
+
+def test_explicit_output_dash_also_implies_quiet(tmp_path, monkeypatch, capsys):
+    """The same contract applies to explicit ``--output -`` (no agent-mode):
+    INFO console output is suppressed because the user is reading stdout."""
+    monkeypatch.chdir(tmp_path)
+    _stub_aa_pipeline(monkeypatch)
+
+    from aa_auto_sdr.cli.main import run
+
+    run(["--list-reportsuites", "--format", "json", "--output", "-", "--log-format", "json"])
+    captured = capsys.readouterr()
+
+    assert '"rsid"' in captured.out
+    assert "run_start" not in captured.err
+    assert "run_complete" not in captured.err

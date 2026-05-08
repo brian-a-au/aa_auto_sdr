@@ -71,6 +71,12 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="aa_auto_sdr",
         description="Adobe Analytics SDR Generator (API 2.0 only)",
+        # v1.6.0 — disable argparse abbreviation. Abbreviated long options
+        # (e.g. ``--forma`` for ``--format``) bypass the explicit-option
+        # detector that ``_apply_agent_mode_defaults`` relies on, which
+        # would silently overwrite the user's explicit choice with the
+        # agent-mode preset's default. Force the canonical long form.
+        allow_abbrev=False,
     )
 
     # Action flags (mutually exclusive). Positional RSID is also an action;

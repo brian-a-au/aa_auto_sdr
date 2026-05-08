@@ -11,6 +11,7 @@ from pathlib import Path
 from aa_auto_sdr.cli.agent_output import (
     DIFF_STDOUT_FORMATS,
     DISCOVERY_STDOUT_FORMATS,
+    is_stdout_path,
     resolve_agent_output_path,
     resolve_agent_quiet,
 )
@@ -40,6 +41,14 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+    # Honor the documented contract that stdout-bound output implies --quiet.
+    # Without this, INFO records on stderr leak into streams agents/scripts
+    # are reading. Applies to both ``--output -`` and ``--run-summary-json -``;
+    # explicit ``--quiet`` is already True so this is idempotent there.
+    if not getattr(ns, "quiet", False) and (
+        is_stdout_path(getattr(ns, "output", None)) or is_stdout_path(getattr(ns, "run_summary_json", None))
+    ):
+        ns.quiet = True
     setup_logging(ns)
     run_mode = infer_run_mode(ns)
     logger.info(
