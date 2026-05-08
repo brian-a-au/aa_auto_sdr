@@ -42,6 +42,8 @@ class RetryPolicy:
         if self.max_delay < self.base_delay:
             raise ValueError(f"max_delay ({self.max_delay}) must be >= base_delay ({self.base_delay})")
 
+    # Wired up by Task 4 (CLI flags --max-retries / --retry-base-delay /
+    # --retry-max-delay) in the v1.7.0 plan; resolution lives in cli/main.run().
     @classmethod
     def from_namespace(cls, ns: argparse.Namespace) -> RetryPolicy:
         """Build a policy from parsed CLI args. None values get defaults."""

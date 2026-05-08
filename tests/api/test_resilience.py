@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 
 import pytest
 
@@ -21,7 +22,7 @@ class TestRetryPolicy:
 
     def test_frozen(self) -> None:
         p = RetryPolicy()
-        with pytest.raises((AttributeError, Exception)):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             p.max_retries = 99  # type: ignore[misc]
 
     @pytest.mark.parametrize(
