@@ -8,6 +8,11 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.cli.agent_output import (
+    DIFF_STDOUT_FORMATS,
+    resolve_agent_output_path,
+    resolve_agent_quiet,
+)
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
 from aa_auto_sdr.cli.parser import (
@@ -280,16 +285,23 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             b_label = ns.diff_labels[1].split("=", 1)[-1]
             labels = (a_label, b_label)
         show_only = frozenset(t.strip() for t in (ns.show_only or "").split(",") if t.strip())
+        fmt_for_resolve = ns.format or "console"
+        resolved_output = resolve_agent_output_path(
+            ns,
+            output_format=fmt_for_resolve,
+            stdout_formats=DIFF_STDOUT_FORMATS,
+        )
+        resolved_quiet = resolve_agent_quiet(ns, output_path=resolved_output)
         return diff_cmd.run(
             a=ns.diff[0],
             b=ns.diff[1],
             format_name=ns.format,
-            output=ns.output,
+            output=resolved_output,
             profile=ns.profile,
             side_by_side=ns.side_by_side,
             summary=ns.summary,
             ignore_fields=ignore,
-            quiet=ns.quiet_diff,
+            quiet=resolved_quiet or ns.quiet_diff,
             labels=labels,
             reverse=ns.reverse_diff,
             changes_only=ns.changes_only,
