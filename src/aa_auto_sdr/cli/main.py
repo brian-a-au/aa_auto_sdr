@@ -363,7 +363,12 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     # path. (Note: `--batch RS1` with one RSID still uses batch — the flag opts in
     # to the batch summary banner / partial-success exit code even for one RSID.)
     if explicit_batch or len(rsids) > 1:
-        if ns.output == "-":
+        resolved_output = resolve_agent_output_path(
+            ns,
+            output_format=(ns.format or "excel"),
+            stdout_formats=frozenset(),
+        )
+        if resolved_output == "-":
             print(
                 "error: --output - is ambiguous for batch runs "
                 "(multiple SDRs cannot share a single stream); use --output-dir instead",
@@ -392,7 +397,12 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
-    output_dir: Path = Path("-") if ns.output == "-" else ns.output_dir
+    resolved_output = resolve_agent_output_path(
+        ns,
+        output_format=(ns.format or "excel"),
+        stdout_formats=frozenset(),
+    )
+    output_dir: Path = Path("-") if resolved_output == "-" else ns.output_dir
     return generate_cmd.run(
         rsid=rsids[0],
         output_dir=output_dir,
