@@ -22,7 +22,6 @@ operators tuning --max-retries aren't surprised by minute-long stalls.
 
 from __future__ import annotations
 
-import argparse
 import random
 import time
 from collections.abc import Callable
@@ -50,18 +49,6 @@ class RetryPolicy:
             raise ValueError(f"base_delay must be positive, got {self.base_delay}")
         if self.max_delay < self.base_delay:
             raise ValueError(f"max_delay ({self.max_delay}) must be >= base_delay ({self.base_delay})")
-
-    # Wired up by Task 4 (CLI flags --max-retries / --retry-base-delay /
-    # --retry-max-delay) in the v1.7.0 plan; resolution lives in cli/main.run().
-    @classmethod
-    def from_namespace(cls, ns: argparse.Namespace) -> RetryPolicy:
-        """Build a policy from parsed CLI args. None values get defaults."""
-        defaults = cls()
-        return cls(
-            max_retries=ns.max_retries if ns.max_retries is not None else defaults.max_retries,
-            base_delay=(ns.retry_base_delay if ns.retry_base_delay is not None else defaults.base_delay),
-            max_delay=(ns.retry_max_delay if ns.retry_max_delay is not None else defaults.max_delay),
-        )
 
 
 DEFAULT_RETRY_POLICY = RetryPolicy()
@@ -109,11 +96,11 @@ def with_retries[T](
     caller.
     """
     max_attempts = policy.max_retries + 1
-    last_exc: BaseException | None = None
+    last_exc: Exception | None = None
     for attempt in range(max_attempts):
         try:
             return fn()
-        except BaseException as exc:
+        except Exception as exc:
             last_exc = exc
             if not is_retryable(exc) or attempt >= policy.max_retries:
                 raise

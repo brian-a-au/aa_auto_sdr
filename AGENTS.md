@@ -191,6 +191,16 @@ unknown RSID) surface immediately. Retry attempts emit `retry_attempt` DEBUG
 records under `--log-format json` so log aggregation can quantify retries
 per run.
 
+**Note on stall budget.** `aanalytics2` performs its own urllib3-level retries
+inside each outer attempt (4 internal retries with `backoff_factor=1`,
+hardcoded). Our `--max-retries` runs *outside* that, so the worst-case
+HTTP-request count for a hard-failing endpoint scales as
+`(urllib3_retries + 1) × (--max-retries + 1)`. At the default `--max-retries 3`
+that's up to 16 requests; at `--max-retries 6` it's up to 28. Wall-clock
+stalls scale similarly because urllib3 honors `Retry-After` and exponential
+backoff. Tune `--max-retries` deliberately for unattended runs where total
+budget matters.
+
 ---
 
 ## VRS Reduced Expansion

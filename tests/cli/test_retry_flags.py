@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
+
 import pytest
 
+from aa_auto_sdr.api.resilience import RetryPolicy
+from aa_auto_sdr.cli.main import _resolve_retry_policy
 from aa_auto_sdr.cli.parser import build_parser
 from aa_auto_sdr.core.exit_codes import ExitCode
 
@@ -39,6 +43,31 @@ class TestRetryFlagParsing:
         with pytest.raises(SystemExit) as exc:
             parser.parse_args(["--list-reportsuites", *argv_extra])
         assert exc.value.code == 2
+
+
+class TestResolveRetryPolicy:
+    """Lives in cli/ (not api/resilience.py) so the resilience module stays
+    ignorant of CLI vocabulary. These tests pin the namespace-to-policy
+    contract."""
+
+    def test_applies_defaults_when_all_none(self) -> None:
+        ns = argparse.Namespace(max_retries=None, retry_base_delay=None, retry_max_delay=None)
+        assert _resolve_retry_policy(ns) == RetryPolicy()
+
+    def test_uses_explicit_values_when_set(self) -> None:
+        ns = argparse.Namespace(max_retries=6, retry_base_delay=1.0, retry_max_delay=30.0)
+        p = _resolve_retry_policy(ns)
+        assert p.max_retries == 6
+        assert p.base_delay == 1.0
+        assert p.max_delay == 30.0
+
+    def test_partial_explicit_fills_remaining_defaults(self) -> None:
+        """User passes --max-retries only — the other two pick up policy defaults."""
+        ns = argparse.Namespace(max_retries=10, retry_base_delay=None, retry_max_delay=None)
+        p = _resolve_retry_policy(ns)
+        assert p.max_retries == 10
+        assert p.base_delay == RetryPolicy().base_delay
+        assert p.max_delay == RetryPolicy().max_delay
 
 
 class TestRetryFlagMutex:

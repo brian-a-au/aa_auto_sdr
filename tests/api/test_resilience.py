@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import dataclasses
 from typing import Any
 
@@ -57,18 +56,6 @@ class TestRetryPolicy:
     def test_max_retries_zero_is_valid(self) -> None:
         p = RetryPolicy(max_retries=0, base_delay=0.5, max_delay=10.0)
         assert p.max_retries == 0
-
-    def test_from_namespace_applies_defaults_for_none(self) -> None:
-        ns = argparse.Namespace(max_retries=None, retry_base_delay=None, retry_max_delay=None)
-        p = RetryPolicy.from_namespace(ns)
-        assert p == RetryPolicy()
-
-    def test_from_namespace_uses_explicit_values(self) -> None:
-        ns = argparse.Namespace(max_retries=6, retry_base_delay=1.0, retry_max_delay=30.0)
-        p = RetryPolicy.from_namespace(ns)
-        assert p.max_retries == 6
-        assert p.base_delay == 1.0
-        assert p.max_delay == 30.0
 
 
 class TestIsRetryable:

@@ -165,9 +165,14 @@ def _int(d: dict[str, Any], key: str, default: int = 0) -> int:
     val = d.get(key)
     if val is None:
         return default
+    # Python 3.14 accepts both `except (T, V):` and `except T, V:` and parses them
+    # to the same AST. ruff format prefers the bare-comma form, but the
+    # parenthesized form is the canonical Python 3 syntax and survives older
+    # tooling / stricter linters. `# fmt: skip` on the except line keeps ruff
+    # format from reverting back to the bare-comma form.
     try:
         return int(val)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):  # fmt: skip
         return default
 
 

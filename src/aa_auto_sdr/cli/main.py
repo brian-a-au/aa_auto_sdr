@@ -53,6 +53,25 @@ def _derive_quiet_from_output_destination(ns: argparse.Namespace) -> None:
         ns.quiet = True
 
 
+def _resolve_retry_policy(ns: argparse.Namespace) -> RetryPolicy:
+    """Build a RetryPolicy from the parsed CLI namespace.
+
+    Lives in cli/ (not api/resilience.py) so the resilience module stays
+    ignorant of CLI vocabulary — argparse dest names (`retry_base_delay`,
+    `retry_max_delay`) are a CLI concern, not a policy-domain concern.
+    Defaults are filled from RetryPolicy()'s own defaults; the constructor's
+    __post_init__ raises ValueError on cross-flag invariant violations
+    (e.g., max_delay < base_delay), which run() catches and translates to
+    USAGE (2) before any expensive work.
+    """
+    defaults = RetryPolicy()
+    return RetryPolicy(
+        max_retries=ns.max_retries if ns.max_retries is not None else defaults.max_retries,
+        base_delay=ns.retry_base_delay if ns.retry_base_delay is not None else defaults.base_delay,
+        max_delay=ns.retry_max_delay if ns.retry_max_delay is not None else defaults.max_delay,
+    )
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -80,7 +99,7 @@ def run(argv: list[str]) -> int:
     # cross-flag errors (e.g. retry_max_delay < retry_base_delay) fail-fast
     # with USAGE rather than after a network round-trip.
     try:
-        ns.retry_policy = RetryPolicy.from_namespace(ns)
+        ns.retry_policy = _resolve_retry_policy(ns)
     except ValueError as e:
         # Map internal field names to user-facing flag names so the user gets
         # an actionable error without needing the library's vocabulary.
