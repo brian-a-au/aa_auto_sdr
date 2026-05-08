@@ -479,7 +479,20 @@ def fetch_virtual_report_suite_summaries(
     except ApiError:
         raise  # already typed; let it bubble
     except Exception as e:
-        raise ApiError(f"virtual report suites fetch failed: {e}") from e
+        # DEBUG (not WARNING) — the CLI prints the ApiError message itself, so a
+        # WARNING here would double-noise interactive output. Structured field
+        # gives log aggregation a searchable hook without user-visible churn.
+        logger.debug(
+            "virtual report suites fetch failed error_class=%s",
+            type(e).__name__,
+            extra={
+                "component_type": "virtual_report_suite",
+                "error_class": type(e).__name__,
+            },
+        )
+        raise ApiError(
+            f"virtual report suites fetch failed: {type(e).__name__}: {e}",
+        ) from e
     summaries = [
         models.VirtualReportSuiteSummary(
             id=str(r.get("id", "")),
