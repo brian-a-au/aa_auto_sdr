@@ -39,19 +39,22 @@ jobs:
         id: stats
         run: |
           set -euo pipefail
-          # Re-run the suite to capture both signals from a single output.
-          # `--cov-fail-under=90` is the project's baseline gate and matches
-          # the addopts in pyproject.toml; we leave it on so a coverage drop
-          # below the threshold blocks the badge bump (consistent with the
-          # tests workflow's contract).
+          # Re-run the suite to capture coverage. `--cov-fail-under=90`
+          # is the project's baseline gate (matches the addopts in
+          # pyproject.toml); leave it on so a coverage drop below the
+          # threshold blocks the badge bump (consistent with the tests
+          # workflow's contract).
           OUT="$(uv run pytest 2>&1)"
           echo "$OUT"
           # Coverage line looks like: `TOTAL  ...  93%`
           COVERAGE="$(echo "$OUT" | grep -E '^TOTAL' | awk '{print $NF}' | tr -d '%')"
-          # Pass-count line looks like: `1089 passed in 14.76s` (or `... passed, ... warnings ...`)
-          TESTS="$(echo "$OUT" | grep -oE '[0-9]+ passed' | tail -1 | awk '{print $1}')"
+          # Test count: pytest's `-q` + pytest-cov suppresses the
+          # "N passed in X.XXs" summary in non-tty output. Fast separate
+          # `--collect-only --no-cov` pass is the reliable signal — emits
+          # `1089 tests collected in 0.74s` regardless of -q.
+          TESTS="$(uv run pytest --collect-only --no-cov 2>&1 | grep -oE '[0-9]+ tests collected' | head -1 | awk '{print $1}')"
           if [ -z "$COVERAGE" ] || [ -z "$TESTS" ]; then
-            echo "Failed to parse coverage or test count from pytest output"
+            echo "Failed to parse coverage (got '$COVERAGE') or test count (got '$TESTS')"
             exit 1
           fi
           echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
