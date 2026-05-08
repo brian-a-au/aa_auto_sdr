@@ -79,6 +79,36 @@ def test_classifications_failure_emits_warning(caplog):
     assert rec.error_class == "RuntimeError"
 
 
+def test_virtual_report_suites_failure_emits_warning(caplog):
+    """v1.6.1: VRS fetch must emit the same structured WARNING as classifications
+    when the SDK call raises (e.g. KeyError('content') from aanalytics2 0.5.1
+    on an HTTP 500 response). rsid carries the parent_rsid for correlation."""
+    caplog.set_level(logging.WARNING, logger="aa_auto_sdr.api.fetch")
+    fake_client = MagicMock()
+    fake_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
+    out = fetch.fetch_virtual_report_suites(fake_client, "RS1")
+    assert out == []
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    rec = warnings[0]
+    assert rec.rsid == "RS1"
+    assert rec.component_type == "virtual_report_suite"
+    assert rec.error_class == "KeyError"
+
+
+def test_virtual_report_suite_summaries_failure_normalizes_to_api_error():
+    """Discovery path normalizes SDK-side exceptions to ApiError so the CLI
+    surfaces a clean exit 12. No WARNING log here — the CLI prints the error
+    message itself, and the structured run_failure record at the outer layer
+    already carries the error_class field."""
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    fake_client = MagicMock()
+    fake_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
+    with pytest.raises(ApiError):
+        fetch.fetch_virtual_report_suite_summaries(fake_client)
+
+
 def test_fetch_report_suite_debug_and_error(caplog):
     caplog.set_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch")
     fake_client = MagicMock()

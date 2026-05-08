@@ -28,7 +28,7 @@ import pandas as pd
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
+from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -391,9 +391,29 @@ def fetch_virtual_report_suites(
     """Lists VRS visible to the org, filtered to those whose parent matches.
 
     The SDK call has no rsid filter — we filter client-side after pulling all
-    VRS via extended_info=True (which gives us `parentRsid`)."""
+    VRS via extended_info=True (which gives us `parentRsid`).
+
+    Any failure of the underlying call returns an empty list rather than
+    breaking the whole SDR — VRS are best-effort. v1.6.1 added this guard
+    after a customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when
+    the Adobe VRS endpoint returned HTTP 500 for their org; the SDK
+    unconditionally indexes `vrsid['content']` on the response envelope,
+    which is absent on error. Mirrors the classifications pattern below."""
     started = time.monotonic()
-    raws = _records(client.handle.getVirtualReportSuites(extended_info=True))
+    try:
+        raws = _records(client.handle.getVirtualReportSuites(extended_info=True))
+    except Exception as e:  # SDK raises KeyError on HTTP 500, plus other shapes
+        logger.warning(
+            "virtual report suites fetch failed rsid=%s error_class=%s",
+            parent_rsid,
+            type(e).__name__,
+            extra={
+                "rsid": parent_rsid,
+                "component_type": "virtual_report_suite",
+                "error_class": type(e).__name__,
+            },
+        )
+        return []
     known = {
         "id",
         "name",
@@ -444,9 +464,22 @@ def fetch_virtual_report_suite_summaries(
     Replaces the v1.0–v1.2 pattern of `_records(client.handle.getVirtualReportSuites(...))`
     being called from CLI command code. Keeps the SDK boundary inside `api/`.
 
-    Sort order: alphabetical by id."""
+    Sort order: alphabetical by id.
+
+    SDK exceptions are normalized to `ApiError` so the CLI's existing typed
+    catch (`except ApiError → exit 12`) works regardless of the underlying
+    shape. Discovery is NOT graceful-degrade like the generate path: the
+    user explicitly asked for the list, and silently returning `[]` on a
+    broken endpoint would misleadingly suggest the org has no VRS. Added
+    in v1.6.1 to cover the same `KeyError: 'content'` failure mode that
+    crashed the generate path."""
     started = time.monotonic()
-    raw = _records(client.handle.getVirtualReportSuites(extended_info=True))
+    try:
+        raw = _records(client.handle.getVirtualReportSuites(extended_info=True))
+    except ApiError:
+        raise  # already typed; let it bubble
+    except Exception as e:
+        raise ApiError(f"virtual report suites fetch failed: {e}") from e
     summaries = [
         models.VirtualReportSuiteSummary(
             id=str(r.get("id", "")),
