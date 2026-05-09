@@ -9,10 +9,12 @@ import json
 import logging
 import sys
 import time
+from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import RetryPolicy
+from aa_auto_sdr.cli.list_output import build_footer
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     ApiError,
@@ -88,15 +90,31 @@ def run(
         for r in canonical:
             try:
                 rs = fetch.fetch_report_suite(client, r)
+                vrs_outcome = fetch.fetch_virtual_report_suites(client, r, count_only=True)
+                cls_outcome = fetch.fetch_classification_datasets(client, r, count_only=True)
                 counts = {
                     "dimensions": len(fetch.fetch_dimensions(client, r)),
                     "metrics": len(fetch.fetch_metrics(client, r)),
                     "segments": len(fetch.fetch_segments(client, r)),
                     "calculated_metrics": len(fetch.fetch_calculated_metrics(client, r)),
-                    "virtual_report_suites": len(fetch.fetch_virtual_report_suites(client, r).data),
-                    "classifications": len(fetch.fetch_classification_datasets(client, r).data),
+                    "virtual_report_suites": len(vrs_outcome.data),
+                    "classifications": len(cls_outcome.data),
                 }
-                rows.append({"rsid": rs.rsid, "name": rs.name, "counts": counts})
+                fetch_status: dict[str, dict[str, Any]] = {}
+                if vrs_outcome.status != "healthy":
+                    fetch_status["virtual_report_suites"] = {
+                        "status": vrs_outcome.status,
+                        "expansion_level": vrs_outcome.expansion_level,
+                    }
+                if cls_outcome.status != "healthy":
+                    fetch_status["classifications"] = {
+                        "status": cls_outcome.status,
+                        "expansion_level": cls_outcome.expansion_level,
+                    }
+                row: dict = {"rsid": rs.rsid, "name": rs.name, "counts": counts}
+                if fetch_status:
+                    row["fetch_status"] = fetch_status
+                rows.append(row)
             except ApiError as exc:
                 print(f"api error on {r}: {exc}", flush=True)
                 exit_code = ExitCode.API.value
@@ -127,9 +145,21 @@ def _print_table(rows: list[dict]) -> None:
     print(header)
     for r in rows:
         c = r["counts"]
+        fs = r.get("fetch_status") or {}
+        # Build a copy of counts with asterisk markers for non-healthy components.
+        cells: dict = dict(c)
+        for ct in fs:
+            if ct in cells:
+                cells[ct] = f"{cells[ct]} *"
         name = (r.get("name") or "")[:30]
         print(
-            f"{r['rsid']:<24}  {name:<30}  {c['dimensions']:>5}  {c['metrics']:>5}  "
-            f"{c['segments']:>5}  {c['calculated_metrics']:>5}  "
-            f"{c['virtual_report_suites']:>5}  {c['classifications']:>5}",
+            f"{r['rsid']:<24}  {name:<30}  {cells['dimensions']:>5}  {cells['metrics']:>5}  "
+            f"{cells['segments']:>5}  {cells['calculated_metrics']:>5}  "
+            f"{cells['virtual_report_suites']:>5}  {cells['classifications']:>5}",
         )
+    # Footer: derived from each row's fetch_status field via the shared helper.
+    footer = build_footer(rows)
+    if footer:
+        print()  # blank line separates table from footer
+        for line in footer:
+            print(line)

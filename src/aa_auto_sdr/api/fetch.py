@@ -481,9 +481,89 @@ def fetch_calculated_metrics(
     return out
 
 
+def _finalize_vrs_fetch(
+    raws: list[dict[str, Any]],
+    parent_rsid: str,
+    started_monotonic: float,
+    *,
+    expansion_level: str,
+) -> list[models.VirtualReportSuite]:
+    """Apply parentRsid filter, build VRS rows, emit DEBUG + INFO logs.
+
+    Shared between the v1.7.0 full→minimal ladder path and the v1.7.2
+    count_only=True path. The expansion_level string is descriptive of the
+    payload shape ("full" / "minimal") and goes into the component_fetch
+    INFO record; it does NOT control the FetchOutcome.expansion_level field
+    (that's the caller's responsibility).
+    """
+    known = {
+        "id",
+        "name",
+        "parentRsid",
+        "timezone",
+        "timezoneZoneinfo",
+        "description",
+        "segmentList",
+        "curatedComponents",
+        "modified",
+    }
+    out = [
+        models.VirtualReportSuite(
+            id=str(r["id"]),
+            name=str(r.get("name", r["id"])),
+            parent_rsid=str(r.get("parentRsid", "")),
+            timezone=_str_or_none(r, "timezone") or _str_or_none(r, "timezoneZoneinfo"),
+            description=_str_or_none(r, "description"),
+            segment_list=_list(r, "segmentList"),
+            curated_components=_list(r, "curatedComponents"),
+            modified=_str_or_none(r, "modified"),
+            extra=_extra(r, known),
+        )
+        for r in raws
+        if r.get("parentRsid") == parent_rsid
+    ]
+    # v1.7.0 Item D — structured DEBUG when client-side parentRsid filter drops rows.
+    if len(out) != len(raws):
+        dropped_no_parent = sum(1 for r in raws if not r.get("parentRsid"))
+        dropped_other_parent = len(raws) - len(out) - dropped_no_parent
+        logger.debug(
+            "vrs_parent_filter rsid=%s pulled=%s filtered=%s dropped_no_parent=%s dropped_other_parent=%s",
+            parent_rsid,
+            len(raws),
+            len(out),
+            dropped_no_parent,
+            dropped_other_parent,
+            extra={
+                "rsid": parent_rsid,
+                "pulled": len(raws),
+                "filtered": len(out),
+                "dropped_no_parent": dropped_no_parent,
+                "dropped_other_parent": dropped_other_parent,
+            },
+        )
+    duration_ms = int((time.monotonic() - started_monotonic) * 1000)
+    logger.info(
+        "component_fetch rsid=%s component_type=virtual_report_suite count=%s duration_ms=%s expansion_level=%s",
+        parent_rsid,
+        len(out),
+        duration_ms,
+        expansion_level,
+        extra={
+            "rsid": parent_rsid,
+            "component_type": "virtual_report_suite",
+            "count": len(out),
+            "duration_ms": duration_ms,
+            "expansion_level": expansion_level,
+        },
+    )
+    return out
+
+
 def fetch_virtual_report_suites(
     client: AaClient,
     parent_rsid: str,
+    *,
+    count_only: bool = False,
 ) -> models.FetchOutcome[models.VirtualReportSuite]:
     """Lists VRS visible to the org, filtered to those whose parent matches.
 
@@ -498,9 +578,15 @@ def fetch_virtual_report_suites(
     FetchOutcome.degraded() (data=[]) (preserves v1.6.1 graceful-degrade after a
     customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS
     endpoint returned HTTP 500 — the SDK unconditionally indexes
-    `vrsid['content']` on the response envelope, which is absent on error)."""
+    `vrsid['content']` on the response envelope, which is absent on error).
+
+    When count_only=True (v1.7.2+): bypasses the ladder entirely. Single
+    SDK call with extended_info=False; on success returns
+    FetchOutcome.healthy(stub_rows) with expansion_level=None (caller asked
+    for minimal scope; not a degradation). On failure returns
+    FetchOutcome.degraded(). No fallback to extended_info=True.
+    """
     started = time.monotonic()
-    expansion_level = "full"
 
     def _on_attempt(a: int, m: int, d: float, e: BaseException) -> None:
         log_retry_attempt(
@@ -511,6 +597,37 @@ def fetch_virtual_report_suites(
             rsid=parent_rsid,
             component_type="virtual_report_suite",
         )
+
+    if count_only:
+        try:
+            raws = _records(
+                with_retries(
+                    lambda: classify_transient_sdk_call(
+                        lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        component_type="virtual_report_suite",
+                    ),
+                    policy=client.retry_policy,
+                    on_attempt=_on_attempt,
+                )
+            )
+        except Exception as e:
+            logger.warning(
+                "virtual report suites fetch failed rsid=%s expansion_level=count_only error_class=%s",
+                parent_rsid,
+                type(e).__name__,
+                extra={
+                    "rsid": parent_rsid,
+                    "component_type": "virtual_report_suite",
+                    "expansion_level": "count_only",
+                    "error_class": type(e).__name__,
+                },
+            )
+            return models.FetchOutcome.degraded()
+        out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="minimal")
+        return models.FetchOutcome.healthy(out)
+
+    # Existing v1.7.0 ladder path — unchanged below
+    expansion_level = "full"
 
     try:
         raws = _records(
@@ -560,68 +677,7 @@ def fetch_virtual_report_suites(
                 },
             )
             return models.FetchOutcome.degraded()
-    known = {
-        "id",
-        "name",
-        "parentRsid",
-        "timezone",
-        "timezoneZoneinfo",
-        "description",
-        "segmentList",
-        "curatedComponents",
-        "modified",
-    }
-    out = [
-        models.VirtualReportSuite(
-            id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
-            parent_rsid=str(r.get("parentRsid", "")),
-            timezone=_str_or_none(r, "timezone") or _str_or_none(r, "timezoneZoneinfo"),
-            description=_str_or_none(r, "description"),
-            segment_list=_list(r, "segmentList"),
-            curated_components=_list(r, "curatedComponents"),
-            modified=_str_or_none(r, "modified"),
-            extra=_extra(r, known),
-        )
-        for r in raws
-        if r.get("parentRsid") == parent_rsid
-    ]
-    # Item D (v1.7.0): structured DEBUG when client-side parentRsid filter
-    # drops rows. Fires only on the unhappy path (some rows dropped) so the
-    # happy path stays quiet. Surfaces "where my VRS went" under --log-level=DEBUG.
-    if len(out) != len(raws):
-        dropped_no_parent = sum(1 for r in raws if not r.get("parentRsid"))
-        dropped_other_parent = len(raws) - len(out) - dropped_no_parent
-        logger.debug(
-            "vrs_parent_filter rsid=%s pulled=%s filtered=%s dropped_no_parent=%s dropped_other_parent=%s",
-            parent_rsid,
-            len(raws),
-            len(out),
-            dropped_no_parent,
-            dropped_other_parent,
-            extra={
-                "rsid": parent_rsid,
-                "pulled": len(raws),
-                "filtered": len(out),
-                "dropped_no_parent": dropped_no_parent,
-                "dropped_other_parent": dropped_other_parent,
-            },
-        )
-    duration_ms = int((time.monotonic() - started) * 1000)
-    logger.info(
-        "component_fetch rsid=%s component_type=virtual_report_suite count=%s duration_ms=%s expansion_level=%s",
-        parent_rsid,
-        len(out),
-        duration_ms,
-        expansion_level,
-        extra={
-            "rsid": parent_rsid,
-            "component_type": "virtual_report_suite",
-            "count": len(out),
-            "duration_ms": duration_ms,
-            "expansion_level": expansion_level,
-        },
-    )
+    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level=expansion_level)
     if expansion_level == "minimal":
         return models.FetchOutcome.partial(out, expansion_level="minimal")
     return models.FetchOutcome.healthy(out)
@@ -721,6 +777,8 @@ def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
 def fetch_classification_datasets(
     client: AaClient,
     rsid: str,
+    *,
+    count_only: bool = False,
 ) -> models.FetchOutcome[models.ClassificationDataset]:
     """Lists classification datasets compatible with metrics in the report suite.
 
@@ -731,7 +789,15 @@ def fetch_classification_datasets(
     `dataSetId` / `datasetId` for the identifier, and `name` / `displayName`
     for the human-readable name. Records missing both id-like keys are skipped.
     Any failure of the underlying call returns an empty list rather than
-    breaking the whole SDR — classifications are best-effort in v0.1.x."""
+    breaking the whole SDR — classifications are best-effort in v0.1.x.
+
+    `count_only` (v1.7.2+) is accepted for API symmetry with
+    fetch_virtual_report_suites but is currently a no-op for classifications:
+    the underlying getClassificationDatasets SDK call has no extended_info knob
+    — the response is always minimal (id/name/rsid). Reserved for forward-compat
+    if the endpoint ever gains an expansion knob.
+    """
+    _ = count_only  # documented no-op; reserved for API symmetry
     started = time.monotonic()
     try:
         raws = _records(

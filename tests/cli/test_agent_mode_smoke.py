@@ -239,8 +239,8 @@ def test_describe_reportsuite_under_agent_mode_emits_json(monkeypatch, capsys, t
     monkeypatch.setattr(fetch, "fetch_metrics", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r, **kw: FetchOutcome.healthy([]))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r, **kw: FetchOutcome.healthy([]))  # noqa: ARG005
 
     from aa_auto_sdr.cli.main import run
 
