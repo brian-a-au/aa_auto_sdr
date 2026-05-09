@@ -79,10 +79,11 @@ def test_degraded_emits_banner_exit_zero() -> None:
     for p in patches:
         p.start()
     try:
-        _stdout, stderr, rc = _run()
+        stdout, stderr, rc = _run()
     finally:
         for p in patches:
             p.stop()
+    assert "⚠" not in stdout
     assert ("⚠ classifications fetch degraded for demo.prod — list may be incomplete; see logs/SDR_*.log") in stderr
     assert rc == 0  # exit code preserved — banner is informational
 
@@ -99,10 +100,11 @@ def test_partial_emits_banner_with_expansion_level() -> None:
     for p in patches:
         p.start()
     try:
-        _stdout, stderr, rc = _run()
+        stdout, stderr, rc = _run()
     finally:
         for p in patches:
             p.stop()
+    assert "⚠" not in stdout
     assert "⚠ classifications fetch partial for demo.prod" in stderr
     assert "expansion_level=minimal" in stderr
     assert rc == 0

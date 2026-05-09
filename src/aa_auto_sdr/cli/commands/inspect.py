@@ -18,6 +18,7 @@ from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.models import FetchStatus
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli._filters import apply_filters
 from aa_auto_sdr.cli.list_output import annotate_cells, build_footer, render_records
@@ -274,7 +275,7 @@ def run_list_classification_datasets(**kwargs: Any) -> int:
     # generic contract (fetcher: (client, rsid) -> list[T]) stays unchanged.
     # Raw (status, expansion_level) tuple is enough for the banner — no need
     # for the formal FetchOutcomeMeta dataclass for an internal capture.
-    captured_status: dict[str, tuple[str, str | None]] = {}
+    captured_status: dict[str, tuple[FetchStatus, str | None]] = {}
 
     def _fetcher(client: Any, rsid: str) -> Any:
         outcome = fetch.fetch_classification_datasets(client, rsid)
