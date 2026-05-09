@@ -111,6 +111,7 @@ ignore = [
 "src/aa_auto_sdr/api/fetch.py"         = ["T201"]   # warning: stderr print for classifications fallback
 "tests/**/*.py"                        = ["S101", "S105", "S106", "S108", "ARG001", "ARG002", "PLR2004", "T201", "PT004", "PT011", "A002"]
 "scripts/*.py"                         = ["T201"]
+"benchmarks/*.py"                      = ["T201", "INP001"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
