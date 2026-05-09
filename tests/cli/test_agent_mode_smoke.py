@@ -7,6 +7,8 @@ import logging
 
 import pytest
 
+from aa_auto_sdr.api.models import FetchOutcome
+
 
 @pytest.fixture(autouse=True)
 def _teardown_logging():
@@ -183,7 +185,7 @@ def test_single_sdr_under_agent_mode_writes_file_not_stdout(monkeypatch, tmp_pat
     monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: [])  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
 
     from aa_auto_sdr.cli.main import run
 
@@ -238,7 +240,7 @@ def test_describe_reportsuite_under_agent_mode_emits_json(monkeypatch, capsys, t
     monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: [])  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
 
     from aa_auto_sdr.cli.main import run
 
@@ -290,7 +292,7 @@ def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, cap
     monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: [])  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: [])  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
 
     from aa_auto_sdr.cli.main import run
 

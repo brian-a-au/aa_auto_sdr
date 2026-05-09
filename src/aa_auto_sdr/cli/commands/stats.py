@@ -94,7 +94,7 @@ def run(
                     "segments": len(fetch.fetch_segments(client, r)),
                     "calculated_metrics": len(fetch.fetch_calculated_metrics(client, r)),
                     "virtual_report_suites": len(fetch.fetch_virtual_report_suites(client, r)),
-                    "classifications": len(fetch.fetch_classification_datasets(client, r)),
+                    "classifications": len(fetch.fetch_classification_datasets(client, r).data),
                 }
                 rows.append({"rsid": rs.rsid, "name": rs.name, "counts": counts})
             except ApiError as exc:

@@ -719,7 +719,7 @@ def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
 def fetch_classification_datasets(
     client: AaClient,
     rsid: str,
-) -> list[models.ClassificationDataset]:
+) -> models.FetchOutcome[models.ClassificationDataset]:
     """Lists classification datasets compatible with metrics in the report suite.
 
     This is the only enumeration path Adobe Analytics API 2.0 exposes for
@@ -760,7 +760,7 @@ def fetch_classification_datasets(
                 "error_class": type(e).__name__,
             },
         )
-        return []
+        return models.FetchOutcome.degraded()
 
     known = {*_CLASSIFICATION_ID_KEYS, *_CLASSIFICATION_NAME_KEYS, "rsid"}
     out: list[models.ClassificationDataset] = []
@@ -790,4 +790,4 @@ def fetch_classification_datasets(
             "duration_ms": duration_ms,
         },
     )
-    return out
+    return models.FetchOutcome.healthy(out)

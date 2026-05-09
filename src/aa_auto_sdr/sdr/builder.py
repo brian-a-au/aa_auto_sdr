@@ -105,7 +105,7 @@ def build_sdr(
             key=lambda v: v.id,
         ),
         classifications=sorted(
-            fetch.fetch_classification_datasets(client, rsid) if flt.classifications else [],
+            fetch.fetch_classification_datasets(client, rsid).data if flt.classifications else [],
             key=lambda c: c.id,
         ),
         captured_at=captured_at,

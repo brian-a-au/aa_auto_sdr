@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from aa_auto_sdr.api.models import FetchOutcome
 from aa_auto_sdr.sdr.builder import build_sdr
 
 
@@ -38,7 +39,7 @@ def test_build_sdr_emits_entry_and_exit_debug(caplog):
         patch("aa_auto_sdr.sdr.builder.fetch.fetch_segments", return_value=[]),
         patch("aa_auto_sdr.sdr.builder.fetch.fetch_calculated_metrics", return_value=[]),
         patch("aa_auto_sdr.sdr.builder.fetch.fetch_virtual_report_suites", return_value=[]),
-        patch("aa_auto_sdr.sdr.builder.fetch.fetch_classification_datasets", return_value=[]),
+        patch("aa_auto_sdr.sdr.builder.fetch.fetch_classification_datasets", return_value=FetchOutcome.healthy([])),
     ):
         rs.return_value = MagicMock(rsid="RS1", name="n", timezone=None, currency=None, parent_rsid=None)
         build_sdr(

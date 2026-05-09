@@ -83,8 +83,8 @@ def test_classifications_failure_emits_warning(caplog):
     caplog.set_level(logging.WARNING, logger="aa_auto_sdr.api.fetch")
     fake_client = _make_client()
     fake_client.handle.getClassificationDatasets.side_effect = RuntimeError("boom")
-    out = fetch.fetch_classification_datasets(fake_client, "RS1")
-    assert out == []
+    outcome = fetch.fetch_classification_datasets(fake_client, "RS1")
+    assert outcome.data == []
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     rec = warnings[0]

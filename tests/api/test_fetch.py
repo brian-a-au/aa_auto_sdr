@@ -233,7 +233,8 @@ def test_fetch_virtual_report_suite_summaries_passes_through_api_error() -> None
 
 
 def test_fetch_classification_datasets_returns_list(mock_client: AaClient) -> None:
-    cs = fetch.fetch_classification_datasets(mock_client, "demo.prod")
+    outcome = fetch.fetch_classification_datasets(mock_client, "demo.prod")
+    cs = outcome.data
     assert len(cs) == 1
     assert isinstance(cs[0], models.ClassificationDataset)
     assert cs[0].id == "ds_5"
@@ -260,7 +261,8 @@ def test_fetch_classification_datasets_tolerates_dataSetId_keys() -> None:
     )
     client = AaClient(handle=handle, company_id="testco")
 
-    cs = fetch.fetch_classification_datasets(client, "demo.prod")
+    outcome = fetch.fetch_classification_datasets(client, "demo.prod")
+    cs = outcome.data
 
     assert len(cs) == 2
     assert {c.id for c in cs} == {"ds_a", "ds_b"}
@@ -278,7 +280,8 @@ def test_fetch_classification_datasets_skips_records_without_id_keys() -> None:
     )
     client = AaClient(handle=handle, company_id="testco")
 
-    cs = fetch.fetch_classification_datasets(client, "demo.prod")
+    outcome = fetch.fetch_classification_datasets(client, "demo.prod")
+    cs = outcome.data
 
     assert len(cs) == 1
     assert cs[0].id == "ds_keep"
@@ -296,9 +299,9 @@ def test_fetch_classification_datasets_returns_empty_on_wrapper_error(caplog) ->
     handle.getClassificationDatasets.side_effect = KeyError("['id'] not in index")
     client = AaClient(handle=handle, company_id="testco")
 
-    cs = fetch.fetch_classification_datasets(client, "demo.prod")
+    outcome = fetch.fetch_classification_datasets(client, "demo.prod")
 
-    assert cs == []
+    assert outcome.data == []
     assert any("classifications fetch failed" in r.getMessage() for r in caplog.records)
 
 

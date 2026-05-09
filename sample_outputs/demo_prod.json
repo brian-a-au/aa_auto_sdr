@@ -82,6 +82,7 @@
       "type": "string"
     }
   ],
+  "fetch_status": {},
   "metrics": [
     {
       "category": "Commerce",
