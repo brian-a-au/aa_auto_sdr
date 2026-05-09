@@ -85,6 +85,7 @@ def test_classifications_failure_emits_warning(caplog):
     fake_client.handle.getClassificationDatasets.side_effect = RuntimeError("boom")
     outcome = fetch.fetch_classification_datasets(fake_client, "RS1")
     assert outcome.data == []
+    assert outcome.status == "degraded"
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     rec = warnings[0]

@@ -88,10 +88,11 @@ def test_existing_api_error_passes_through_unchanged(mock_client) -> None:
 
 
 def test_classifications_still_graceful_degrades_on_exhaustion(mock_client) -> None:
-    """v1.0+ best-effort: exhausted classifications return [], not raise."""
+    """v1.0+ best-effort: exhausted classifications return FetchOutcome.degraded() (data=[]), not raise."""
     mock_client.handle.getClassificationDatasets.side_effect = KeyError("content")
     outcome = fetch_classification_datasets(mock_client, "rs1")
     assert outcome.data == []
+    assert outcome.status == "degraded"
     # 1 initial + 3 retries = 4 attempts
     assert mock_client.handle.getClassificationDatasets.call_count == 4
 

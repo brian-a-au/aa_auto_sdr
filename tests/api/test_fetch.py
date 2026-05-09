@@ -302,6 +302,7 @@ def test_fetch_classification_datasets_returns_empty_on_wrapper_error(caplog) ->
     outcome = fetch.fetch_classification_datasets(client, "demo.prod")
 
     assert outcome.data == []
+    assert outcome.status == "degraded"
     assert any("classifications fetch failed" in r.getMessage() for r in caplog.records)
 
 
