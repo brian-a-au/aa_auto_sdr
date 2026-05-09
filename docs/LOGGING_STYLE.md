@@ -54,9 +54,22 @@ text. The vocabulary meta-test enforces presence on the events listed in
 | `dropped_no_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was missing/empty. |
 | `dropped_other_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was set but didn't match the requested parent. |
 
-**Reserved fields (do not use yet, will activate when their underlying feature lands):**
+**Active fields (v1.8.0+):** `worker_id` (int) and `cache_event` (str)
+are activated.
 
-`worker_id` and `cache_event` remain reserved pending parallel-batch and validation-cache features (separate Tier 2 releases).
+`worker_id` is emitted on per-RSID log records when running parallel
+(`--workers >= 2`). The value is the submission-index of the RSID's
+owning worker (0..N-1 where N is the total RSIDs in the batch). Sequential
+runs (`--workers 1` or unset) omit the field — preserves byte-equivalence
+with v1.7.2 logs. Use `worker_id` to correlate per-RSID records to a
+worker without ambiguity; thread identity is separately exposed via
+`thread_name=aa-worker-N` from `ThreadPoolExecutor`'s `thread_name_prefix`.
+
+`cache_event` is emitted at DEBUG level on `ValidationCache.get` /
+`ValidationCache.put` operations. Allowed values: `hit` / `miss` /
+`evict` / `expire`. The cache itself ships dormant in v1.8.0 — no
+production call sites — so this field is silent unless a future release
+populates the cache (planned: v1.12.0 quality engine).
 
 ## Message-style rules
 

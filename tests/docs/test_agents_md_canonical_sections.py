@@ -114,6 +114,12 @@ def test_documented_long_flags_exist_in_parser():
     # argparse runs. Everything else must appear on the actual parser.
     allowlist = {
         "--version",
+        # Flags explicitly documented in AGENTS.md as *removed* from the v1.8.0
+        # roadmap (they appear in the "deliberately removed" prose but were never
+        # added to the parser; the doc explains their absence to agent consumers).
+        "--continue-on-error",
+        "--shared-cache",
+        "--use-cache",
     }
 
     missing = documented - real_flags - allowlist
