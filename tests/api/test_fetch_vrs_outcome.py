@@ -25,10 +25,8 @@ def _vrs_row(vrs_id: str, parent: str = "rs1") -> dict:
 
 def _client_for_vrs(*, full_response, minimal_response=None) -> MagicMock:
     handle = MagicMock()
-    call_count = {"n": 0}
 
     def get_vrs(extended_info: bool = True) -> pd.DataFrame:
-        call_count["n"] += 1
         if extended_info:
             if isinstance(full_response, Exception):
                 raise full_response
