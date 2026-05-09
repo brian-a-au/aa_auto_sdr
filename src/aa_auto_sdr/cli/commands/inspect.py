@@ -9,6 +9,7 @@ run_describe_reportsuite returns metadata + counts (no full SDR generated)."""
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import asdict
@@ -166,8 +167,6 @@ def _list_per_component(
 
         multi = len(canonical_rsids) > 1
         if multi:
-            import sys
-
             print(
                 f"{identifier!r} matches {len(canonical_rsids)} report suites: {', '.join(canonical_rsids)}",
                 file=sys.stderr,
@@ -271,16 +270,42 @@ def run_list_calculated_metrics(**kwargs: Any) -> int:
 
 
 def run_list_classification_datasets(**kwargs: Any) -> int:
-    def _fetcher(client: Any, rsid: str) -> Any:
-        return fetch.fetch_classification_datasets(client, rsid).data
+    # Capture status as a side effect via closure so _list_per_component's
+    # generic contract (fetcher: (client, rsid) -> list[T]) stays unchanged.
+    # Raw (status, expansion_level) tuple is enough for the banner — no need
+    # for the formal FetchOutcomeMeta dataclass for an internal capture.
+    captured_status: dict[str, tuple[str, str | None]] = {}
 
-    return _list_per_component(
+    def _fetcher(client: Any, rsid: str) -> Any:
+        outcome = fetch.fetch_classification_datasets(client, rsid)
+        if outcome.status != "healthy":
+            captured_status[rsid] = (outcome.status, outcome.expansion_level)
+        return outcome.data
+
+    rc = _list_per_component(
         command="list_classification_datasets",
         fetcher=_fetcher,
         columns=_CLASSIFICATION_COLS,
         sort_allowlist=_CLASSIFICATION_SORT,
         **kwargs,
     )
+
+    # After the list renders, emit one stderr banner per non-healthy RSID.
+    # Exit code unchanged — banner is informational; preserves pipeline UX.
+    for rsid, (status, expansion_level) in captured_status.items():
+        if status == "degraded":
+            print(
+                f"⚠ classifications fetch degraded for {rsid} — list may be incomplete; see logs/SDR_*.log",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif status == "partial":
+            print(
+                f"⚠ classifications fetch partial for {rsid} (expansion_level={expansion_level}); see logs/SDR_*.log",
+                file=sys.stderr,
+                flush=True,
+            )
+    return rc
 
 
 def run_describe_reportsuite(
