@@ -60,6 +60,9 @@ VOCAB = {
     "filtered",
     "dropped_no_parent",
     "dropped_other_parent",
+    # v1.8.0 additions
+    "worker_id",
+    "cache_event",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -200,3 +203,30 @@ def test_canonical_event_calls_carry_required_extras(module_path):
                     f"{sorted(missing)}. Required: {sorted(required)}. "
                     f"Got: {sorted(extras)}. Message: {msg!r}"
                 )
+
+
+# v1.8.0 — value-level enforcement for the two enum-shaped vocabulary keys.
+# Cleanup item C3 from v1.7.2: count_only must be in the expansion_level
+# allowed-values list (was missing despite v1.7.2 emitting it from fetch.py).
+
+EXPANSION_LEVEL_ALLOWED_VALUES = {"full", "minimal", "exhausted", "count_only"}
+CACHE_EVENT_ALLOWED_VALUES = {"hit", "miss", "evict", "expire"}
+
+
+def test_expansion_level_allowed_values_include_count_only() -> None:
+    """Regression for v1.7.2 cleanup item C3.
+
+    fetch.py emits expansion_level=count_only on count_only-path failures
+    (see docs/LOGGING_STYLE.md "Request-time minimal scope (v1.7.2+)" paragraph).
+    The allowed-values set MUST include this fourth value alongside
+    full / minimal / exhausted.
+    """
+    assert "count_only" in EXPANSION_LEVEL_ALLOWED_VALUES
+    # Sanity: the set is exactly the four values; alarm if a fifth slips in
+    # without spec/doc update.
+    assert EXPANSION_LEVEL_ALLOWED_VALUES == {"full", "minimal", "exhausted", "count_only"}
+
+
+def test_cache_event_allowed_values() -> None:
+    """v1.8.0 cache_event vocabulary uses exactly four enum values."""
+    assert CACHE_EVENT_ALLOWED_VALUES == {"hit", "miss", "evict", "expire"}
