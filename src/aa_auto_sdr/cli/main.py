@@ -487,6 +487,12 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             show_timings=ns.show_timings,
             run_summary_json=ns.run_summary_json,
             retry_policy=ns.retry_policy,
+            workers=ns.workers,
+            fail_fast=ns.fail_fast,
+            enable_cache=ns.enable_cache,
+            clear_cache=ns.clear_cache,
+            cache_ttl=ns.cache_ttl,
+            cache_size=ns.cache_size,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
