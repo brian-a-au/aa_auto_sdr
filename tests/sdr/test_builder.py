@@ -101,7 +101,7 @@ class TestComponentFilter:
 
         def _stub_vrs(c, r):
             calls["virtual_report_suites"] += 1
-            return []
+            return FetchOutcome.healthy([])
 
         def _stub_cls(c, r):
             calls["classifications"] += 1

@@ -95,7 +95,7 @@ def auth_mocks(monkeypatch):
     )
     monkeypatch.setattr(
         "aa_auto_sdr.api.fetch.fetch_virtual_report_suites",
-        lambda client, rsid: [],
+        lambda client, rsid: FetchOutcome.healthy([]),
     )
 
     # fetch_report_suite returns a normalized model; safest is to patch it

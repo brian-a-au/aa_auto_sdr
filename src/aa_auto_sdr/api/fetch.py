@@ -484,7 +484,7 @@ def fetch_calculated_metrics(
 def fetch_virtual_report_suites(
     client: AaClient,
     parent_rsid: str,
-) -> list[models.VirtualReportSuite]:
+) -> models.FetchOutcome[models.VirtualReportSuite]:
     """Lists VRS visible to the org, filtered to those whose parent matches.
 
     The SDK call has no rsid filter — we filter client-side after pulling all
@@ -547,7 +547,7 @@ def fetch_virtual_report_suites(
                     "error_class": type(e).__name__,
                 },
             )
-        except Exception as e2:  # both rungs exhausted — graceful-degrade to []
+        except Exception as e2:  # both rungs exhausted — graceful-degrade to FetchOutcome.degraded()
             logger.warning(
                 "virtual report suites fetch failed rsid=%s expansion_level=exhausted error_class=%s",
                 parent_rsid,
@@ -559,7 +559,7 @@ def fetch_virtual_report_suites(
                     "error_class": type(e2).__name__,
                 },
             )
-            return []
+            return models.FetchOutcome.degraded()
     known = {
         "id",
         "name",
@@ -622,7 +622,9 @@ def fetch_virtual_report_suites(
             "expansion_level": expansion_level,
         },
     )
-    return out
+    if expansion_level == "minimal":
+        return models.FetchOutcome.partial(out, expansion_level="minimal")
+    return models.FetchOutcome.healthy(out)
 
 
 def fetch_virtual_report_suite_summaries(

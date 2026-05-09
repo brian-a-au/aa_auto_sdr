@@ -101,4 +101,5 @@ def test_vrs_still_graceful_degrades_on_exhaustion(mock_client) -> None:
     """v1.6.1 best-effort + v1.7.0 ladder: BOTH rungs fail (full × 4 + minimal × 4) → []."""
     mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     result = fetch_virtual_report_suites(mock_client, "rs1")
-    assert result == []
+    assert result.status == "degraded"
+    assert result.data == []

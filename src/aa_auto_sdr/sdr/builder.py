@@ -101,7 +101,7 @@ def build_sdr(
             key=lambda c: c.id,
         ),
         virtual_report_suites=sorted(
-            fetch.fetch_virtual_report_suites(client, rsid) if flt.virtual_report_suites else [],
+            fetch.fetch_virtual_report_suites(client, rsid).data if flt.virtual_report_suites else [],
             key=lambda v: v.id,
         ),
         classifications=sorted(

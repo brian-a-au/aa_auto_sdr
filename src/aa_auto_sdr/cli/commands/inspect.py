@@ -321,7 +321,7 @@ def run_describe_reportsuite(
                 mets = fetch.fetch_metrics(client, canonical_rsid)
                 segs = fetch.fetch_segments(client, canonical_rsid)
                 cms = fetch.fetch_calculated_metrics(client, canonical_rsid)
-                vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid)
+                vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid).data
                 cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid).data
             except ApiError as e:
                 print(f"api error: {e}", flush=True)

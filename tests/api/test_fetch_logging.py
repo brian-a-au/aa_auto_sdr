@@ -102,7 +102,8 @@ def test_virtual_report_suites_failure_emits_warning(caplog):
     fake_client = _make_client()
     fake_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     out = fetch.fetch_virtual_report_suites(fake_client, "RS1")
-    assert out == []
+    assert out.status == "degraded"
+    assert out.data == []
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     rec = warnings[0]
