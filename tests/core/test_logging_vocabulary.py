@@ -64,6 +64,8 @@ VOCAB = {
     "worker_id",
     "workers",
     "cache_event",
+    # v1.9.0 additions
+    "name_match_strategy",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
