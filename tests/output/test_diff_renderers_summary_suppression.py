@@ -118,6 +118,12 @@ def test_markdown_summary_quiet_mode_excludes_suppressed_counts() -> None:
         assert "suppressed" in line.lower(), f"Markdown quiet-summary VRS row missing annotation: {line!r}"
 
 
+def test_markdown_summary_mode_carries_suppression_reason() -> None:
+    """Symmetric with console/pr_comment: summary mode must surface why."""
+    out = render_markdown(_report_suppressed_with_misleading_counts(), summary=True)
+    assert "fetch degraded" in out  # The suppression_reason from the fixture
+
+
 # ----- console.py: summary mode -------------------------------------------
 
 

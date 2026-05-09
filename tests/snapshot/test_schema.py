@@ -63,7 +63,7 @@ def test_validate_envelope_accepts_well_formed() -> None:
 def test_validate_envelope_rejects_missing_schema() -> None:
     env = document_to_envelope(_stub_doc())
     del env["schema"]
-    with pytest.raises(SnapshotSchemaError, match="schema"):
+    with pytest.raises(SnapshotSchemaError, match="missing required key"):
         validate_envelope(env)
 
 

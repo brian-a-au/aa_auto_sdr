@@ -16,7 +16,8 @@ envelopes (empty list/dict when nothing is degraded). Component-type names
 are the plural envelope-key form: "virtual_report_suites", "classifications".
 
 Reader-side, both v1 and v2 envelopes are accepted. v1 envelopes lack the
-new keys; the loader (`store.load_snapshot`) defaults them to `[]`/`{}`.
+new keys; `validate_envelope` defaults them to `[]`/`{}` in-memory so all
+callers can bracket-index both keys uniformly.
 
 Header fields are promoted out of `SdrDocument.to_dict()`; everything else
 goes under `components` (so future schema migrations only need to touch the
@@ -83,15 +84,23 @@ def validate_envelope(env: dict[str, Any]) -> None:
     """Raise SnapshotSchemaError if `env` is not a valid v1 or v2 envelope.
 
     v1 envelopes do not require `degraded_components` / `partial_components`
-    keys (the loader defaults them after validation). v2 envelopes require
-    both keys to be present.
+    keys; this function defaults them in-memory (disk file unchanged) so every
+    code path that goes through validation can uniformly bracket-index those
+    keys. v2 envelopes already have the keys (validated below).
     """
-    schema = env.get("schema")
+    if "schema" not in env:
+        raise SnapshotSchemaError("snapshot envelope missing required key 'schema'")
+    schema = env["schema"]
     if not isinstance(schema, str) or not _SUPPORTED_SCHEMA_RE.match(schema):
         raise SnapshotSchemaError(
             f"unsupported snapshot schema {schema!r}; expected 'aa-sdr-snapshot/v1' or 'aa-sdr-snapshot/v2' (or v1.x / v2.x minor bump)",
         )
     is_v2 = schema.startswith("aa-sdr-snapshot/v2")
+    # v1 → v2 forward-compat: default new keys for v1 envelopes (in-memory only).
+    # v2 envelopes already have these keys (validated below).
+    if not is_v2:
+        env.setdefault("degraded_components", [])
+        env.setdefault("partial_components", {})
     required = _REQUIRED_V2_KEYS if is_v2 else _REQUIRED_V1_KEYS
     for key in required:
         if key not in env:

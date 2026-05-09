@@ -110,16 +110,11 @@ def save_snapshot(doc: SdrDocument, *, snapshot_dir: Path) -> Path:
 def load_snapshot(path: Path) -> dict[str, Any]:
     """Load and validate a snapshot envelope. Raises SnapshotSchemaError on bad shape.
 
-    For v1 envelopes (no `degraded_components` / `partial_components` keys),
-    defaults both to empty after validation so downstream consumers
-    (comparator) can bracket-index without conditional accessors.
+    `validate_envelope` defaults v1 envelopes' new keys to empty in-memory
+    (forward-compat) so downstream consumers can read both keys uniformly.
     """
     payload = read_json(path)
     validate_envelope(payload)
-    # v1 → v2 forward-compat: default new keys for v1 envelopes (in-memory only;
-    # disk file unchanged). v2 envelopes already have these keys per validator.
-    payload.setdefault("degraded_components", [])
-    payload.setdefault("partial_components", {})
     # Component count for triage; cheap lookup from envelope shape (see
     # snapshot/schema.py — components live under the `components` key).
     components = payload.get("components", {})

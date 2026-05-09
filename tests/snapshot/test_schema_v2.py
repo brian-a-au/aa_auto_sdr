@@ -112,3 +112,63 @@ def test_validate_envelope_rejects_v2_partial_components_wrong_type() -> None:
     env["partial_components"] = ["not-a-dict"]
     with pytest.raises(SnapshotSchemaError, match="partial_components must be a dict"):
         validate_envelope(env)
+
+
+def test_validate_envelope_defaults_v1_keys_in_place() -> None:
+    """v1 → v2 forward-compat: validate_envelope mutates env in-place to add the
+    new keys with empty defaults. This makes the comparator's bracket access safe
+    for any envelope that went through validation."""
+    env = {
+        "schema": "aa-sdr-snapshot/v1",
+        "rsid": "rs1",
+        "captured_at": "2026-04-26T17:29:01+00:00",
+        "tool_version": "1.0.0",
+        "components": {
+            "report_suite": {
+                "rsid": "rs1",
+                "name": "rs1",
+                "timezone": None,
+                "currency": None,
+                "parent_rsid": None,
+            },
+            "dimensions": [],
+            "metrics": [],
+            "segments": [],
+            "calculated_metrics": [],
+            "virtual_report_suites": [],
+            "classifications": [],
+        },
+    }
+    validate_envelope(env)
+    assert env["degraded_components"] == []
+    assert env["partial_components"] == {}
+
+
+def test_validate_envelope_does_not_overwrite_v2_keys() -> None:
+    """v2 envelopes already have these keys; setdefault must not clobber them."""
+    env = {
+        "schema": "aa-sdr-snapshot/v2",
+        "rsid": "rs1",
+        "captured_at": "2026-05-08T10:00:00+00:00",
+        "tool_version": "1.7.1",
+        "degraded_components": ["classifications"],
+        "partial_components": {"virtual_report_suites": "minimal"},
+        "components": {
+            "report_suite": {
+                "rsid": "rs1",
+                "name": "rs1",
+                "timezone": None,
+                "currency": None,
+                "parent_rsid": None,
+            },
+            "dimensions": [],
+            "metrics": [],
+            "segments": [],
+            "calculated_metrics": [],
+            "virtual_report_suites": [],
+            "classifications": [],
+        },
+    }
+    validate_envelope(env)
+    assert env["degraded_components"] == ["classifications"]
+    assert env["partial_components"] == {"virtual_report_suites": "minimal"}

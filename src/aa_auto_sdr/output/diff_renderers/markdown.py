@@ -72,6 +72,12 @@ def render_markdown(
                         f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
                     )
         buf.write("\n")
+        for cd in report.components:
+            if cd.suppressed:
+                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+                buf.write(f"> ⚠ {label} — diff suppressed ({cd.suppression_reason})\n")
+        if any(cd.suppressed for cd in report.components):
+            buf.write("\n")
         return buf.getvalue()
 
     if report.report_suite_deltas:
