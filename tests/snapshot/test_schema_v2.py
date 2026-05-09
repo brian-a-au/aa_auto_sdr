@@ -91,3 +91,24 @@ def test_validate_envelope_rejects_v2_missing_partial_components() -> None:
     del env["partial_components"]
     with pytest.raises(SnapshotSchemaError, match="partial_components"):
         validate_envelope(env)
+
+
+def test_validate_envelope_accepts_v2_minor_bump() -> None:
+    """v2.x is forward-compat: validate accepts v2.1, v2.2, etc."""
+    env = document_to_envelope(_doc())
+    env["schema"] = "aa-sdr-snapshot/v2.1"
+    validate_envelope(env)  # should not raise
+
+
+def test_validate_envelope_rejects_v2_degraded_components_wrong_type() -> None:
+    env = document_to_envelope(_doc())
+    env["degraded_components"] = "not-a-list"
+    with pytest.raises(SnapshotSchemaError, match="degraded_components must be a list"):
+        validate_envelope(env)
+
+
+def test_validate_envelope_rejects_v2_partial_components_wrong_type() -> None:
+    env = document_to_envelope(_doc())
+    env["partial_components"] = ["not-a-dict"]
+    with pytest.raises(SnapshotSchemaError, match="partial_components must be a dict"):
+        validate_envelope(env)
