@@ -17,7 +17,7 @@ from datetime import datetime
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.sdr.document import SdrDocument
+from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,35 @@ def build_sdr(
         extra={"rsid": rsid, "tool_version": tool_version},
     )
     rs = fetch.fetch_report_suite(client, rsid)
+
+    # Graceful-degrade fetchers return FetchOutcome; bubbling fetchers return list[T].
+    # Only collect fetch_status entries for non-healthy outcomes from the two
+    # graceful-degrade fetchers (VRS, classifications). Filtered-out types skip
+    # the fetch entirely and do not appear in fetch_status.
+    fetch_status: dict[str, FetchOutcomeMeta] = {}
+
+    if flt.virtual_report_suites:
+        vrs_outcome = fetch.fetch_virtual_report_suites(client, rsid)
+        if vrs_outcome.status != "healthy":
+            fetch_status["virtual_report_suites"] = FetchOutcomeMeta(
+                status=vrs_outcome.status,
+                expansion_level=vrs_outcome.expansion_level,
+            )
+        vrs_data = vrs_outcome.data
+    else:
+        vrs_data = []
+
+    if flt.classifications:
+        classifications_outcome = fetch.fetch_classification_datasets(client, rsid)
+        if classifications_outcome.status != "healthy":
+            fetch_status["classifications"] = FetchOutcomeMeta(
+                status=classifications_outcome.status,
+                expansion_level=classifications_outcome.expansion_level,
+            )
+        classifications_data = classifications_outcome.data
+    else:
+        classifications_data = []
+
     doc = SdrDocument(
         report_suite=rs,
         dimensions=sorted(
@@ -100,16 +129,11 @@ def build_sdr(
             fetch.fetch_calculated_metrics(client, rsid) if flt.calculated_metrics else [],
             key=lambda c: c.id,
         ),
-        virtual_report_suites=sorted(
-            fetch.fetch_virtual_report_suites(client, rsid).data if flt.virtual_report_suites else [],
-            key=lambda v: v.id,
-        ),
-        classifications=sorted(
-            fetch.fetch_classification_datasets(client, rsid).data if flt.classifications else [],
-            key=lambda c: c.id,
-        ),
+        virtual_report_suites=sorted(vrs_data, key=lambda v: v.id),
+        classifications=sorted(classifications_data, key=lambda c: c.id),
         captured_at=captured_at,
         tool_version=tool_version,
+        fetch_status=fetch_status,
     )
     duration_ms = int((time.monotonic() - started) * 1000)
     component_count = (
