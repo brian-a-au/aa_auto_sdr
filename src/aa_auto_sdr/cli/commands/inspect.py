@@ -19,7 +19,7 @@ from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli._filters import apply_filters
-from aa_auto_sdr.cli.list_output import render_records
+from aa_auto_sdr.cli.list_output import _annotate_cells, _build_footer, render_records
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
@@ -73,7 +73,7 @@ _CALCULATED_COLS = [
     "extra",
 ]
 _CLASSIFICATION_COLS = ["id", "name", "rsid", "extra"]
-_DESCRIBE_COLS = [
+_DESCRIBE_COLS_TABULAR = [
     "rsid",
     "name",
     "timezone",
@@ -86,6 +86,8 @@ _DESCRIBE_COLS = [
     "virtual_report_suites",
     "classifications",
 ]
+# Same columns plus the structured fetch-status field; used for JSON output only.
+_DESCRIBE_COLS_JSON = [*_DESCRIBE_COLS_TABULAR, "fetch_status"]
 
 _METRIC_SORT = ("id", "name", "type", "category")
 _DIMENSION_SORT = ("id", "name", "type", "category")
@@ -321,8 +323,16 @@ def run_describe_reportsuite(
                 mets = fetch.fetch_metrics(client, canonical_rsid)
                 segs = fetch.fetch_segments(client, canonical_rsid)
                 cms = fetch.fetch_calculated_metrics(client, canonical_rsid)
-                vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid).data
-                cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid).data
+                vrs_outcome = fetch.fetch_virtual_report_suites(
+                    client,
+                    canonical_rsid,
+                    count_only=True,
+                )
+                cls_outcome = fetch.fetch_classification_datasets(
+                    client,
+                    canonical_rsid,
+                    count_only=True,
+                )
             except ApiError as e:
                 print(f"api error: {e}", flush=True)
                 exit_code = ExitCode.API.value
@@ -332,27 +342,57 @@ def run_describe_reportsuite(
                 exit_code = ExitCode.GENERIC.value
                 return exit_code
 
-            records.append(
-                {
-                    "rsid": rs.rsid,
-                    "name": rs.name,
-                    "timezone": rs.timezone,
-                    "currency": rs.currency,
-                    "parent_rsid": rs.parent_rsid,
-                    "dimensions": len(dims),
-                    "metrics": len(mets),
-                    "segments": len(segs),
-                    "calculated_metrics": len(cms),
-                    "virtual_report_suites": len(vrs),
-                    "classifications": len(cls_ds),
+            record: dict[str, Any] = {
+                "rsid": rs.rsid,
+                "name": rs.name,
+                "timezone": rs.timezone,
+                "currency": rs.currency,
+                "parent_rsid": rs.parent_rsid,
+                "dimensions": len(dims),
+                "metrics": len(mets),
+                "segments": len(segs),
+                "calculated_metrics": len(cms),
+                "virtual_report_suites": len(vrs_outcome.data),
+                "classifications": len(cls_outcome.data),
+            }
+            fetch_status: dict[str, dict[str, Any]] = {}
+            if vrs_outcome.status != "healthy":
+                fetch_status["virtual_report_suites"] = {
+                    "status": vrs_outcome.status,
+                    "expansion_level": vrs_outcome.expansion_level,
                 }
-            )
+            if cls_outcome.status != "healthy":
+                fetch_status["classifications"] = {
+                    "status": cls_outcome.status,
+                    "expansion_level": cls_outcome.expansion_level,
+                }
+            if fetch_status:
+                record["fetch_status"] = fetch_status
+            records.append(record)
+
+        # Format-aware rendering. JSON path emits fetch_status field only when at
+        # least one record is non-healthy; tabular path uses cell asterisks +
+        # footer; CSV path strips fetch_status entirely.
+        has_non_healthy = any("fetch_status" in r for r in records)
+        if format_name == "json":
+            cols = _DESCRIBE_COLS_JSON if has_non_healthy else _DESCRIBE_COLS_TABULAR
+            records_for_render = records
+            footers = None
+        else:
+            cols = _DESCRIBE_COLS_TABULAR
+            if format_name is None:  # implicit-table
+                records_for_render = _annotate_cells(records)
+                footers = _build_footer(records)
+            else:  # csv
+                records_for_render = records
+                footers = None
 
         exit_code = render_records(
-            records,
+            records_for_render,
             format_name=format_name,
             output=_resolve_output(output),
-            columns=_DESCRIBE_COLS,
+            columns=cols,
+            footers=footers,
         )
         return exit_code
     finally:
