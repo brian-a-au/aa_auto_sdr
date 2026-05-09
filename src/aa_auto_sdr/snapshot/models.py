@@ -37,13 +37,23 @@ class ModifiedItem:
 
 @dataclass(frozen=True, slots=True)
 class ComponentDiff:
-    """Per-component-type diff result. One per component type in DiffReport."""
+    """Per-component-type diff result. One per component type in DiffReport.
+
+    `suppressed=True` (v1.7.1+) means the section is hidden from rendering
+    because either side's snapshot was degraded or partial-with-mismatched-
+    expansion-level. Renderers branch on `suppressed` and emit a single
+    annotation in place of per-row tables. JSON renderer's serialized shape
+    is unchanged-but-additive: existing fields preserved, new fields appear.
+    See spec §4.7.
+    """
 
     component_type: str  # "dimensions", "metrics", "segments", ...
     added: list[AddedRemovedItem] = field(default_factory=list)
     removed: list[AddedRemovedItem] = field(default_factory=list)
     modified: list[ModifiedItem] = field(default_factory=list)
     unchanged_count: int = 0
+    suppressed: bool = False
+    suppression_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
