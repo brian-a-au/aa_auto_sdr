@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from concurrent.futures import CancelledError, Future, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, CancelledError, Future, ThreadPoolExecutor, as_completed, wait
 from datetime import datetime
 from pathlib import Path
 
@@ -51,32 +51,23 @@ def get_current_worker_id() -> int | None:
 # ---------------------------------------------------------------------------
 # Exit-code map — duplicated from batch.py to avoid future circular import
 # (Task 4 will make batch.py import run_parallel from this module).
+# Module-level constant: no lazy init or lock needed.
 # ---------------------------------------------------------------------------
 
-_EXIT_CODE_BY_TYPE: dict[type[AaAutoSdrError], int] | None = None
-_EXIT_CODE_BY_TYPE_LOCK = threading.Lock()
-
-
-def _populate_exit_code_map() -> dict[type[AaAutoSdrError], int]:
-    global _EXIT_CODE_BY_TYPE  # noqa: PLW0603
-    with _EXIT_CODE_BY_TYPE_LOCK:
-        if _EXIT_CODE_BY_TYPE is None:
-            _EXIT_CODE_BY_TYPE = {
-                ConfigError: ExitCode.CONFIG.value,
-                AuthError: ExitCode.AUTH.value,
-                ApiError: ExitCode.API.value,
-                ReportSuiteNotFoundError: ExitCode.NOT_FOUND.value,
-                OutputError: ExitCode.OUTPUT.value,
-            }
-    return _EXIT_CODE_BY_TYPE
+_EXIT_CODE_BY_TYPE: dict[type[AaAutoSdrError], int] = {
+    ConfigError: ExitCode.CONFIG.value,
+    AuthError: ExitCode.AUTH.value,
+    ApiError: ExitCode.API.value,
+    ReportSuiteNotFoundError: ExitCode.NOT_FOUND.value,
+    OutputError: ExitCode.OUTPUT.value,
+}
 
 
 def _exit_code_for(exc: AaAutoSdrError) -> int:
     """Match generate.py's exit-code policy. Most-specific class wins; fallback = GENERIC."""
-    code_map = _populate_exit_code_map()
     for cls in type(exc).__mro__:
-        if cls in code_map:
-            return code_map[cls]
+        if cls in _EXIT_CODE_BY_TYPE:
+            return _EXIT_CODE_BY_TYPE[cls]
     return ExitCode.GENERIC.value
 
 
@@ -254,74 +245,79 @@ def run_parallel(
                     break
 
             # Process results as they complete; submit the next task on success.
+            # wait(FIRST_COMPLETED) avoids the O(N²) waiter-installation cost of
+            # calling next(as_completed(pending)) on a new snapshot each iteration.
             try:
                 failed = False
-                while pending and not failed:
-                    done_future = next(as_completed(pending))
-                    pending.remove(done_future)
-                    submission_index, rsid = future_to_ctx[done_future]
-                    try:
-                        result = done_future.result()
-                    except CancelledError:
-                        failures.append(
-                            BatchFailure(
-                                rsid=rsid,
-                                error_type="CancelledError",
-                                message="cancelled",
-                                exit_code=ExitCode.GENERIC.value,
-                            )
-                        )
-                    except AaAutoSdrError as exc:
-                        message = str(exc)
-                        exit_code = _exit_code_for(exc)
-                        logger.error(
-                            "parallel_rsid_failure rsid=%s batch_id=%s error_type=%s",
-                            rsid,
-                            batch_id,
-                            type(exc).__name__,
-                            extra={
-                                "rsid": rsid,
-                                "batch_id": batch_id,
-                                "exit_code": exit_code,
-                                "error_type": type(exc).__name__,
-                            },
-                        )
-                        if failure_callback is not None:
-                            failure_callback(submission_index, total, rsid, message)
-                        failures.append(
-                            BatchFailure(
-                                rsid=rsid,
-                                error_type=type(exc).__name__,
-                                message=message,
-                                exit_code=exit_code,
-                            )
-                        )
-                        # Cancel remaining pending futures and stop.
-                        for pf in pending:
-                            pf.cancel()
-                        failed = True
-                    else:
-                        total_bytes += _bytes_for(result)
-                        successes.append(result)
-                        logger.info(
-                            "parallel_rsid_complete rsid=%s batch_id=%s duration_ms=%s",
-                            rsid,
-                            batch_id,
-                            int(result.duration_seconds * 1000),
-                            extra={
-                                "rsid": rsid,
-                                "batch_id": batch_id,
-                                "duration_ms": int(result.duration_seconds * 1000),
-                            },
-                        )
-                        # Submit the next task from the iterator.
+                pending_set: set[Future[RunResult]] = set(pending)
+                while pending_set and not failed:
+                    done_set, pending_set = wait(pending_set, return_when=FIRST_COMPLETED)
+                    for done_future in done_set:
+                        submission_index, rsid = future_to_ctx[done_future]
                         try:
-                            idx, rsid = next(rsid_iter)
-                            pending.append(_make_future(executor, idx, rsid))
-                        except StopIteration:
-                            pass
+                            result = done_future.result()
+                        except CancelledError:
+                            failures.append(
+                                BatchFailure(
+                                    rsid=rsid,
+                                    error_type="CancelledError",
+                                    message="cancelled",
+                                    exit_code=ExitCode.GENERIC.value,
+                                )
+                            )
+                        except AaAutoSdrError as exc:
+                            message = str(exc)
+                            exit_code = _exit_code_for(exc)
+                            logger.error(
+                                "parallel_rsid_failure rsid=%s batch_id=%s error_type=%s",
+                                rsid,
+                                batch_id,
+                                type(exc).__name__,
+                                extra={
+                                    "rsid": rsid,
+                                    "batch_id": batch_id,
+                                    "exit_code": exit_code,
+                                    "error_type": type(exc).__name__,
+                                },
+                            )
+                            if failure_callback is not None:
+                                failure_callback(submission_index, total, rsid, message)
+                            failures.append(
+                                BatchFailure(
+                                    rsid=rsid,
+                                    error_type=type(exc).__name__,
+                                    message=message,
+                                    exit_code=exit_code,
+                                )
+                            )
+                            # Cancel remaining pending futures and stop.
+                            for pf in pending_set:
+                                pf.cancel()
+                            failed = True
+                            break  # stop processing the done_set batch on first failure
+                        else:
+                            total_bytes += _bytes_for(result)
+                            successes.append(result)
+                            logger.info(
+                                "parallel_rsid_complete rsid=%s batch_id=%s duration_ms=%s",
+                                rsid,
+                                batch_id,
+                                int(result.duration_seconds * 1000),
+                                extra={
+                                    "rsid": rsid,
+                                    "batch_id": batch_id,
+                                    "duration_ms": int(result.duration_seconds * 1000),
+                                },
+                            )
+                            # Submit the next task from the iterator.
+                            try:
+                                idx, rsid = next(rsid_iter)
+                                new_future = _make_future(executor, idx, rsid)
+                                pending_set.add(new_future)
+                            except StopIteration:
+                                pass
             except KeyboardInterrupt:
-                for pf in pending:
+                for pf in pending_set:
                     pf.cancel()
                 raise
 
