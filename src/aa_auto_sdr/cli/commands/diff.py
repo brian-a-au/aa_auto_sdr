@@ -97,7 +97,9 @@ def run(
 
         full_report = compare(env_a, env_b, ignore_fields=ignore_fields)
         # Compute warn-threshold against the FULL (unfiltered) report — per spec section 2.4.
-        total_changes = sum(len(c.added) + len(c.removed) + len(c.modified) for c in full_report.components)
+        total_changes = sum(
+            len(c.added) + len(c.removed) + len(c.modified) for c in full_report.components if not c.suppressed
+        )
 
         # Apply presentational filters before render. The filters are pure copies;
         # full_report stays intact for warn-threshold and step-summary computation.
