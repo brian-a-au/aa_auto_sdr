@@ -597,4 +597,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cache LRU max-size (default: 1000).",
     )
 
+    # v1.9.0 — field-level shaping + naming audits
+    quality_grp = p.add_argument_group("quality audits + name matching (v1.9.0+)")
+    quality_grp.add_argument(
+        "--audit-naming",
+        action="store_true",
+        help="Add naming-pattern audit to the SDR document (case styles, prefix groups, recommendations).",
+    )
+    quality_grp.add_argument(
+        "--flag-stale",
+        action="store_true",
+        help="Flag components with stale-name patterns (test/old/deprecated, _vN suffix, date suffix) in the SDR document.",
+    )
+    quality_grp.add_argument(
+        "--name-match",
+        choices=("exact", "insensitive", "fuzzy"),
+        default="insensitive",
+        help="Strategy for resolving <RSID_OR_NAME> tokens to canonical RSIDs (default: insensitive).",
+    )
+    quality_grp.add_argument(
+        "--extended-fields",
+        action="store_true",
+        help="In --diff mode, include extended fields (description, tags, category, etc.) in comparison. Off by default.",
+    )
+
     return p
