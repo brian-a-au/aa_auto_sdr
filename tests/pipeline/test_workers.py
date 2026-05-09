@@ -386,18 +386,14 @@ def test_fail_fast_cross_iteration_cancelled_futures_recorded(monkeypatch: pytes
     # At minimum, r1 (success), r2 (failure) are always recorded.
     # r3 and r4 may or may not have been submitted; any that were must appear
     # as CancelledError failures. The total must be consistent.
-    assert total_recorded >= 2, (
-        f"Expected at least 2 recorded (r1+r2), got {total_recorded}"
-    )
+    assert total_recorded >= 2, f"Expected at least 2 recorded (r1+r2), got {total_recorded}"
     # r2 must always be in failures
     failed_rsids = {f.rsid for f in result.failures}
     assert "r2" in failed_rsids
     # Any failure beyond r2 must be a CancelledError
     for f in result.failures:
         if f.rsid != "r2":
-            assert f.error_type == "CancelledError", (
-                f"Expected CancelledError for {f.rsid}, got {f.error_type}"
-            )
+            assert f.error_type == "CancelledError", f"Expected CancelledError for {f.rsid}, got {f.error_type}"
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +427,5 @@ def test_rsid_complete_log_records_carry_worker_id(
     assert complete_records, "No rsid_complete log records found"
     for record in complete_records:
         assert hasattr(record, "worker_id"), (
-            f"rsid_complete record for rsid={getattr(record, 'rsid', '?')} "
-            f"is missing worker_id"
+            f"rsid_complete record for rsid={getattr(record, 'rsid', '?')} is missing worker_id"
         )

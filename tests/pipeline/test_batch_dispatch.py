@@ -126,9 +126,7 @@ def test_callbacks_forwarded_to_run_parallel() -> None:
     progress = MagicMock()
     failure = MagicMock()
     with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
-        par.return_value = MagicMock(
-            successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0
-        )
+        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],
@@ -141,9 +139,5 @@ def test_callbacks_forwarded_to_run_parallel() -> None:
             failure_callback=failure,
         )
         kwargs = par.call_args.kwargs
-        assert kwargs["progress_callback"] is progress, (
-            "progress_callback was not forwarded to run_parallel"
-        )
-        assert kwargs["failure_callback"] is failure, (
-            "failure_callback was not forwarded to run_parallel"
-        )
+        assert kwargs["progress_callback"] is progress, "progress_callback was not forwarded to run_parallel"
+        assert kwargs["failure_callback"] is failure, "failure_callback was not forwarded to run_parallel"
