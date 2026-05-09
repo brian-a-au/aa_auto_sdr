@@ -35,24 +35,21 @@ def test_fetch_status_defaults_to_empty_dict() -> None:
     assert doc.fetch_status == {}
 
 
-def test_fetch_status_round_trips_through_to_dict() -> None:
+def test_to_dict_does_not_emit_fetch_status() -> None:
+    """fetch_status is observability metadata, not document content;
+    snapshot/schema.py reads it directly from doc.fetch_status when
+    building the envelope. Keeps user-facing JSON output unchanged.
+    See PR #27 review I-1."""
     doc = _make_doc(
         fetch_status={
             "virtual_report_suites": FetchOutcomeMeta(
                 status="partial",
                 expansion_level="minimal",
             ),
-            "classifications": FetchOutcomeMeta(
-                status="degraded",
-                expansion_level=None,
-            ),
         },
     )
     payload = doc.to_dict()
-    assert payload["fetch_status"] == {
-        "virtual_report_suites": {"status": "partial", "expansion_level": "minimal"},
-        "classifications": {"status": "degraded", "expansion_level": None},
-    }
+    assert "fetch_status" not in payload
 
 
 def test_fetch_status_uses_plural_envelope_keys() -> None:

@@ -57,5 +57,4 @@ class SdrDocument:
             "classifications": [asdict(c) for c in self.classifications],
             "captured_at": self.captured_at.isoformat(),
             "tool_version": self.tool_version,
-            "fetch_status": {k: asdict(v) for k, v in self.fetch_status.items()},
         }

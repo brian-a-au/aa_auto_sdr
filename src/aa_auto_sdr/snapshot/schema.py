@@ -61,10 +61,12 @@ def document_to_envelope(doc: SdrDocument) -> dict[str, Any]:
     payload = doc.to_dict()
     captured_at = payload.pop("captured_at")
     tool_version = payload.pop("tool_version")
-    fetch_status = payload.pop("fetch_status", {})
-    degraded = sorted(ctype for ctype, meta in fetch_status.items() if meta["status"] == "degraded")
+    # fetch_status lives on the dataclass directly (not in to_dict()) so the
+    # user-facing JSON stays clean. The envelope partitions it into top-level
+    # degraded/partial keys here.
+    degraded = sorted(ctype for ctype, meta in doc.fetch_status.items() if meta.status == "degraded")
     partial = {
-        ctype: meta["expansion_level"] for ctype, meta in sorted(fetch_status.items()) if meta["status"] == "partial"
+        ctype: meta.expansion_level for ctype, meta in sorted(doc.fetch_status.items()) if meta.status == "partial"
     }
     return {
         "schema": SCHEMA_VERSION,
