@@ -114,6 +114,28 @@ class SensitiveDataFilter(logging.Filter):
         return True
 
 
+class WorkerIdFilter(logging.Filter):
+    """Inject worker_id from threading.local onto every log record.
+
+    Filters run on the calling thread BEFORE handlers serialize records.
+    Reading thread-local state at filter-time captures the worker_id of
+    the thread that made the log call. Sequential mode (no worker pool
+    active) leaves _worker_local.worker_id as None; the filter omits the
+    field — preserves byte-equivalence with v1.7.2 logs.
+
+    See spec §3.2.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Lazy import to avoid circular: pipeline.workers imports core.logging indirectly.
+        from aa_auto_sdr.pipeline.workers import _worker_local
+
+        wid = getattr(_worker_local, "worker_id", None)
+        if wid is not None:
+            record.worker_id = wid
+        return True
+
+
 _RESERVED_LOGRECORD_FIELDS = frozenset(logging.makeLogRecord({}).__dict__.keys()) | {"message", "asctime"}
 
 
@@ -295,6 +317,7 @@ def setup_logging(
     console.setFormatter(formatter)
     console.setLevel(logging.WARNING if quiet else numeric_level)
     console.addFilter(SensitiveDataFilter())
+    console.addFilter(WorkerIdFilter())
     logging.root.addHandler(console)
 
     # File handler — best-effort.
@@ -303,6 +326,7 @@ def setup_logging(
         fh.setFormatter(formatter)
         fh.setLevel(numeric_level)
         fh.addFilter(SensitiveDataFilter())
+        fh.addFilter(WorkerIdFilter())
         logging.root.addHandler(fh)
 
     logging.root.setLevel(numeric_level)

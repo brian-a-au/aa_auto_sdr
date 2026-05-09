@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.8.0] — 2026-05-09
+
+Tier 2 milestone: parallel batch workers + validation-cache scaffolding.
+Workers ship as the headline feature; the cache class lands as
+infrastructure for v1.12.0's quality engine. Six v1.7.x cleanup items
+deferred during v1.7.2 review also land here.
+
+### Added
+- `--workers N` flag on `--batch` runs. Default 1 (sequential, byte-equivalent to v1.7.2). Range 1..16. Uses a `ThreadPoolExecutor` with a single shared `AaClient` across worker threads. Per-RSID log records carry `worker_id` (submission index, 0..N-1).
+- `--fail-fast` flag — opt-out of continue-on-error in parallel mode. First worker exception cancels pending futures. Sequential mode (`--workers 1`) ignores the flag.
+- `ValidationCache` class in `src/aa_auto_sdr/api/cache.py`. Thread-safe LRU with TTL eviction; `OrderedDict` + `threading.Lock`. Mirrors cja_auto_sdr's `ValidationCache` API. **Cache target deliberately empty in v1.8.0** — no production call sites; v1.12.0's quality engine will be the first caller.
+- `--enable-cache`, `--clear-cache`, `--cache-ttl SECONDS` (default 3600), `--cache-size ENTRIES` (default 1000) flags. With `--enable-cache`, a `ValidationCache` instance is constructed and passed through to the worker pool; without it, no cache exists.
+- `cache_event` log field — DEBUG-level, values `hit` / `miss` / `evict` / `expire`. Emitted by `ValidationCache` operations.
+- `worker_id` log field — INT, emitted on per-RSID records when running parallel. Sequential mode omits the field (preserves v1.7.2 log byte-equivalence).
+- `benchmarks/` directory with `v1.7.2_count_only.py` measuring the count_only-vs-full SDK-call-shape speedup. Initial v1.8.0 numbers in `benchmarks/results.md`.
+
+### Changed
+- `pipeline/batch.py::run_batch` now dispatches sequential vs parallel based on the new `workers` keyword argument. The existing sequential implementation moves to `_run_sequential` (no behavior change). Callers without the new arg get sequential behavior unchanged.
+- `cli/commands/inspect.py::run_list_classification_datasets`: `captured_status` typing tightened from `dict[str, tuple[str, str | None]]` to `dict[str, tuple[FetchStatus, str | None]]` (cleanup item C2).
+- `api/fetch.py::fetch_classification_datasets`: bare `_ = count_only` no-op marker replaced with a richer comment pointing at the SDK constraint and the spec's classifications-parity section (cleanup item C6).
+- `tests/core/test_logging_vocabulary.py`: `expansion_level` allowed-values extended to include `count_only` (the value already fired from v1.7.2 but wasn't in the allowlist meta-test) (cleanup item C3).
+
+### Roadmap deviations (documented)
+The v1.8.0 row in the roadmap listed eight flags; this release ships six. Three flags were deliberately removed during spec design and one new flag added:
+- **Removed `--continue-on-error`** — the existing sequential default already continues on error; flag would be redundant.
+- **Removed `--shared-cache`** — no implementation under threads (which natively share memory); reserved if a future release adopts a process-based worker model.
+- **Removed `--use-cache`** — redundant with `--enable-cache` under our per-run cache design (cross-invocation persistence is out of scope).
+- **Added `--fail-fast`** — real behavior change; opts out of the continue-on-error default in parallel mode.
+
+Test rejections in `tests/cli/test_batch_workers_flags.py` ensure attempts to pass the removed flags receive a clear argparse error.
+
+### Fixed
+- v1.7.2 cleanup items C1–C6 (test/doc parity, type tightening, benchmark verification). See spec §2.3 for the full list and PR commit log.
+
+### Other
+- Coverage gate ≥90% preserved (target: ~92–94% post-release; baseline 93.62% post-v1.7.2).
+- Sequential `aa_auto_sdr --batch` runs (without `--workers`) emit log records and snapshot envelopes byte-equivalent to v1.7.2.
+- Single shared `AaClient` across worker threads — `aanalytics2` is thread-safe for the read methods this tool uses.
+
 ## [1.7.2] — 2026-05-09
 
 Closes VRS hardening Items B + E from the audit spec. Three CLI commands

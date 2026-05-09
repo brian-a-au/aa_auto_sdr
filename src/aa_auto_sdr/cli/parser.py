@@ -47,6 +47,20 @@ def _positive_float(s: str) -> float:
     return v
 
 
+def _positive_int(s: str) -> int:
+    v = int(s)
+    if v < 1:
+        raise argparse.ArgumentTypeError(f"must be >= 1, got {v}")
+    return v
+
+
+def _workers_int(s: str) -> int:
+    v = _positive_int(s)
+    if v > 16:
+        raise argparse.ArgumentTypeError(f"--workers must be 1..16, got {v}")
+    return v
+
+
 def _configured_long_options(parser: argparse.ArgumentParser) -> frozenset[str]:
     """Extract all configured long-option strings from an ArgumentParser."""
     options: set[str] = set()
@@ -539,6 +553,48 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="SECONDS",
         help="Maximum delay between retries in seconds. Default 10.0.",
+    )
+
+    # v1.8.0 — batch parallelism
+    batch_grp = p.add_argument_group("batch parallelism (v1.8.0+)")
+    batch_grp.add_argument(
+        "--workers",
+        type=_workers_int,
+        default=1,
+        metavar="N",
+        help="Number of parallel worker threads for --batch (default: 1, max: 16).",
+    )
+    batch_grp.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="In parallel batch mode, cancel pending workers on first failure.",
+    )
+
+    # v1.8.0 — validation cache (dormant; populated in v1.12.0)
+    cache_grp = p.add_argument_group("validation cache (dormant in v1.8.0; populated in v1.12.0)")
+    cache_grp.add_argument(
+        "--enable-cache",
+        action="store_true",
+        help="Instantiate the validation cache (no-op until v1.12.0's quality engine).",
+    )
+    cache_grp.add_argument(
+        "--clear-cache",
+        action="store_true",
+        help="Clear cache state at run start.",
+    )
+    cache_grp.add_argument(
+        "--cache-ttl",
+        type=_positive_int,
+        default=3600,
+        metavar="SECONDS",
+        help="Cache entry TTL in seconds (default: 3600).",
+    )
+    cache_grp.add_argument(
+        "--cache-size",
+        type=_positive_int,
+        default=1000,
+        metavar="ENTRIES",
+        help="Cache LRU max-size (default: 1000).",
     )
 
     return p

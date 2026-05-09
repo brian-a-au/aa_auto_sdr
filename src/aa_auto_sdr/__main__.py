@@ -50,8 +50,19 @@ def _print_help() -> int:
         "  --retry-base-delay SECS   Base delay for exponential backoff (default: 0.5)\n"
         "  --retry-max-delay SECS    Maximum delay between retries (default: 10.0)\n"
         "\n"
+        "Batch parallelism (v1.8.0+):\n"
+        "  --workers N               Parallel worker threads for --batch (default: 1, max: 16)\n"
+        "  --fail-fast               Cancel pending workers on first batch failure\n"
+        "\n"
+        "Validation cache (dormant in v1.8.0; populated in v1.12.0):\n"
+        "  --enable-cache            Instantiate the validation cache (no-op until v1.12.0)\n"
+        "  --clear-cache             Clear cache state at run start\n"
+        "  --cache-ttl SECONDS       Cache entry TTL in seconds (default: 3600)\n"
+        "  --cache-size ENTRIES      Cache LRU max-size (default: 1000)\n"
+        "\n"
         "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
         "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
+        "v1.8.0: parallel --batch workers (--workers, --fail-fast); validation cache scaffold (--enable-cache, --clear-cache, --cache-ttl, --cache-size).\n"
     )
     return 0
 

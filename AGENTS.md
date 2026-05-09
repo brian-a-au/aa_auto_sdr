@@ -90,6 +90,39 @@ uv run aa_auto_sdr <RSID1> <RSID2> <RSID3> --format ci
 uv run aa_auto_sdr <RSID> --format json --run-summary-json -
 ```
 
+### Parallel batch (v1.8.0+)
+
+`aa_auto_sdr --batch <RSID...>` accepts `--workers N` (1..16, default 1)
+to run per-RSID SDR generation in parallel via a `ThreadPoolExecutor`.
+
+- `--workers 1` (default): byte-equivalent sequential behavior as in v1.7.2.
+- `--workers N>=2`: parallel run; `--fail-fast` opts out of the
+  continue-on-error default and cancels pending workers on first
+  exception.
+
+JSON log records on parallel runs include `worker_id` (the per-RSID
+submission index, 0..N-1). Sequential runs omit the field. Agents
+parsing logs should treat the field as optional.
+
+Three flags listed in the public roadmap were deliberately removed during
+v1.8.0 spec design (see CHANGELOG):
+- `--continue-on-error` (existing default; flag would be redundant)
+- `--shared-cache` (no implementation under threads)
+- `--use-cache` (redundant with `--enable-cache`)
+
+Attempting to pass any of these returns a standard argparse "unrecognized
+argument" error.
+
+### Validation cache (dormant)
+
+`--enable-cache`, `--clear-cache`, `--cache-ttl SECONDS`, `--cache-size
+ENTRIES` flags wire through to a `ValidationCache` instance. The cache
+target is empty in v1.8.0 — the class ships now to lock the API and
+flag surface ahead of v1.12.0's quality engine, which will be the first
+caller. DEBUG log records emit `cache_event=hit/miss/evict/expire` from
+the cache class itself; production code paths see neither hits nor misses
+in v1.8.0.
+
 ### Comparison / Diff
 
 ```bash

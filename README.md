@@ -265,6 +265,8 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Auto-batch — multiple positional identifiers | `aa_auto_sdr rs1 rs2 rs3` |
 | Auto-batch with mixed RSIDs and names | `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod` |
 | Batch via explicit flag | `aa_auto_sdr --batch RS1 RS2 RS3` |
+| Parallel batch (v1.8.0+) | `aa_auto_sdr --batch RS1 RS2 RS3 --workers 4` |
+| Parallel + fail-fast | `aa_auto_sdr --batch RS1 RS2 --workers 2 --fail-fast` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
 | Excel (default) | `aa_auto_sdr <RSID>` |

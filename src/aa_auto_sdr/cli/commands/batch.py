@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from aa_auto_sdr.api import fetch
+from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import colors, credentials, timings
@@ -104,6 +105,12 @@ def run(
     show_timings: bool = False,  # v1.2.1
     run_summary_json: str | None = None,  # v1.2.1
     retry_policy: RetryPolicy | None = None,  # v1.7.0 — shared retry budget
+    workers: int = 1,  # v1.8.0 — parallel workers for --batch
+    fail_fast: bool = False,  # v1.8.0 — cancel pending workers on first failure
+    enable_cache: bool = False,  # v1.8.0 — instantiate ValidationCache
+    clear_cache: bool = False,  # v1.8.0 — clear cache at run start
+    cache_ttl: int = 3600,  # v1.8.0 — cache TTL in seconds
+    cache_size: int = 1000,  # v1.8.0 — cache LRU max-size
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -130,6 +137,12 @@ def run(
             show_timings=show_timings,
             run_summary_json=run_summary_json,
             retry_policy=retry_policy,
+            workers=workers,
+            fail_fast=fail_fast,
+            enable_cache=enable_cache,
+            clear_cache=clear_cache,
+            cache_ttl=cache_ttl,
+            cache_size=cache_size,
         )
         return exit_code
     finally:
@@ -165,6 +178,12 @@ def _run_impl(
     show_timings: bool = False,
     run_summary_json: str | None = None,
     retry_policy: RetryPolicy | None = None,
+    workers: int = 1,
+    fail_fast: bool = False,
+    enable_cache: bool = False,
+    clear_cache: bool = False,
+    cache_ttl: int = 3600,
+    cache_size: int = 1000,
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -355,6 +374,15 @@ def _run_impl(
     def _on_failure(i: int, total: int, rsid: str, message: str) -> None:
         print(f"[{i}/{total}] {rsid}: FAILED — {message}", flush=True)
 
+    cache: ValidationCache | None = None
+    if enable_cache:
+        cache = ValidationCache(
+            max_size=cache_size,
+            ttl_seconds=cache_ttl,
+        )
+        if clear_cache:
+            cache.clear()
+
     if canonical:
         result = batch_runner.run_batch(
             client=client,
@@ -367,6 +395,9 @@ def _run_impl(
             failure_callback=_on_failure,
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
+            workers=workers,
+            fail_fast=fail_fast,
+            cache=cache,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

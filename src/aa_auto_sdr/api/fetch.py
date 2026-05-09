@@ -797,7 +797,13 @@ def fetch_classification_datasets(
     — the response is always minimal (id/name/rsid). Reserved for forward-compat
     if the endpoint ever gains an expansion knob.
     """
-    _ = count_only  # documented no-op; reserved for API symmetry
+    # count_only is accepted for API symmetry with fetch_virtual_report_suites
+    # but is currently a no-op for classifications: getClassificationDatasets
+    # has no extended_info knob in aanalytics2 0.5.1. If a future SDK release
+    # adds one, wire count_only=True → extended_info=False here and update
+    # docs/superpowers/specs/2026-05-08-aa-auto-sdr-vrs-hardening-design.md
+    # §3.1 "Classifications parity" with the implementation status.
+    _ = count_only
     started = time.monotonic()
     try:
         raws = _records(

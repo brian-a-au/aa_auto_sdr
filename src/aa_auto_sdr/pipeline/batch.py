@@ -1,4 +1,4 @@
-"""Sequential batch SDR generation. Continue-on-error.
+"""Batch SDR generation. Dispatches to sequential or parallel runner.
 
 The runner is deliberately small: it doesn't print, it doesn't resolve
 identifiers, it just iterates `rsids` and calls `pipeline.single.run_single`,
@@ -20,6 +20,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
+from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
@@ -32,6 +33,7 @@ from aa_auto_sdr.core.exceptions import (
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
+from aa_auto_sdr.pipeline.workers import run_parallel
 from aa_auto_sdr.sdr.builder import ComponentFilter
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,64 @@ def run_batch(
     progress_callback: Callable[[int, int, str], None] | None = None,
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     snapshot_dir: Path | None = None,
-    component_filter: ComponentFilter | None = None,  # v1.2
+    component_filter: ComponentFilter | None = None,
+    workers: int = 1,
+    fail_fast: bool = False,
+    cache: ValidationCache | None = None,
+) -> BatchResult:
+    """Sequential or parallel per-RSID SDR generation. Continue on error.
+
+    workers=1 (default): existing sequential path, byte-equivalent to pre-v1.8.0.
+    workers>=2: dispatches to pipeline.workers.run_parallel.
+
+    fail_fast applies only to the parallel path; ignored for workers=1.
+    cache is currently a placeholder for v1.12.0's quality engine; passed
+    through to workers but unused by the SDR pipeline today.
+    """
+    if workers < 1:
+        raise ValueError(f"workers must be >= 1, got {workers}")
+    if workers == 1:
+        return _run_sequential(
+            client=client,
+            rsids=rsids,
+            formats=formats,
+            output_dir=output_dir,
+            captured_at=captured_at,
+            tool_version=tool_version,
+            progress_callback=progress_callback,
+            failure_callback=failure_callback,
+            snapshot_dir=snapshot_dir,
+            component_filter=component_filter,
+        )
+    return run_parallel(
+        rsids=rsids,
+        workers=workers,
+        client=client,
+        cache=cache,
+        fail_fast=fail_fast,
+        formats=formats,
+        output_dir=output_dir,
+        captured_at=captured_at,
+        tool_version=tool_version,
+        snapshot_dir=snapshot_dir,
+        component_filter=component_filter,
+        progress_callback=progress_callback,
+        failure_callback=failure_callback,
+    )
+
+
+def _run_sequential(
+    *,
+    client: AaClient,
+    rsids: list[str],
+    formats: list[str],
+    output_dir: Path,
+    captured_at: datetime,
+    tool_version: str,
+    progress_callback: Callable[[int, int, str], None] | None = None,
+    failure_callback: Callable[[int, int, str, str], None] | None = None,
+    snapshot_dir: Path | None = None,
+    component_filter: ComponentFilter | None = None,
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
