@@ -174,6 +174,20 @@ def test_audit_naming_empty_bundle() -> None:
     assert audit["case_styles"] == {"snake_case": 0, "camelCase": 0, "PascalCase": 0, "other": 0}
 
 
+def test_audit_naming_classifies_allcaps_as_other() -> None:
+    """ALLCAPS names are 'other', not PascalCase. AA names like RSID, ORDERS, CMS."""
+    bundle = _bundle(
+        dimensions=[
+            _dim("evar1", "RSID"),
+            _dim("evar2", "ORDERS"),
+            _dim("evar3", "ALL_CAPS"),
+        ],
+    )
+    audit = audit_naming(bundle)
+    assert audit["case_styles"]["other"] == 3
+    assert audit["case_styles"]["PascalCase"] == 0
+
+
 # detect_stale -------------------------------------------------------------
 
 

@@ -28,6 +28,10 @@ _DATE_PATTERN_RE = re.compile(r"[_\-]?(20\d{2}[01]\d[0-3]\d|20\d{2}[_\-][01]\d[_
 
 # Component-type label used in stale detection output. Maps the bundle attr
 # name to a singular label for human-readable output.
+#
+# virtual_report_suites are deliberately excluded — VRS are rsid-scoped
+# identifiers, not user-authored component names; auditing them as
+# "components" produces misleading case-style and prefix counts.
 _COMPONENT_TYPE_LABEL = {
     "dimensions": "dimension",
     "metrics": "metric",
@@ -61,9 +65,13 @@ def _name_or_id(comp: Any) -> str:
 def _detect_case_style(name: str) -> str:
     if not name:
         return "other"
-    # snake_case: contains underscore, all lowercase, starts with a letter
-    if "_" in name and name == name.lower() and name[0].isalpha():
+    if not name[0].isalpha():
+        return "other"
+    if "_" in name and name == name.lower():
         return "snake_case"
+    if name == name.upper():
+        # ALLCAPS like 'RSID', 'ORDERS' — neither PascalCase nor snake_case
+        return "other"
     if name[0].islower() and any(c.isupper() for c in name):
         return "camelCase"
     if name[0].isupper() and any(c.isupper() for c in name[1:]):
@@ -108,16 +116,22 @@ def audit_naming(bundle: _ComponentBundle) -> dict[str, Any]:
         prefix = _detect_prefix(name)
         audit["prefix_groups"][prefix] = audit["prefix_groups"].get(prefix, 0) + 1
 
-    # Recommendations: flag mixed case styles whenever more than one style is present.
+    # Recommendation rule: any minority case style triggers the rec. Stricter
+    # ratio-based thresholding (e.g., "minority must exceed 20%") is deferred
+    # to v1.12.0's quality severity engine, where severity scoring formalizes
+    # what counts as actionable. v1.9.0 ships the read-only signal only.
     styles = audit["case_styles"]
     nonzero = {s: c for s, c in styles.items() if c > 0}
     if len(nonzero) >= 2:
         majority_style, majority_count = max(nonzero.items(), key=lambda kv: kv[1])
-        minority_parts = ", ".join(f"{s}: {c}" for s, c in nonzero.items() if s != majority_style)
-        audit["recommendations"].append(
-            f"Mixed case styles detected ({majority_style}: {majority_count}, "
-            f"{minority_parts}). Consider standardizing on a single style.",
-        )
+        for style, count in nonzero.items():
+            if style == majority_style:
+                continue
+            audit["recommendations"].append(
+                f"Mixed case styles detected ({majority_style}: {majority_count}, "
+                f"{style}: {count}). Consider standardizing on a single style.",
+            )
+            break  # one rec is enough
 
     return audit
 
