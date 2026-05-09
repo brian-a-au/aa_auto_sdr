@@ -1,5 +1,8 @@
 """fetch_virtual_report_suites returns FetchOutcome — ladder mapping per spec §4.2."""
 
+# v1.7.2 regression for count_only=False (default) running the full→minimal
+# ladder unchanged: see tests/api/test_fetch_count_only.py::test_vrs_count_only_default_false_runs_existing_ladder
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock

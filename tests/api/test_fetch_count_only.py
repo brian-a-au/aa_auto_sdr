@@ -17,38 +17,6 @@ def _vrs_row(vrs_id: str, parent: str = "rs1") -> dict:
     return {"id": vrs_id, "name": vrs_id.upper(), "parentRsid": parent}
 
 
-def _client_for_vrs(*, full_response=None, minimal_response=None) -> MagicMock:
-    """Build a mock client where getVirtualReportSuites dispatches on extended_info."""
-    handle = MagicMock()
-
-    def get_vrs(extended_info: bool = True) -> pd.DataFrame:
-        if extended_info:
-            if isinstance(full_response, Exception):
-                raise full_response
-            return pd.DataFrame(full_response or [])
-        if isinstance(minimal_response, Exception):
-            raise minimal_response
-        return pd.DataFrame(minimal_response or [])
-
-    handle.getVirtualReportSuites = get_vrs
-    client = MagicMock()
-    client.handle = handle
-    client.retry_policy = MagicMock(max_retries=0, base_delay=0.0, max_delay=0.0)
-    return client
-
-
-def _client_for_classifications(rows: list[dict] | Exception) -> MagicMock:
-    handle = MagicMock()
-    if isinstance(rows, Exception):
-        handle.getClassificationDatasets.side_effect = rows
-    else:
-        handle.getClassificationDatasets.return_value = pd.DataFrame(rows)
-    client = MagicMock()
-    client.handle = handle
-    client.retry_policy = MagicMock(max_retries=0, base_delay=0.0, max_delay=0.0)
-    return client
-
-
 def test_vrs_count_only_success_returns_healthy_with_stubs() -> None:
     """count_only=True succeeds → FetchOutcome.healthy with expansion_level=None.
 
