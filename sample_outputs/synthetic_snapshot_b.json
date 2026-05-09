@@ -188,7 +188,9 @@
       }
     ]
   },
+  "degraded_components": [],
+  "partial_components": {},
   "rsid": "demo.prod",
-  "schema": "aa-sdr-snapshot/v1",
+  "schema": "aa-sdr-snapshot/v2",
   "tool_version": "1.0.0"
 }

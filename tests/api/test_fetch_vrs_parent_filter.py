@@ -45,7 +45,8 @@ def test_drops_emit_structured_debug(mock_client, caplog) -> None:
     )
     with caplog.at_level(logging.DEBUG):
         result = fetch_virtual_report_suites(mock_client, "rs1")
-    assert len(result) == 1
+    assert result.status == "healthy"
+    assert len(result.data) == 1
     debug_records = [r for r in caplog.records if "vrs_parent_filter" in r.message]
     assert len(debug_records) == 1
     rec = debug_records[0]

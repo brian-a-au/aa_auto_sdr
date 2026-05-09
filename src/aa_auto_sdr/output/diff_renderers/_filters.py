@@ -29,7 +29,7 @@ def filter_for_render(
     for cd in report.components:
         if show_only and cd.component_type not in show_only:
             continue
-        if changes_only and not (cd.added or cd.removed or cd.modified):
+        if changes_only and not (cd.suppressed or cd.added or cd.removed or cd.modified):
             continue
         if max_issues is not None:
             capped = replace(

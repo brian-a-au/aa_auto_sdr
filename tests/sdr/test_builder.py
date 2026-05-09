@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.models import FetchOutcome
 from aa_auto_sdr.sdr.builder import build_sdr
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_rs.json"
@@ -100,11 +101,11 @@ class TestComponentFilter:
 
         def _stub_vrs(c, r):
             calls["virtual_report_suites"] += 1
-            return []
+            return FetchOutcome.healthy([])
 
         def _stub_cls(c, r):
             calls["classifications"] += 1
-            return []
+            return FetchOutcome.healthy([])
 
         monkeypatch.setattr(fetch, "fetch_dimensions", _stub_dim)
         monkeypatch.setattr(fetch, "fetch_metrics", _stub_met)

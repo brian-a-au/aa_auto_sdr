@@ -88,10 +88,11 @@ def test_existing_api_error_passes_through_unchanged(mock_client) -> None:
 
 
 def test_classifications_still_graceful_degrades_on_exhaustion(mock_client) -> None:
-    """v1.0+ best-effort: exhausted classifications return [], not raise."""
+    """v1.0+ best-effort: exhausted classifications return FetchOutcome.degraded() (data=[]), not raise."""
     mock_client.handle.getClassificationDatasets.side_effect = KeyError("content")
-    result = fetch_classification_datasets(mock_client, "rs1")
-    assert result == []
+    outcome = fetch_classification_datasets(mock_client, "rs1")
+    assert outcome.data == []
+    assert outcome.status == "degraded"
     # 1 initial + 3 retries = 4 attempts
     assert mock_client.handle.getClassificationDatasets.call_count == 4
 
@@ -100,4 +101,5 @@ def test_vrs_still_graceful_degrades_on_exhaustion(mock_client) -> None:
     """v1.6.1 best-effort + v1.7.0 ladder: BOTH rungs fail (full × 4 + minimal × 4) → []."""
     mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     result = fetch_virtual_report_suites(mock_client, "rs1")
-    assert result == []
+    assert result.status == "degraded"
+    assert result.data == []

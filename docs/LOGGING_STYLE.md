@@ -306,6 +306,16 @@ exit 12. A DEBUG record carrying `component_type="virtual_report_suite"`
 and `error_class` fires before the raise so log aggregation can
 correlate the failure without adding interactive console noise.
 
+**Snapshot envelope channel (v1.7.1+).** In addition to the WARNING records,
+`fetch_virtual_report_suites` and `fetch_classification_datasets` now return
+`FetchOutcome[T]`, which the builder collects into `SdrDocument.fetch_status`
+and the snapshot writer surfaces as `degraded_components: list[str]` /
+`partial_components: dict[str, str]` envelope keys. Log records remain the
+real-time signal; the snapshot envelope is the durable signal that survives
+into the diff comparator. No new canonical events; the existing
+`vrs_expansion_fallback` (v1.7.0) WARNING fires identically on the partial
+ladder rung.
+
 ## Output file write records
 
 Five writers in `output/writers/*` each emit one `output_write` INFO

@@ -484,7 +484,7 @@ def fetch_calculated_metrics(
 def fetch_virtual_report_suites(
     client: AaClient,
     parent_rsid: str,
-) -> list[models.VirtualReportSuite]:
+) -> models.FetchOutcome[models.VirtualReportSuite]:
     """Lists VRS visible to the org, filtered to those whose parent matches.
 
     The SDK call has no rsid filter — we filter client-side after pulling all
@@ -494,11 +494,11 @@ def fetch_virtual_report_suites(
       1. Full expansion — extended_info=True (heavy 16-field expansion).
       2. Minimal expansion — extended_info=False (id/name/parentRsid only).
 
-    Each rung gets the full retry budget. On all-rung exhaustion, returns []
-    (preserves v1.6.1 graceful-degrade after a customer hit
-    `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS endpoint
-    returned HTTP 500 — the SDK unconditionally indexes `vrsid['content']`
-    on the response envelope, which is absent on error)."""
+    Each rung gets the full retry budget. On all-rung exhaustion, returns
+    FetchOutcome.degraded() (data=[]) (preserves v1.6.1 graceful-degrade after a
+    customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS
+    endpoint returned HTTP 500 — the SDK unconditionally indexes
+    `vrsid['content']` on the response envelope, which is absent on error)."""
     started = time.monotonic()
     expansion_level = "full"
 
@@ -547,7 +547,7 @@ def fetch_virtual_report_suites(
                     "error_class": type(e).__name__,
                 },
             )
-        except Exception as e2:  # both rungs exhausted — graceful-degrade to []
+        except Exception as e2:  # both rungs exhausted — graceful-degrade to FetchOutcome.degraded()
             logger.warning(
                 "virtual report suites fetch failed rsid=%s expansion_level=exhausted error_class=%s",
                 parent_rsid,
@@ -559,7 +559,7 @@ def fetch_virtual_report_suites(
                     "error_class": type(e2).__name__,
                 },
             )
-            return []
+            return models.FetchOutcome.degraded()
     known = {
         "id",
         "name",
@@ -622,7 +622,9 @@ def fetch_virtual_report_suites(
             "expansion_level": expansion_level,
         },
     )
-    return out
+    if expansion_level == "minimal":
+        return models.FetchOutcome.partial(out, expansion_level="minimal")
+    return models.FetchOutcome.healthy(out)
 
 
 def fetch_virtual_report_suite_summaries(
@@ -719,7 +721,7 @@ def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
 def fetch_classification_datasets(
     client: AaClient,
     rsid: str,
-) -> list[models.ClassificationDataset]:
+) -> models.FetchOutcome[models.ClassificationDataset]:
     """Lists classification datasets compatible with metrics in the report suite.
 
     This is the only enumeration path Adobe Analytics API 2.0 exposes for
@@ -760,7 +762,7 @@ def fetch_classification_datasets(
                 "error_class": type(e).__name__,
             },
         )
-        return []
+        return models.FetchOutcome.degraded()
 
     known = {*_CLASSIFICATION_ID_KEYS, *_CLASSIFICATION_NAME_KEYS, "rsid"}
     out: list[models.ClassificationDataset] = []
@@ -790,4 +792,4 @@ def fetch_classification_datasets(
             "duration_ms": duration_ms,
         },
     )
-    return out
+    return models.FetchOutcome.healthy(out)

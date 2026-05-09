@@ -108,7 +108,11 @@ def save_snapshot(doc: SdrDocument, *, snapshot_dir: Path) -> Path:
 
 
 def load_snapshot(path: Path) -> dict[str, Any]:
-    """Load and validate a snapshot envelope. Raises SnapshotSchemaError on bad shape."""
+    """Load and validate a snapshot envelope. Raises SnapshotSchemaError on bad shape.
+
+    `validate_envelope` defaults v1 envelopes' new keys to empty in-memory
+    (forward-compat) so downstream consumers can read both keys uniformly.
+    """
     payload = read_json(path)
     validate_envelope(payload)
     # Component count for triage; cheap lookup from envelope shape (see

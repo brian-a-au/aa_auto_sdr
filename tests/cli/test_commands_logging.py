@@ -23,6 +23,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from aa_auto_sdr.api.models import FetchOutcome
 from aa_auto_sdr.core.credentials import Credentials
 
 
@@ -90,11 +91,11 @@ def auth_mocks(monkeypatch):
     )
     monkeypatch.setattr(
         "aa_auto_sdr.api.fetch.fetch_classification_datasets",
-        lambda client, rsid: [],
+        lambda client, rsid: FetchOutcome.healthy([]),
     )
     monkeypatch.setattr(
         "aa_auto_sdr.api.fetch.fetch_virtual_report_suites",
-        lambda client, rsid: [],
+        lambda client, rsid: FetchOutcome.healthy([]),
     )
 
     # fetch_report_suite returns a normalized model; safest is to patch it

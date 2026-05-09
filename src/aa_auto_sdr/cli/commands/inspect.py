@@ -269,9 +269,12 @@ def run_list_calculated_metrics(**kwargs: Any) -> int:
 
 
 def run_list_classification_datasets(**kwargs: Any) -> int:
+    def _fetcher(client: Any, rsid: str) -> Any:
+        return fetch.fetch_classification_datasets(client, rsid).data
+
     return _list_per_component(
         command="list_classification_datasets",
-        fetcher=fetch.fetch_classification_datasets,
+        fetcher=_fetcher,
         columns=_CLASSIFICATION_COLS,
         sort_allowlist=_CLASSIFICATION_SORT,
         **kwargs,
@@ -318,8 +321,8 @@ def run_describe_reportsuite(
                 mets = fetch.fetch_metrics(client, canonical_rsid)
                 segs = fetch.fetch_segments(client, canonical_rsid)
                 cms = fetch.fetch_calculated_metrics(client, canonical_rsid)
-                vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid)
-                cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid)
+                vrs = fetch.fetch_virtual_report_suites(client, canonical_rsid).data
+                cls_ds = fetch.fetch_classification_datasets(client, canonical_rsid).data
             except ApiError as e:
                 print(f"api error: {e}", flush=True)
                 exit_code = ExitCode.API.value

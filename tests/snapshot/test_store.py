@@ -59,7 +59,7 @@ def test_save_snapshot_writes_envelope_with_sorted_keys(tmp_path: Path) -> None:
     out = save_snapshot(_stub_doc(), snapshot_dir=tmp_path)
     assert out.exists()
     text = out.read_text()
-    # Envelope keys must appear in sorted order: captured_at, components, rsid, schema, tool_version
+    # Envelope keys must appear in sorted order: captured_at, components, degraded_components, partial_components, rsid, schema, tool_version
     assert text.find('"captured_at"') < text.find('"components"')
     assert text.find('"components"') < text.find('"rsid"')
     assert text.find('"rsid"') < text.find('"schema"')
@@ -82,7 +82,7 @@ def test_save_snapshot_creates_parent_dirs(tmp_path: Path) -> None:
 def test_load_snapshot_round_trips(tmp_path: Path) -> None:
     out = save_snapshot(_stub_doc(), snapshot_dir=tmp_path)
     env = load_snapshot(out)
-    assert env["schema"] == "aa-sdr-snapshot/v1"
+    assert env["schema"] == "aa-sdr-snapshot/v2"
     assert env["rsid"] == "demo.prod"
     assert env["captured_at"] == "2026-04-26T17:29:01+00:00"
 

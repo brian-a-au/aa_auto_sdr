@@ -9,6 +9,7 @@ See v0.7 design spec §5 + §5.1 for design rationale."""
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import math
 import time
@@ -60,15 +61,18 @@ def compare(
         ignore_fields=ignore_fields,
     )
 
-    components: list[ComponentDiff] = [
-        _diff_component_list(
+    components: list[ComponentDiff] = []
+    for ctype in _COMPONENT_TYPES:
+        cd = _diff_component_list(
             ctype,
             a_components.get(ctype, []),
             b_components.get(ctype, []),
             ignore_fields=ignore_fields,
         )
-        for ctype in _COMPONENT_TYPES
-    ]
+        suppressed, reason = _suppression_for(ctype, a, b)
+        if suppressed:
+            cd = dataclasses.replace(cd, suppressed=True, suppression_reason=reason)
+        components.append(cd)
 
     report = DiffReport(
         a_rsid=a["rsid"],
@@ -142,6 +146,27 @@ def _diff_component_list(
         modified=modified,
         unchanged_count=unchanged,
     )
+
+
+def _suppression_for(
+    component_type: str,
+    a: dict[str, Any],
+    b: dict[str, Any],
+) -> tuple[bool, str | None]:
+    """Apply spec §4.7 suppression rules. Returns (suppressed, reason)."""
+    left_degraded = component_type in a.get("degraded_components", [])
+    right_degraded = component_type in b.get("degraded_components", [])
+    if left_degraded or right_degraded:
+        return True, "fetch degraded"
+    left_level = a.get("partial_components", {}).get(component_type)
+    right_level = b.get("partial_components", {}).get(component_type)
+    if left_level is None and right_level is None:
+        return False, None
+    if left_level == right_level:
+        # both partial at the same level — comparable, fall through to normal diff
+        return False, None
+    level = left_level or right_level
+    return True, f"fetch partial (expansion_level={level})"
 
 
 def _diff_dict(

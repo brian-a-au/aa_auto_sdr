@@ -39,7 +39,8 @@ class TestVrsLadder:
     def test_full_succeeds_no_fallback(self, mock_client) -> None:
         mock_client.handle.getVirtualReportSuites.return_value = _vrs_records()
         result = fetch_virtual_report_suites(mock_client, "rs1")
-        assert len(result) == 2
+        assert result.status == "healthy"
+        assert len(result.data) == 2
         # Only one SDK invocation per the happy path
         assert mock_client.handle.getVirtualReportSuites.call_count == 1
 
@@ -54,7 +55,9 @@ class TestVrsLadder:
         ]
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(mock_client, "rs1")
-        assert len(result) == 2
+        assert result.status == "partial"
+        assert result.expansion_level == "minimal"
+        assert len(result.data) == 2
         assert mock_client.handle.getVirtualReportSuites.call_count == 3
         assert any("vrs_expansion_fallback" in r.message and "minimal" in r.message for r in caplog.records)
 
@@ -73,7 +76,9 @@ class TestVrsLadder:
         ]
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(mock_client, "rs1")
-        assert len(result) == 2
+        assert result.status == "partial"
+        assert result.expansion_level == "minimal"
+        assert len(result.data) == 2
         assert any("vrs_expansion_fallback" in r.message for r in caplog.records)
 
     def test_max_retries_zero_still_enters_ladder(self, monkeypatch, caplog) -> None:
@@ -87,7 +92,9 @@ class TestVrsLadder:
         handle.getVirtualReportSuites.side_effect = [KeyError("content"), _vrs_records()]
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(client, "rs1")
-        assert len(result) == 2
+        assert result.status == "partial"
+        assert result.expansion_level == "minimal"
+        assert len(result.data) == 2
         assert any("vrs_expansion_fallback" in r.message and "minimal" in r.message for r in caplog.records)
 
     def test_all_rungs_fail_returns_empty_preserving_v1_6_1(self, mock_client, caplog) -> None:
@@ -95,7 +102,8 @@ class TestVrsLadder:
         mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(mock_client, "rs1")
-        assert result == []
+        assert result.status == "degraded"
+        assert result.data == []
         assert any("virtual report suites fetch failed" in r.message for r in caplog.records)
 
     def test_expansion_level_field_on_component_fetch_info(self, mock_client, caplog) -> None:

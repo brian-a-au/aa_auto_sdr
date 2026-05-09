@@ -8,7 +8,7 @@ via the spike at docs/superpowers/spikes/2026-04-25-aanalytics2-shape-spike.md.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,3 +160,34 @@ class VirtualReportSuiteSummary:
     id: str
     name: str | None
     parent_rsid: str
+
+
+FetchStatus = Literal["healthy", "partial", "degraded"]
+"""Per-fetcher result classification. Only graceful-degrade fetchers
+(VRS, classifications) ever return non-`healthy`. Bubbling fetchers raise
+`ApiError` instead and have no `FetchStatus` representation."""
+
+
+@dataclass(frozen=True, slots=True)
+class FetchOutcome[T]:
+    """Boundary value carrying fetched rows + a status classification.
+
+    Used only by the two graceful-degrade fetchers so the builder can record
+    a snapshot-level fidelity signal. See spec §4.1 / §5.1.
+    """
+
+    data: list[T]
+    status: FetchStatus
+    expansion_level: str | None = None
+
+    @classmethod
+    def healthy(cls, data: list[T]) -> FetchOutcome[T]:
+        return cls(data=data, status="healthy", expansion_level=None)
+
+    @classmethod
+    def partial(cls, data: list[T], *, expansion_level: str) -> FetchOutcome[T]:
+        return cls(data=data, status="partial", expansion_level=expansion_level)
+
+    @classmethod
+    def degraded(cls) -> FetchOutcome[T]:
+        return cls(data=[], status="degraded", expansion_level=None)

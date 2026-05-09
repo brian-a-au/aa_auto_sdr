@@ -49,9 +49,12 @@ def render_markdown(
             buf.write("| Component | Added | Removed | Modified |\n")
             buf.write("|---|---|---|---|\n")
             for cd in report.components:
+                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+                if cd.suppressed:
+                    buf.write(f"| {label} | _suppressed_ | _suppressed_ | _suppressed_ |\n")
+                    continue
                 if not (cd.added or cd.removed or cd.modified):
                     continue
-                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
                 buf.write(
                     f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} |\n",
                 )
@@ -60,10 +63,21 @@ def render_markdown(
             buf.write("|---|---|---|---|---|\n")
             for cd in report.components:
                 label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
-                buf.write(
-                    f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
-                )
+                if cd.suppressed:
+                    buf.write(
+                        f"| {label} | _suppressed_ | _suppressed_ | _suppressed_ | _suppressed_ |\n",
+                    )
+                else:
+                    buf.write(
+                        f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
+                    )
         buf.write("\n")
+        for cd in report.components:
+            if cd.suppressed:
+                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+                buf.write(f"> ⚠ {label} — diff suppressed ({cd.suppression_reason})\n")
+        if any(cd.suppressed for cd in report.components):
+            buf.write("\n")
         return buf.getvalue()
 
     if report.report_suite_deltas:
@@ -78,7 +92,7 @@ def render_markdown(
         buf.write("\n")
 
     for cd in report.components:
-        if not (cd.added or cd.removed or cd.modified):
+        if not cd.suppressed and not (cd.added or cd.removed or cd.modified):
             continue
         _render_component_section(buf, cd, side_by_side=side_by_side, quiet=quiet)
 
@@ -93,6 +107,9 @@ def _render_component_section(
     quiet: bool = False,
 ) -> None:
     label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+    if cd.suppressed:
+        buf.write(f"> ⚠ {label} — diff suppressed ({cd.suppression_reason})\n\n")
+        return
     if quiet:
         counts = f"+{len(cd.added)} / -{len(cd.removed)} / ~{len(cd.modified)}"
     else:
