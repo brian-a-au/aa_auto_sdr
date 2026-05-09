@@ -222,12 +222,24 @@ the `component_fetch` INFO record carries `full` / `minimal` / `exhausted` so
 operators can spot when an org is hitting the fallback. A separate
 `vrs_expansion_fallback` WARNING fires for the minimal/exhausted paths.
 
-**Snapshot caveat.** A snapshot taken at `expansion_level=minimal` will, when
-diffed against a `full` snapshot, show false-modified rows for VRS records
-(because fields like `description`, `segment_list`, `curated_components` are
-None at minimal expansion). v1.8.0 will close this with a snapshot-schema
-extension (VRS hardening spec Item A); until then, treat such diffs as
-informational and check the log records for `expansion_level` field values.
+**Snapshot caveat — closed in v1.7.1.** Snapshots taken at
+`expansion_level=minimal` (and degraded-fetch snapshots) now carry
+`partial_components` / `degraded_components` markers in the envelope; the
+diff comparator suppresses sections with mismatched fetch quality rather
+than rendering false-modified VRS rows. Pre-v1.7.1 (`v1` schema) snapshots
+load forward-compat as if all components were healthy.
+
+**Envelope keys for agent introspection.** v2 snapshots carry two
+fetch-status keys directly accessible via `jq`:
+
+- `.degraded_components` — list of component-type names whose fetch
+  returned no data (e.g., `["classifications"]`).
+- `.partial_components` — dict mapping component-type name to expansion
+  level (e.g., `{"virtual_report_suites": "minimal"}`).
+
+Both keys are always present in v2 envelopes (empty `[]` / `{}` when
+nothing is degraded). v1 envelopes (taken under v1.7.0 or earlier) lack
+these keys; the loader fills them in-memory at load time.
 
 ---
 

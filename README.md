@@ -309,6 +309,21 @@ Defaults are conservative (3 retries, 0.5s base, 10s cap). Retries fire only
 on transient failures; permanent errors (auth, validation, unknown RSID)
 surface immediately.
 
+### Snapshot envelope (v2)
+
+Snapshot files emitted under v1.7.1+ carry two additional top-level keys:
+
+- `degraded_components: list[str]` — component types whose fetch returned no
+  data (e.g., when Adobe's VRS endpoint flapped). Empty by default.
+- `partial_components: dict[str, str]` — component types whose fetch fell
+  back to a reduced expansion level. Empty by default.
+
+When `--diff` compares two snapshots and either side has a degraded or
+partial-with-mismatched-level fetch for a component type, that section's
+diff is suppressed with a single annotation rather than rendering false
+"modified" rows. v1 snapshots (pre-v1.7.1) load with both keys defaulted to
+empty.
+
 ## Documentation
 
 | Guide | Description |

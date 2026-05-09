@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.7.1] — 2026-05-08
+
+### Added
+- `FetchOutcome[T]` boundary type at `api/models.py` carrying `(data, status, expansion_level)`. Status enum: `"healthy"` / `"partial"` / `"degraded"`. Used internally to plumb fetch quality from `api/fetch.py` through `sdr/builder.py` into the snapshot envelope.
+- Snapshot envelope schema bumped to `aa-sdr-snapshot/v2`. Adds `degraded_components: list[str]` and `partial_components: dict[str, str]` keys (always present, possibly empty `[]` / `{}`). Reader accepts both v1 and v2; writer emits v2.
+- Diff suppression: when a component-type section comes from a degraded fetch (either side) or a partial fetch with mismatched expansion levels, the comparator suppresses per-row diff and renderers emit a single annotation: `⚠ <Component> — diff suppressed (<reason>)`.
+- `ComponentDiff` gains `suppressed: bool` and `suppression_reason: str | None` fields. JSON diff renderer carries these automatically via `dataclasses.asdict`.
+
+### Changed
+- Internal: `fetch_virtual_report_suites` and `fetch_classification_datasets` now return `FetchOutcome[T]` instead of `list[T]`. No CLI surface change; no impact on downstream JSON output formats.
+
+### Fixed
+- Snapshot diffs no longer report partial-VRS fetches as "modified" or "removed" rows. v1.7.0's reduced-expansion ladder made partial VRS data routine in snapshots; v1.7.1 plumbs the fetch-status signal end-to-end so the comparator can suppress these false-positive diffs.
+- Latent classifications gap (since v1.0): a `fetch_classification_datasets` failure used to silently land in snapshots as an empty list, which a subsequent `--diff` reported as "every classification removed." Now emits `degraded_components: ["classifications"]` and the diff is suppressed.
+
 ## [1.7.0] — 2026-05-08
 
 Closes Tier 2 "Retry / backoff knobs" from the feature gap doc, plus
