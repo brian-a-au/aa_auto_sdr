@@ -9,11 +9,11 @@ from __future__ import annotations
 from aa_auto_sdr.cli.list_output import annotate_cells, build_footer
 
 
-def testbuild_footer_empty_records_returns_empty() -> None:
+def test_build_footer_empty_records_returns_empty() -> None:
     assert build_footer([]) == []
 
 
-def testbuild_footer_all_healthy_records_returns_empty() -> None:
+def test_build_footer_all_healthy_records_returns_empty() -> None:
     records = [
         {"rsid": "r1", "virtual_report_suites": 5, "classifications": 3},
         {"rsid": "r2", "virtual_report_suites": 0},
@@ -21,7 +21,7 @@ def testbuild_footer_all_healthy_records_returns_empty() -> None:
     assert build_footer(records) == []
 
 
-def testbuild_footer_degraded_vrs_one_record() -> None:
+def test_build_footer_degraded_vrs_one_record() -> None:
     records = [
         {
             "rsid": "demo.prod",
@@ -38,7 +38,7 @@ def testbuild_footer_degraded_vrs_one_record() -> None:
     ]
 
 
-def testbuild_footer_partial_carries_expansion_level() -> None:
+def test_build_footer_partial_carries_expansion_level() -> None:
     records = [
         {
             "rsid": "demo.prod",
@@ -52,7 +52,7 @@ def testbuild_footer_partial_carries_expansion_level() -> None:
     assert "fetch partial (expansion_level=minimal)" in out[0]
 
 
-def testbuild_footer_multiple_components_sorted() -> None:
+def test_build_footer_multiple_components_sorted() -> None:
     """Multiple components on one record sort alphabetically by component_type."""
     records = [
         {
@@ -70,7 +70,7 @@ def testbuild_footer_multiple_components_sorted() -> None:
     assert out[2] == "* (counts marked with * may be inaccurate; see logs/SDR_*.log)"
 
 
-def testbuild_footer_omits_rsid_when_record_lacks_one() -> None:
+def test_build_footer_omits_rsid_when_record_lacks_one() -> None:
     """Records without rsid (e.g., describe with single output) get a bare prefix."""
     records = [
         {
@@ -83,7 +83,7 @@ def testbuild_footer_omits_rsid_when_record_lacks_one() -> None:
     assert out[0] == "* classifications: fetch degraded"
 
 
-def testbuild_footer_multi_record_order_follows_input() -> None:
+def test_build_footer_multi_record_order_follows_input() -> None:
     """Footer lines for multiple records preserve input order (no rsid sort)."""
     records = [
         {
@@ -104,7 +104,7 @@ def testbuild_footer_multi_record_order_follows_input() -> None:
     assert out[1].startswith("* a.suite")
 
 
-def testannotate_cells_no_fetch_status_returns_unchanged() -> None:
+def test_annotate_cells_no_fetch_status_returns_unchanged() -> None:
     records = [{"rsid": "r1", "virtual_report_suites": 5}]
     out = annotate_cells(records)
     assert out == records
@@ -113,7 +113,7 @@ def testannotate_cells_no_fetch_status_returns_unchanged() -> None:
     assert out[0] is not records[0]
 
 
-def testannotate_cells_appends_asterisk() -> None:
+def test_annotate_cells_appends_asterisk() -> None:
     records = [
         {
             "rsid": "r1",
@@ -129,7 +129,7 @@ def testannotate_cells_appends_asterisk() -> None:
     assert out[0]["classifications"] == 5  # unchanged
 
 
-def testannotate_cells_does_not_mutate_originals() -> None:
+def test_annotate_cells_does_not_mutate_originals() -> None:
     records = [
         {
             "rsid": "r1",
