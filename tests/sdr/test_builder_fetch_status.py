@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -20,7 +20,11 @@ def fake_client():
 def _patch_fetchers(*, vrs_outcome, classifications_outcome):
     """Patch every fetcher build_sdr calls. Bubbling fetchers return [] (healthy)."""
     rs = models.ReportSuite(
-        rsid="rs1", name="rs1", timezone=None, currency=None, parent_rsid=None,
+        rsid="rs1",
+        name="rs1",
+        timezone=None,
+        currency=None,
+        parent_rsid=None,
     )
     return [
         patch("aa_auto_sdr.sdr.builder.fetch.fetch_report_suite", return_value=rs),
@@ -48,8 +52,9 @@ def test_all_healthy_yields_empty_fetch_status(fake_client) -> None:
         p.start()
     try:
         doc = build_sdr(
-            fake_client, "rs1",
-            captured_at=datetime(2026, 5, 8, tzinfo=timezone.utc),
+            fake_client,
+            "rs1",
+            captured_at=datetime(2026, 5, 8, tzinfo=UTC),
             tool_version="1.7.1",
         )
     finally:
@@ -67,8 +72,9 @@ def test_partial_vrs_populates_fetch_status(fake_client) -> None:
         p.start()
     try:
         doc = build_sdr(
-            fake_client, "rs1",
-            captured_at=datetime(2026, 5, 8, tzinfo=timezone.utc),
+            fake_client,
+            "rs1",
+            captured_at=datetime(2026, 5, 8, tzinfo=UTC),
             tool_version="1.7.1",
         )
     finally:
@@ -89,8 +95,9 @@ def test_degraded_classifications_populates_fetch_status(fake_client) -> None:
         p.start()
     try:
         doc = build_sdr(
-            fake_client, "rs1",
-            captured_at=datetime(2026, 5, 8, tzinfo=timezone.utc),
+            fake_client,
+            "rs1",
+            captured_at=datetime(2026, 5, 8, tzinfo=UTC),
             tool_version="1.7.1",
         )
     finally:
@@ -113,8 +120,9 @@ def test_filtered_out_components_skip_fetch_status(fake_client) -> None:
         p.start()
     try:
         doc = build_sdr(
-            fake_client, "rs1",
-            captured_at=datetime(2026, 5, 8, tzinfo=timezone.utc),
+            fake_client,
+            "rs1",
+            captured_at=datetime(2026, 5, 8, tzinfo=UTC),
             tool_version="1.7.1",
             component_filter=ComponentFilter(
                 virtual_report_suites=False,

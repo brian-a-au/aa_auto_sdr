@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
@@ -11,7 +11,11 @@ from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
 def _make_doc(**overrides) -> SdrDocument:
     base = {
         "report_suite": models.ReportSuite(
-            rsid="rs1", name="rs1", timezone=None, currency=None, parent_rsid=None,
+            rsid="rs1",
+            name="rs1",
+            timezone=None,
+            currency=None,
+            parent_rsid=None,
         ),
         "dimensions": [],
         "metrics": [],
@@ -19,7 +23,7 @@ def _make_doc(**overrides) -> SdrDocument:
         "calculated_metrics": [],
         "virtual_report_suites": [],
         "classifications": [],
-        "captured_at": datetime(2026, 5, 8, tzinfo=timezone.utc),
+        "captured_at": datetime(2026, 5, 8, tzinfo=UTC),
         "tool_version": "1.7.1",
     }
     base.update(overrides)
@@ -35,10 +39,12 @@ def test_fetch_status_round_trips_through_to_dict() -> None:
     doc = _make_doc(
         fetch_status={
             "virtual_report_suites": FetchOutcomeMeta(
-                status="partial", expansion_level="minimal",
+                status="partial",
+                expansion_level="minimal",
             ),
             "classifications": FetchOutcomeMeta(
-                status="degraded", expansion_level=None,
+                status="degraded",
+                expansion_level=None,
             ),
         },
     )
