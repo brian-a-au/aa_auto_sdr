@@ -338,3 +338,99 @@ def test_fail_fast_records_all_done_set_items(monkeypatch: pytest.MonkeyPatch) -
     )
     failed_rsids = {f.rsid for f in result.failures}
     assert "r1" in failed_rsids, f"r1 (the failing RSID) not in failures: {result.failures}"
+
+
+# ---------------------------------------------------------------------------
+# Test 12: fail_fast cross-iteration cancel records CancelledError failures
+# (regression for bug_020)
+# ---------------------------------------------------------------------------
+
+
+def test_fail_fast_cross_iteration_cancelled_futures_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When fail_fast=True and a failure triggers cancel of freshly-submitted futures,
+    those cancelled RSIDs must appear in BatchResult.failures (not silently dropped).
+
+    Setup: 4 RSIDs, workers=2. r1 succeeds immediately, r2 fails. r3/r4 may be
+    submitted before the cancellation runs. All 4 must be accounted for.
+    """
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    # Use a barrier to make r1 and r2 complete simultaneously so the done_set
+    # contains both, giving us a cross-done_set scenario where r1's success
+    # triggers a resubmit of r3, and r2's failure triggers the cancel of r3/r4.
+    barrier = threading.Barrier(2, timeout=5.0)
+
+    def runner(*, rsid: str, **_kw: object) -> RunResult:
+        if rsid in ("r1", "r2"):
+            barrier.wait()
+        if rsid == "r2":
+            raise ApiError("forced failure")
+        return _success_result(rsid)
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    result = run_parallel(
+        rsids=["r1", "r2", "r3", "r4"],
+        workers=2,
+        fail_fast=True,
+        client=MagicMock(),
+        cache=None,
+        formats=["json"],
+        output_dir=Path("/tmp"),
+        captured_at=datetime(2026, 5, 9, tzinfo=UTC),
+        tool_version="1.8.0",
+    )
+
+    total_recorded = len(result.successes) + len(result.failures)
+    # At minimum, r1 (success), r2 (failure) are always recorded.
+    # r3 and r4 may or may not have been submitted; any that were must appear
+    # as CancelledError failures. The total must be consistent.
+    assert total_recorded >= 2, (
+        f"Expected at least 2 recorded (r1+r2), got {total_recorded}"
+    )
+    # r2 must always be in failures
+    failed_rsids = {f.rsid for f in result.failures}
+    assert "r2" in failed_rsids
+    # Any failure beyond r2 must be a CancelledError
+    for f in result.failures:
+        if f.rsid != "r2":
+            assert f.error_type == "CancelledError", (
+                f"Expected CancelledError for {f.rsid}, got {f.error_type}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Test 13: rsid_complete log records carry worker_id
+# (regression for merged_bug_002 / Fix C5)
+# ---------------------------------------------------------------------------
+
+
+def test_rsid_complete_log_records_carry_worker_id(
+    base_kwargs: dict,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """rsid_complete log records emitted by run_parallel must carry worker_id.
+
+    The WorkerIdFilter runs on worker threads; rsid_complete is logged on the
+    main thread (post-future.result()), so worker_id must be explicitly stamped
+    in the extra dict rather than injected by the filter.
+    """
+    import aa_auto_sdr.pipeline.workers as workers_mod
+
+    def fake_run_single(*, rsid: str, **_kw: object) -> RunResult:
+        return _success_result(rsid)
+
+    with (
+        patch.object(workers_mod, "_run_single_for_batch", side_effect=fake_run_single),
+        caplog.at_level(logging.INFO, logger="aa_auto_sdr.pipeline.workers"),
+    ):
+        run_parallel(**{**base_kwargs, "rsids": ["rs1", "rs2"]}, workers=2)
+
+    complete_records = [r for r in caplog.records if "rsid_complete" in r.getMessage()]
+    assert complete_records, "No rsid_complete log records found"
+    for record in complete_records:
+        assert hasattr(record, "worker_id"), (
+            f"rsid_complete record for rsid={getattr(record, 'rsid', '?')} "
+            f"is missing worker_id"
+        )

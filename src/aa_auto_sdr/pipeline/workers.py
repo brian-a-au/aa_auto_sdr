@@ -13,6 +13,7 @@ fail_fast=True cancels pending futures on the first AaAutoSdrError.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import logging
 import os
 import threading
@@ -137,10 +138,15 @@ def _run_with_worker_id(
     component_filter: ComponentFilter | None,
     cache: object,
 ) -> RunResult:
-    """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit."""
+    """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
+
+    Also stamps the wall-clock duration onto the returned RunResult so that
+    per-RSID duration_seconds is correct on the parallel path (Fix A / bug_001).
+    """
     _worker_local.worker_id = worker_id
+    started = time.monotonic()
     try:
-        return _run_single_for_batch(
+        result = _run_single_for_batch(
             rsid=rsid,
             client=client,
             formats=formats,
@@ -151,6 +157,7 @@ def _run_with_worker_id(
             component_filter=component_filter,
             cache=cache,
         )
+        return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
         # Clear the worker_id so it doesn't bleed into any subsequent use of
         # the same thread (ThreadPoolExecutor reuses threads).
@@ -197,16 +204,16 @@ def run_parallel(
     started = time.monotonic()
 
     logger.info(
-        "parallel_batch_start batch_id=%s rsids=%s workers=%s",
+        "parallel_batch_start batch_id=%s count=%s workers=%s",
         batch_id,
         total,
         workers,
-        extra={"batch_id": batch_id, "rsids": total, "workers": workers},
+        extra={"batch_id": batch_id, "count": total, "workers": workers},
     )
 
-    # Map future → (submission_index, rsid) so we can reconstruct context
-    # when the future completes (as_completed gives no ordering guarantee).
-    future_to_ctx: dict[Future[RunResult], tuple[int, str]] = {}
+    # Map future → {"submission_index": int, "rsid": str} so we can reconstruct
+    # context when the future completes (as_completed gives no ordering guarantee).
+    future_to_ctx: dict[Future[RunResult], dict[str, object]] = {}
 
     def _make_future(executor: ThreadPoolExecutor, idx: int, rsid: str) -> Future[RunResult]:
         """Submit one RSID to the executor and register it in future_to_ctx."""
@@ -225,10 +232,10 @@ def run_parallel(
             component_filter=component_filter,
             cache=cache,
         )
-        future_to_ctx[future] = (idx + 1, rsid)
+        future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="aa-worker") as executor:
         if fail_fast:
             # Lazy submission: only submit `workers` tasks at a time.
             # When a failure occurs, we cancel any pending (not-yet-started)
@@ -253,7 +260,9 @@ def run_parallel(
                 while pending_set and not failed:
                     done_set, pending_set = wait(pending_set, return_when=FIRST_COMPLETED)
                     for done_future in done_set:
-                        submission_index, rsid = future_to_ctx[done_future]
+                        ctx = future_to_ctx[done_future]
+                        submission_index = ctx["submission_index"]
+                        rsid = ctx["rsid"]
                         try:
                             result = done_future.result()
                         except CancelledError:
@@ -269,7 +278,7 @@ def run_parallel(
                             message = str(exc)
                             exit_code = _exit_code_for(exc)
                             logger.error(
-                                "parallel_rsid_failure rsid=%s batch_id=%s error_type=%s",
+                                "rsid_failure rsid=%s batch_id=%s error_class=%s",
                                 rsid,
                                 batch_id,
                                 type(exc).__name__,
@@ -277,11 +286,12 @@ def run_parallel(
                                     "rsid": rsid,
                                     "batch_id": batch_id,
                                     "exit_code": exit_code,
-                                    "error_type": type(exc).__name__,
+                                    "error_class": type(exc).__name__,
+                                    "worker_id": submission_index,
                                 },
                             )
                             if failure_callback is not None:
-                                failure_callback(submission_index, total, rsid, message)
+                                failure_callback(submission_index + 1, total, rsid, message)
                             failures.append(
                                 BatchFailure(
                                     rsid=rsid,
@@ -297,7 +307,7 @@ def run_parallel(
                             total_bytes += _bytes_for(result)
                             successes.append(result)
                             logger.info(
-                                "parallel_rsid_complete rsid=%s batch_id=%s duration_ms=%s",
+                                "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
                                 rsid,
                                 batch_id,
                                 int(result.duration_seconds * 1000),
@@ -305,6 +315,8 @@ def run_parallel(
                                     "rsid": rsid,
                                     "batch_id": batch_id,
                                     "duration_ms": int(result.duration_seconds * 1000),
+                                    "count": len(result.outputs),
+                                    "worker_id": submission_index,
                                 },
                             )
                             # Submit the next task from the iterator only if no
@@ -318,9 +330,21 @@ def run_parallel(
                                     pass
                     if failed:
                         # Cancel all remaining pending futures now that the
-                        # entire done_set has been drained.
+                        # entire done_set has been drained. Record each cancelled
+                        # future as a CancelledError BatchFailure so that
+                        # progress accounting matches BatchResult (Fix B / bug_020).
                         for pf in pending_set:
                             pf.cancel()
+                            pf_ctx = future_to_ctx.get(pf)
+                            if pf_ctx is not None:
+                                failures.append(
+                                    BatchFailure(
+                                        rsid=pf_ctx["rsid"],
+                                        error_type="CancelledError",
+                                        message="cancelled",
+                                        exit_code=ExitCode.GENERIC.value,
+                                    )
+                                )
                         pending_set = set()
             except KeyboardInterrupt:
                 for pf in pending_set:
@@ -336,7 +360,9 @@ def run_parallel(
             # --- Collection phase ---
             try:
                 for future in as_completed(future_to_ctx):
-                    submission_index, rsid = future_to_ctx[future]
+                    ctx = future_to_ctx[future]
+                    submission_index = ctx["submission_index"]
+                    rsid = ctx["rsid"]
                     try:
                         result = future.result()
                     except CancelledError:
@@ -359,7 +385,7 @@ def run_parallel(
                         message = str(exc)
                         exit_code = _exit_code_for(exc)
                         logger.error(
-                            "parallel_rsid_failure rsid=%s batch_id=%s error_type=%s",
+                            "rsid_failure rsid=%s batch_id=%s error_class=%s",
                             rsid,
                             batch_id,
                             type(exc).__name__,
@@ -367,11 +393,12 @@ def run_parallel(
                                 "rsid": rsid,
                                 "batch_id": batch_id,
                                 "exit_code": exit_code,
-                                "error_type": type(exc).__name__,
+                                "error_class": type(exc).__name__,
+                                "worker_id": submission_index,
                             },
                         )
                         if failure_callback is not None:
-                            failure_callback(submission_index, total, rsid, message)
+                            failure_callback(submission_index + 1, total, rsid, message)
                         failures.append(
                             BatchFailure(
                                 rsid=rsid,
@@ -384,7 +411,7 @@ def run_parallel(
                         total_bytes += _bytes_for(result)
                         successes.append(result)
                         logger.info(
-                            "parallel_rsid_complete rsid=%s batch_id=%s duration_ms=%s",
+                            "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
                             rsid,
                             batch_id,
                             int(result.duration_seconds * 1000),
@@ -392,6 +419,8 @@ def run_parallel(
                                 "rsid": rsid,
                                 "batch_id": batch_id,
                                 "duration_ms": int(result.duration_seconds * 1000),
+                                "count": len(result.outputs),
+                                "worker_id": submission_index,
                             },
                         )
             except KeyboardInterrupt:
@@ -402,7 +431,7 @@ def run_parallel(
 
     duration_seconds = time.monotonic() - started
     logger.info(
-        "parallel_batch_summary batch_id=%s ok=%s failed=%s duration_ms=%s",
+        "batch_summary batch_id=%s ok=%s failed=%s duration_ms=%s",
         batch_id,
         len(successes),
         len(failures),

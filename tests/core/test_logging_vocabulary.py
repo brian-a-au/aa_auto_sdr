@@ -62,6 +62,7 @@ VOCAB = {
     "dropped_other_parent",
     # v1.8.0 additions
     "worker_id",
+    "workers",
     "cache_event",
 }
 
@@ -104,6 +105,7 @@ INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/output/writers/html.py"),
     Path("src/aa_auto_sdr/output/writers/markdown.py"),
     Path("src/aa_auto_sdr/pipeline/batch.py"),
+    Path("src/aa_auto_sdr/pipeline/workers.py"),
     Path("src/aa_auto_sdr/sdr/builder.py"),
     Path("src/aa_auto_sdr/snapshot/store.py"),
     Path("src/aa_auto_sdr/snapshot/comparator.py"),
