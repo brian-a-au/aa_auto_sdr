@@ -217,3 +217,93 @@ def test_describe_calls_fetchers_with_count_only_true() -> None:
             p.stop()
     assert vrs_call_kwargs == {"count_only": True}
     assert cls_call_kwargs == {"count_only": True}
+
+
+def test_csv_output_strips_fetch_status_and_asterisks(tmp_path) -> None:
+    """CSV format must omit fetch_status field and asterisks (per spec §4.2 test matrix)."""
+    patches = _stubs(
+        vrs_outcome=models.FetchOutcome.degraded(),
+        cls_outcome=models.FetchOutcome.healthy([]),
+    )
+    target = tmp_path / "out.csv"
+    for p in patches:
+        p.start()
+    try:
+        run_describe_reportsuite(
+            identifier="demo.prod",
+            profile=None,
+            format_name="csv",
+            output=str(target),
+        )
+    finally:
+        for p in patches:
+            p.stop()
+    csv_text = target.read_text(encoding="utf-8-sig")
+    assert "fetch_status" not in csv_text
+    assert "*" not in csv_text
+
+
+def test_json_mixed_health_healthy_record_gets_null_fetch_status() -> None:
+    """Mixed-RSID JSON: healthy records get fetch_status: null when any record is non-healthy.
+
+    Documents the accepted deviation from the plan: cols=_DESCRIBE_COLS_JSON when
+    has_non_healthy=True, so render_records' _project fills None for missing keys.
+    Healthy records show fetch_status: null in the JSON output rather than being
+    absent. Locks in current behavior; protects against silent drift.
+    """
+    # Two RSIDs: rs.degraded → degraded VRS; rs.healthy → all good.
+    # Keep the same identifier resolution to multi-RSID, with side_effects on
+    # fetch_report_suite + fetch_virtual_report_suites + fetch_classification_datasets.
+
+    rs_records = [
+        models.ReportSuite(rsid="rs.degraded", name="Degraded", timezone="UTC", currency="USD", parent_rsid=None),
+        models.ReportSuite(rsid="rs.healthy", name="Healthy", timezone="UTC", currency="USD", parent_rsid=None),
+    ]
+    rs_iter = iter(rs_records)
+    vrs_iter = iter([models.FetchOutcome.degraded(), models.FetchOutcome.healthy([])])
+    cls_iter = iter([models.FetchOutcome.healthy([]), models.FetchOutcome.healthy([])])
+
+    patches = [
+        patch("aa_auto_sdr.cli.commands.inspect._bootstrap", return_value=(MagicMock(), 0)),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.resolve_rsid",
+            return_value=(["rs.degraded", "rs.healthy"], True),
+        ),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.fetch_report_suite",
+            side_effect=lambda *_a, **_k: next(rs_iter),
+        ),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_dimensions", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_metrics", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_segments", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_calculated_metrics", return_value=[]),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.fetch_virtual_report_suites",
+            side_effect=lambda *_a, **_k: next(vrs_iter),
+        ),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.fetch_classification_datasets",
+            side_effect=lambda *_a, **_k: next(cls_iter),
+        ),
+    ]
+    for p in patches:
+        p.start()
+    try:
+        out = _run_describe(format_name="json")
+    finally:
+        for p in patches:
+            p.stop()
+    data = _json.loads(out)
+    assert isinstance(data, list)
+    assert len(data) == 2
+    # Find each record by rsid (order-independent)
+    by_rsid = {r["rsid"]: r for r in data}
+    assert "rs.degraded" in by_rsid
+    assert "rs.healthy" in by_rsid
+    # Degraded record: fetch_status populated
+    assert by_rsid["rs.degraded"]["fetch_status"] == {
+        "virtual_report_suites": {"status": "degraded", "expansion_level": None},
+    }
+    # Healthy record: fetch_status appears as None (the documented deviation)
+    assert "fetch_status" in by_rsid["rs.healthy"]
+    assert by_rsid["rs.healthy"]["fetch_status"] is None
