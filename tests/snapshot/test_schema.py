@@ -35,8 +35,8 @@ def _stub_doc() -> SdrDocument:
     )
 
 
-def test_schema_version_is_v1() -> None:
-    assert SCHEMA_VERSION == "aa-sdr-snapshot/v1"
+def test_schema_version_is_v2() -> None:
+    assert SCHEMA_VERSION == "aa-sdr-snapshot/v2"
 
 
 def test_document_to_envelope_shape() -> None:
@@ -51,6 +51,8 @@ def test_document_to_envelope_shape() -> None:
     # Header fields must NOT also appear nested under components
     assert "captured_at" not in env["components"]
     assert "tool_version" not in env["components"]
+    assert env["degraded_components"] == []
+    assert env["partial_components"] == {}
 
 
 def test_validate_envelope_accepts_well_formed() -> None:
