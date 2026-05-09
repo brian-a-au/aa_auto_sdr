@@ -79,6 +79,14 @@ def test_partial_left_only_suppresses_with_reason_carrying_level() -> None:
     assert section.suppression_reason == "fetch partial (expansion_level=minimal)"
 
 
+def test_partial_right_only_suppresses_with_reason_carrying_level() -> None:
+    a = _envelope(vrs_rows=[{"id": "v1", "name": "V1", "parent_rsid": "rs1"}])
+    b = _envelope(partial={"virtual_report_suites": "minimal"})
+    section = _vrs_section(compare(a, b))
+    assert section.suppressed is True
+    assert section.suppression_reason == "fetch partial (expansion_level=minimal)"
+
+
 def test_partial_matching_levels_falls_through_to_normal_diff() -> None:
     a = _envelope(
         partial={"virtual_report_suites": "minimal"},
@@ -100,8 +108,8 @@ def test_partial_mismatched_levels_suppresses() -> None:
     b = _envelope(partial={"virtual_report_suites": "minimal"})
     section = _vrs_section(compare(a, b))
     assert section.suppressed is True
-    # The reason carries the first non-None level encountered.
-    assert "expansion_level=" in section.suppression_reason
+    # `left_level or right_level` picks the left when both are non-None
+    assert section.suppression_reason == "fetch partial (expansion_level=reduced)"
 
 
 def test_classifications_section_suppression_independent_of_vrs() -> None:
