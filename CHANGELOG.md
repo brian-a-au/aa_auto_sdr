@@ -16,7 +16,7 @@ v1.7.0 reduced-expansion ladder when only counts are needed.
 - `--describe-reportsuite` and `--stats` JSON output: each record/row gains an optional `"fetch_status": {component_type: {status, expansion_level}}` field, populated only when at least one component is non-healthy. Plural component-type keys (`virtual_report_suites`, `classifications`).
 - `--list-classification-datasets`: when classifications fetch degrades or partial-fetches, a stderr banner appears above the (possibly empty) list — one banner per non-healthy RSID for multi-RSID name lookup. Exit code unchanged (preserves pipeline UX).
 - `cli/list_output.py::render_records` gains optional `footers: list[str] | None = None` parameter. Used by describe; ignored by JSON / CSV format paths.
-- Helpers in `cli/list_output.py`: `_build_footer(records)` and `_annotate_cells(records)` shared between describe + stats.
+- Helpers in `cli/list_output.py`: `build_footer(records)` and `annotate_cells(records)` shared between describe + stats.
 
 ### Changed
 - `--describe-reportsuite` and `--stats` now call VRS + classifications fetchers with `count_only=True` internally. For typical orgs with many VRS, this skips the 15-field expansion (a 3–5× speedup on the VRS portion of the call against the v1.7.1 baseline; exact numbers vary by org size).
