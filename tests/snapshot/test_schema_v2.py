@@ -38,13 +38,13 @@ def _doc(**overrides) -> SdrDocument:
     return SdrDocument(**base)
 
 
-def test_schema_version_constant_bumped_to_v2() -> None:
-    assert SCHEMA_VERSION == "aa-sdr-snapshot/v2"
+def test_schema_version_constant_bumped_to_v3() -> None:
+    assert SCHEMA_VERSION == "aa-sdr-snapshot/v3"
 
 
-def test_envelope_emits_v2_with_empty_status_keys_for_healthy() -> None:
+def test_envelope_emits_v3_with_empty_status_keys_for_healthy() -> None:
     env = document_to_envelope(_doc())
-    assert env["schema"] == "aa-sdr-snapshot/v2"
+    assert env["schema"] == "aa-sdr-snapshot/v3"
     assert env["degraded_components"] == []
     assert env["partial_components"] == {}
 

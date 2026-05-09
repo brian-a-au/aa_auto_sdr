@@ -35,8 +35,8 @@ def _stub_doc() -> SdrDocument:
     )
 
 
-def test_schema_version_is_v2() -> None:
-    assert SCHEMA_VERSION == "aa-sdr-snapshot/v2"
+def test_schema_version_is_v3() -> None:
+    assert SCHEMA_VERSION == "aa-sdr-snapshot/v3"
 
 
 def test_document_to_envelope_shape() -> None:

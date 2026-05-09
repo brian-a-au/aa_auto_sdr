@@ -82,7 +82,7 @@ def test_save_snapshot_creates_parent_dirs(tmp_path: Path) -> None:
 def test_load_snapshot_round_trips(tmp_path: Path) -> None:
     out = save_snapshot(_stub_doc(), snapshot_dir=tmp_path)
     env = load_snapshot(out)
-    assert env["schema"] == "aa-sdr-snapshot/v2"
+    assert env["schema"] == "aa-sdr-snapshot/v3"
     assert env["rsid"] == "demo.prod"
     assert env["captured_at"] == "2026-04-26T17:29:01+00:00"
 
