@@ -9,10 +9,12 @@ import json
 import logging
 import sys
 import time
+from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import RetryPolicy
+from aa_auto_sdr.cli.list_output import build_footer
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     ApiError,
@@ -98,7 +100,7 @@ def run(
                     "virtual_report_suites": len(vrs_outcome.data),
                     "classifications": len(cls_outcome.data),
                 }
-                fetch_status: dict[str, dict] = {}
+                fetch_status: dict[str, dict[str, Any]] = {}
                 if vrs_outcome.status != "healthy":
                     fetch_status["virtual_report_suites"] = {
                         "status": vrs_outcome.status,
@@ -139,8 +141,6 @@ def run(
 
 
 def _print_table(rows: list[dict]) -> None:
-    from aa_auto_sdr.cli.list_output import _build_footer
-
     header = f"{'RSID':<24}  {'NAME':<30}  {'DIM':>5}  {'MET':>5}  {'SEG':>5}  {'CALC':>5}  {'VRS':>5}  {'CLS':>5}"
     print(header)
     for r in rows:
@@ -158,7 +158,7 @@ def _print_table(rows: list[dict]) -> None:
             f"{cells['virtual_report_suites']:>5}  {cells['classifications']:>5}",
         )
     # Footer: derived from each row's fetch_status field via the shared helper.
-    footer = _build_footer(rows)
+    footer = build_footer(rows)
     if footer:
         print()  # blank line separates table from footer
         for line in footer:

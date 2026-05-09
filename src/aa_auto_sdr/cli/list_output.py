@@ -23,7 +23,7 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output._helpers import stringify_cell
 
 
-def _build_footer(records: list[dict[str, Any]]) -> list[str]:
+def build_footer(records: list[dict[str, Any]]) -> list[str]:
     """Build per-record-per-component footer lines + a generic disclaimer.
 
     Reads each record's `fetch_status` field (a dict mapping plural component
@@ -54,7 +54,7 @@ def _build_footer(records: list[dict[str, Any]]) -> list[str]:
     return lines
 
 
-def _annotate_cells(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def annotate_cells(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """For implicit-table rendering: rewrite annotated count cells to '<n> *'.
 
     Reads each record's `fetch_status` field; for each component_type listed,

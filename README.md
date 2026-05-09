@@ -329,7 +329,9 @@ empty.
 When Adobe's VRS or classifications endpoint flaps,
 `--describe-reportsuite` and `--stats` annotate the affected count cell
 with a trailing `*` and emit a footer line per non-healthy
-`(rsid, component_type)` pair:
+`(rsid, component_type)` pair. The example below shows `--stats` output
+(8 columns); `--describe-reportsuite` adds metadata columns (timezone,
+currency, parent_rsid) but uses the same `*` marker + footer convention:
 
 ```
 RSID                      NAME                              DIM    MET    SEG   CALC    VRS    CLS

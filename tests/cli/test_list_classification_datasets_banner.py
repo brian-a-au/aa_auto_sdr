@@ -88,6 +88,11 @@ def test_degraded_emits_banner_exit_zero() -> None:
 
 
 def test_partial_emits_banner_with_expansion_level() -> None:
+    """Forward-compat coverage: classifications never returns partial today (the
+    SDK's getClassificationDatasets has no extended_info knob), but the banner
+    code path is exercised here so the contract is locked if a future SDK
+    revision starts emitting partial outcomes.
+    """
     patches = _stubs(
         fetch_returns=[_outcome("partial", expansion_level="minimal")],
     )

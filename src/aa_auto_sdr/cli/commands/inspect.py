@@ -20,7 +20,7 @@ from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli._filters import apply_filters
-from aa_auto_sdr.cli.list_output import _annotate_cells, _build_footer, render_records
+from aa_auto_sdr.cli.list_output import annotate_cells, build_footer, render_records
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
@@ -406,8 +406,8 @@ def run_describe_reportsuite(
         else:
             cols = _DESCRIBE_COLS_TABULAR
             if format_name is None:  # implicit-table
-                records_for_render = _annotate_cells(records)
-                footers = _build_footer(records)
+                records_for_render = annotate_cells(records)
+                footers = build_footer(records)
             else:  # csv
                 records_for_render = records
                 footers = None
