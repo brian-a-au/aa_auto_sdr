@@ -170,3 +170,44 @@ def test_stats_calls_fetchers_with_count_only_true() -> None:
             p.stop()
     assert vrs_call_kwargs == {"count_only": True}
     assert cls_call_kwargs == {"count_only": True}
+
+
+def test_json_output_partial_carries_expansion_level() -> None:
+    """Partial VRS outcome surfaces expansion_level in fetch_status (parity w/ describe)."""
+    patches = _stubs(
+        vrs_outcome=models.FetchOutcome.partial([], expansion_level="minimal"),
+        cls_outcome=models.FetchOutcome.healthy([]),
+    )
+    for p in patches:
+        p.start()
+    try:
+        out = _run_stats(format_name="json")
+    finally:
+        for p in patches:
+            p.stop()
+    data = _json.loads(out)
+    assert data[0]["fetch_status"]["virtual_report_suites"] == {
+        "status": "partial",
+        "expansion_level": "minimal",
+    }
+
+
+def test_table_both_degraded_renders_two_asterisks_and_two_footer_lines() -> None:
+    """Both VRS and CLS degraded: both cells annotated, both footer lines present."""
+    patches = _stubs(
+        vrs_outcome=models.FetchOutcome.degraded(),
+        cls_outcome=models.FetchOutcome.degraded(),
+    )
+    for p in patches:
+        p.start()
+    try:
+        out = _run_stats(format_name="table")
+    finally:
+        for p in patches:
+            p.stop()
+    # Both count cells annotated
+    assert out.count("0 *") >= 2
+    # Both footer lines (alphabetical: classifications before virtual_report_suites)
+    assert "* demo.prod classifications: fetch degraded" in out
+    assert "* demo.prod virtual_report_suites: fetch degraded" in out
+    assert "* (counts marked with * may be inaccurate; see logs/SDR_*.log)" in out
