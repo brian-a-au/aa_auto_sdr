@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.7.2] — 2026-05-XX
+## [1.7.2] — 2026-05-09
 
 Closes VRS hardening Items B + E from the audit spec. Three CLI commands
 that PR #27 left as `.data` stop-gaps now fully consume the v1.7.1
