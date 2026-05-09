@@ -23,12 +23,69 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output._helpers import stringify_cell
 
 
+def _build_footer(records: list[dict[str, Any]]) -> list[str]:
+    """Build per-record-per-component footer lines + a generic disclaimer.
+
+    Reads each record's `fetch_status` field (a dict mapping plural component
+    type names like "virtual_report_suites" / "classifications" to a dict
+    `{status, expansion_level}`). Returns lines like
+    `* <rsid> virtual_report_suites: fetch degraded` plus a closing disclaimer
+    when at least one record has a non-healthy entry. Returns [] otherwise.
+
+    Component types within a record are sorted alphabetically; the rsid prefix
+    is omitted when the record has no `rsid` key. See spec §4.5.
+    """
+    lines: list[str] = []
+    for r in records:
+        fs = r.get("fetch_status") or {}
+        for ct, meta in sorted(fs.items()):
+            status = meta.get("status")
+            if status == "degraded":
+                reason = "fetch degraded"
+            elif status == "partial":
+                reason = f"fetch partial (expansion_level={meta.get('expansion_level')})"
+            else:
+                continue  # healthy (defensive — builder should have filtered)
+            rsid = r.get("rsid", "")
+            prefix = f"* {rsid} {ct}" if rsid else f"* {ct}"
+            lines.append(f"{prefix}: {reason}")
+    if lines:
+        lines.append("* (counts marked with * may be inaccurate; see logs/SDR_*.log)")
+    return lines
+
+
+def _annotate_cells(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """For implicit-table rendering: rewrite annotated count cells to '<n> *'.
+
+    Reads each record's `fetch_status` field; for each component_type listed,
+    appends ' *' to that component's cell value (assumed to be a count).
+    Returns a new list of dicts; original records are NOT mutated. Records
+    without `fetch_status` pass through unchanged.
+
+    The string-typed cell renders correctly under stats / list_output's
+    fixed-width formatting via Python's :>N right-align spec. See spec §4.5.
+    """
+    out: list[dict[str, Any]] = []
+    for r in records:
+        fs = r.get("fetch_status") or {}
+        if not fs:
+            out.append(dict(r))  # shallow copy to avoid surprise mutations
+            continue
+        annotated = dict(r)
+        for ct in fs:
+            if ct in annotated:
+                annotated[ct] = f"{annotated[ct]} *"
+        out.append(annotated)
+    return out
+
+
 def render_records(
     records: list[dict[str, Any]],
     *,
     format_name: str | None,
     output: Path | None,
     columns: list[str] | None,
+    footers: list[str] | None = None,
 ) -> int:
     cols = columns if columns is not None else _derive_columns(records)
 
@@ -45,6 +102,9 @@ def render_records(
             )
             return ExitCode.OUTPUT.value
         _print_table(records, cols)
+        if footers:
+            for line in footers:
+                print(line)
         if not records:
             print("# 0 records", file=sys.stderr, flush=True)
         return ExitCode.OK.value
