@@ -79,6 +79,27 @@ def test_build_footer_omits_rsid_when_record_lacks_one() -> None:
     assert out[0] == "* classifications: fetch degraded"
 
 
+def test_build_footer_multi_record_order_follows_input() -> None:
+    """Footer lines for multiple records preserve input order (no rsid sort)."""
+    records = [
+        {
+            "rsid": "z.suite",
+            "fetch_status": {
+                "virtual_report_suites": {"status": "degraded", "expansion_level": None},
+            },
+        },
+        {
+            "rsid": "a.suite",
+            "fetch_status": {
+                "virtual_report_suites": {"status": "degraded", "expansion_level": None},
+            },
+        },
+    ]
+    out = _build_footer(records)
+    assert out[0].startswith("* z.suite")
+    assert out[1].startswith("* a.suite")
+
+
 def test_annotate_cells_no_fetch_status_returns_unchanged() -> None:
     records = [{"rsid": "r1", "virtual_report_suites": 5}]
     out = _annotate_cells(records)
