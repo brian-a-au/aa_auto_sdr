@@ -324,6 +324,28 @@ diff is suppressed with a single annotation rather than rendering false
 "modified" rows. v1 snapshots (pre-v1.7.1) load with both keys defaulted to
 empty.
 
+### Fetch-quality signal (v1.7.2+)
+
+When Adobe's VRS or classifications endpoint flaps,
+`--describe-reportsuite` and `--stats` annotate the affected count cell
+with a trailing `*` and emit a footer line per non-healthy
+`(rsid, component_type)` pair:
+
+```
+RSID         NAME       DIM    MET    VRS     CLS
+demo.prod    Demo Prod  331    122    0 *     5
+
+* demo.prod virtual_report_suites: fetch degraded
+* (counts marked with * may be inaccurate; see logs/SDR_*.log)
+```
+
+For JSON output (`--format json`), the equivalent signal is a per-record
+`fetch_status` field. CSV format omits both signals — use JSON when
+machine-parseable fetch quality is needed.
+
+`--list-classification-datasets` emits a stderr banner above the list
+when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
+
 ## Documentation
 
 | Guide | Description |

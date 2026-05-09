@@ -210,6 +210,36 @@ fetchers (dimensions / metrics / segments / calculated metrics /
 classifications / report-suite / VRS-summary discovery) use the
 single-rung formula above.
 
+### `fetch_status` field on inspect/stats JSON output (v1.7.2+)
+
+`--describe-reportsuite` and `--stats` JSON output gains an optional
+per-record `fetch_status` field that mirrors the snapshot envelope's
+`degraded_components` / `partial_components` semantics. Shape:
+
+```json
+{
+  "rsid": "demo.prod",
+  "virtual_report_suites": 0,
+  "classifications": 5,
+  "fetch_status": {
+    "virtual_report_suites": {
+      "status": "degraded",
+      "expansion_level": null
+    }
+  }
+}
+```
+
+- Field absent when all components are healthy (additive — back-compat).
+- Plural component-type keys: `"virtual_report_suites"`, `"classifications"`.
+- `status` enum: `"degraded"` (no data) | `"partial"` (data at reduced
+  expansion).
+- `expansion_level` is `null` for `degraded`, a string for `partial`.
+
+For text-format consumers, the equivalent signal is a `*` marker on the
+count cell + a footer line; `--list-classification-datasets` emits a
+stderr banner.
+
 ---
 
 ## VRS Reduced Expansion

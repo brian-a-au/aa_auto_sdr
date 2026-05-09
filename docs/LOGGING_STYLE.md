@@ -316,6 +316,21 @@ into the diff comparator. No new canonical events; the existing
 `vrs_expansion_fallback` (v1.7.0) WARNING fires identically on the partial
 ladder rung.
 
+**Request-time minimal scope (v1.7.2+).** The two graceful-degrade fetchers
+(`fetch_virtual_report_suites`, `fetch_classification_datasets`) accept a
+`count_only: bool = False` kwarg. When `True`, VRS bypasses the
+reduced-expansion ladder and makes a single `extended_info=False` call —
+the `vrs_expansion_fallback` WARNING does NOT fire on this path (the
+fallback record is specific to ladder-driven recovery, which count_only
+deliberately skips). The `component_fetch` INFO record fires identically
+with `expansion_level="minimal"` describing the payload shape. On failure,
+a "virtual report suites fetch failed ... expansion_level=count_only"
+WARNING fires (distinct from the ladder's "expansion_level=exhausted") so
+log analytics can distinguish the two failure paths.
+
+Classifications' `count_only=True` is a no-op (the SDK has no expansion
+knob) — same call, same logs.
+
 ## Output file write records
 
 Five writers in `output/writers/*` each emit one `output_write` INFO

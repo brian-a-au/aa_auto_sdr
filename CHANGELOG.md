@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.7.2] — 2026-05-XX
+
+Closes VRS hardening Items B + E from the audit spec. Three CLI commands
+that PR #27 left as `.data` stop-gaps now fully consume the v1.7.1
+`FetchOutcome` channel and surface fetch quality to the user. The same
+call sites opt into a `count_only=True` fetcher mode that bypasses the
+v1.7.0 reduced-expansion ladder when only counts are needed.
+
+### Added
+- `count_only: bool = False` kwarg-only parameter on `fetch_virtual_report_suites` and `fetch_classification_datasets`. For VRS, `count_only=True` calls `extended_info=False` directly, returns `FetchOutcome.healthy(stub_rows)` on success or `FetchOutcome.degraded()` on failure (no fallback to extended_info=True; no ladder). For classifications, the parameter is a documented no-op (the SDK has no expansion knob); accepted for API symmetry.
+- `--describe-reportsuite` and `--stats` text/table output: count cells with non-healthy components are rendered with a trailing `*`; a footer lists each non-healthy `(rsid, component_type)` pair plus a generic disclaimer (`* (counts marked with * may be inaccurate; see logs/SDR_*.log)`).
+- `--describe-reportsuite` and `--stats` JSON output: each record/row gains an optional `"fetch_status": {component_type: {status, expansion_level}}` field, populated only when at least one component is non-healthy. Plural component-type keys (`virtual_report_suites`, `classifications`).
+- `--list-classification-datasets`: when classifications fetch degrades or partial-fetches, a stderr banner appears above the (possibly empty) list — one banner per non-healthy RSID for multi-RSID name lookup. Exit code unchanged (preserves pipeline UX).
+- `cli/list_output.py::render_records` gains optional `footers: list[str] | None = None` parameter. Used by describe; ignored by JSON / CSV format paths.
+- Helpers in `cli/list_output.py`: `_build_footer(records)` and `_annotate_cells(records)` shared between describe + stats.
+
+### Changed
+- `--describe-reportsuite` and `--stats` now call VRS + classifications fetchers with `count_only=True` internally. For typical orgs with many VRS, this skips the 15-field expansion (a 3–5× speedup on the VRS portion of the call against the v1.7.1 baseline; exact numbers vary by org size).
+- `cli/commands/inspect.py::_DESCRIBE_COLS` split into `_DESCRIBE_COLS_TABULAR` (11 cols, used for table + CSV) and `_DESCRIBE_COLS_JSON` (12 cols including `fetch_status`, used for JSON only).
+
+### Fixed
+- VRS hardening Item B (latent UX gap from v1.7.1): `--describe-reportsuite` / `--stats` / `--list-classification-datasets` no longer silently render `0` (or an empty list) when Adobe's VRS or classifications endpoint flaps. The console signal makes degraded fetches visible to interactive users who wouldn't otherwise read the rotating log file.
+- VRS hardening Item E (latent perf regression since v1.0): describe + stats no longer pull the 15-field VRS expansion just to compute `len()`. Single SDK round-trip per RSID per component-type.
+
 ## [1.7.1] — 2026-05-09
 
 Closes VRS hardening Item A from the audit spec — the false-modified-diff
