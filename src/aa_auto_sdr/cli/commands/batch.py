@@ -111,6 +111,8 @@ def run(
     clear_cache: bool = False,  # v1.8.0 — clear cache at run start
     cache_ttl: int = 3600,  # v1.8.0 — cache TTL in seconds
     cache_size: int = 1000,  # v1.8.0 — cache LRU max-size
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -143,6 +145,8 @@ def run(
             clear_cache=clear_cache,
             cache_ttl=cache_ttl,
             cache_size=cache_size,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
         return exit_code
     finally:
@@ -184,6 +188,8 @@ def _run_impl(
     clear_cache: bool = False,
     cache_ttl: int = 3600,
     cache_size: int = 1000,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -398,6 +404,8 @@ def _run_impl(
             workers=workers,
             fail_fast=fail_fast,
             cache=cache,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

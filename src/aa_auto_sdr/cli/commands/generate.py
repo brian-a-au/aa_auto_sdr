@@ -113,6 +113,8 @@ def run(
     show_timings: bool = False,  # v1.2.1
     run_summary_json: str | None = None,  # v1.2.1
     retry_policy: RetryPolicy | None = None,  # v1.7.0 — shared retry budget
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -139,6 +141,8 @@ def run(
             show_timings=show_timings,
             run_summary_json=run_summary_json,
             retry_policy=retry_policy,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
         return exit_code
     finally:
@@ -174,6 +178,8 @@ def _run_impl(
     show_timings: bool = False,
     run_summary_json: str | None = None,
     retry_policy: RetryPolicy | None = None,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> int:
     started_at = datetime.now(UTC)
 
@@ -357,6 +363,8 @@ def _run_impl(
                         captured_at=captured_at,
                         tool_version=__version__,
                         component_filter=component_filter,
+                        audit_naming=audit_naming,
+                        flag_stale=flag_stale,
                     )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -473,6 +481,8 @@ def _run_impl(
                 tool_version=__version__,
                 snapshot_dir=snapshot_dir,
                 component_filter=component_filter,
+                audit_naming=audit_naming,
+                flag_stale=flag_stale,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

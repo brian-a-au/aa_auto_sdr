@@ -83,6 +83,8 @@ def run_batch(
     workers: int = 1,
     fail_fast: bool = False,
     cache: ValidationCache | None = None,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> BatchResult:
     """Sequential or parallel per-RSID SDR generation. Continue on error.
 
@@ -107,6 +109,8 @@ def run_batch(
             failure_callback=failure_callback,
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
     return run_parallel(
         rsids=rsids,
@@ -122,6 +126,8 @@ def run_batch(
         component_filter=component_filter,
         progress_callback=progress_callback,
         failure_callback=failure_callback,
+        audit_naming=audit_naming,
+        flag_stale=flag_stale,
     )
 
 
@@ -137,6 +143,8 @@ def _run_sequential(
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -177,6 +185,8 @@ def _run_sequential(
                 tool_version=tool_version,
                 snapshot_dir=snapshot_dir,
                 component_filter=component_filter,
+                audit_naming=audit_naming,
+                flag_stale=flag_stale,
             )
         except AaAutoSdrError as exc:
             message = str(exc)
