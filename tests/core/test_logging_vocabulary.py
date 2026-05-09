@@ -224,9 +224,9 @@ def test_expansion_level_allowed_values_include_count_only() -> None:
     assert "count_only" in EXPANSION_LEVEL_ALLOWED_VALUES
     # Sanity: the set is exactly the four values; alarm if a fifth slips in
     # without spec/doc update.
-    assert EXPANSION_LEVEL_ALLOWED_VALUES == {"full", "minimal", "exhausted", "count_only"}
+    assert {"full", "minimal", "exhausted", "count_only"} == EXPANSION_LEVEL_ALLOWED_VALUES
 
 
 def test_cache_event_allowed_values() -> None:
     """v1.8.0 cache_event vocabulary uses exactly four enum values."""
-    assert CACHE_EVENT_ALLOWED_VALUES == {"hit", "miss", "evict", "expire"}
+    assert {"hit", "miss", "evict", "expire"} == CACHE_EVENT_ALLOWED_VALUES
