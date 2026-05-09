@@ -211,3 +211,56 @@ def test_table_both_degraded_renders_two_asterisks_and_two_footer_lines() -> Non
     assert "* demo.prod classifications: fetch degraded" in out
     assert "* demo.prod virtual_report_suites: fetch degraded" in out
     assert "* (counts marked with * may be inaccurate; see logs/SDR_*.log)" in out
+
+
+def test_table_multi_rsid_mixed_health_renders_per_rsid_footer() -> None:
+    """Multi-RSID stats table: footer emits one line per non-healthy RSID, none for healthy."""
+    rs_records = [
+        models.ReportSuite(rsid="rs.degraded", name="Degraded", timezone="UTC", currency="USD", parent_rsid=None),
+        models.ReportSuite(rsid="rs.healthy", name="Healthy", timezone="UTC", currency="USD", parent_rsid=None),
+    ]
+    rs_iter = iter(rs_records)
+    vrs_iter = iter([models.FetchOutcome.degraded(), models.FetchOutcome.healthy([])])
+    cls_iter = iter([models.FetchOutcome.healthy([]), models.FetchOutcome.healthy([])])
+
+    base_patches = [
+        patch("aa_auto_sdr.cli.commands.stats.credentials.resolve", return_value=MagicMock()),
+        patch("aa_auto_sdr.cli.commands.stats.AaClient.from_credentials", return_value=MagicMock()),
+        patch(
+            "aa_auto_sdr.cli.commands.stats.fetch.resolve_rsid",
+            side_effect=[
+                (["rs.degraded"], False),
+                (["rs.healthy"], False),
+            ],
+        ),
+        patch(
+            "aa_auto_sdr.cli.commands.stats.fetch.fetch_report_suite",
+            side_effect=lambda *_a, **_k: next(rs_iter),
+        ),
+        patch("aa_auto_sdr.cli.commands.stats.fetch.fetch_dimensions", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.stats.fetch.fetch_metrics", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.stats.fetch.fetch_segments", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.stats.fetch.fetch_calculated_metrics", return_value=[]),
+        patch(
+            "aa_auto_sdr.cli.commands.stats.fetch.fetch_virtual_report_suites",
+            side_effect=lambda *_a, **_k: next(vrs_iter),
+        ),
+        patch(
+            "aa_auto_sdr.cli.commands.stats.fetch.fetch_classification_datasets",
+            side_effect=lambda *_a, **_k: next(cls_iter),
+        ),
+    ]
+    buf = StringIO()
+    with patch("sys.stdout", buf):
+        for p in base_patches:
+            p.start()
+        try:
+            run_stats(rsids=["rs.degraded", "rs.healthy"], profile=None, format_name="table")
+        finally:
+            for p in base_patches:
+                p.stop()
+    out = buf.getvalue()
+    # Footer line for degraded RSID only
+    assert "* rs.degraded virtual_report_suites: fetch degraded" in out
+    assert "rs.healthy virtual_report_suites" not in out
+    assert "* (counts marked with *" in out

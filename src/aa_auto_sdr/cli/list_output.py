@@ -144,7 +144,17 @@ def _derive_columns(records: list[dict[str, Any]]) -> list[str]:
 
 
 def _project(record: dict[str, Any], cols: list[str]) -> dict[str, Any]:
-    return {c: record.get(c) for c in cols}
+    """Project record to columns, omitting keys absent from the record.
+
+    Returns a dict with `cols` ordering for present keys only. Records that
+    explicitly contain a key with value None still emit `c: None`; records
+    that are silent on a key (key not in dict) skip it entirely.
+
+    This honors the spec contract: optional fields like `fetch_status` (only
+    populated for non-healthy records) appear in JSON output only when
+    populated; absent in healthy-record dicts.
+    """
+    return {c: record[c] for c in cols if c in record}
 
 
 def _format_csv(records: list[dict[str, Any]], cols: list[str]) -> str:

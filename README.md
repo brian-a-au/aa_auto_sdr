@@ -332,8 +332,8 @@ with a trailing `*` and emit a footer line per non-healthy
 `(rsid, component_type)` pair:
 
 ```
-RSID         NAME       DIM    MET    VRS     CLS
-demo.prod    Demo Prod  331    122    0 *     5
+RSID                      NAME                              DIM    MET    SEG   CALC    VRS    CLS
+demo.prod                 Demo Production                   331    122     45     12    0 *      5
 
 * demo.prod virtual_report_suites: fetch degraded
 * (counts marked with * may be inaccurate; see logs/SDR_*.log)

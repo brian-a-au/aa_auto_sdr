@@ -243,13 +243,13 @@ def test_csv_output_strips_fetch_status_and_asterisks(tmp_path) -> None:
     assert "*" not in csv_text
 
 
-def test_json_mixed_health_healthy_record_gets_null_fetch_status() -> None:
-    """Mixed-RSID JSON: healthy records get fetch_status: null when any record is non-healthy.
+def test_json_mixed_health_healthy_record_omits_fetch_status() -> None:
+    """Mixed-RSID JSON: healthy records omit fetch_status entirely even when other records are non-healthy.
 
-    Documents the accepted deviation from the plan: cols=_DESCRIBE_COLS_JSON when
-    has_non_healthy=True, so render_records' _project fills None for missing keys.
-    Healthy records show fetch_status: null in the JSON output rather than being
-    absent. Locks in current behavior; protects against silent drift.
+    Spec §6.1 / AGENTS.md: fetch_status is additive — emitted only when non-empty.
+    _project skips keys absent from the source dict, so healthy records (which have
+    no fetch_status key) produce JSON output without a fetch_status field, rather
+    than emitting fetch_status: null.
     """
     # Two RSIDs: rs.degraded → degraded VRS; rs.healthy → all good.
     # Keep the same identifier resolution to multi-RSID, with side_effects on
@@ -304,6 +304,52 @@ def test_json_mixed_health_healthy_record_gets_null_fetch_status() -> None:
     assert by_rsid["rs.degraded"]["fetch_status"] == {
         "virtual_report_suites": {"status": "degraded", "expansion_level": None},
     }
-    # Healthy record: fetch_status appears as None (the documented deviation)
-    assert "fetch_status" in by_rsid["rs.healthy"]
-    assert by_rsid["rs.healthy"]["fetch_status"] is None
+    # Healthy record: fetch_status must be absent (additive — emitted only when non-empty)
+    assert "fetch_status" not in by_rsid["rs.healthy"]
+
+
+def test_implicit_table_multi_rsid_mixed_health_renders_per_rsid_footer() -> None:
+    """Multi-RSID describe table: footer emits one line per non-healthy RSID, none for healthy."""
+    rs_records = [
+        models.ReportSuite(rsid="rs.degraded", name="Degraded", timezone="UTC", currency="USD", parent_rsid=None),
+        models.ReportSuite(rsid="rs.healthy", name="Healthy", timezone="UTC", currency="USD", parent_rsid=None),
+    ]
+    rs_iter = iter(rs_records)
+    vrs_iter = iter([models.FetchOutcome.degraded(), models.FetchOutcome.healthy([])])
+    cls_iter = iter([models.FetchOutcome.healthy([]), models.FetchOutcome.healthy([])])
+
+    patches = [
+        patch("aa_auto_sdr.cli.commands.inspect._bootstrap", return_value=(MagicMock(), 0)),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.resolve_rsid",
+            return_value=(["rs.degraded", "rs.healthy"], True),
+        ),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.fetch_report_suite",
+            side_effect=lambda *_a, **_k: next(rs_iter),
+        ),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_dimensions", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_metrics", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_segments", return_value=[]),
+        patch("aa_auto_sdr.cli.commands.inspect.fetch.fetch_calculated_metrics", return_value=[]),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.fetch_virtual_report_suites",
+            side_effect=lambda *_a, **_k: next(vrs_iter),
+        ),
+        patch(
+            "aa_auto_sdr.cli.commands.inspect.fetch.fetch_classification_datasets",
+            side_effect=lambda *_a, **_k: next(cls_iter),
+        ),
+    ]
+    for p in patches:
+        p.start()
+    try:
+        out = _run_describe(format_name=None)  # implicit table
+    finally:
+        for p in patches:
+            p.stop()
+    # Footer line for the degraded RSID, none for healthy
+    assert "* rs.degraded virtual_report_suites: fetch degraded" in out
+    assert "rs.healthy virtual_report_suites" not in out
+    # Asterisk on degraded row's VRS cell, no asterisk anywhere on healthy row
+    assert "* (counts marked with *" in out
