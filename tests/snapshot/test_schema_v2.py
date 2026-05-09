@@ -172,3 +172,60 @@ def test_validate_envelope_does_not_overwrite_v2_keys() -> None:
     validate_envelope(env)
     assert env["degraded_components"] == ["classifications"]
     assert env["partial_components"] == {"virtual_report_suites": "minimal"}
+
+
+def test_validate_envelope_rejects_v1_with_malformed_degraded_components() -> None:
+    """A v1 envelope with malformed degraded_components key (rare, but possible
+    for hand-crafted/mutated envelopes) should be rejected uniformly with v2."""
+    env = {
+        "schema": "aa-sdr-snapshot/v1",
+        "rsid": "rs1",
+        "captured_at": "2026-04-26T17:29:01+00:00",
+        "tool_version": "1.0.0",
+        "degraded_components": "not-a-list",  # wrong type
+        "components": {
+            "report_suite": {
+                "rsid": "rs1",
+                "name": "rs1",
+                "timezone": None,
+                "currency": None,
+                "parent_rsid": None,
+            },
+            "dimensions": [],
+            "metrics": [],
+            "segments": [],
+            "calculated_metrics": [],
+            "virtual_report_suites": [],
+            "classifications": [],
+        },
+    }
+    with pytest.raises(SnapshotSchemaError, match="degraded_components must be a list"):
+        validate_envelope(env)
+
+
+def test_validate_envelope_rejects_v1_with_malformed_partial_components() -> None:
+    """Symmetric to the degraded_components malformation test."""
+    env = {
+        "schema": "aa-sdr-snapshot/v1",
+        "rsid": "rs1",
+        "captured_at": "2026-04-26T17:29:01+00:00",
+        "tool_version": "1.0.0",
+        "partial_components": ["not-a-dict"],  # wrong type
+        "components": {
+            "report_suite": {
+                "rsid": "rs1",
+                "name": "rs1",
+                "timezone": None,
+                "currency": None,
+                "parent_rsid": None,
+            },
+            "dimensions": [],
+            "metrics": [],
+            "segments": [],
+            "calculated_metrics": [],
+            "virtual_report_suites": [],
+            "classifications": [],
+        },
+    }
+    with pytest.raises(SnapshotSchemaError, match="partial_components must be a dict"):
+        validate_envelope(env)

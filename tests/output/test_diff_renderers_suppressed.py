@@ -99,5 +99,7 @@ def test_renderers_skip_per_row_detail_when_suppressed() -> None:
     )
     md = render_markdown(report)
     console = render_console(report)
+    pr = render_pr_comment(report)
     assert "should-not-appear" not in md
     assert "should-not-appear" not in console
+    assert "should-not-appear" not in pr

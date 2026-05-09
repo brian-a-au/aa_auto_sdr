@@ -110,8 +110,9 @@ def validate_envelope(env: dict[str, Any]) -> None:
         raise SnapshotSchemaError(
             f"snapshot captured_at must be a timezone-aware ISO-8601 timestamp, got {captured_at!r}",
         )
-    if is_v2:
-        if not isinstance(env["degraded_components"], list):
-            raise SnapshotSchemaError("degraded_components must be a list")
-        if not isinstance(env["partial_components"], dict):
-            raise SnapshotSchemaError("partial_components must be a dict")
+    # Type-check fetch-status keys uniformly (covers v1-defaulted, v1-with-keys,
+    # and v2). After the setdefault, both keys are guaranteed present.
+    if not isinstance(env["degraded_components"], list):
+        raise SnapshotSchemaError("degraded_components must be a list")
+    if not isinstance(env["partial_components"], dict):
+        raise SnapshotSchemaError("partial_components must be a dict")
