@@ -120,6 +120,8 @@ def run_batch(
         tool_version=tool_version,
         snapshot_dir=snapshot_dir,
         component_filter=component_filter,
+        progress_callback=progress_callback,
+        failure_callback=failure_callback,
     )
 
 

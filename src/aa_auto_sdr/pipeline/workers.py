@@ -290,11 +290,9 @@ def run_parallel(
                                     exit_code=exit_code,
                                 )
                             )
-                            # Cancel remaining pending futures and stop.
-                            for pf in pending_set:
-                                pf.cancel()
+                            # Mark failed but continue draining the rest of done_set
+                            # so co-completed futures are not silently dropped.
                             failed = True
-                            break  # stop processing the done_set batch on first failure
                         else:
                             total_bytes += _bytes_for(result)
                             successes.append(result)
@@ -309,13 +307,21 @@ def run_parallel(
                                     "duration_ms": int(result.duration_seconds * 1000),
                                 },
                             )
-                            # Submit the next task from the iterator.
-                            try:
-                                idx, rsid = next(rsid_iter)
-                                new_future = _make_future(executor, idx, rsid)
-                                pending_set.add(new_future)
-                            except StopIteration:
-                                pass
+                            # Submit the next task from the iterator only if no
+                            # failure has been detected yet in this done_set batch.
+                            if not failed:
+                                try:
+                                    idx, rsid = next(rsid_iter)
+                                    new_future = _make_future(executor, idx, rsid)
+                                    pending_set.add(new_future)
+                                except StopIteration:
+                                    pass
+                    if failed:
+                        # Cancel all remaining pending futures now that the
+                        # entire done_set has been drained.
+                        for pf in pending_set:
+                            pf.cancel()
+                        pending_set = set()
             except KeyboardInterrupt:
                 for pf in pending_set:
                     pf.cancel()

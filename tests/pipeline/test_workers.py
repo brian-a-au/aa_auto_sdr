@@ -284,3 +284,57 @@ def test_worker_id_filter_omits_field_in_main_thread() -> None:
     filter_instance.filter(record)
     # worker_id should NOT be present on the record (preserves v1.7.2 log equivalence)
     assert not hasattr(record, "worker_id")
+
+
+# ---------------------------------------------------------------------------
+# Test 11: fail_fast records all co-completed futures (regression for drop bug)
+# ---------------------------------------------------------------------------
+
+
+def test_fail_fast_records_all_done_set_items(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When wait() returns multiple done futures and one is a failure,
+    the others must still be recorded — not silently dropped.
+
+    Uses a threading.Barrier(2) between the two workers so they complete at
+    nearly the same instant, making it highly likely that wait(FIRST_COMPLETED)
+    returns both futures in a single done_set — reproducing the race that
+    exposed the original break-on-first-failure bug.
+    """
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    # Barrier between the 2 workers only — no third party needed.
+    # Both workers synchronize with each other before returning/raising,
+    # ensuring they finish at the same instant.
+    worker_barrier = threading.Barrier(2, timeout=5.0)
+
+    def runner(*, rsid: str, **kwargs: object) -> RunResult:
+        worker_barrier.wait()  # both workers rendezvous here
+        if rsid == "r1":
+            raise ApiError("simulated")
+        return _success_result(rsid)
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    result = run_parallel(
+        rsids=["r1", "r2"],
+        workers=2,
+        client=MagicMock(),
+        cache=None,
+        fail_fast=True,
+        formats=["json"],
+        output_dir=Path("/tmp"),
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="1.8.0",
+    )
+
+    # Both r1 (failed) and r2 (succeeded) must be accounted for — neither
+    # should be silently dropped from BatchResult.
+    total_recorded = len(result.successes) + len(result.failures)
+    assert total_recorded == 2, (
+        f"expected 2 recorded, got {total_recorded} "
+        f"(successes={[r.rsid for r in result.successes]}, "
+        f"failures={[f.rsid for f in result.failures]})"
+    )
+    failed_rsids = {f.rsid for f in result.failures}
+    assert "r1" in failed_rsids, f"r1 (the failing RSID) not in failures: {result.failures}"

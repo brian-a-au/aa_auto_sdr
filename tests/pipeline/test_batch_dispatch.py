@@ -117,3 +117,33 @@ def test_invalid_workers_raises() -> None:
             tool_version="1.8.0",
             workers=0,
         )
+
+
+def test_callbacks_forwarded_to_run_parallel() -> None:
+    """progress_callback and failure_callback must be forwarded to run_parallel
+    so parallel-mode runs emit the same per-RSID progress / failure stdout lines
+    as sequential mode."""
+    progress = MagicMock()
+    failure = MagicMock()
+    with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
+        par.return_value = MagicMock(
+            successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0
+        )
+        run_batch(
+            client=MagicMock(),
+            rsids=["r1", "r2"],
+            formats=["json"],
+            output_dir=Path("/tmp"),
+            captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+            tool_version="1.8.0",
+            workers=2,
+            progress_callback=progress,
+            failure_callback=failure,
+        )
+        kwargs = par.call_args.kwargs
+        assert kwargs["progress_callback"] is progress, (
+            "progress_callback was not forwarded to run_parallel"
+        )
+        assert kwargs["failure_callback"] is failure, (
+            "failure_callback was not forwarded to run_parallel"
+        )
