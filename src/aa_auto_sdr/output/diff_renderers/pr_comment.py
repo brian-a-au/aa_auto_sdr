@@ -68,9 +68,9 @@ def _header(report: DiffReport, *, labels: tuple[str, str] | None = None) -> str
 
 
 def _top_counts_line(report: DiffReport) -> str:
-    a = sum(len(c.added) for c in report.components)
-    r = sum(len(c.removed) for c in report.components)
-    m = sum(len(c.modified) for c in report.components)
+    a = sum(len(c.added) for c in report.components if not c.suppressed)
+    r = sum(len(c.removed) for c in report.components if not c.suppressed)
+    m = sum(len(c.modified) for c in report.components if not c.suppressed)
     return f"- **Added:** {a} | **Removed:** {r} | **Modified:** {m}\n"
 
 
@@ -78,10 +78,12 @@ def _breakdown_table(report: DiffReport) -> str:
     rows = ["<details>", "<summary>📊 Component breakdown</summary>", ""]
     rows.append("| Type | Added | Removed | Modified | Unchanged |")
     rows.append("|------|-------|---------|----------|-----------|")
-    rows.extend(
-        f"| {c.component_type} | {len(c.added)} | {len(c.removed)} | {len(c.modified)} | {c.unchanged_count} |"
-        for c in report.components
-    )
+    for c in report.components:
+        label = _TYPE_LABELS.get(c.component_type, c.component_type)
+        if c.suppressed:
+            rows.append(f"| {label} | _suppressed_ | _suppressed_ | _suppressed_ | _suppressed_ |")
+        else:
+            rows.append(f"| {label} | {len(c.added)} | {len(c.removed)} | {len(c.modified)} | {c.unchanged_count} |")
     rows.append("</details>")
     return "\n".join(rows) + "\n"
 

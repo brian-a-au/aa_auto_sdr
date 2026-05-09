@@ -70,6 +70,14 @@ def render_console(
         # Summary mode: per-component-type counts only.
         for cd in report.components:
             label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+            if cd.suppressed:
+                buf.write(
+                    colors.warn(
+                        f"⚠ {label}: diff suppressed ({cd.suppression_reason})",
+                    )
+                    + "\n",
+                )
+                continue
             if quiet and not (cd.added or cd.removed or cd.modified):
                 continue
             buf.write(

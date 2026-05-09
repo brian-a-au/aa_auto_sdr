@@ -49,9 +49,12 @@ def render_markdown(
             buf.write("| Component | Added | Removed | Modified |\n")
             buf.write("|---|---|---|---|\n")
             for cd in report.components:
+                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
+                if cd.suppressed:
+                    buf.write(f"| {label} | _suppressed_ | _suppressed_ | _suppressed_ |\n")
+                    continue
                 if not (cd.added or cd.removed or cd.modified):
                     continue
-                label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
                 buf.write(
                     f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} |\n",
                 )
@@ -60,9 +63,14 @@ def render_markdown(
             buf.write("|---|---|---|---|---|\n")
             for cd in report.components:
                 label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
-                buf.write(
-                    f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
-                )
+                if cd.suppressed:
+                    buf.write(
+                        f"| {label} | _suppressed_ | _suppressed_ | _suppressed_ | _suppressed_ |\n",
+                    )
+                else:
+                    buf.write(
+                        f"| {label} | {len(cd.added)} | {len(cd.removed)} | {len(cd.modified)} | {cd.unchanged_count} |\n",
+                    )
         buf.write("\n")
         return buf.getvalue()
 

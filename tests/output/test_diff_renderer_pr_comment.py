@@ -132,6 +132,6 @@ class TestPrComment:
         out = render_pr_comment(report, summary=True)
         # Summary keeps counts, drops field-by-field detail
         assert "1" in out
-        assert "metrics" in out
+        assert "Metrics" in out
         # Field-level detail is suppressed
         assert "name" not in out.lower() or out.lower().count("name") < 3
