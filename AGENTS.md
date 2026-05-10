@@ -205,6 +205,39 @@ during v1.10.0 spec design (see CHANGELOG):
 Attempting to pass either returns the standard argparse
 "unrecognized argument" error.
 
+### Inventory summary (v1.11.0+)
+
+`aa_auto_sdr [<RSID>...] --inventory-summary` emits a cross-RSID
+aggregate rollup of component counts (totals, min, max, avg per
+component type) plus a per-RSID detail block. With no positional
+RSIDs, summarizes every visible report suite (mirrors `--stats`).
+Reuses the v1.7.2 `count_only` fetcher path — no new SDK surface.
+
+| Flag combination | Effect |
+|------------------|--------|
+| `--inventory-summary` | Aggregate over every visible RS. Table output (default). |
+| `--inventory-summary <RSID...>` | Aggregate over the supplied RSIDs only. |
+| `--inventory-summary --format table\|json\|csv` | Pick output format. Other formats (excel, html, markdown, all) error with `OUTPUT` (15). |
+
+`--inventory-summary` lives in the same argparse `actions` mutex
+group as `--stats`, `--describe-reportsuite`, and the list-actions, so
+combining it with any other action returns a clean argparse error
+(no manual precedence in `cli/main.py`).
+
+Per-RSID fetch failures mark the affected components with `*` in
+table output; the JSON form attaches a `fetch_status` map to the
+per-RSID row. Mirrors `--stats` exactly.
+
+One flag listed in the public roadmap was deliberately removed
+during v1.11.0 spec design (see CHANGELOG):
+- `--inventory-only` (CJA-only — aa's SDR document treats segments
+  and calculated metrics as first-class sections; aa already has
+  `--metrics-only` / `--dimensions-only` and the list-actions
+  inspection commands)
+
+Attempting to pass it returns the standard argparse "unrecognized
+argument" error.
+
 ### Comparison / Diff
 
 ```bash

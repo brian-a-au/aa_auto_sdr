@@ -132,6 +132,11 @@ def test_documented_long_flags_exist_in_parser():
         # documented to explain their absence to agent consumers).
         "--memory-limit",
         "--memory-warning",
+        # Flag explicitly documented in AGENTS.md as *removed* from the v1.11.0
+        # roadmap (CJA-only — aa's SDR document treats segments and calculated
+        # metrics as first-class sections; documented to explain its absence
+        # to agent consumers).
+        "--inventory-only",
     }
 
     missing = documented - real_flags - allowlist
