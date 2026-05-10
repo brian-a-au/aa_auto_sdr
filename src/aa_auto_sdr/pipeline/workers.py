@@ -102,16 +102,24 @@ def _run_single_for_batch(
     cache: object = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
     Kept as a module-level function (not a closure) so tests can monkeypatch it
     without needing access to any enclosing scope.
 
-    v1.12.0: `cache` is now wired through to the quality-engine first caller.
+    v1.12.0: `cache` is wired through to the quality-engine first caller.
+    `fail_on_quality` / `quality_report` thread the gate + report flags from
+    `run_parallel` down to single.run_single — without this, parallel batches
+    silently bypassed the gate that the sequential path already honored.
     """
     # Lazy import: heavy deps are deferred until a worker actually runs.
     from aa_auto_sdr.pipeline import single
+    from aa_auto_sdr.sdr.quality import SeverityLevel
+
+    foq = SeverityLevel(fail_on_quality) if fail_on_quality else None
 
     return single.run_single(
         client=client,
@@ -124,6 +132,8 @@ def _run_single_for_batch(
         component_filter=component_filter,
         audit_naming=audit_naming,
         flag_stale=flag_stale,
+        fail_on_quality=foq,
+        quality_report=quality_report,
         cache=cache,  # type: ignore[arg-type]
     )
 
@@ -142,6 +152,8 @@ def _run_with_worker_id(
     cache: object,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -163,6 +175,8 @@ def _run_with_worker_id(
             cache=cache,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -189,6 +203,8 @@ def run_parallel(
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -242,6 +258,8 @@ def run_parallel(
             cache=cache,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future

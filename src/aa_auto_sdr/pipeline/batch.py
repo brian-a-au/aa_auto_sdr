@@ -176,6 +176,8 @@ def run_batch(
             failure_callback=failure_callback,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
         )
 
     # v1.12.0 — collect per-RSID quality verdicts.

@@ -621,6 +621,7 @@ def _run_impl(
                 output_paths=[str(p) for p in result.outputs],
                 snapshot_path=None,
                 error=None,
+                quality_verdict=result.quality_verdict,
             ),
         )
 
@@ -660,22 +661,11 @@ def _run_impl(
     _emit_timings_if_enabled(show_timings=show_timings)
 
     # v1.12.0 — quality gate (single-RSID, file-output path). The build itself
-    # succeeded; if --fail-on-quality was set and a verdict of "fail" came back
-    # from run_single, return ExitCode.QUALITY (17). Per spec §3.10 this is a
-    # soft signal — outputs already wrote successfully.
-    if _fail_on_quality is not None:
-        # In single-rsid we have at most one PerRsidResult; capture quality
-        # from result.quality_verdict if available. canonical_rsids list still
-        # in scope; per_rsid_results carries no quality field. The most direct
-        # signal is the last result variable (run_single return).
-        # Re-derive from per_rsid_results -> we did not stash it there; use
-        # the locally-bound `result` from the last loop iteration.
-        try:
-            last_verdict = result.quality_verdict  # type: ignore[name-defined]
-        except NameError:  # no successful generation
-            last_verdict = ""
-        if last_verdict == "fail":
-            return ExitCode.QUALITY.value
+    # succeeded; if any successful RSID's verdict is "fail", return
+    # ExitCode.QUALITY (17). Per spec §3.10 this is a soft signal — outputs
+    # already wrote successfully.
+    if _fail_on_quality is not None and any(r.succeeded and r.quality_verdict == "fail" for r in per_rsid_results):
+        return ExitCode.QUALITY.value
     return ExitCode.OK.value
 
 

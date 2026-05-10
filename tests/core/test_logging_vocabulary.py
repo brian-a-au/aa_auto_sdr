@@ -80,6 +80,8 @@ VOCAB = {
     "verdict",
     "threshold",
     "policy_path",
+    "fail_on_quality",
+    "quality_report",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -97,6 +99,8 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "retry_attempt": {"retry_attempt", "error_class", "rsid", "component_type"},
     "vrs_expansion_fallback": {"rsid", "component_type", "expansion_level", "error_class"},
     "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
+    # v1.12.0 — quality engine
+    "quality_policy_loaded": {"policy_path"},
 }
 
 INSTRUMENTED_MODULES = [

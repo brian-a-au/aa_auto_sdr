@@ -18,6 +18,9 @@ class PerRsidResult:
     output_paths: list[str] = field(default_factory=list)
     snapshot_path: str | None = None
     error: str | None = None
+    # v1.12.0 — quality verdict from the gate. "" when no audits ran;
+    # "pass" / "fail" / "n/a" when audits + --fail-on-quality were active.
+    quality_verdict: str = ""
 
 
 @dataclass(frozen=True, slots=True)

@@ -72,6 +72,25 @@ def _resolve_retry_policy(ns: argparse.Namespace) -> RetryPolicy:
     )
 
 
+def _apply_quality_auto_enable(ns: argparse.Namespace) -> None:
+    """Auto-enable v1.9.0 audits when v1.12.0 quality flags are set without them.
+
+    Per spec §3.9: `--quality-report` or `--fail-on-quality` need at least one
+    audit to produce findings. If neither audit flag is on, enable both and
+    emit `quality_auto_enabled` (spec §3.12) so users see the implicit toggle
+    in the log stream.
+    """
+    if (getattr(ns, "quality_report", None) or getattr(ns, "fail_on_quality", None)) and not (
+        getattr(ns, "audit_naming", False) or getattr(ns, "flag_stale", False)
+    ):
+        ns.audit_naming = True
+        ns.flag_stale = True
+        logger.info(
+            "quality_auto_enabled audit_naming=true flag_stale=true",
+            extra={"audit_naming": True, "flag_stale": True},
+        )
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -229,6 +248,17 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             return ExitCode.CONFIG.value
         explicit = {tok.lstrip("-").replace("-", "_") for tok in argv if tok.startswith("--")}
         apply_policy_defaults(cli_namespace=ns, policy=policy, explicitly_set=explicit)
+        logger.info(
+            "quality_policy_loaded policy_path=%s fail_on_quality=%s quality_report=%s",
+            ns.quality_policy,
+            policy.fail_on_quality.value if policy.fail_on_quality else None,
+            policy.quality_report,
+            extra={
+                "policy_path": str(ns.quality_policy),
+                "fail_on_quality": policy.fail_on_quality.value if policy.fail_on_quality else None,
+                "quality_report": policy.quality_report,
+            },
+        )
 
     # v1.12.0 — reject quality flags outside SDR generation (per spec §3.9).
     _non_sdr_actions = (
@@ -257,17 +287,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         )
         return ExitCode.USAGE.value
 
-    # v1.12.0 — auto-enable audit-naming + flag-stale when quality flags imply
-    # the user needs at least one audit running.
-    if (getattr(ns, "quality_report", None) or getattr(ns, "fail_on_quality", None)) and not (
-        getattr(ns, "audit_naming", False) or getattr(ns, "flag_stale", False)
-    ):
-        ns.audit_naming = True
-        ns.flag_stale = True
-        logger.info(
-            "quality_auto_enabled audit_naming=true flag_stale=true",
-            extra={"audit_naming": True, "flag_stale": True},
-        )
+    _apply_quality_auto_enable(ns)
 
     # Profile/config actions
     if ns.profile_add:
