@@ -11,7 +11,7 @@ def test_version_flag_short() -> None:
         text=True,
         check=True,
     )
-    assert "1.13.0" in result.stdout
+    assert "1.14.0" in result.stdout
 
 
 def test_version_flag_long() -> None:
@@ -21,7 +21,7 @@ def test_version_flag_long() -> None:
         text=True,
         check=True,
     )
-    assert "1.13.0" in result.stdout
+    assert "1.14.0" in result.stdout
 
 
 def test_help_flag_does_not_import_aanalytics2() -> None:
@@ -141,3 +141,17 @@ def test_help_lists_trending_flags() -> None:
     assert "--trending-window" in out
     assert "--compare-with-prev" in out
     assert "--include-drift" not in out
+
+
+def test_help_lists_watch_flags() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    out = result.stdout
+    assert "--watch" in out
+    assert "--interval" in out
+    assert "--watch-threshold" in out
+    assert "--on-change" not in out
