@@ -51,4 +51,4 @@ def test_version_invocation(tmp_path: Path) -> None:
         cwd=tmp_path,
     )
     assert result.returncode == 0
-    assert "1.8.0" in result.stdout
+    assert "1.9.0" in result.stdout

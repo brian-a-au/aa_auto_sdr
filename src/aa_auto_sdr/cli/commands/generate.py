@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as _json
 import logging
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import credentials, timings
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
+    AmbiguousMatchError,
     ApiError,
     AuthError,
     ConfigError,
@@ -113,6 +115,9 @@ def run(
     show_timings: bool = False,  # v1.2.1
     run_summary_json: str | None = None,  # v1.2.1
     retry_policy: RetryPolicy | None = None,  # v1.7.0 — shared retry budget
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -139,6 +144,9 @@ def run(
             show_timings=show_timings,
             run_summary_json=run_summary_json,
             retry_policy=retry_policy,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
+            name_match=name_match,
         )
         return exit_code
     finally:
@@ -174,6 +182,9 @@ def _run_impl(
     show_timings: bool = False,
     run_summary_json: str | None = None,
     retry_policy: RetryPolicy | None = None,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     started_at = datetime.now(UTC)
 
@@ -262,7 +273,20 @@ def _run_impl(
 
     try:
         with timings.Timer("resolve"):
-            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
+            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid, name_match=name_match)
+    except AmbiguousMatchError as e:
+        print(
+            f"error: identifier '{rsid}' is ambiguous; matched {len(e.candidates)} report suites:",
+            file=sys.stderr,
+        )
+        for cand_rsid, cand_name in e.candidates:
+            print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+        print(
+            "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+            file=sys.stderr,
+        )
+        _emit_timings_if_enabled(show_timings=show_timings)
+        return ExitCode.NOT_FOUND.value
     except ReportSuiteNotFoundError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.NOT_FOUND.value)
         _emit_timings_if_enabled(show_timings=show_timings)
@@ -357,6 +381,8 @@ def _run_impl(
                         captured_at=captured_at,
                         tool_version=__version__,
                         component_filter=component_filter,
+                        audit_naming=audit_naming,
+                        flag_stale=flag_stale,
                     )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -473,6 +499,8 @@ def _run_impl(
                 tool_version=__version__,
                 snapshot_dir=snapshot_dir,
                 component_filter=component_filter,
+                audit_naming=audit_naming,
+                flag_stale=flag_stale,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

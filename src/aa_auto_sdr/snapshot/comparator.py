@@ -38,27 +38,54 @@ _COMPONENT_TYPES = (
 # §5.1 — list fields whose semantic content is set-like (sort before compare).
 ORDER_INSENSITIVE_LIST_FIELDS = {"tags", "categories"}
 
+# v1.9.0 — fields suppressed from diff output by default. Pass
+# extended_fields=True (CLI: --extended-fields) to include them.
+# Grounded in api/models.py field names (Dimension, Metric, Segment, etc.).
+_EXTENDED_FIELDS_DEFAULT_IGNORE: frozenset[str] = frozenset(
+    {
+        "description",
+        "tags",
+        "category",
+        "data_group",
+        "extra",
+        "compatibility",
+        "categories",
+        "owner_id",
+        "created",
+        "modified",
+    },
+)
+
 
 def compare(
     a: dict[str, Any],
     b: dict[str, Any],
     *,
     ignore_fields: frozenset[str] = frozenset(),
+    extended_fields: bool = False,  # NEW (v1.9.0)
 ) -> DiffReport:
     """Diff two snapshot envelopes (assumed schema-validated by the caller).
 
     `ignore_fields` is a set of field names to skip during compare. The match is
     exact at every nesting level — `description` skips both top-level and nested
-    `description` fields."""
+    `description` fields.
+
+    `extended_fields` (v1.9.0+): when False (default), a default suppression
+    set of noisy fields (description, tags, category, etc.) is added to
+    `ignore_fields`. When True, only `ignore_fields` is applied — extended
+    fields show up in the diff.
+    """
     started = time.monotonic()
     a_components = a["components"]
     b_components = b["components"]
+
+    effective_ignore = ignore_fields if extended_fields else (ignore_fields | _EXTENDED_FIELDS_DEFAULT_IGNORE)
 
     rs_deltas = _diff_dict(
         a_components["report_suite"],
         b_components["report_suite"],
         parent_field="",
-        ignore_fields=ignore_fields,
+        ignore_fields=effective_ignore,
     )
 
     components: list[ComponentDiff] = []
@@ -67,7 +94,7 @@ def compare(
             ctype,
             a_components.get(ctype, []),
             b_components.get(ctype, []),
-            ignore_fields=ignore_fields,
+            ignore_fields=effective_ignore,
         )
         suppressed, reason = _suppression_for(ctype, a, b)
         if suppressed:

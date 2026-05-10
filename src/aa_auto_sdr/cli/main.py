@@ -216,6 +216,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             profile=ns.profile,
             format_name=ns.format,
             retry_policy=ns.retry_policy,
+            name_match=ns.name_match,
         )
 
     # v1.2 — interactive action
@@ -345,6 +346,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             format_name=ns.format,
             output=resolved_output,
             retry_policy=ns.retry_policy,
+            name_match=ns.name_match,
         )
 
     list_inspect_actions = (
@@ -376,6 +378,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
                 sort_field=ns.sort,
                 limit=ns.limit,
                 retry_policy=ns.retry_policy,
+                name_match=ns.name_match,
             )
 
     # Diff (v0.7) — snapshot comparison
@@ -413,6 +416,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             side_by_side=ns.side_by_side,
             summary=ns.summary,
             ignore_fields=ignore,
+            extended_fields=ns.extended_fields,
             quiet=ns.quiet_diff,
             labels=labels,
             reverse=ns.reverse_diff,
@@ -493,6 +497,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             clear_cache=ns.clear_cache,
             cache_ttl=ns.cache_ttl,
             cache_size=ns.cache_size,
+            audit_naming=ns.audit_naming,
+            flag_stale=ns.flag_stale,
+            name_match=ns.name_match,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -521,6 +528,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         show_timings=ns.show_timings,
         run_summary_json=ns.run_summary_json,
         retry_policy=ns.retry_policy,
+        audit_naming=ns.audit_naming,
+        flag_stale=ns.flag_stale,
+        name_match=ns.name_match,
     )
 
 

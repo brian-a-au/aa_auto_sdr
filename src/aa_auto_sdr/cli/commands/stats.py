@@ -17,6 +17,7 @@ from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli.list_output import build_footer
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
+    AmbiguousMatchError,
     ApiError,
     AuthError,
     ConfigError,
@@ -35,6 +36,7 @@ def run(
     profile: str | None,
     format_name: str | None,
     retry_policy: RetryPolicy | None = None,
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     started_ms = time.monotonic()
     logger.info("command_start command=stats", extra={"command": "stats"})
@@ -66,18 +68,31 @@ def run(
         # Resolve identifiers (or list all visible RSes when none given).
         canonical: list[str] = []
         if rsids:
-            try:
-                for ident in rsids:
-                    resolved, _ = fetch.resolve_rsid(client, ident)
+            for ident in rsids:
+                try:
+                    resolved, _ = fetch.resolve_rsid(client, ident, name_match=name_match)
                     canonical.extend(resolved)
-            except ReportSuiteNotFoundError as exc:
-                print(f"error: {exc}", flush=True)
-                exit_code = ExitCode.NOT_FOUND.value
-                return exit_code
-            except ApiError as exc:
-                print(f"api error: {exc}", flush=True)
-                exit_code = ExitCode.API.value
-                return exit_code
+                except AmbiguousMatchError as exc:
+                    print(
+                        f"error: identifier '{ident}' is ambiguous; matched {len(exc.candidates)} report suites:",
+                        file=sys.stderr,
+                    )
+                    for cand_rsid, cand_name in exc.candidates:
+                        print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+                    print(
+                        "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+                        file=sys.stderr,
+                    )
+                    exit_code = ExitCode.NOT_FOUND.value
+                    return exit_code
+                except ReportSuiteNotFoundError as exc:
+                    print(f"error: {exc}", flush=True)
+                    exit_code = ExitCode.NOT_FOUND.value
+                    return exit_code
+                except ApiError as exc:
+                    print(f"api error: {exc}", flush=True)
+                    exit_code = ExitCode.API.value
+                    return exit_code
         else:
             try:
                 canonical = [s.rsid for s in fetch.fetch_report_suite_summaries(client)]

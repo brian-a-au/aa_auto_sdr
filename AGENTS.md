@@ -123,6 +123,57 @@ caller. DEBUG log records emit `cache_event=hit/miss/evict/expire` from
 the cache class itself; production code paths see neither hits nor misses
 in v1.8.0.
 
+### Quality audits (v1.9.0+)
+
+`aa_auto_sdr <RSID> --audit-naming` adds a `quality.naming_audit` block
+to the SDR document with case-style counts, prefix groupings, and
+recommendations.
+
+`aa_auto_sdr <RSID> --flag-stale` adds a `quality.stale_components`
+block listing components matching stale-keyword / version-suffix /
+date-pattern regexes.
+
+Both flags are independent (either alone, or both together). Default
+behavior (both off) preserves v1.8.0 byte-equivalence — `quality` field
+is `None` and absent from the JSON output.
+
+Snapshot envelope schema is bumped to `aa-sdr-snapshot/v3`. v1 and v2
+envelopes remain readable.
+
+### Name resolution (v1.9.0+)
+
+`aa_auto_sdr <RSID_OR_NAME>` accepts `--name-match {exact,insensitive,fuzzy}`
+(default: `insensitive`). The default preserves pre-v1.9.0 case-insensitive
+name matching.
+
+- `exact`: literal RSID match, then exact-case name match.
+- `insensitive`: literal RSID, then case-insensitive name match
+  (DEFAULT).
+- `fuzzy`: insensitive first; falls back to SequenceMatcher at threshold
+  0.85.
+
+Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with
+exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr.
+`insensitive` mode preserves pre-v1.9.0 behavior of returning all
+matches (CLI generates per-RSID).
+
+### Diff field shaping (v1.9.0+)
+
+`aa_auto_sdr --diff <a> <b> --extended-fields` includes noisy fields
+(description, tags, category, etc.) in diff output. Without the flag,
+these fields are suppressed by default — diff output focuses on
+identity, structure, and definition changes.
+
+Four flags listed in the public roadmap were deliberately removed during
+v1.9.0 spec design (see CHANGELOG):
+- `--no-component-types` (CJA-only concept)
+- `--lock-stale-threshold` (CJA org-report lock)
+- `--include-names` (AA includes by default)
+- `--include-metadata` (AA includes by default)
+
+Attempting to pass any of these returns the standard argparse
+"unrecognized argument" error.
+
 ### Comparison / Diff
 
 ```bash

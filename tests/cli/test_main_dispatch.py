@@ -465,6 +465,7 @@ class TestV12Dispatch:
             side_by_side,
             summary,
             ignore_fields,
+            extended_fields=False,  # v1.9.0
             quiet,
             labels,
             reverse,

@@ -23,7 +23,8 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from difflib import SequenceMatcher
+from typing import Any, Literal
 
 import pandas as pd
 
@@ -35,7 +36,15 @@ from aa_auto_sdr.api.resilience import (
     log_retry_attempt,
     with_retries,
 )
-from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
+from aa_auto_sdr.core.exceptions import (
+    AmbiguousMatchError,
+    ApiError,
+    ReportSuiteNotFoundError,
+)
+
+NameMatchStrategy = Literal["exact", "insensitive", "fuzzy"]
+_NAME_MATCH_VALUES: tuple[str, ...] = ("exact", "insensitive", "fuzzy")
+_FUZZY_THRESHOLD = 0.85
 
 logger = logging.getLogger(__name__)
 
@@ -217,21 +226,35 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     return sorted(summaries, key=lambda s: s.rsid)
 
 
-def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
+def resolve_rsid(
+    client: AaClient,
+    identifier: str,
+    *,
+    name_match: NameMatchStrategy = "insensitive",
+) -> tuple[list[str], bool]:
     """Resolve a user-supplied identifier to one or more canonical RSIDs.
 
-    Resolution order (matches cja_auto_sdr convention):
-      1. RSID exact match against the rsid field. RSIDs are distinct, so this
-         returns exactly one result. Returns ([rsid], False).
-      2. Name exact match (case-insensitive) against the name field. Names are
-         NOT guaranteed unique, so multiple suites may match. Returns the
-         RSIDs of all matches as ([rsid_1, rsid_2, ...], True). The caller
-         (CLI generate command) generates an SDR per RSID.
+    Resolution order:
+      1. Exact RSID match (case-sensitive). Returns ([rsid], False).
+      2. Name match per `name_match`:
+           "exact":        case-sensitive name compare
+           "insensitive":  case-insensitive name compare (DEFAULT —
+                           preserves pre-v1.9.0 behavior)
+           "fuzzy":        case-insensitive first; if no hit, SequenceMatcher
+                           with threshold 0.85
       3. ReportSuiteNotFoundError otherwise.
 
-    Returns (rsids, was_name_lookup). `rsids` is always a non-empty list.
+    Multi-match in name_match!=insensitive mode raises AmbiguousMatchError
+    with candidates exposed. insensitive mode preserves pre-v1.9.0 behavior
+    (returns all matched RSIDs; CLI generates per-RSID).
+
+    Returns (rsids, was_name_lookup). `rsids` is always a non-empty list
+    on successful return.
     """
-    logger.debug("resolve_rsid identifier-input")
+    if name_match not in _NAME_MATCH_VALUES:
+        raise ValueError(f"name_match must be one of {list(_NAME_MATCH_VALUES)}, got {name_match!r}")
+
+    logger.debug("resolve_rsid identifier-input strategy=%s", name_match)
     suites = _records(
         _retry_and_normalize(
             lambda: client.handle.getReportSuites(extended_info=True),
@@ -239,32 +262,60 @@ def resolve_rsid(client: AaClient, identifier: str) -> tuple[list[str], bool]:
         )
     )
 
-    # 1) Exact RSID match — RSIDs are distinct
+    # 1) Exact RSID match — RSIDs are distinct and case-sensitive
     for raw in suites:
         if raw.get("rsid") == identifier:
             logger.debug(
-                "resolve_rsid resolved count=%s was_name_lookup=false",
+                "resolve_rsid resolved count=%s was_name_lookup=false strategy=%s",
                 1,
-                extra={"count": 1},
+                name_match,
+                extra={"count": 1, "name_match_strategy": name_match},
             )
             return [identifier], False
 
-    # 2) Case-insensitive exact name match — may match multiple suites
-    target = identifier.casefold()
-    name_matches = [
-        str(raw["rsid"]) for raw in suites if raw.get("name") is not None and str(raw["name"]).casefold() == target
-    ]
-    if name_matches:
-        logger.debug(
-            "resolve_rsid resolved count=%s was_name_lookup=true",
-            len(name_matches),
-            extra={"count": len(name_matches)},
-        )
-        return name_matches, True
+    # 2) Name match — strategy-dependent
+    name_matches: list[tuple[str, str]] = []  # (rsid, name)
+    if name_match == "exact":
+        name_matches.extend((str(raw["rsid"]), str(raw["name"])) for raw in suites if raw.get("name") == identifier)
+    else:  # insensitive or fuzzy
+        target = identifier.casefold()
+        for raw in suites:
+            n = raw.get("name")
+            if n is not None and str(n).casefold() == target:
+                name_matches.append((str(raw["rsid"]), str(n)))
 
-    raise ReportSuiteNotFoundError(
-        f"report suite '{identifier}' not found (matched neither rsid nor name)",
+    # 2b) Fuzzy fallback when nothing matched insensitively
+    if name_match == "fuzzy" and not name_matches:
+        target = identifier.casefold()
+        for raw in suites:
+            n = raw.get("name")
+            if n is None:
+                continue
+            ratio = SequenceMatcher(None, target, str(n).casefold()).ratio()
+            if ratio >= _FUZZY_THRESHOLD:
+                name_matches.append((str(raw["rsid"]), str(n)))
+
+    if not name_matches:
+        raise ReportSuiteNotFoundError(
+            f"report suite '{identifier}' not found (matched neither rsid nor name)",
+        )
+
+    if len(name_matches) > 1 and name_match != "insensitive":
+        # exact and fuzzy treat multi-match as ambiguous; insensitive returns
+        # all (preserves pre-v1.9.0 behavior where the CLI generates per-RSID).
+        raise AmbiguousMatchError(
+            f"identifier '{identifier}' resolved to {len(name_matches)} candidates",
+            candidates=name_matches,
+        )
+
+    rsids = [rsid for rsid, _ in name_matches]
+    logger.debug(
+        "resolve_rsid resolved count=%s was_name_lookup=true strategy=%s",
+        len(rsids),
+        name_match,
+        extra={"count": len(rsids), "name_match_strategy": name_match},
     )
+    return rsids, True
 
 
 def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:

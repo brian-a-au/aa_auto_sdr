@@ -22,6 +22,8 @@ def run_single(
     tool_version: str,
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,  # v1.2
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -35,6 +37,8 @@ def run_single(
             captured_at=captured_at,
             tool_version=tool_version,
             component_filter=component_filter,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []

@@ -36,6 +36,7 @@ def run(
     side_by_side: bool = False,
     summary: bool = False,
     ignore_fields: frozenset[str] = frozenset(),
+    extended_fields: bool = False,  # v1.9.0
     quiet: bool = False,
     labels: tuple[str, str] | None = None,
     reverse: bool = False,
@@ -95,7 +96,7 @@ def run(
             exit_code = ExitCode.SNAPSHOT.value
             return exit_code
 
-        full_report = compare(env_a, env_b, ignore_fields=ignore_fields)
+        full_report = compare(env_a, env_b, ignore_fields=ignore_fields, extended_fields=extended_fields)
         # Compute warn-threshold against the FULL (unfiltered) report — per spec section 2.4.
         total_changes = sum(
             len(c.added) + len(c.removed) + len(c.modified) for c in full_report.components if not c.suppressed

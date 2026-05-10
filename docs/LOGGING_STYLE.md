@@ -71,6 +71,17 @@ worker without ambiguity; thread identity is separately exposed via
 production call sites — so this field is silent unless a future release
 populates the cache (planned: v1.12.0 quality engine).
 
+**Active fields (v1.9.0+):** `name_match_strategy`.
+
+`name_match_strategy` (str): one of `exact` / `insensitive` / `fuzzy`.
+Emitted on `resolve_rsid` debug records when the user specified
+`--name-match` explicitly; the default (`insensitive`) reproduces
+pre-v1.9.0 case-fold behavior.
+
+Quality-pass log records (`audit_complete`, `stale_detection_complete`)
+reuse the canonical `count` extras key for component counts rather than
+introducing audit-specific vocabulary.
+
 ## Message-style rules
 
 - Format: `event_prefix key1=%s key2=%s` followed by positional args, plus `extra={...}` for the structured copy. Both views (text-grep and JSON-aggregator) get the same data:

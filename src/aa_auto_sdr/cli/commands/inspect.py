@@ -25,6 +25,7 @@ from aa_auto_sdr.cli.list_output import annotate_cells, build_footer, render_rec
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
+    AmbiguousMatchError,
     ApiError,
     AuthError,
     ConfigError,
@@ -142,6 +143,7 @@ def _list_per_component(
     columns: list[str],
     sort_allowlist: tuple[str, ...],
     retry_policy: RetryPolicy | None = None,
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Generic list-X handler: resolve identifier → fetch per RSID → flatten →
     filter → render. Pattern 9B.3 — one start/complete pair covers all five
@@ -156,7 +158,20 @@ def _list_per_component(
             return exit_code
 
         try:
-            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
+            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+        except AmbiguousMatchError as e:
+            print(
+                f"error: identifier '{identifier}' is ambiguous; matched {len(e.candidates)} report suites:",
+                file=sys.stderr,
+            )
+            for cand_rsid, cand_name in e.candidates:
+                print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+            print(
+                "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+                file=sys.stderr,
+            )
+            exit_code = ExitCode.NOT_FOUND.value
+            return exit_code
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
             exit_code = ExitCode.NOT_FOUND.value
@@ -316,6 +331,7 @@ def run_describe_reportsuite(
     format_name: str | None,
     output: str | None,
     retry_policy: RetryPolicy | None = None,
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Print metadata + per-component counts for one RS (or several on multi-match)."""
     started_ms = time.monotonic()
@@ -331,7 +347,20 @@ def run_describe_reportsuite(
             return exit_code
 
         try:
-            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
+            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+        except AmbiguousMatchError as e:
+            print(
+                f"error: identifier '{identifier}' is ambiguous; matched {len(e.candidates)} report suites:",
+                file=sys.stderr,
+            )
+            for cand_rsid, cand_name in e.candidates:
+                print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+            print(
+                "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+                file=sys.stderr,
+            )
+            exit_code = ExitCode.NOT_FOUND.value
+            return exit_code
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
             exit_code = ExitCode.NOT_FOUND.value

@@ -2,6 +2,91 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.9.0] — 2026-05-09
+
+Tier 2 milestone: field-level shaping + naming audits. Four CJA-port
+flags adapted to aa_auto_sdr's surface; four roadmap-listed flags
+deliberately dropped because they target CJA-only data-model concepts
+or are redundant in AA's per-RSID SDR generation (which already
+includes names + metadata by default).
+
+### Added
+- `--audit-naming` flag: adds a `quality.naming_audit` block to the SDR
+  document with case-style counts, prefix groupings, and recommendations
+  for mixed-style component sets. Pure post-build pass; no extra API
+  calls.
+- `--flag-stale` flag: adds a `quality.stale_components` block to the
+  SDR document listing components matching stale-keyword regex
+  (test/old/temp/deprecated/etc.), version-suffix regex (`_vN`), or
+  date-pattern regex (`YYYYMMDD` or `YYYY-MM-DD`). Reasons recorded
+  per component.
+- `--name-match {exact,insensitive,fuzzy}` flag (default: `insensitive`):
+  resolution strategy for `<RSID_OR_NAME>` lookups across all commands.
+  `fuzzy` uses `difflib.SequenceMatcher` at threshold 0.85.
+- `--extended-fields` flag (in `--diff` mode): includes noisy fields
+  (description, tags, category, data_group, extra, compatibility,
+  categories, owner_id, created, modified) in diff output. Off by
+  default — these fields are now suppressed in default diff output.
+- `quality` field on `SdrDocument` (default `None`); top-level `quality`
+  key on snapshot envelopes (schema bumped v2 → v3, additive +
+  backward-compat).
+- New `core/exceptions.py::AmbiguousMatchError` (extends `AaAutoSdrError`,
+  maps to existing `ExitCode.NOT_FOUND`).
+- `name_match_strategy` log field activated.
+- `sdr/quality.py` (NEW) — pure naming-audit + stale-detection module.
+
+### Changed
+- `snapshot/comparator.py::compare`: noisy fields (description, tags,
+  category, etc.) are now suppressed from diff output by default.
+  Pre-v1.9.0 behavior is restored by passing `--extended-fields`. Diff
+  output for non-noisy field changes (id, name, type, definition) is
+  byte-equivalent to v1.8.0. Note: the `extended_fields` toggle affects
+  component fields only; the top-level `quality` block is not diffed
+  (see Roadmap deviations — quality-block diffing is deferred).
+- `api/fetch.py::resolve_rsid`: gains a keyword-only `name_match`
+  parameter (default `"insensitive"`, which preserves pre-v1.9.0
+  semantics). New strategies: `exact` (case-sensitive name match)
+  and `fuzzy` (SequenceMatcher fallback).
+- Snapshot envelope schema: `aa-sdr-snapshot/v2` → `aa-sdr-snapshot/v3`.
+  v1 and v2 envelopes remain readable; v3 envelopes are not readable
+  by v1.8.0 clients (existing schema-version error fires).
+
+### Roadmap deviations (documented)
+The v1.9.0 row in the roadmap listed eight flags; this release ships
+four. Four flags were deliberately removed during spec design:
+- **Removed `--no-component-types`** — splits "standard vs derived"
+  component types, a CJA-only concept (AA has no derived fields).
+- **Removed `--lock-stale-threshold`** — belongs to CJA's
+  `--org-report` lock subsystem; aa_auto_sdr deliberately has no
+  `--org-report` (out of scope per `CLAUDE.md`).
+- **Removed `--include-names`** — aa's per-RSID SDR generation
+  already includes component names by default. The cja flag exists
+  because cja's `--org-report` renders a TABLE where columns are
+  opt-in; AA has no equivalent table mode.
+- **Removed `--include-metadata`** — aa's SDR document already
+  includes report-suite metadata (timezone, segments list, etc.) by
+  default.
+
+- **Deferred — quality-block diffing.** Spec §3.6 anticipated that
+  `--diff --extended-fields` would also compare `quality.naming_audit`
+  and `quality.stale_components` blocks across snapshots. v1.9.0 ships
+  the `quality` field on snapshots but `compare()` does not diff it.
+  Quality-block diffing is deferred to a future release (likely v1.12.0
+  alongside the quality severity engine), where comparison semantics for
+  audit results will be designed alongside the severity model.
+
+Test rejections in `tests/cli/test_v1_9_flags.py` ensure the four
+removed flags receive a clear argparse error.
+
+### Other
+- Coverage gate ≥90% preserved.
+- `quality` field is optional (None when neither audit/stale flag
+  set); v1.8.0 byte-equivalence preserved for default-flag runs.
+- Existing default-flag invocations produce SDR documents and
+  snapshots whose deserialized component fields are byte-equivalent
+  to v1.8.0 (envelope `schema` field bumps to v3 — version-string
+  difference only, not a content change).
+
 ## [1.8.0] — 2026-05-09
 
 Tier 2 milestone: parallel batch workers + validation-cache scaffolding.

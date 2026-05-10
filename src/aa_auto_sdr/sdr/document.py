@@ -44,6 +44,7 @@ class SdrDocument:
     captured_at: datetime
     tool_version: str
     fetch_status: dict[str, FetchOutcomeMeta] = field(default_factory=dict)
+    quality: dict[str, Any] | None = None  # NEW (v1.9.0): None when no audit ran
 
     def to_dict(self) -> dict[str, Any]:
         """Plain-dict shape used by JSON output and snapshots."""

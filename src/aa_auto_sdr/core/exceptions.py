@@ -42,6 +42,20 @@ class ReportSuiteNotFoundError(AaAutoSdrError):
     """The requested RSID does not exist in this org."""
 
 
+class AmbiguousMatchError(AaAutoSdrError):
+    """Raised when a name token resolves to multiple report suites in
+    non-interactive mode. `candidates` is a list of (rsid, name) tuples.
+
+    Maps to ExitCode.NOT_FOUND for CLI exit-code parity with the
+    existing ReportSuiteNotFoundError; the distinct class lets the CLI
+    render candidate lists differently (one match required).
+    """
+
+    def __init__(self, message: str, candidates: list[tuple[str, str]]) -> None:
+        super().__init__(message)
+        self.candidates = candidates
+
+
 class SnapshotError(AaAutoSdrError):
     """Base for snapshot-related errors."""
 

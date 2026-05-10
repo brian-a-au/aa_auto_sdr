@@ -100,6 +100,8 @@ def _run_single_for_batch(
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,
     cache: object = None,  # noqa: ARG001 — reserved for v1.12.0 quality engine
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
@@ -122,6 +124,8 @@ def _run_single_for_batch(
         tool_version=tool_version,
         snapshot_dir=snapshot_dir,
         component_filter=component_filter,
+        audit_naming=audit_naming,
+        flag_stale=flag_stale,
     )
 
 
@@ -137,6 +141,8 @@ def _run_with_worker_id(
     snapshot_dir: Path | None,
     component_filter: ComponentFilter | None,
     cache: object,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -156,6 +162,8 @@ def _run_with_worker_id(
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
             cache=cache,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -180,6 +188,8 @@ def run_parallel(
     cache: object = None,
     progress_callback: Callable[[int, int, str], None] | None = None,
     failure_callback: Callable[[int, int, str, str], None] | None = None,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -231,6 +241,8 @@ def run_parallel(
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
             cache=cache,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future

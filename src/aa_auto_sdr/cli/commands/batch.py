@@ -16,6 +16,7 @@ from __future__ import annotations
 import json as _json
 import logging
 import os
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import colors, credentials, timings
 from aa_auto_sdr.core.constants import BANNER_WIDTH
 from aa_auto_sdr.core.exceptions import (
+    AmbiguousMatchError,
     ApiError,
     AuthError,
     ConfigError,
@@ -111,6 +113,9 @@ def run(
     clear_cache: bool = False,  # v1.8.0 — clear cache at run start
     cache_ttl: int = 3600,  # v1.8.0 — cache TTL in seconds
     cache_size: int = 1000,  # v1.8.0 — cache LRU max-size
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -143,6 +148,9 @@ def run(
             clear_cache=clear_cache,
             cache_ttl=cache_ttl,
             cache_size=cache_size,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
+            name_match=name_match,
         )
         return exit_code
     finally:
@@ -184,6 +192,9 @@ def _run_impl(
     clear_cache: bool = False,
     cache_ttl: int = 3600,
     cache_size: int = 1000,
+    audit_naming: bool = False,  # v1.9.0
+    flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -270,7 +281,27 @@ def _run_impl(
     with timings.Timer("resolve"):
         for identifier in rsids:
             try:
-                resolved, _was_name = fetch.resolve_rsid(client, identifier)
+                resolved, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+            except AmbiguousMatchError as exc:
+                print(
+                    f"error: identifier '{identifier}' is ambiguous; matched {len(exc.candidates)} report suites:",
+                    file=sys.stderr,
+                )
+                for cand_rsid, cand_name in exc.candidates:
+                    print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+                print(
+                    "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+                    file=sys.stderr,
+                )
+                pre_failures.append(
+                    BatchFailure(
+                        rsid=identifier,
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                        exit_code=ExitCode.NOT_FOUND.value,
+                    ),
+                )
+                continue
             except ReportSuiteNotFoundError as exc:
                 print(f"error: {exc}", flush=True)
                 pre_failures.append(
@@ -398,6 +429,8 @@ def _run_impl(
             workers=workers,
             fail_fast=fail_fast,
             cache=cache,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

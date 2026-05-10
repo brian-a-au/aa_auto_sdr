@@ -154,7 +154,7 @@ def test_batch_n2_excel_info_budget(tmp_path, monkeypatch):
         stack.enter_context(
             patch(
                 "aa_auto_sdr.api.fetch.resolve_rsid",
-                side_effect=lambda _client, ident: ([ident], False),
+                side_effect=lambda _client, ident, **_kwargs: ([ident], False),
             ),
         )
 
