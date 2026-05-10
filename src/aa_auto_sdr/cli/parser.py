@@ -625,8 +625,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cache LRU max-size (default: 1000).",
     )
 
-    # v1.9.0 — field-level shaping + naming audits
-    quality_grp = p.add_argument_group("quality audits + name matching (v1.9.0+)")
+    # v1.9.0 — field-level shaping + naming audits  (extended in v1.12.0)
+    quality_grp = p.add_argument_group(
+        "quality audits + name matching (v1.9.0+, severity engine v1.12.0+)",
+    )
     quality_grp.add_argument(
         "--audit-naming",
         action="store_true",
@@ -647,6 +649,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--extended-fields",
         action="store_true",
         help="In --diff mode, include extended fields (description, tags, category, etc.) in comparison. Off by default.",
+    )
+
+    # v1.12.0 — severity engine
+    quality_grp.add_argument(
+        "--quality-report",
+        choices=("json", "csv"),
+        default=None,
+        help="Emit a machine-readable quality report alongside the SDR output (v1.12.0).",
+    )
+    quality_grp.add_argument(
+        "--quality-policy",
+        type=Path,
+        default=None,
+        help="Path to a JSON quality-policy file. CLI flags win over policy values (v1.12.0).",
+    )
+    quality_grp.add_argument(
+        "--fail-on-quality",
+        choices=("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"),
+        default=None,
+        help="Exit with code 17 if any issue at or above this severity exists (v1.12.0).",
     )
 
     return p
