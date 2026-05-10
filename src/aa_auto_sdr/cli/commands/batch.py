@@ -525,7 +525,14 @@ def _run_impl(
         os_open(output_dir)
 
     _emit_timings_if_enabled(show_timings=show_timings)
+
+    # v1.12.0 — batch quality-gate evaluation. Per spec §3.10:
+    #   PARTIAL_SUCCESS (14) outranks QUALITY (17). Build failures are more
+    #   actionable than quality verdicts. Only when all RSIDs succeed AND at
+    #   least one breached do we surface QUALITY.
     if not final.failures:
+        if fail_on_quality and any(v == "fail" for v in final.quality_verdicts.values()):
+            return ExitCode.QUALITY.value
         return ExitCode.OK.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value
