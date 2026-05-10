@@ -14,6 +14,9 @@ import random
 from collections import defaultdict
 from typing import Literal
 
+# Reserved for log/banner string discriminator (consumed by pipeline/batch.py and
+# the logging VOCAB in Task 3+). Kept here so the canonical values stay co-located
+# with the sampling logic that produces them.
 SampleStrategy = Literal["random", "stratified"]
 _PREFIX_SEPARATORS = (".", "_", "-")
 
@@ -75,6 +78,8 @@ def sample_rsids(
 
     if len(sampled) > sample_size:
         sampled = rng.sample(sampled, sample_size)
+    # CJA also tested `len(sampled) < len(rsids)` here; we omit it because the
+    # `if needed:` guard below makes the path a no-op when `remaining` is empty.
     elif len(sampled) < sample_size:
         remaining = [r for r in rsids if r not in sampled]
         needed = min(sample_size - len(sampled), len(remaining))

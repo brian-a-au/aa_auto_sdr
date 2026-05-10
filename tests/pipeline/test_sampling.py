@@ -105,9 +105,17 @@ class TestSampleRsidsStratified:
         rsids = ["prod_a", "prod_b", "dev_c"]
         assert sample_rsids(rsids, sample_size=3, seed=0, stratified=True) == rsids
 
-    def test_stratified_topup_when_groups_undersample(self) -> None:
-        # 4 groups × max(1, int(2 * 1/4)) = 4 × max(1, 0) = 4 ones → 4 sampled.
-        # If sample_size=3, the trim path activates.
+    def test_stratified_trim_when_groups_oversample(self) -> None:
+        # 4 single-item groups, sample_size=3.
+        # Each group allocated max(1, int(3*1/4)) = max(1, 0) = 1 → 4 collected → trim to 3.
         rsids = ["a.1", "b.1", "c.1", "d.1"]
         result = sample_rsids(rsids, sample_size=3, seed=0, stratified=True)
         assert len(result) == 3
+
+    def test_stratified_topup_when_allocation_underfills(self) -> None:
+        # 3 equal groups × 5 each = 15 total. sample_size=4 → each group allocated
+        # max(1, int(4*5/15)) = max(1, 1) = 1 → 3 collected → topup adds 1 → 4.
+        rsids = [f"a_{i}" for i in range(5)] + [f"b_{i}" for i in range(5)] + [f"c_{i}" for i in range(5)]
+        result = sample_rsids(rsids, sample_size=4, seed=0, stratified=True)
+        assert len(result) == 4
+        assert set(result).issubset(set(rsids))
