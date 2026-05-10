@@ -573,6 +573,9 @@ def _print_summary(result: BatchResult) -> None:
     print(colors.bold("BATCH PROCESSING SUMMARY"))
     print("=" * BANNER_WIDTH)
     print(f"Total report suites: {total}")
+    if result.sampled:
+        seed_segment = f", seed={result.sample_seed}" if result.sample_seed is not None else ""
+        print(f"Sampled {result.sample_size} of {result.total_available} RSIDs (strategy=random{seed_segment})")
     print(f"Successful: {colors.success(str(successful))}")
     print(f"Failed: {colors.error(str(failed))}")
     print(f"Success rate: {colors.status(rate == 100, f'{rate:.1f}%')}")

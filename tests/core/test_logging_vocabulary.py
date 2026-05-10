@@ -66,6 +66,11 @@ VOCAB = {
     "cache_event",
     # v1.9.0 additions
     "name_match_strategy",
+    # v1.10.0 additions
+    "sample_size",
+    "sample_seed",
+    "sample_strategy",
+    "count_total",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
