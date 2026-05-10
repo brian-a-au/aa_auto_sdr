@@ -37,6 +37,8 @@ def _print_help() -> int:
         "  aa_auto_sdr --sample-config          Emit a config.json template to stdout (v1.2)\n"
         "  aa_auto_sdr --stats [<RSID>...]      Quick component counts per RSID (v1.2)\n"
         "  aa_auto_sdr --inventory-summary [<RSID>...]  Cross-RSID aggregate rollup (totals/min/max/avg) (v1.11.0)\n"
+        "  aa_auto_sdr <RSID...> --trending-window <DURATION>  Per-RSID drift window over snapshots (Nh|Nd|Nw) (v1.13.0)\n"
+        "  aa_auto_sdr <RSID...> --compare-with-prev    Diff latest vs previous snapshot per RSID (v1.13.0)\n"
         "  aa_auto_sdr --interactive            Pick an RSID interactively; emit to stdout (v1.2)\n"
         "  aa_auto_sdr <RSID> --show-timings    Print per-stage timings to stderr at end of run (v1.2.1)\n"
         "  aa_auto_sdr <RSID> --run-summary-json PATH  Emit a JSON run summary to PATH or '-' (v1.2.1)\n"
@@ -83,6 +85,7 @@ def _print_help() -> int:
         "v1.11.0: --inventory-summary cross-RSID rollup (table|json|csv).\n"
         "v1.12.0: quality severity engine (--quality-report, --quality-policy, --fail-on-quality); ValidationCache activated.\n"
         "v1.12.1: rsid added to quality_audit_complete + quality_gate_evaluated logs; vocabulary validator polish.\n"
+        "v1.13.0: drift / trending windows (--trending-window, --compare-with-prev); cja's include-drift roadmap row dropped.\n"
     )
     return 0
 
