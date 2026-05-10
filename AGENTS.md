@@ -286,6 +286,66 @@ Note: the unrelated `--max-issues` flag for `--diff` rendering predates
 v1.12.0 and remains valid; only the *policy* key of the same name is
 rejected.
 
+### Drift / trending windows (v1.13.0+)
+
+Apply the snapshot comparator across a window of snapshots for one or
+more RSIDs. Reads existing snapshot files only — no AA API contact, no
+SDR rebuild, no auth required. Two new actions; both are mutually
+exclusive with the rest of the actions group.
+
+| Flag | Effect |
+|------|--------|
+| `--trending-window <DURATION>` | Per-RSID time-series of component lifecycle counts plus a derived drift summary. Duration grammar `Nh|Nd|Nw` (e.g. `30d`, `12h`, `4w`). Multi-RSID supported via positionals. |
+| `--compare-with-prev` | Sugar over `--diff <RSID>@previous <RSID>@latest`. Multi-RSID loops; worst exit code wins. Reuses the diff resolver, output formats, and flag set. |
+| `--snapshot-dir <PATH>` | Override the active profile's snapshot directory. Composes with `--trending-window`; other snapshot-aware actions still resolve from `--profile` only in v1.13.0. |
+
+Examples:
+
+```bash
+# 30-day drift window for one report suite (console output, default)
+uv run aa_auto_sdr <RSID> --trending-window 30d --profile prod
+
+# 30-day drift across three RSIDs as JSON for dashboards
+uv run aa_auto_sdr rs1 rs2 rs3 --trending-window 30d --format json --profile prod
+
+# Latest vs previous snapshot for one report suite
+uv run aa_auto_sdr <RSID> --compare-with-prev --profile prod
+```
+
+Output formats: `console` (default), `json` (schema `aa-trending/v1`),
+`markdown`. Multi-RSID renders per-RSID blocks (console / markdown) or
+wraps in `{"reports": [...]}` (json).
+
+Drift summary (always included; no opt-in flag) carries:
+
+- `total_changes` — sum of added + removed + modified across all pairs.
+- `volatility_score` — `total_changes / (starting_components * n_pairs)`,
+  clamped to `[0.0, 1.0]`. 0.0 = stable; 1.0 = fully churned per pair.
+- `most_active_component_type` — type with the highest churn over the
+  window (or `null` if zero churn).
+- `churn_by_component_type` — per-type counts.
+
+Behavior:
+
+- `--trending-window` requires positional RSIDs (no auto-discover); no
+  positional → `USAGE` (2).
+- Empty window for one RSID → warning + `PARTIAL_SUCCESS` (14); empty
+  for all RSIDs → `NOT_FOUND` (13).
+- Window upper bound is "now at compute time," not "the most recent
+  snapshot's timestamp."
+- Suppressed component sections (degraded / partial fetches) contribute
+  zeros to drift counts so degraded snapshots don't inflate scores.
+
+Roadmap deviation (dropped):
+
+- **`--include-drift` is rejected.** cja's `--include-drift` is a
+  cross-data-view org-report toggle; aa has no org-report. Drift in aa
+  is per-RSID lifecycle churn, computed from the existing comparator
+  and always included in `--trending-window` output. The flag would
+  either duplicate that output or invent an aa-specific score gated
+  behind redundant opt-in. Argparse rejects it with the standard
+  unrecognized-argument error.
+
 ### Comparison / Diff
 
 ```bash

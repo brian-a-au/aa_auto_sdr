@@ -249,6 +249,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Cross-RSID aggregate rollup of component counts (totals/min/max/avg).",
     )
     actions.add_argument(
+        "--trending-window",
+        type=str,
+        default=None,
+        metavar="DURATION",
+        help=("Per-RSID drift window (Nh|Nd|Nw, e.g. '30d'). Reads existing snapshots; no API contact (v1.13.0)."),
+    )
+    actions.add_argument(
+        "--compare-with-prev",
+        action="store_true",
+        help=(
+            "Diff a report suite's latest snapshot vs the immediately previous one. "
+            "Sugar for --diff <RSID>@previous <RSID>@latest (v1.13.0)."
+        ),
+    )
+    actions.add_argument(
         "--interactive",
         action="store_true",
         help="Interactively pick an RSID from --list-reportsuites; emits to stdout",
@@ -376,6 +391,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="DURATION",
         help="Retention: keep snapshots newer than DURATION (e.g. 30d, 12h, 4w)",
+    )
+    p.add_argument(
+        "--snapshot-dir",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Override the active profile's snapshot directory. Used by --trending-window "
+            "in v1.13.0; other snapshot-aware actions resolve from --profile only. "
+            "Useful for CI / governance contexts where snapshots live outside ~/.aa/."
+        ),
     )
     p.add_argument(
         "--dry-run",

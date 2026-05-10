@@ -12,9 +12,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import ConfigError
+from aa_auto_sdr.snapshot._duration import parse_duration
 
-_DURATION_RE = re.compile(r"^(\d+)([hdw])$")
-_UNIT_TO_HOURS = {"h": 1, "d": 24, "w": 24 * 7}
 _TS_RE = re.compile(
     r"^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(Z|[+-]\d{2}-\d{2})$",
 )
@@ -39,13 +38,12 @@ def parse_policy(*, keep_last: int | None, keep_since: str | None) -> RetentionP
         raise ConfigError(f"--keep-last must be >= 1 (got {keep_last})")
     if keep_since is None:
         return RetentionPolicy(keep_last=keep_last, keep_since=None)
-    m = _DURATION_RE.match(keep_since)
-    if not m:
+    try:
+        delta = parse_duration(keep_since)
+    except ValueError as exc:
         raise ConfigError(
             f"--keep-since must be <int><h|d|w> (e.g. 30d, 12h, 4w); got '{keep_since}'",
-        )
-    n, unit = int(m.group(1)), m.group(2)
-    delta = timedelta(hours=n * _UNIT_TO_HOURS[unit])
+        ) from exc
     return RetentionPolicy(keep_last=keep_last, keep_since=delta)
 
 
@@ -70,14 +68,17 @@ def select_for_deletion(
     if policy.keep_since is not None:
         cutoff = (now or datetime.now(UTC)) - policy.keep_since
         for f in sorted_files:
-            ts = _restore_iso(f.stem)
+            ts = restore_iso(f.stem)
             if ts < cutoff:
                 to_delete.add(f)
     return sorted(to_delete)
 
 
-def _restore_iso(stem: str) -> datetime:
+def restore_iso(stem: str) -> datetime:
     """`2026-04-26T17-29-01+00-00` or `2026-04-26T17-29-01Z` → datetime.
+
+    Public since v1.13.0 — also used by `snapshot/trending.py::_path_in_window`
+    to filter snapshot files into a trending window without parsing JSON.
 
     Returns datetime.max(UTC) for unparseable stems so they sort latest
     (never older than any cutoff — a fail-closed default that prevents

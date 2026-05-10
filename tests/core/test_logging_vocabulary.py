@@ -83,6 +83,13 @@ VOCAB = {
     "policy_path",
     "fail_on_quality",
     "quality_report",
+    # v1.13.0 additions — drift / trending
+    "duration",
+    "start_at",
+    "end_at",
+    "snapshot_count",
+    "total_changes",
+    "volatility_score",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -106,6 +113,9 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     # so multi-RSID batch logs can be correlated.
     "quality_audit_complete": {"rsid", "quality_total", "quality_by_severity"},
     "quality_gate_evaluated": {"rsid", "threshold", "verdict"},
+    # v1.13.0 — trending events
+    "trending_window_resolved": {"duration", "start_at", "end_at"},
+    "trending_compute_complete": {"rsid", "snapshot_count", "total_changes", "volatility_score"},
 }
 
 INSTRUMENTED_MODULES = [
@@ -137,6 +147,10 @@ INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/snapshot/comparator.py"),
     Path("src/aa_auto_sdr/snapshot/resolver.py"),
     Path("src/aa_auto_sdr/snapshot/git.py"),
+    # v1.13.0
+    Path("src/aa_auto_sdr/snapshot/trending.py"),
+    Path("src/aa_auto_sdr/cli/commands/trending.py"),
+    Path("src/aa_auto_sdr/cli/commands/compare_with_prev.py"),
 ]
 
 
