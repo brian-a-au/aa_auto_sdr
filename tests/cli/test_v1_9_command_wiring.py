@@ -11,6 +11,17 @@ from unittest.mock import MagicMock, patch
 
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.batch import run_batch
+from aa_auto_sdr.pipeline.models import BatchResult
+
+
+def _empty_batch_result() -> BatchResult:
+    return BatchResult(
+        successes=[],
+        failures=[],
+        total_duration_seconds=0.0,
+        total_output_bytes=0,
+        batch_id="testbid",
+    )
 
 
 def test_run_single_threads_audit_naming(tmp_path: Path) -> None:
@@ -70,7 +81,7 @@ def test_run_single_threads_flag_stale(tmp_path: Path) -> None:
 
 def test_run_batch_threads_audit_and_stale_to_run_parallel(tmp_path: Path) -> None:
     with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
-        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        par.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],
@@ -90,7 +101,7 @@ def test_run_batch_threads_audit_and_stale_to_run_parallel(tmp_path: Path) -> No
 def test_run_batch_default_no_audit_no_stale(tmp_path: Path) -> None:
     """Backward compat: omitting flags reaches run_parallel as False."""
     with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
-        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        par.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],

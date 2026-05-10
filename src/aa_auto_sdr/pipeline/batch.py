@@ -109,6 +109,9 @@ def run_batch(
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers}")
 
+    if sample_size is not None and sample_size < 1:
+        raise ValueError(f"sample_size must be >= 1, got {sample_size}")
+
     total_available = len(rsids)
     sampled = False
     if sample_size is not None and sample_size < total_available:
@@ -120,7 +123,7 @@ def run_batch(
         )
         sampled = True
         logger.info(
-            "batch_sampled total_available=%d sample_size=%d seed=%s strategy=%s",
+            "batch_sampled total_available=%d count=%d seed=%s strategy=%s",
             total_available,
             len(rsids),
             sample_seed,

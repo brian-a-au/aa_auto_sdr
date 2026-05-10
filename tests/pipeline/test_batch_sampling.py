@@ -115,3 +115,13 @@ class TestRunBatchSampling:
             )
         assert result.sampled is True
         assert len(result.successes) == 4
+
+
+class TestRunBatchSamplingValidation:
+    def test_sample_size_zero_raises(self, common_kwargs: dict[str, object]) -> None:
+        with pytest.raises(ValueError, match=r"sample_size must be >= 1"):
+            batch_runner.run_batch(rsids=["a", "b"], sample_size=0, **common_kwargs)
+
+    def test_sample_size_negative_raises(self, common_kwargs: dict[str, object]) -> None:
+        with pytest.raises(ValueError, match=r"sample_size must be >= 1"):
+            batch_runner.run_batch(rsids=["a", "b"], sample_size=-3, **common_kwargs)

@@ -35,7 +35,9 @@ class BatchResult:
     total_duration_seconds: float = 0.0
     total_output_bytes: int = 0
     batch_id: str = ""
-    # v1.10.0 — sampling
+    # v1.10.0 — sampling. `total_available` is the input RSID count regardless
+    # of whether sampling actually fired; consumers should pair it with `sampled`
+    # to know if the value is "before sampling" or just "the dispatched set".
     sampled: bool = False
     sample_size: int | None = None
     sample_seed: int | None = None
