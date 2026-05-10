@@ -68,9 +68,12 @@ def document_to_envelope(doc: SdrDocument) -> dict[str, Any]:
     payload = doc.to_dict()
     captured_at = payload.pop("captured_at")
     tool_version = payload.pop("tool_version")
-    # fetch_status lives on the dataclass directly (not in to_dict()) so the
-    # user-facing JSON stays clean. The envelope partitions it into top-level
-    # degraded/partial keys here.
+    # quality + fetch_status are now produced by to_dict() (v1.12.0 fix).
+    # The envelope hoists `quality` to the top level and partitions
+    # fetch_status into degraded/partial keys, so pop them out of the
+    # nested `components` payload to avoid duplication.
+    quality = payload.pop("quality", None)
+    payload.pop("fetch_status", None)
     degraded = sorted(ctype for ctype, meta in doc.fetch_status.items() if meta.status == "degraded")
     partial = {
         ctype: meta.expansion_level for ctype, meta in sorted(doc.fetch_status.items()) if meta.status == "partial"
@@ -82,7 +85,7 @@ def document_to_envelope(doc: SdrDocument) -> dict[str, Any]:
         "tool_version": tool_version,
         "degraded_components": degraded,
         "partial_components": partial,
-        "quality": doc.quality,  # NEW (v3)
+        "quality": quality,  # NEW (v3)
         "components": payload,
     }
 

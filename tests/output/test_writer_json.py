@@ -49,3 +49,23 @@ def test_json_writer_appends_extension_if_missing(tmp_path: Path) -> None:
     assert len(actual) == 1
     assert actual[0].suffix == ".json"
     assert actual[0].exists()
+
+
+def test_json_writer_emits_quality_when_present(tmp_path: Path) -> None:
+    """v1.12.0 fix: JSON output now carries the quality block."""
+    doc = SdrDocument(
+        report_suite=models.ReportSuite(rsid="x", name="X", timezone=None, currency=None, parent_rsid=None),
+        dimensions=[],
+        metrics=[],
+        segments=[],
+        calculated_metrics=[],
+        virtual_report_suites=[],
+        classifications=[],
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="1.12.0",
+        quality={"naming_audit": {"total_components": 0}},
+    )
+    target = tmp_path / "out.json"
+    JsonWriter().write(doc, target)
+    payload = json.loads(target.read_text())
+    assert payload["quality"] == {"naming_audit": {"total_components": 0}}
