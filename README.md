@@ -274,6 +274,9 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Sample batch (v1.10.0+) | `aa_auto_sdr --batch RS1 RS2 RS3 RS4 RS5 --sample 2` |
 | Sample reproducibly | `aa_auto_sdr --batch RS1 RS2 RS3 --sample 2 --sample-seed 42` |
 | Stratified sample by prefix | `aa_auto_sdr --batch prod.us prod.eu dev.us --sample 2 --sample-stratified` |
+| Quality report (v1.12.0+) | `aa_auto_sdr <RSID> --audit-naming --quality-report json` |
+| Fail CI on HIGH or worse (v1.12.0+) | `aa_auto_sdr <RSID> --fail-on-quality HIGH` |
+| Quality policy from file (v1.12.0+) | `aa_auto_sdr <RSID> --quality-policy ./policy.json` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
 | Excel (default) | `aa_auto_sdr <RSID>` |

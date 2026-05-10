@@ -126,6 +126,8 @@ def run(
     sample_size: int | None = None,  # v1.10.0
     sample_seed: int | None = None,  # v1.10.0
     sample_stratified: bool = False,  # v1.10.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -164,6 +166,8 @@ def run(
             sample_size=sample_size,
             sample_seed=sample_seed,
             sample_stratified=sample_stratified,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
         )
         return exit_code
     finally:
@@ -211,6 +215,8 @@ def _run_impl(
     sample_size: int | None = None,  # v1.10.0
     sample_seed: int | None = None,  # v1.10.0
     sample_stratified: bool = False,  # v1.10.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -450,6 +456,8 @@ def _run_impl(
             sample_size=sample_size,
             sample_seed=sample_seed,
             sample_stratified=sample_stratified,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the
@@ -517,7 +525,14 @@ def _run_impl(
         os_open(output_dir)
 
     _emit_timings_if_enabled(show_timings=show_timings)
+
+    # v1.12.0 — batch quality-gate evaluation. Per spec §3.10:
+    #   PARTIAL_SUCCESS (14) outranks QUALITY (17). Build failures are more
+    #   actionable than quality verdicts. Only when all RSIDs succeed AND at
+    #   least one breached do we surface QUALITY.
     if not final.failures:
+        if fail_on_quality and any(v == "fail" for v in final.quality_verdicts.values()):
+            return ExitCode.QUALITY.value
         return ExitCode.OK.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value

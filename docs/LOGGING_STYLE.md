@@ -148,6 +148,12 @@ in v1.7.0:
 
 - `batch_sampled` — INFO. `pipeline/batch.py::run_batch`. Fires once per `--batch` invocation that actually applies sampling (`--sample N` where `N < len(batch)`). No-op sampling (`N >= len(batch)`) suppresses the record. Carries `count` (post-sample size, what actually runs), `count_total` (pre-sample size), `sample_size` (the user-requested N), `sample_seed` (int or None), and `sample_strategy` (`random` or `stratified`).
 
+**v1.12.0 — Quality severity engine (3):**
+
+- `quality_audit_complete` — INFO. `sdr/quality.py::run_audits`. Fires once per audit run, regardless of whether `--fail-on-quality` was set. Carries `quality_total` (number of issues found) and `quality_by_severity` (dict mapping severity name to count).
+- `quality_gate_evaluated` — INFO. `sdr/quality.py::run_audits`. Fires only when `--fail-on-quality` was passed. Carries `threshold` (the configured severity name) and `verdict` (`pass`, `fail`, or `n/a`).
+- `quality_auto_enabled` — INFO. `cli/main.py::_dispatch`. Fires when the user passes `--quality-report` or `--fail-on-quality` without explicit `--audit-naming` / `--flag-stale`; auto-enables both. Carries `audit_naming` (bool) and `flag_stale` (bool).
+
 **Vocabulary meta-test treatment.** All canonical events are active; the v1.4 reserved-events exemption was lifted in v1.5. The vocabulary meta-test enforces extras presence on every canonical event when its substring appears at the start of a message (token-boundary aware).
 
 ## De-dup rule

@@ -39,12 +39,13 @@ def _doc(**overrides) -> SdrDocument:
 
 
 def test_schema_version_constant_bumped_to_v3() -> None:
-    assert SCHEMA_VERSION == "aa-sdr-snapshot/v3"
+    # v1.12.0: bumped further to v4 — kept the test name for git-blame continuity.
+    assert SCHEMA_VERSION == "aa-sdr-snapshot/v4"
 
 
 def test_envelope_emits_v3_with_empty_status_keys_for_healthy() -> None:
     env = document_to_envelope(_doc())
-    assert env["schema"] == "aa-sdr-snapshot/v3"
+    assert env["schema"] == "aa-sdr-snapshot/v4"
     assert env["degraded_components"] == []
     assert env["partial_components"] == {}
 

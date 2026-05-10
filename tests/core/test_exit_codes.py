@@ -7,13 +7,28 @@ from aa_auto_sdr.core.exit_codes import EXPLANATIONS, ROWS, ExitCode
 
 def test_every_existing_exit_code_in_enum() -> None:
     """Every code currently used by the CLI is in the enum."""
-    for value in (0, 1, 2, 10, 11, 12, 13, 14, 15, 16):
+    for value in (0, 1, 2, 10, 11, 12, 13, 14, 15, 16, 17):
         assert ExitCode(value).value == value
 
 
 def test_intenum_compares_to_int() -> None:
     assert ExitCode.OK == 0
     assert ExitCode.SNAPSHOT == 16
+
+
+def test_quality_exit_code_is_17() -> None:
+    assert ExitCode.QUALITY.value == 17
+
+
+def test_explain_exit_code_17_succeeds(capsys) -> None:
+    from aa_auto_sdr.__main__ import main
+
+    rc = main(["--explain-exit-code", "17"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "17" in out
+    assert "Quality" in out
+    assert "--fail-on-quality" in out
 
 
 def test_rows_has_one_entry_per_enum_value() -> None:

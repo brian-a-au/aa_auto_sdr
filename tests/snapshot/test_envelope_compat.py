@@ -39,8 +39,8 @@ def _doc(quality: dict | None = None) -> SdrDocument:
     )
 
 
-def test_schema_version_is_v3() -> None:
-    assert SCHEMA_VERSION == "aa-sdr-snapshot/v3"
+def test_schema_version_is_v4() -> None:
+    assert SCHEMA_VERSION == "aa-sdr-snapshot/v4"
 
 
 def test_envelope_has_quality_key_when_set() -> None:
@@ -123,11 +123,11 @@ def test_validate_v1_envelope_still_passes() -> None:
 
 
 def test_validate_unsupported_schema_raises() -> None:
-    """Schema v4 is not yet supported — should raise."""
+    """Schema v5 is not yet supported — should raise."""
     from aa_auto_sdr.core.exceptions import SnapshotSchemaError
 
     env = {
-        "schema": "aa-sdr-snapshot/v4",
+        "schema": "aa-sdr-snapshot/v5",
         "rsid": "rs1",
         "captured_at": "2026-05-09T00:00:00+00:00",
         "tool_version": "2.0.0",

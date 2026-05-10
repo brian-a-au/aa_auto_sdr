@@ -238,6 +238,54 @@ during v1.11.0 spec design (see CHANGELOG):
 Attempting to pass it returns the standard argparse "unrecognized
 argument" error.
 
+### Quality severity engine (v1.12.0+)
+
+The v1.9.0 naming audits (`--audit-naming`, `--flag-stale`) are now
+severity-tagged and machine-readable. Three new flags promote them
+into a CI gate.
+
+| Flag | Effect |
+|------|--------|
+| `--quality-report {json,csv}` | Emit a standalone quality report alongside SDR output. Default filename `quality_report_<RSID>_<timestamp>.{json,csv}`. |
+| `--quality-policy <path>` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`. CLI flags always win over policy values. Hyphen / underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
+| `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `ExitCode.QUALITY` (17) if any issue at or above the threshold exists. SDR output and snapshot still emit normally. |
+
+Severity ladder (most severe first):
+
+| Severity | Source | Examples |
+|----------|--------|----------|
+| CRITICAL | (reserved) | future use |
+| HIGH | (reserved) | future use |
+| MEDIUM | `stale_keyword` | test, old, deprecated, legacy, obsolete, unused |
+| LOW | `stale_keyword`, `version_suffix`, `date_pattern`, `case_inconsistency` | temp, backup, copy, archive; `_v2`; `_20240101`; mixed case styles |
+| INFO | (reserved) | future use |
+
+Behavior:
+
+- **Auto-enable.** `--quality-report` or `--fail-on-quality` without
+  `--audit-naming` / `--flag-stale` auto-enables both audits.
+- **Mode-scoping.** Quality flags outside SDR generation (`--stats`,
+  the discovery/inspection list-actions, `--inventory-summary`,
+  `--diff`) exit `USAGE` (2).
+- **Batch precedence.** `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
+  Build failures are more actionable than quality verdicts; users
+  fixing partial failures re-run and then see the gate.
+- **Cache.** `quality.run_audits` is the first production caller of
+  the v1.8.0 `ValidationCache`. Cache key includes the severity-table
+  version so v1.12.x mapping changes invalidate.
+
+Two cja policy keys are NOT supported and are rejected by the policy
+loader with an explicit `ConfigError`:
+
+- `--max-issues` / `max_issues` policy key (cja's per-component cap;
+  aa's quality block is compact — promoted v1.9.0 findings only)
+- `--allow-partial` / `allow_partial` policy key (aa already has
+  `PARTIAL_SUCCESS` (14) and `QUALITY` (17) as orthogonal codes)
+
+Note: the unrelated `--max-issues` flag for `--diff` rendering predates
+v1.12.0 and remains valid; only the *policy* key of the same name is
+rejected.
+
 ### Comparison / Diff
 
 ```bash

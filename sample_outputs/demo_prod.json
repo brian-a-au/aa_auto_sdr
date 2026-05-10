@@ -82,6 +82,7 @@
       "type": "string"
     }
   ],
+  "fetch_status": {},
   "metrics": [
     {
       "category": "Commerce",
@@ -120,6 +121,7 @@
       "type": "int"
     }
   ],
+  "quality": null,
   "report_suite": {
     "currency": "USD",
     "name": "Demo Production",

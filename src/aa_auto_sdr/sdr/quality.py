@@ -13,8 +13,97 @@ See docs/superpowers/specs/2026-05-09-aa-auto-sdr-v1.9.0-design.md §3.2.
 
 from __future__ import annotations
 
+import logging
 import re
-from typing import Any, Protocol
+from dataclasses import dataclass, field
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from aa_auto_sdr.api.cache import ValidationCache
+
+logger = logging.getLogger(__name__)
+
+
+class SeverityLevel(StrEnum):
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INFO = "INFO"
+
+
+_SEVERITY_RANK = {sev: i for i, sev in enumerate(SeverityLevel)}
+_SEVERITY_TABLE_VERSION = "v1.12.0"
+
+
+@dataclass(frozen=True, slots=True)
+class Issue:
+    """One severity-tagged quality finding.
+
+    `item_id` references a real component (e.g. `evar5`, `event12`) for
+    per-component findings, OR the component-type bundle name (e.g.
+    `dimensions`) for bundle-level findings such as case_inconsistency.
+    `item_name` is empty for bundle-level findings.
+    """
+
+    severity: SeverityLevel
+    category: str
+    type: str
+    item_id: str
+    item_name: str
+    issue: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "severity": self.severity.value,
+            "category": self.category,
+            "type": self.type,
+            "item_id": self.item_id,
+            "item_name": self.item_name,
+            "issue": self.issue,
+            "details": dict(self.details),
+        }
+
+
+def has_quality_issues_at_or_above(issues: list[Issue], threshold: SeverityLevel) -> bool:
+    """Returns True if any issue's severity has rank <= threshold's rank."""
+    threshold_rank = _SEVERITY_RANK[threshold]
+    return any(_SEVERITY_RANK[i.severity] <= threshold_rank for i in issues)
+
+
+_STALE_KEYWORD_SEVERITY: dict[str, SeverityLevel] = {
+    "test": SeverityLevel.MEDIUM,
+    "old": SeverityLevel.MEDIUM,
+    "deprecated": SeverityLevel.MEDIUM,
+    "legacy": SeverityLevel.MEDIUM,
+    "obsolete": SeverityLevel.MEDIUM,
+    "unused": SeverityLevel.MEDIUM,
+    "temp": SeverityLevel.LOW,
+    "backup": SeverityLevel.LOW,
+    "copy": SeverityLevel.LOW,
+    "archive": SeverityLevel.LOW,
+}
+
+
+def _severity_for_stale_reason(reason: str) -> SeverityLevel:
+    """Map a v1.9.0 reason string to a SeverityLevel.
+
+    Reasons are colon-prefixed: 'stale_keyword:<kw>', 'version_suffix:vN',
+    'date_pattern:<m>'. Unknown prefixes default to LOW (defensive).
+    """
+    kind, _, value = reason.partition(":")
+    if kind == "stale_keyword":
+        return _STALE_KEYWORD_SEVERITY.get(value, SeverityLevel.LOW)
+    if kind in ("version_suffix", "date_pattern"):
+        return SeverityLevel.LOW
+    return SeverityLevel.LOW
+
+
+def _severity_for_case_inconsistency() -> SeverityLevel:
+    return SeverityLevel.LOW
+
 
 # Verbatim from cja_auto_sdr/org/analyzer.py — keeps cross-tool audit
 # semantics aligned. If cja drifts, drift here too in the same change.
@@ -167,3 +256,167 @@ def detect_stale(bundle: _ComponentBundle) -> list[dict[str, Any]]:
                 },
             )
     return out
+
+
+def run_audits(
+    bundle: _ComponentBundle,
+    *,
+    audit_naming_enabled: bool,
+    flag_stale_enabled: bool,
+    fail_on_quality: SeverityLevel | None = None,
+    cache: ValidationCache | None = None,
+    rsid: str = "",
+) -> dict[str, Any]:
+    """Compose v1.9.0 audits + v1.12.0 severity-promotion into the
+    SdrDocument.quality block shape.
+
+    Returns the full quality dict with v1.9.0 keys (`naming_audit`,
+    `stale_components`) plus v1.12.0 keys (`issues`, `summary`).
+    """
+    # Defensive: a cache without rsid leaks across RSIDs; disable it.
+    if cache is not None and not rsid:
+        cache = None
+
+    # Cache lookup before any audit work.
+    cache_key = ""
+    if cache is not None and rsid:
+        flat: list[Any] = []
+        for ctype in ("dimensions", "metrics", "segments", "calculated_metrics", "classifications"):
+            flat.extend(getattr(bundle, ctype, []) or [])
+        cache_key = _cache_key(
+            rsid=rsid,
+            component_type=(
+                f"all:{audit_naming_enabled}:{flag_stale_enabled}:"
+                f"{fail_on_quality.value if fail_on_quality else 'NONE'}"
+            ),
+            items=flat,
+            severity_table_version=_SEVERITY_TABLE_VERSION,
+        )
+        hit = cache.get(cache_key)
+        if hit is not None:
+            return hit
+
+    naming = audit_naming(bundle) if audit_naming_enabled else _empty_naming()
+    stale = detect_stale(bundle) if flag_stale_enabled else []
+
+    issues: list[Issue] = []
+    issues.extend(_promote_stale_to_issues(stale))
+    issues.extend(_promote_naming_to_issues(naming))
+
+    by_severity: dict[str, int] = {sev.value: 0 for sev in SeverityLevel}
+    for i in issues:
+        by_severity[i.severity.value] += 1
+    total = len(issues)
+
+    summary: dict[str, Any] = {
+        "by_severity": by_severity,
+        "total": total,
+        "verdict": "n/a",
+    }
+    if fail_on_quality is not None:
+        summary["policy_threshold"] = fail_on_quality.value
+        summary["verdict"] = "fail" if has_quality_issues_at_or_above(issues, fail_on_quality) else "pass"
+
+    quality_block = {
+        "naming_audit": naming,
+        "stale_components": stale,
+        "issues": [i.to_dict() for i in issues],
+        "summary": summary,
+    }
+
+    # Per spec §3.12 — fires after every audit run.
+    logger.info(
+        "quality_audit_complete total=%s by_severity=%s",
+        total,
+        by_severity,
+        extra={
+            "quality_total": total,
+            "quality_by_severity": by_severity,
+        },
+    )
+    # Per spec §3.12 — fires only when --fail-on-quality was set.
+    if fail_on_quality is not None:
+        logger.info(
+            "quality_gate_evaluated threshold=%s verdict=%s",
+            fail_on_quality.value,
+            summary["verdict"],
+            extra={
+                "threshold": fail_on_quality.value,
+                "verdict": summary["verdict"],
+            },
+        )
+
+    if cache is not None and rsid and cache_key:
+        cache.put(cache_key, quality_block)
+    return quality_block
+
+
+def _empty_naming() -> dict[str, Any]:
+    return {
+        "total_components": 0,
+        "case_styles": {},
+        "prefix_groups": {},
+        "recommendations": [],
+    }
+
+
+def _promote_stale_to_issues(stale: list[dict[str, Any]]) -> list[Issue]:
+    out: list[Issue] = []
+    for s in stale:
+        for reason in s["reasons"]:
+            severity = _severity_for_stale_reason(reason)
+            kind, _, value = reason.partition(":")
+            out.append(
+                Issue(
+                    severity=severity,
+                    category="stale",
+                    type=kind,
+                    item_id=s["id"],
+                    item_name=s["name"],
+                    issue=f"Component name matches {kind} pattern: {value}",
+                    details={"component_type": s["type"], "reason": reason},
+                ),
+            )
+    return out
+
+
+def _promote_naming_to_issues(naming: dict[str, Any]) -> list[Issue]:
+    return [
+        Issue(
+            severity=_severity_for_case_inconsistency(),
+            category="naming",
+            type="case_inconsistency",
+            item_id="naming_audit",
+            item_name="",
+            issue=rec,
+            details={},
+        )
+        for rec in naming.get("recommendations", [])
+    ]
+
+
+def _id_of(item: object) -> str:
+    """Adapter — most aa component dataclasses use `.id`. ClassificationDataset
+    uses `.dataset_id` (verify in api/models.py); fall back gracefully."""
+    if hasattr(item, "id"):
+        return str(item.id)
+    if hasattr(item, "dataset_id"):
+        return str(item.dataset_id)
+    return repr(item)
+
+
+def _cache_key(
+    rsid: str,
+    component_type: str,
+    items: list[Any],
+    severity_table_version: str,
+) -> str:
+    """Stable per-bundle key. Hash sorted item ids + severity table version
+    so a policy/severity change invalidates."""
+    import hashlib
+
+    ids = sorted(_id_of(it) for it in items)
+    digest = hashlib.sha1(  # noqa: S324 (cache key, not security-sensitive)
+        (rsid + component_type + ",".join(ids) + severity_table_version).encode(),
+    ).hexdigest()[:16]
+    return f"quality_v1:{rsid}:{component_type}:{digest}"

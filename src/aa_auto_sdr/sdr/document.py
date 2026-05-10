@@ -47,7 +47,12 @@ class SdrDocument:
     quality: dict[str, Any] | None = None  # NEW (v1.9.0): None when no audit ran
 
     def to_dict(self) -> dict[str, Any]:
-        """Plain-dict shape used by JSON output and snapshots."""
+        """Plain-dict shape used by JSON output and snapshots.
+
+        Includes `quality` (None when no audit ran) and `fetch_status`
+        (FetchOutcomeMeta entries unpacked via asdict). Bundled v1.12.0
+        correctness fix; pre-v1.12.0 builds silently dropped these.
+        """
         return {
             "report_suite": asdict(self.report_suite),
             "dimensions": [asdict(d) for d in self.dimensions],
@@ -58,4 +63,6 @@ class SdrDocument:
             "classifications": [asdict(c) for c in self.classifications],
             "captured_at": self.captured_at.isoformat(),
             "tool_version": self.tool_version,
+            "fetch_status": {ctype: asdict(meta) for ctype, meta in self.fetch_status.items()},
+            "quality": self.quality,
         }

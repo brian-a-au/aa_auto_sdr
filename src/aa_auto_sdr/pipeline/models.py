@@ -14,6 +14,10 @@ class RunResult:
     error: str | None = None
     report_suite_name: str | None = None
     duration_seconds: float = 0.0
+    # v1.12.0 — quality gate / report. `quality_verdict` is one of
+    # "pass" / "fail" / "n/a" / "" (empty when no audit ran).
+    quality_verdict: str = ""
+    quality_report_path: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,3 +47,5 @@ class BatchResult:
     sample_seed: int | None = None
     sample_strategy: str | None = None  # "random" or "stratified" when sampled
     total_available: int = 0
+    # v1.12.0 — per-RSID quality verdicts. Empty when --fail-on-quality not set.
+    quality_verdicts: dict[str, str] = field(default_factory=dict)

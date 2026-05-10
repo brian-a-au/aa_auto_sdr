@@ -72,6 +72,25 @@ def _resolve_retry_policy(ns: argparse.Namespace) -> RetryPolicy:
     )
 
 
+def _apply_quality_auto_enable(ns: argparse.Namespace) -> None:
+    """Auto-enable v1.9.0 audits when v1.12.0 quality flags are set without them.
+
+    Per spec §3.9: `--quality-report` or `--fail-on-quality` need at least one
+    audit to produce findings. If neither audit flag is on, enable both and
+    emit `quality_auto_enabled` (spec §3.12) so users see the implicit toggle
+    in the log stream.
+    """
+    if (getattr(ns, "quality_report", None) or getattr(ns, "fail_on_quality", None)) and not (
+        getattr(ns, "audit_naming", False) or getattr(ns, "flag_stale", False)
+    ):
+        ns.audit_naming = True
+        ns.flag_stale = True
+        logger.info(
+            "quality_auto_enabled audit_naming=true flag_stale=true",
+            extra={"audit_naming": True, "flag_stale": True},
+        )
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -215,6 +234,60 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             flush=True,
         )
         return ExitCode.USAGE.value
+
+    # v1.12.0 — load --quality-policy file (if any) and fill unset CLI fields
+    # before any branch can read them. CLI flags always win.
+    if getattr(ns, "quality_policy", None) is not None:
+        from aa_auto_sdr.core.exceptions import ConfigError
+        from aa_auto_sdr.sdr.quality_policy import apply_policy_defaults, load_policy
+
+        try:
+            policy = load_policy(ns.quality_policy)
+        except ConfigError as e:
+            print(f"error: {e}", flush=True)
+            return ExitCode.CONFIG.value
+        explicit = {tok.lstrip("-").replace("-", "_") for tok in argv if tok.startswith("--")}
+        apply_policy_defaults(cli_namespace=ns, policy=policy, explicitly_set=explicit)
+        logger.info(
+            "quality_policy_loaded policy_path=%s fail_on_quality=%s quality_report=%s",
+            ns.quality_policy,
+            policy.fail_on_quality.value if policy.fail_on_quality else None,
+            policy.quality_report,
+            extra={
+                "policy_path": str(ns.quality_policy),
+                "fail_on_quality": policy.fail_on_quality.value if policy.fail_on_quality else None,
+                "quality_report": policy.quality_report,
+            },
+        )
+
+    # v1.12.0 — reject quality flags outside SDR generation (per spec §3.9).
+    _non_sdr_actions = (
+        getattr(ns, "stats", False),
+        getattr(ns, "inventory_summary", False),
+        getattr(ns, "describe_reportsuite", None),
+        getattr(ns, "list_reportsuites", False),
+        getattr(ns, "list_virtual_reportsuites", False),
+        getattr(ns, "list_metrics", None),
+        getattr(ns, "list_dimensions", None),
+        getattr(ns, "list_segments", None),
+        getattr(ns, "list_calculated_metrics", None),
+        getattr(ns, "list_classification_datasets", None),
+        getattr(ns, "diff", None),
+    )
+    _quality_flags_set = bool(
+        getattr(ns, "fail_on_quality", None)
+        or getattr(ns, "quality_report", None)
+        or getattr(ns, "quality_policy", None),
+    )
+    if any(_non_sdr_actions) and _quality_flags_set:
+        print(
+            "error: --quality-report / --quality-policy / --fail-on-quality require "
+            "single-RSID or --batch SDR generation; not valid with list/inspect/diff actions.",
+            flush=True,
+        )
+        return ExitCode.USAGE.value
+
+    _apply_quality_auto_enable(ns)
 
     # Profile/config actions
     if ns.profile_add:
@@ -538,6 +611,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             sample_size=ns.sample_size,
             sample_seed=ns.sample_seed,
             sample_stratified=ns.sample_stratified,
+            fail_on_quality=ns.fail_on_quality,
+            quality_report=ns.quality_report,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -569,6 +644,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         audit_naming=ns.audit_naming,
         flag_stale=ns.flag_stale,
         name_match=ns.name_match,
+        fail_on_quality=ns.fail_on_quality,
+        quality_report=ns.quality_report,
     )
 
 

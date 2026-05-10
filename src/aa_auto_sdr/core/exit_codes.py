@@ -22,6 +22,7 @@ class ExitCode(IntEnum):
     PARTIAL_SUCCESS = 14  # v0.5 batch: some succeeded, some failed
     OUTPUT = 15
     SNAPSHOT = 16  # v0.7 snapshot resolve / schema / git failure
+    QUALITY = 17  # v1.12.0 — --fail-on-quality threshold breached (build itself succeeded)
 
 
 # One-line description per code, used by --exit-codes.
@@ -37,6 +38,7 @@ ROWS: list[tuple[ExitCode, str]] = [
     (ExitCode.PARTIAL_SUCCESS, "Batch ran with mixed success and failure"),
     (ExitCode.OUTPUT, "Output writer failure (filesystem / format mismatch)"),
     (ExitCode.SNAPSHOT, "Snapshot resolve / schema / git failure"),
+    (ExitCode.QUALITY, "Quality gate breached: --fail-on-quality threshold exceeded"),
 ]
 
 
@@ -170,4 +172,21 @@ What to try:
 - For `<RSID>@latest` / `@previous`, ensure `--profile` is set and the profile's
   `~/.aa/orgs/<profile>/snapshots/<RSID>/` directory has at least one (or two,
   for `@previous`) JSON files.""",
+    ExitCode.QUALITY: """The build completed and the SDR document was emitted, but at least
+one quality issue was found at or above the severity threshold passed
+via --fail-on-quality. The SDR output and snapshot are still valid;
+this exit code is a CI signal — failing the build to surface a quality
+regression.
+
+Likely causes:
+- New stale-named components (test/old/deprecated, _vN suffix, date suffix)
+  promoted at MEDIUM or higher severity.
+- Mixed case styles across components (case_inconsistency at LOW).
+
+What to try:
+- Re-run with --quality-report json to inspect every issue and severity.
+- Re-run without --fail-on-quality (or with a lower threshold) to confirm
+  the SDR contents and snapshot are otherwise valid.
+- Address the underlying naming inconsistencies in Adobe Analytics, then
+  re-run to clear the gate.""",
 }

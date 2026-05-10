@@ -35,11 +35,17 @@ def test_fetch_status_defaults_to_empty_dict() -> None:
     assert doc.fetch_status == {}
 
 
-def test_to_dict_does_not_emit_fetch_status() -> None:
-    """fetch_status is observability metadata, not document content;
-    snapshot/schema.py reads it directly from doc.fetch_status when
-    building the envelope. Keeps user-facing JSON output unchanged.
-    See PR #27 review I-1."""
+def test_to_dict_emits_fetch_status() -> None:
+    """v1.12.0 fix: SdrDocument.to_dict() now includes fetch_status.
+
+    Pre-v1.12.0 the field was deliberately excluded from to_dict() so
+    user-facing JSON stayed clean. v1.12.0 reverses that: fetch_status
+    is part of the document boundary and downstream consumers benefit
+    from seeing degraded/partial outcomes in the JSON output.
+    snapshot/schema.py still partitions it into top-level
+    degraded_components/partial_components keys (popped from the nested
+    components payload to avoid duplication).
+    """
     doc = _make_doc(
         fetch_status={
             "virtual_report_suites": FetchOutcomeMeta(
@@ -49,7 +55,8 @@ def test_to_dict_does_not_emit_fetch_status() -> None:
         },
     )
     payload = doc.to_dict()
-    assert "fetch_status" not in payload
+    assert "fetch_status" in payload
+    assert payload["fetch_status"]["virtual_report_suites"]["status"] == "partial"
 
 
 def test_fetch_status_uses_plural_envelope_keys() -> None:

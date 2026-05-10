@@ -118,6 +118,8 @@ def run(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     name_match: str = "insensitive",  # v1.9.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -147,6 +149,8 @@ def run(
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             name_match=name_match,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
         )
         return exit_code
     finally:
@@ -185,8 +189,14 @@ def _run_impl(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     name_match: str = "insensitive",  # v1.9.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> int:
     started_at = datetime.now(UTC)
+    # v1.12.0 — translate string severity to enum once, here.
+    from aa_auto_sdr.sdr.quality import SeverityLevel as _SeverityLevel
+
+    _fail_on_quality = _SeverityLevel(fail_on_quality) if fail_on_quality else None
 
     if show_timings:
         timings.clear()
@@ -383,6 +393,7 @@ def _run_impl(
                         component_filter=component_filter,
                         audit_naming=audit_naming,
                         flag_stale=flag_stale,
+                        fail_on_quality=_fail_on_quality,
                     )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -501,6 +512,8 @@ def _run_impl(
                 component_filter=component_filter,
                 audit_naming=audit_naming,
                 flag_stale=flag_stale,
+                fail_on_quality=_fail_on_quality,
+                quality_report=quality_report,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
@@ -608,6 +621,7 @@ def _run_impl(
                 output_paths=[str(p) for p in result.outputs],
                 snapshot_path=None,
                 error=None,
+                quality_verdict=result.quality_verdict,
             ),
         )
 
@@ -645,6 +659,13 @@ def _run_impl(
         show_timings=show_timings,
     )
     _emit_timings_if_enabled(show_timings=show_timings)
+
+    # v1.12.0 — quality gate (single-RSID, file-output path). The build itself
+    # succeeded; if any successful RSID's verdict is "fail", return
+    # ExitCode.QUALITY (17). Per spec §3.10 this is a soft signal — outputs
+    # already wrote successfully.
+    if _fail_on_quality is not None and any(r.succeeded and r.quality_verdict == "fail" for r in per_rsid_results):
+        return ExitCode.QUALITY.value
     return ExitCode.OK.value
 
 
