@@ -267,6 +267,10 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Batch via explicit flag | `aa_auto_sdr --batch RS1 RS2 RS3` |
 | Parallel batch (v1.8.0+) | `aa_auto_sdr --batch RS1 RS2 RS3 --workers 4` |
 | Parallel + fail-fast | `aa_auto_sdr --batch RS1 RS2 --workers 2 --fail-fast` |
+| Naming audit (v1.9.0+) | `aa_auto_sdr RS1 --audit-naming` |
+| Flag stale components (v1.9.0+) | `aa_auto_sdr RS1 --flag-stale` |
+| Resolve by name (v1.9.0+) | `aa_auto_sdr "Production RS" --name-match fuzzy` |
+| Extended-field diff (v1.9.0+) | `aa_auto_sdr --diff snap_a snap_b --extended-fields` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
 | Excel (default) | `aa_auto_sdr <RSID>` |

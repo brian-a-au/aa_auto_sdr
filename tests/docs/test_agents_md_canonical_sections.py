@@ -120,6 +120,13 @@ def test_documented_long_flags_exist_in_parser():
         "--continue-on-error",
         "--shared-cache",
         "--use-cache",
+        # Flags explicitly documented in AGENTS.md as *removed* from the v1.9.0
+        # roadmap (CJA-only concepts or redundant in AA's per-RSID generation;
+        # documented to explain their absence to agent consumers).
+        "--no-component-types",
+        "--lock-stale-threshold",
+        "--include-names",
+        "--include-metadata",
     }
 
     missing = documented - real_flags - allowlist
