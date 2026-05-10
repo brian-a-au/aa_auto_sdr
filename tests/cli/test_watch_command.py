@@ -142,6 +142,14 @@ class TestUsageValidation:
         assert rc == ExitCode.USAGE
         assert "--format" in capsys.readouterr().err
 
+    def test_watch_with_format_json_accepted_for_agent_mode(self) -> None:
+        """`--agent-mode` injects format='json' before dispatch. Watch must accept
+        format='json' because watch's stdout IS NDJSON. Other formats stay rejected."""
+        inj = _make_inj()
+        ns = _ns(format="json")  # agent-mode would set this
+        rc = watch_run(ns, _injected=inj)
+        assert rc == ExitCode.OK
+
     def test_watch_with_quality_policy_returns_usage(self, capsys) -> None:
         ns = _ns(quality_policy="strict")
         rc = watch_run(ns, _injected=_make_inj())

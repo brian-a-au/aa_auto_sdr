@@ -112,9 +112,11 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
     if getattr(ns, "watch_threshold", 1) < 0:
         print("error: --watch-threshold must be non-negative", file=sys.stderr)
         return int(ExitCode.USAGE)
-    if getattr(ns, "format", None) is not None:
+    fmt = getattr(ns, "format", None)
+    if fmt is not None and fmt != "json":
         print(
-            "error: --format is not compatible with --watch (events are NDJSON on stdout)",
+            f"error: --format={fmt!r} is not compatible with --watch "
+            f"(only `json` is allowed; watch emits NDJSON on stdout)",
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
