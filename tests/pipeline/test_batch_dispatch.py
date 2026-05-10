@@ -10,6 +10,17 @@ import pytest
 
 from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.pipeline.batch import run_batch
+from aa_auto_sdr.pipeline.models import BatchResult
+
+
+def _empty_batch_result() -> BatchResult:
+    return BatchResult(
+        successes=[],
+        failures=[],
+        total_duration_seconds=0.0,
+        total_output_bytes=0,
+        batch_id="testbid",
+    )
 
 
 def test_workers_1_dispatches_to_sequential() -> None:
@@ -18,7 +29,7 @@ def test_workers_1_dispatches_to_sequential() -> None:
         patch("aa_auto_sdr.pipeline.batch._run_sequential") as seq,
         patch("aa_auto_sdr.pipeline.batch.run_parallel") as par,
     ):
-        seq.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        seq.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1"],
@@ -37,7 +48,7 @@ def test_workers_2_dispatches_to_parallel() -> None:
         patch("aa_auto_sdr.pipeline.batch._run_sequential") as seq,
         patch("aa_auto_sdr.pipeline.batch.run_parallel") as par,
     ):
-        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        par.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],
@@ -57,7 +68,7 @@ def test_workers_default_is_1() -> None:
         patch("aa_auto_sdr.pipeline.batch._run_sequential") as seq,
         patch("aa_auto_sdr.pipeline.batch.run_parallel") as par,
     ):
-        seq.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        seq.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1"],
@@ -72,7 +83,7 @@ def test_workers_default_is_1() -> None:
 
 def test_fail_fast_threaded_through_to_run_parallel() -> None:
     with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
-        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        par.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],
@@ -90,7 +101,7 @@ def test_fail_fast_threaded_through_to_run_parallel() -> None:
 def test_cache_passed_through_to_run_parallel() -> None:
     cache = ValidationCache()
     with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
-        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        par.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],
@@ -126,7 +137,7 @@ def test_callbacks_forwarded_to_run_parallel() -> None:
     progress = MagicMock()
     failure = MagicMock()
     with patch("aa_auto_sdr.pipeline.batch.run_parallel") as par:
-        par.return_value = MagicMock(successes=[], failures=[], total_duration_seconds=0.0, total_output_bytes=0)
+        par.return_value = _empty_batch_result()
         run_batch(
             client=MagicMock(),
             rsids=["r1", "r2"],
