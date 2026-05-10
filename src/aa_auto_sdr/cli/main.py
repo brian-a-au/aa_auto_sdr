@@ -95,6 +95,25 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+
+    # v1.10.0 — sampling flag mode-scoping (must run before any handler dispatch
+    # or creds resolution). Raises SystemExit so the failure surfaces cleanly
+    # the same way argparse's own usage errors do, with ExitCode.USAGE.
+    is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
+    if ns.sample_size is not None:
+        if ns.sample_size < 1:
+            print(f"error: --sample must be >= 1, got {ns.sample_size}", file=sys.stderr)
+            raise SystemExit(ExitCode.USAGE.value)
+        if not is_batch:
+            print("error: --sample requires --batch", file=sys.stderr)
+            raise SystemExit(ExitCode.USAGE.value)
+    if ns.sample_seed is not None and ns.sample_size is None:
+        print("error: --sample-seed requires --sample", file=sys.stderr)
+        raise SystemExit(ExitCode.USAGE.value)
+    if ns.sample_stratified and ns.sample_size is None:
+        print("error: --sample-stratified requires --sample", file=sys.stderr)
+        raise SystemExit(ExitCode.USAGE.value)
+
     # v1.7.0 — resolve retry policy before any auth or expensive work so
     # cross-flag errors (e.g. retry_max_delay < retry_base_delay) fail-fast
     # with USAGE rather than after a network round-trip.
@@ -500,6 +519,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             audit_naming=ns.audit_naming,
             flag_stale=ns.flag_stale,
             name_match=ns.name_match,
+            sample_size=ns.sample_size,
+            sample_seed=ns.sample_seed,
+            sample_stratified=ns.sample_stratified,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.

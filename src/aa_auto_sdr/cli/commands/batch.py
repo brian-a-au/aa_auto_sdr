@@ -116,6 +116,9 @@ def run(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     name_match: str = "insensitive",  # v1.9.0
+    sample_size: int | None = None,  # v1.10.0
+    sample_seed: int | None = None,  # v1.10.0
+    sample_stratified: bool = False,  # v1.10.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -151,6 +154,9 @@ def run(
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             name_match=name_match,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+            sample_stratified=sample_stratified,
         )
         return exit_code
     finally:
@@ -195,6 +201,9 @@ def _run_impl(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     name_match: str = "insensitive",  # v1.9.0
+    sample_size: int | None = None,  # v1.10.0
+    sample_seed: int | None = None,  # v1.10.0
+    sample_stratified: bool = False,  # v1.10.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -431,6 +440,9 @@ def _run_impl(
             cache=cache,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+            sample_stratified=sample_stratified,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the
