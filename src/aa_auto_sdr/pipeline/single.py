@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.core import timings
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline.models import RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter, build_sdr
+from aa_auto_sdr.sdr.quality import SeverityLevel
+
+if TYPE_CHECKING:
+    from aa_auto_sdr.api.cache import ValidationCache
 
 
 def run_single(
@@ -24,6 +29,8 @@ def run_single(
     component_filter: ComponentFilter | None = None,  # v1.2
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    fail_on_quality: SeverityLevel | None = None,  # v1.12.0
+    cache: ValidationCache | None = None,  # v1.12.0
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -39,6 +46,8 @@ def run_single(
             component_filter=component_filter,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            fail_on_quality=fail_on_quality,
+            cache=cache,
         )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []

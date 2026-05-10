@@ -99,7 +99,7 @@ def _run_single_for_batch(
     tool_version: str,
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,
-    cache: object = None,  # noqa: ARG001 — reserved for v1.12.0 quality engine
+    cache: object = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
 ) -> RunResult:
@@ -108,9 +108,7 @@ def _run_single_for_batch(
     Kept as a module-level function (not a closure) so tests can monkeypatch it
     without needing access to any enclosing scope.
 
-    The `cache` parameter is reserved for future use by the quality engine
-    (v1.12.0). It is accepted here to ensure the call site in run_parallel can
-    always pass it through without change.
+    v1.12.0: `cache` is now wired through to the quality-engine first caller.
     """
     # Lazy import: heavy deps are deferred until a worker actually runs.
     from aa_auto_sdr.pipeline import single
@@ -126,6 +124,7 @@ def _run_single_for_batch(
         component_filter=component_filter,
         audit_naming=audit_naming,
         flag_stale=flag_stale,
+        cache=cache,  # type: ignore[arg-type]
     )
 
 
