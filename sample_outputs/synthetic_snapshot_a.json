@@ -204,6 +204,6 @@
   "partial_components": {},
   "quality": null,
   "rsid": "demo.prod",
-  "schema": "aa-sdr-snapshot/v3",
+  "schema": "aa-sdr-snapshot/v4",
   "tool_version": "1.0.0"
 }

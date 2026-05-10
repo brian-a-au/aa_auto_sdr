@@ -35,8 +35,8 @@ def _stub_doc() -> SdrDocument:
     )
 
 
-def test_schema_version_is_v3() -> None:
-    assert SCHEMA_VERSION == "aa-sdr-snapshot/v3"
+def test_schema_version_is_v4() -> None:
+    assert SCHEMA_VERSION == "aa-sdr-snapshot/v4"
 
 
 def test_document_to_envelope_shape() -> None:
@@ -94,3 +94,39 @@ def test_validate_envelope_rejects_naive_timestamp() -> None:
     env["captured_at"] = "2026-04-26T17:29:01"  # no offset
     with pytest.raises(SnapshotSchemaError, match=r"naive|timezone|offset"):
         validate_envelope(env)
+
+
+def test_v3_envelope_loads_on_v1_12_0() -> None:
+    """v3 envelopes (no v4 inner keys) still load — defaulted in-memory."""
+    env = document_to_envelope(_stub_doc())
+    # Simulate a v3-shaped envelope: schema string + quality block missing v4 keys.
+    env["schema"] = "aa-sdr-snapshot/v3"
+    env["quality"] = {"naming_audit": {"total_components": 0}, "stale_components": []}
+    validate_envelope(env)  # in-memory defaults populate v4 keys
+    assert env["quality"]["issues"] == []
+    assert env["quality"]["summary"] == {"by_severity": {}, "total": 0, "verdict": "n/a"}
+
+
+def test_v4_envelope_round_trips() -> None:
+    """v4 envelopes carry quality.issues + quality.summary verbatim."""
+    env = document_to_envelope(_stub_doc())
+    # Inject a populated quality block.
+    env["quality"] = {
+        "naming_audit": {"total_components": 1},
+        "stale_components": [],
+        "issues": [
+            {
+                "severity": "MEDIUM",
+                "category": "stale",
+                "type": "stale_keyword",
+                "item_id": "evar5",
+                "item_name": "v_old",
+                "issue": "Component name matches stale_keyword pattern: old",
+                "details": {},
+            },
+        ],
+        "summary": {"by_severity": {"MEDIUM": 1}, "total": 1, "verdict": "fail", "policy_threshold": "MEDIUM"},
+    }
+    validate_envelope(env)
+    assert env["quality"]["summary"]["verdict"] == "fail"
+    assert env["quality"]["issues"][0]["severity"] == "MEDIUM"
