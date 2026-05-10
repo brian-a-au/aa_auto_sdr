@@ -157,6 +157,30 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         emitter = StdoutEmitter()
         max_cycles = None  # infinite by default
 
+    # Wrap the emitter so we log a watch_cycle_complete event per emit.
+    real_emitter = emitter
+
+    class _LoggingEmitter:
+        def emit(self, payload: dict) -> None:
+            real_emitter.emit(payload)
+            summary = payload.get("summary") or {}
+            change_count = summary.get("added", 0) + summary.get("removed", 0) + summary.get("modified", 0)
+            logger.info(
+                "watch_cycle_complete cycle=%d rsid=%s change_count=%d emitted=%s",
+                payload.get("cycle", 0),
+                payload.get("rsid", "?"),
+                change_count,
+                True,
+                extra={
+                    "cycle": payload.get("cycle", 0),
+                    "rsid": payload.get("rsid", "?"),
+                    "change_count": change_count,
+                    "emitted": True,
+                },
+            )
+
+    emitter = _LoggingEmitter()  # type: ignore[assignment]
+
     ctx = WatchContext(
         fetcher=fetcher,
         snapshot_store=store,
@@ -203,7 +227,12 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         )
         return int(rc)
     except Exception:
-        logger.exception("watch_loop_stop reason=fatal")
+        logger.exception(
+            "watch_loop_stop reason=%s cycles_completed=%d",
+            "fatal",
+            -1,
+            extra={"reason": "fatal", "cycles_completed": -1},
+        )
         return int(ExitCode.GENERIC)
 
 

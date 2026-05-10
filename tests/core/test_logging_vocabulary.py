@@ -90,6 +90,14 @@ VOCAB = {
     "snapshot_count",
     "total_changes",
     "volatility_score",
+    # v1.14.0 additions — watch / scheduled mode
+    "cycle",
+    "interval",
+    "watch_threshold",
+    "change_count",
+    "emitted",
+    "cycles_completed",
+    "rsids",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -116,6 +124,10 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     # v1.13.0 — trending events
     "trending_window_resolved": {"duration", "start_at", "end_at"},
     "trending_compute_complete": {"rsid", "snapshot_count", "total_changes", "volatility_score"},
+    # v1.14.0 — watch / scheduled mode
+    "watch_loop_start": {"rsids", "interval", "watch_threshold"},
+    "watch_cycle_complete": {"cycle", "rsid", "change_count", "emitted"},
+    "watch_loop_stop": {"reason", "cycles_completed"},
 }
 
 INSTRUMENTED_MODULES = [
@@ -151,6 +163,8 @@ INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/snapshot/trending.py"),
     Path("src/aa_auto_sdr/cli/commands/trending.py"),
     Path("src/aa_auto_sdr/cli/commands/compare_with_prev.py"),
+    # v1.14.0
+    Path("src/aa_auto_sdr/cli/commands/watch.py"),
 ]
 
 
