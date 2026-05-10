@@ -54,6 +54,11 @@ def _print_help() -> int:
         "  --workers N               Parallel worker threads for --batch (default: 1, max: 16)\n"
         "  --fail-fast               Cancel pending workers on first batch failure\n"
         "\n"
+        "Batch sampling (v1.10.0+):\n"
+        "  --sample N                Subset N RSIDs from the --batch list before generation (N >= 1)\n"
+        "  --sample-seed N           Integer seed for --sample RNG (default: non-deterministic)\n"
+        "  --sample-stratified       Group --batch RSIDs by code prefix; sample proportionally per group\n"
+        "\n"
         "Validation cache (dormant in v1.8.0; populated in v1.12.0):\n"
         "  --enable-cache            Instantiate the validation cache (no-op until v1.12.0)\n"
         "  --clear-cache             Clear cache state at run start\n"
@@ -70,6 +75,7 @@ def _print_help() -> int:
         "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
         "v1.8.0: parallel --batch workers (--workers, --fail-fast); validation cache scaffold (--enable-cache, --clear-cache, --cache-ttl, --cache-size).\n"
         "v1.9.0: field-level shaping + naming audits (--audit-naming, --flag-stale, --name-match, --extended-fields).\n"
+        "v1.10.0: --batch RSID sampling (--sample, --sample-seed, --sample-stratified).\n"
     )
     return 0
 

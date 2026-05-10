@@ -13,6 +13,7 @@ The runner in pipeline/batch.py is pure; this module owns all stdout printing
 
 from __future__ import annotations
 
+import dataclasses
 import json as _json
 import logging
 import os
@@ -62,6 +63,7 @@ def _emit_run_summary(
     profile: str | None,
     per_rsid: list[PerRsidResult],
     show_timings: bool,
+    batch_result: BatchResult | None = None,
 ) -> None:
     if not run_summary_json:
         return
@@ -73,6 +75,11 @@ def _emit_run_summary(
         profile=profile,
         rsids=per_rsid,
         timings=timings.report() if show_timings else [],
+        sampled=batch_result.sampled if batch_result is not None else False,
+        sample_size=batch_result.sample_size if batch_result is not None else None,
+        sample_seed=batch_result.sample_seed if batch_result is not None else None,
+        sample_strategy=batch_result.sample_strategy if batch_result is not None else None,
+        total_available=batch_result.total_available if batch_result is not None else 0,
     )
     if run_summary_json == "-":
         # Compact single-line JSON on stdout — easier to consume from scripts and
@@ -116,6 +123,9 @@ def run(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     name_match: str = "insensitive",  # v1.9.0
+    sample_size: int | None = None,  # v1.10.0
+    sample_seed: int | None = None,  # v1.10.0
+    sample_stratified: bool = False,  # v1.10.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -151,6 +161,9 @@ def run(
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             name_match=name_match,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+            sample_stratified=sample_stratified,
         )
         return exit_code
     finally:
@@ -195,6 +208,9 @@ def _run_impl(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     name_match: str = "insensitive",  # v1.9.0
+    sample_size: int | None = None,  # v1.10.0
+    sample_seed: int | None = None,  # v1.10.0
+    sample_stratified: bool = False,  # v1.10.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -431,6 +447,9 @@ def _run_impl(
             cache=cache,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+            sample_stratified=sample_stratified,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the
@@ -443,12 +462,7 @@ def _run_impl(
         )
 
     all_failures = list(result.failures) + pre_failures
-    final = BatchResult(
-        successes=result.successes,
-        failures=all_failures,
-        total_duration_seconds=result.total_duration_seconds,
-        total_output_bytes=result.total_output_bytes,
-    )
+    final = dataclasses.replace(result, failures=all_failures)
 
     _print_summary(final)
 
@@ -483,6 +497,7 @@ def _run_impl(
         profile=profile,
         per_rsid=per_rsid_results,
         show_timings=show_timings,
+        batch_result=final,
     )
 
     if auto_prune and snapshot_dir is not None:
@@ -561,6 +576,10 @@ def _print_summary(result: BatchResult) -> None:
     print(colors.bold("BATCH PROCESSING SUMMARY"))
     print("=" * BANNER_WIDTH)
     print(f"Total report suites: {total}")
+    if result.sampled:
+        seed_segment = f", seed={result.sample_seed}" if result.sample_seed is not None else ""
+        strategy = result.sample_strategy or "random"
+        print(f"Sampled {result.sample_size} of {result.total_available} RSIDs (strategy={strategy}{seed_segment})")
     print(f"Successful: {colors.success(str(successful))}")
     print(f"Failed: {colors.error(str(failed))}")
     print(f"Success rate: {colors.status(rate == 100, f'{rate:.1f}%')}")

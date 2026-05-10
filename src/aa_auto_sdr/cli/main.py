@@ -81,11 +81,13 @@ def run(argv: list[str]) -> int:
       2. ``_apply_agent_mode_defaults`` — `--agent-mode` preset fills in
          `format` / `output` / `log_format` for options the user did not
          explicitly pass on argv.
-      3. quiet-from-output prelude — if the resolved `output` or
+      3. Validate v1.10.0 sampling flag combinations; raise
+         ``SystemExit(USAGE)`` if invalid.
+      4. quiet-from-output prelude — if the resolved `output` or
          `run_summary_json` targets stdout and `--quiet` was not explicit,
          flip ``ns.quiet = True`` so INFO records do not leak onto stderr
          alongside the stdout payload.
-      4. ``setup_logging(ns)`` — wires console + file handlers from the
+      5. ``setup_logging(ns)`` — wires console + file handlers from the
          now-final ``ns``.
 
     After step 4, ``ns`` is read-only by convention; downstream dispatch
@@ -95,6 +97,27 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+
+    # v1.10.0 — sampling flag mode-scoping. Uses raise SystemExit (not return)
+    # so the exit happens before setup_logging/run_start fire — matches argparse's
+    # own behavior on usage errors and keeps stderr-only output for these failures.
+    # (Contrast with the retry-policy block below, which returns ExitCode.USAGE.value
+    # after setup_logging has already wired handlers — that path logs run_complete.)
+    is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
+    if ns.sample_size is not None:
+        if ns.sample_size < 1:
+            print(f"error: --sample must be >= 1, got {ns.sample_size}", file=sys.stderr)
+            raise SystemExit(ExitCode.USAGE.value)
+        if not is_batch:
+            print("error: --sample requires --batch", file=sys.stderr)
+            raise SystemExit(ExitCode.USAGE.value)
+    if ns.sample_seed is not None and ns.sample_size is None:
+        print("error: --sample-seed requires --sample", file=sys.stderr)
+        raise SystemExit(ExitCode.USAGE.value)
+    if ns.sample_stratified and ns.sample_size is None:
+        print("error: --sample-stratified requires --sample", file=sys.stderr)
+        raise SystemExit(ExitCode.USAGE.value)
+
     # v1.7.0 — resolve retry policy before any auth or expensive work so
     # cross-flag errors (e.g. retry_max_delay < retry_base_delay) fail-fast
     # with USAGE rather than after a network round-trip.
@@ -500,6 +523,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             audit_naming=ns.audit_naming,
             flag_stale=ns.flag_stale,
             name_match=ns.name_match,
+            sample_size=ns.sample_size,
+            sample_seed=ns.sample_seed,
+            sample_stratified=ns.sample_stratified,
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.

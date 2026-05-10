@@ -82,6 +82,22 @@ Quality-pass log records (`audit_complete`, `stale_detection_complete`)
 reuse the canonical `count` extras key for component counts rather than
 introducing audit-specific vocabulary.
 
+**Active fields (v1.10.0+):** `sample_size`, `sample_seed`,
+`sample_strategy`, and `count_total`.
+
+| Field | Type | When |
+|---|---|---|
+| `sample_size` | int | Number of RSIDs the user requested via `--sample N`. Emitted on the `batch_sampled` INFO record. |
+| `sample_seed` | int \| None | RNG seed used for `--sample` (None when not supplied — non-deterministic run). Emitted on the `batch_sampled` INFO record. |
+| `sample_strategy` | str — `random`/`stratified` | Which sampling strategy ran. `random` when `--sample-stratified` was not passed; `stratified` when it was. Emitted on the `batch_sampled` INFO record. |
+| `count_total` | int | The pre-sample population size (the original `len(batch)` before subsetting). Paired with `count` (the post-sample size that actually runs) on the `batch_sampled` record. |
+
+The `batch_sampled` INFO record fires once per `--batch` invocation
+that actually applies sampling (i.e., `--sample N` where
+`N < len(batch)`). No-op sampling (`N >= len(batch)`) does not emit
+the record. Mode-scoping rejects `--sample*` outside `--batch` at
+argparse time, so the record never fires in single mode.
+
 ## Message-style rules
 
 - Format: `event_prefix key1=%s key2=%s` followed by positional args, plus `extra={...}` for the structured copy. Both views (text-grep and JSON-aggregator) get the same data:
@@ -127,6 +143,10 @@ in v1.7.0:
 - `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call (both bubbling fetchers via `_retry_and_normalize` and graceful-degrade fetchers that call `with_retries` directly). Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
 - `vrs_expansion_fallback` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires when the full-expansion VRS call (`extended_info=True`) exhausts the retry budget and the minimal-expansion fallback rung (`extended_info=False`) is attempted. Carries `rsid`, `component_type=virtual_report_suite`, `expansion_level=minimal`, and `error_class` (the class name of the full-rung failure that triggered the fallback).
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response — the happy path stays quiet. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
+
+**v1.10.0 — Batch sampling (1):**
+
+- `batch_sampled` — INFO. `pipeline/batch.py::run_batch`. Fires once per `--batch` invocation that actually applies sampling (`--sample N` where `N < len(batch)`). No-op sampling (`N >= len(batch)`) suppresses the record. Carries `count` (post-sample size, what actually runs), `count_total` (pre-sample size), `sample_size` (the user-requested N), `sample_seed` (int or None), and `sample_strategy` (`random` or `stratified`).
 
 **Vocabulary meta-test treatment.** All canonical events are active; the v1.4 reserved-events exemption was lifted in v1.5. The vocabulary meta-test enforces extras presence on every canonical event when its substring appears at the start of a message (token-boundary aware).
 

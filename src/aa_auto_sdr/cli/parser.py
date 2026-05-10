@@ -570,6 +570,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="In parallel batch mode, cancel pending workers on first failure.",
     )
 
+    # v1.10.0 — batch sampling
+    sample_grp = p.add_argument_group("batch sampling (v1.10.0+)")
+    sample_grp.add_argument(
+        "--sample",
+        type=int,
+        default=None,
+        metavar="N",
+        dest="sample_size",
+        help="Subset N RSIDs from the --batch list before generation (N >= 1).",
+    )
+    sample_grp.add_argument(
+        "--sample-seed",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Integer seed for --sample RNG (default: non-deterministic).",
+    )
+    sample_grp.add_argument(
+        "--sample-stratified",
+        action="store_true",
+        help="Group --batch RSIDs by code prefix; sample proportionally per group.",
+    )
+
     # v1.8.0 — validation cache (dormant; populated in v1.12.0)
     cache_grp = p.add_argument_group("validation cache (dormant in v1.8.0; populated in v1.12.0)")
     cache_grp.add_argument(

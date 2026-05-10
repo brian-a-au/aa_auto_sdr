@@ -33,6 +33,7 @@ from aa_auto_sdr.core.exceptions import (
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
+from aa_auto_sdr.pipeline.sampling import sample_rsids
 from aa_auto_sdr.pipeline.workers import run_parallel
 from aa_auto_sdr.sdr.builder import ComponentFilter
 
@@ -85,6 +86,9 @@ def run_batch(
     cache: ValidationCache | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    sample_size: int | None = None,  # v1.10.0
+    sample_seed: int | None = None,  # v1.10.0
+    sample_stratified: bool = False,  # v1.10.0
 ) -> BatchResult:
     """Sequential or parallel per-RSID SDR generation. Continue on error.
 
@@ -94,11 +98,49 @@ def run_batch(
     fail_fast applies only to the parallel path; ignored for workers=1.
     cache is currently a placeholder for v1.12.0's quality engine; passed
     through to workers but unused by the SDR pipeline today.
+
+    v1.10.0: when ``sample_size`` is provided and strictly less than
+    ``len(rsids)``, the input list is replaced by a sampled subset (random or
+    stratified by RSID prefix). Sampling is deterministic given ``sample_seed``.
+    The resulting BatchResult records ``sampled``/``sample_size``/
+    ``sample_seed``/``total_available`` so banner + JSON consumers can show
+    "showing N of M (sampled)".
     """
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers}")
+
+    if sample_size is not None and sample_size < 1:
+        raise ValueError(f"sample_size must be >= 1, got {sample_size}")
+
+    total_available = len(rsids)
+    sampled = False
+    sample_strategy: str | None = None
+    if sample_size is not None and sample_size < total_available:
+        rsids = sample_rsids(
+            rsids,
+            sample_size=sample_size,
+            seed=sample_seed,
+            stratified=sample_stratified,
+        )
+        sampled = True
+        sample_strategy = "stratified" if sample_stratified else "random"
+        logger.info(
+            "batch_sampled total_available=%d count=%d seed=%s strategy=%s",
+            total_available,
+            len(rsids),
+            sample_seed,
+            sample_strategy,
+            extra={
+                "count": len(rsids),
+                "count_total": total_available,
+                "sample_size": sample_size,
+                "sample_seed": sample_seed,
+                "sample_strategy": sample_strategy,
+            },
+        )
+
     if workers == 1:
-        return _run_sequential(
+        inner = _run_sequential(
             client=client,
             rsids=rsids,
             formats=formats,
@@ -112,22 +154,31 @@ def run_batch(
             audit_naming=audit_naming,
             flag_stale=flag_stale,
         )
-    return run_parallel(
-        rsids=rsids,
-        workers=workers,
-        client=client,
-        cache=cache,
-        fail_fast=fail_fast,
-        formats=formats,
-        output_dir=output_dir,
-        captured_at=captured_at,
-        tool_version=tool_version,
-        snapshot_dir=snapshot_dir,
-        component_filter=component_filter,
-        progress_callback=progress_callback,
-        failure_callback=failure_callback,
-        audit_naming=audit_naming,
-        flag_stale=flag_stale,
+    else:
+        inner = run_parallel(
+            rsids=rsids,
+            workers=workers,
+            client=client,
+            cache=cache,
+            fail_fast=fail_fast,
+            formats=formats,
+            output_dir=output_dir,
+            captured_at=captured_at,
+            tool_version=tool_version,
+            snapshot_dir=snapshot_dir,
+            component_filter=component_filter,
+            progress_callback=progress_callback,
+            failure_callback=failure_callback,
+            audit_naming=audit_naming,
+            flag_stale=flag_stale,
+        )
+    return dataclasses.replace(
+        inner,
+        sampled=sampled,
+        sample_size=sample_size if sampled else None,
+        sample_seed=sample_seed if sampled else None,
+        sample_strategy=sample_strategy if sampled else None,
+        total_available=total_available,
     )
 
 
