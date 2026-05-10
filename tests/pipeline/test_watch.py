@@ -494,7 +494,7 @@ class TestRunWatchLoop:
     def test_first_cycle_runs_immediately_no_sleep_before(self) -> None:
         ctx = _ctx()
         token = StopToken()
-        rc = run_watch_loop(
+        rc, _cycles = run_watch_loop(
             ctx=ctx,
             rsids=["rs_a"],
             interval=timedelta(hours=1),
@@ -511,7 +511,7 @@ class TestRunWatchLoop:
     def test_three_cycles_iterate_multiple_rsids(self) -> None:
         ctx = _ctx()
         token = StopToken()
-        rc = run_watch_loop(
+        rc, cycles = run_watch_loop(
             ctx=ctx,
             rsids=["rs_a", "rs_b"],
             interval=timedelta(seconds=0),
@@ -526,10 +526,11 @@ class TestRunWatchLoop:
         assert ctx.emitter.events[1]["event"] == "baseline"
         for ev in ctx.emitter.events[2:]:
             assert ev["event"] == "change"
+        assert cycles == 3  # max_cycles=3 was the terminator
 
     def test_threshold_gates_change_events(self) -> None:
         ctx = _ctx()
-        rc = run_watch_loop(
+        rc, _cycles = run_watch_loop(
             ctx=ctx,
             rsids=["rs_a"],
             interval=timedelta(seconds=0),
@@ -548,7 +549,7 @@ class TestRunWatchLoop:
             rsid_to_doc={"rs_b": {"rsid": "rs_b"}},
         )
         ctx = _ctx(fetcher=fetcher)
-        rc = run_watch_loop(
+        rc, _cycles = run_watch_loop(
             ctx=ctx,
             rsids=["rs_a", "rs_b"],
             interval=timedelta(seconds=0),
@@ -572,7 +573,7 @@ class TestRunWatchLoop:
             token.set()
 
         ctx.emitter.emit = emit_then_stop  # type: ignore[method-assign]
-        rc = run_watch_loop(
+        rc, _cycles = run_watch_loop(
             ctx=ctx,
             rsids=["rs_a", "rs_b"],
             interval=timedelta(seconds=0),
@@ -596,7 +597,7 @@ class TestRunWatchLoop:
                 token.set()
 
         ctx.emitter.emit = emit_then_maybe_stop  # type: ignore[method-assign]
-        rc = run_watch_loop(
+        rc, cycles = run_watch_loop(
             ctx=ctx,
             rsids=["rs_a"],
             interval=timedelta(seconds=0),
@@ -606,3 +607,4 @@ class TestRunWatchLoop:
         )
         assert rc == ExitCode.OK
         assert len(ctx.emitter.events) == 2
+        assert cycles >= 2  # at least the two cycles that emitted events

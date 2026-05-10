@@ -212,7 +212,7 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         },
     )
     try:
-        rc = run_watch_loop(
+        rc, cycles_completed = run_watch_loop(
             ctx=ctx,
             rsids=ns.rsids,
             interval=interval,
@@ -220,12 +220,12 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
             stop=stop,
             max_cycles=max_cycles,
         )
-        reason = "max_cycles" if (max_cycles is not None and not stop.is_set()) else "sigint"
+        reason = "max_cycles" if (max_cycles is not None and cycles_completed >= max_cycles) else "sigint"
         logger.info(
             "watch_loop_stop reason=%s cycles_completed=%d",
             reason,
-            max_cycles or -1,
-            extra={"reason": reason, "cycles_completed": max_cycles or -1},
+            cycles_completed,
+            extra={"reason": reason, "cycles_completed": cycles_completed},
         )
         return int(rc)
     except Exception:

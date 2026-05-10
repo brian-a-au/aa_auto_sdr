@@ -348,7 +348,7 @@ def run_watch_loop(
     threshold: int,
     stop: StopToken,
     max_cycles: int | None = None,
-) -> ExitCode:
+) -> tuple[ExitCode, int]:
     """Drive the watch loop.
 
     First cycle runs immediately (no leading sleep). Subsequent cycles sleep
@@ -358,6 +358,10 @@ def run_watch_loop(
 
     Per-cycle errors (`fetch_error` results) emit an `error` event and the
     loop continues. SIGINT received between RSIDs aborts the current cycle.
+
+    Returns `(ExitCode.OK, cycles_completed)`. `cycles_completed` is the number
+    of cycles that fully ran (including any cycle that exited mid-iteration due
+    to stop).
     """
     cycle_n = 0
     while not stop.is_set():
@@ -370,7 +374,7 @@ def run_watch_loop(
                 ctx.emitter.emit(_event_payload(result, cycle_n=cycle_n))
         cycle_n += 1
         if max_cycles is not None and cycle_n >= max_cycles:
-            return ExitCode.OK
+            return ExitCode.OK, cycle_n
         if stop.is_set():
             break
         _interruptible_sleep(
@@ -379,4 +383,4 @@ def run_watch_loop(
             sleeper=ctx.sleeper,
             clock=ctx.clock,
         )
-    return ExitCode.OK
+    return ExitCode.OK, cycle_n
