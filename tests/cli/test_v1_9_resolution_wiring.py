@@ -397,3 +397,169 @@ def test_main_dispatch_passes_name_match_to_stats() -> None:
     assert run_mock.called, "stats_cmd.run was never called"
     kwargs = run_mock.call_args.kwargs
     assert kwargs.get("name_match") == "exact", f"stats_cmd.run not called with name_match='exact'; kwargs={kwargs}"
+
+
+# ---------------------------------------------------------------------------
+# AmbiguousMatchError → ExitCode.NOT_FOUND (exit code 13) + stderr candidate list
+# Spec §3.3: ambiguous matches render candidates and return NOT_FOUND.
+# ---------------------------------------------------------------------------
+
+
+def test_generate_ambiguous_match_returns_not_found(tmp_path: Path, capsys) -> None:
+    """generate._run_impl converts AmbiguousMatchError to exit code 13 with candidate list on stderr."""
+    from aa_auto_sdr.core.exceptions import AmbiguousMatchError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    candidates = [("rs001", "Acme Prod"), ("rs002", "Acme Dev")]
+
+    with (
+        patch("aa_auto_sdr.cli.commands.generate.fetch.resolve_rsid") as resolve_mock,
+        patch("aa_auto_sdr.cli.commands.generate.AaClient.from_credentials"),
+        patch("aa_auto_sdr.cli.commands.generate.credentials.resolve"),
+        patch("aa_auto_sdr.cli.commands.generate.registry") as mock_reg,
+    ):
+        mock_reg.resolve_formats.return_value = ["json"]
+        mock_reg.get_writer.return_value = MagicMock()
+        mock_reg.bootstrap.return_value = None
+        resolve_mock.side_effect = AmbiguousMatchError("ambiguous", candidates=candidates)
+
+        from aa_auto_sdr.cli.commands import generate as gen_cmd
+
+        exit_code = gen_cmd.run(
+            rsid="Acme",
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+        )
+
+    assert exit_code == ExitCode.NOT_FOUND.value, f"Expected NOT_FOUND ({ExitCode.NOT_FOUND.value}), got {exit_code}"
+    captured = capsys.readouterr()
+    assert "rs001" in captured.err, "candidate rsid 'rs001' not in stderr"
+    assert "Acme Prod" in captured.err, "candidate name 'Acme Prod' not in stderr"
+    assert "rs002" in captured.err, "candidate rsid 'rs002' not in stderr"
+    assert "ambiguous" in captured.err.lower(), "word 'ambiguous' not in stderr"
+
+
+def test_batch_ambiguous_match_records_failure_continues(tmp_path: Path, capsys) -> None:
+    """batch._run_impl records AmbiguousMatchError as a failure but continues processing other identifiers."""
+    from aa_auto_sdr.core.exceptions import AmbiguousMatchError, ReportSuiteNotFoundError
+
+    candidates = [("rs001", "Suite One"), ("rs002", "Suite Two")]
+
+    def resolve_side_effect(client, identifier, *, name_match="insensitive"):
+        if identifier == "ambig_name":
+            raise AmbiguousMatchError("ambiguous", candidates=candidates)
+        raise ReportSuiteNotFoundError("not found")  # other identifiers also fail to keep test simple
+
+    with (
+        patch("aa_auto_sdr.cli.commands.batch.fetch.resolve_rsid", side_effect=resolve_side_effect),
+        patch("aa_auto_sdr.cli.commands.batch.AaClient.from_credentials"),
+        patch("aa_auto_sdr.cli.commands.batch.credentials.resolve"),
+        patch("aa_auto_sdr.cli.commands.batch.registry") as mock_reg,
+    ):
+        mock_reg.resolve_formats.return_value = ["json"]
+        mock_reg.get_writer.return_value = MagicMock()
+        mock_reg.bootstrap.return_value = None
+
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        batch_cmd.run(
+            rsids=["ambig_name", "other_rsid"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+        )
+
+    captured = capsys.readouterr()
+    assert "rs001" in captured.err, "candidate rsid 'rs001' not in stderr"
+    assert "Suite One" in captured.err, "candidate name 'Suite One' not in stderr"
+    assert "ambiguous" in captured.err.lower(), "word 'ambiguous' not in stderr"
+
+
+def test_inspect_list_ambiguous_match_returns_not_found(tmp_path: Path, capsys) -> None:
+    """inspect._list_per_component converts AmbiguousMatchError to exit code 13 with candidate list on stderr."""
+    from aa_auto_sdr.core.exceptions import AmbiguousMatchError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    candidates = [("rsA", "Suite Alpha"), ("rsB", "Suite Beta")]
+
+    with patch("aa_auto_sdr.cli.commands.inspect.fetch.resolve_rsid") as resolve_mock:
+        resolve_mock.side_effect = AmbiguousMatchError("ambiguous", candidates=candidates)
+        with patch("aa_auto_sdr.cli.commands.inspect._bootstrap") as bootstrap_mock:
+            bootstrap_mock.return_value = (MagicMock(), 0)
+
+            from aa_auto_sdr.cli.commands import inspect as inspect_cmd
+
+            exit_code = inspect_cmd.run_list_metrics(
+                identifier="Suite",
+                profile=None,
+                format_name="json",
+                output=str(tmp_path / "out.json"),
+                name_filter=None,
+                name_exclude=None,
+                sort_field=None,
+                limit=None,
+            )
+
+    assert exit_code == ExitCode.NOT_FOUND.value, f"Expected NOT_FOUND ({ExitCode.NOT_FOUND.value}), got {exit_code}"
+    captured = capsys.readouterr()
+    assert "rsA" in captured.err, "candidate rsid 'rsA' not in stderr"
+    assert "Suite Alpha" in captured.err, "candidate name 'Suite Alpha' not in stderr"
+    assert "ambiguous" in captured.err.lower(), "word 'ambiguous' not in stderr"
+
+
+def test_inspect_describe_ambiguous_match_returns_not_found(tmp_path: Path, capsys) -> None:
+    """inspect.run_describe_reportsuite converts AmbiguousMatchError to exit code 13 with candidate list on stderr."""
+    from aa_auto_sdr.core.exceptions import AmbiguousMatchError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    candidates = [("rsX", "Suite X"), ("rsY", "Suite Y")]
+
+    with patch("aa_auto_sdr.cli.commands.inspect.fetch.resolve_rsid") as resolve_mock:
+        resolve_mock.side_effect = AmbiguousMatchError("ambiguous", candidates=candidates)
+        with patch("aa_auto_sdr.cli.commands.inspect._bootstrap") as bootstrap_mock:
+            bootstrap_mock.return_value = (MagicMock(), 0)
+
+            from aa_auto_sdr.cli.commands import inspect as inspect_cmd
+
+            exit_code = inspect_cmd.run_describe_reportsuite(
+                identifier="Suite",
+                profile=None,
+                format_name="json",
+                output=str(tmp_path / "out.json"),
+            )
+
+    assert exit_code == ExitCode.NOT_FOUND.value, f"Expected NOT_FOUND ({ExitCode.NOT_FOUND.value}), got {exit_code}"
+    captured = capsys.readouterr()
+    assert "rsX" in captured.err, "candidate rsid 'rsX' not in stderr"
+    assert "Suite X" in captured.err, "candidate name 'Suite X' not in stderr"
+    assert "ambiguous" in captured.err.lower(), "word 'ambiguous' not in stderr"
+
+
+def test_stats_ambiguous_match_returns_not_found(capsys) -> None:
+    """stats.run converts AmbiguousMatchError to exit code 13 with candidate list on stderr."""
+    from aa_auto_sdr.core.exceptions import AmbiguousMatchError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    candidates = [("rs_p", "Prod Suite"), ("rs_q", "QA Suite")]
+
+    with (
+        patch("aa_auto_sdr.cli.commands.stats.fetch.resolve_rsid") as resolve_mock,
+        patch("aa_auto_sdr.cli.commands.stats.AaClient.from_credentials"),
+        patch("aa_auto_sdr.cli.commands.stats.credentials.resolve"),
+    ):
+        resolve_mock.side_effect = AmbiguousMatchError("ambiguous", candidates=candidates)
+
+        from aa_auto_sdr.cli.commands import stats as stats_cmd
+
+        exit_code = stats_cmd.run(
+            rsids=["Suite"],
+            profile=None,
+            format_name="table",
+        )
+
+    assert exit_code == ExitCode.NOT_FOUND.value, f"Expected NOT_FOUND ({ExitCode.NOT_FOUND.value}), got {exit_code}"
+    captured = capsys.readouterr()
+    assert "rs_p" in captured.err, "candidate rsid 'rs_p' not in stderr"
+    assert "Prod Suite" in captured.err, "candidate name 'Prod Suite' not in stderr"
+    assert "ambiguous" in captured.err.lower(), "word 'ambiguous' not in stderr"

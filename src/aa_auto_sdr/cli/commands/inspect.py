@@ -25,6 +25,7 @@ from aa_auto_sdr.cli.list_output import annotate_cells, build_footer, render_rec
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
+    AmbiguousMatchError,
     ApiError,
     AuthError,
     ConfigError,
@@ -158,6 +159,19 @@ def _list_per_component(
 
         try:
             canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+        except AmbiguousMatchError as e:
+            print(
+                f"error: identifier '{identifier}' is ambiguous; matched {len(e.candidates)} report suites:",
+                file=sys.stderr,
+            )
+            for cand_rsid, cand_name in e.candidates:
+                print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+            print(
+                "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+                file=sys.stderr,
+            )
+            exit_code = ExitCode.NOT_FOUND.value
+            return exit_code
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
             exit_code = ExitCode.NOT_FOUND.value
@@ -334,6 +348,19 @@ def run_describe_reportsuite(
 
         try:
             canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+        except AmbiguousMatchError as e:
+            print(
+                f"error: identifier '{identifier}' is ambiguous; matched {len(e.candidates)} report suites:",
+                file=sys.stderr,
+            )
+            for cand_rsid, cand_name in e.candidates:
+                print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+            print(
+                "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+                file=sys.stderr,
+            )
+            exit_code = ExitCode.NOT_FOUND.value
+            return exit_code
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
             exit_code = ExitCode.NOT_FOUND.value

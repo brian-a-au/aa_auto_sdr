@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json as _json
 import logging
+import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -14,6 +15,7 @@ from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import credentials, timings
 from aa_auto_sdr.core.exceptions import (
     AaAutoSdrError,
+    AmbiguousMatchError,
     ApiError,
     AuthError,
     ConfigError,
@@ -272,6 +274,19 @@ def _run_impl(
     try:
         with timings.Timer("resolve"):
             canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid, name_match=name_match)
+    except AmbiguousMatchError as e:
+        print(
+            f"error: identifier '{rsid}' is ambiguous; matched {len(e.candidates)} report suites:",
+            file=sys.stderr,
+        )
+        for cand_rsid, cand_name in e.candidates:
+            print(f"  - {cand_rsid}  ({cand_name})", file=sys.stderr)
+        print(
+            "Use a more specific identifier or pass `--name-match exact` (or the rsid directly).",
+            file=sys.stderr,
+        )
+        _emit_timings_if_enabled(show_timings=show_timings)
+        return ExitCode.NOT_FOUND.value
     except ReportSuiteNotFoundError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.NOT_FOUND.value)
         _emit_timings_if_enabled(show_timings=show_timings)

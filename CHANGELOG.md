@@ -40,7 +40,9 @@ includes names + metadata by default).
   category, etc.) are now suppressed from diff output by default.
   Pre-v1.9.0 behavior is restored by passing `--extended-fields`. Diff
   output for non-noisy field changes (id, name, type, definition) is
-  byte-equivalent to v1.8.0.
+  byte-equivalent to v1.8.0. Note: the `extended_fields` toggle affects
+  component fields only; the top-level `quality` block is not diffed
+  (see Roadmap deviations — quality-block diffing is deferred).
 - `api/fetch.py::resolve_rsid`: gains a keyword-only `name_match`
   parameter (default `"insensitive"`, which preserves pre-v1.9.0
   semantics). New strategies: `exact` (case-sensitive name match)
@@ -64,6 +66,14 @@ four. Four flags were deliberately removed during spec design:
 - **Removed `--include-metadata`** — aa's SDR document already
   includes report-suite metadata (timezone, segments list, etc.) by
   default.
+
+- **Deferred — quality-block diffing.** Spec §3.6 anticipated that
+  `--diff --extended-fields` would also compare `quality.naming_audit`
+  and `quality.stale_components` blocks across snapshots. v1.9.0 ships
+  the `quality` field on snapshots but `compare()` does not diff it.
+  Quality-block diffing is deferred to a future release (likely v1.12.0
+  alongside the quality severity engine), where comparison semantics for
+  audit results will be designed alongside the severity model.
 
 Test rejections in `tests/cli/test_v1_9_flags.py` ensure the four
 removed flags receive a clear argparse error.
