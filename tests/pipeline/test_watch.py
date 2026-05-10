@@ -12,13 +12,16 @@ from typing import Any as _Any
 
 import pytest
 
+from aa_auto_sdr.output.watch_event import WATCH_EVENT_SCHEMA
 from aa_auto_sdr.pipeline.watch import (
     CycleResult,
     StopToken,
     WatchContext,
+    _event_payload,
+    _should_emit,
     run_one_cycle,
 )
-from aa_auto_sdr.snapshot.models import ComponentDiff, DiffReport
+from aa_auto_sdr.snapshot.models import AddedRemovedItem, ComponentDiff, DiffReport
 
 
 class TestStopToken:
@@ -279,3 +282,159 @@ class TestRunOneCycle:
         ctx = _ctx()
         run_one_cycle(rsid="rs_a", ctx=ctx)
         assert len(ctx.snapshot_store.saved) == 1
+
+
+# --- gating + payload ------------------------------------------------------
+
+
+def _diff_with_counts(added: int, removed: int, modified: int) -> DiffReport:
+    """Build a DiffReport whose total sums to (added+removed+modified)."""
+    return DiffReport(
+        a_rsid="rs_a",
+        b_rsid="rs_a",
+        a_captured_at="X",
+        b_captured_at="Y",
+        a_tool_version="1.14.0",
+        b_tool_version="1.14.0",
+        components=[
+            ComponentDiff(
+                component_type="dimensions",
+                added=[AddedRemovedItem(id=f"a{i}", name=f"a{i}") for i in range(added)],
+                removed=[AddedRemovedItem(id=f"r{i}", name=f"r{i}") for i in range(removed)],
+                modified=[],
+                unchanged_count=10,
+            ),
+        ],
+    )
+
+
+class TestShouldEmit:
+    def test_baseline_always_emits_regardless_of_threshold(self) -> None:
+        r = CycleResult.baseline(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            started_at=datetime(2026, 5, 10, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 10, tzinfo=UTC),
+        )
+        assert _should_emit(r, threshold=1) is True
+        assert _should_emit(r, threshold=100) is True
+
+    def test_fetch_error_always_emits_regardless_of_threshold(self) -> None:
+        r = CycleResult.fetch_error(
+            rsid="rs_a",
+            error=RuntimeError("x"),
+            started_at=datetime(2026, 5, 10, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 10, tzinfo=UTC),
+        )
+        assert _should_emit(r, threshold=1) is True
+        assert _should_emit(r, threshold=100) is True
+
+    def test_diffed_emits_when_changes_meet_threshold(self) -> None:
+        r = CycleResult.diffed(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            diff=_diff_with_counts(added=3, removed=0, modified=0),
+            started_at=datetime(2026, 5, 10, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 10, tzinfo=UTC),
+        )
+        assert _should_emit(r, threshold=1) is True
+        assert _should_emit(r, threshold=3) is True
+        assert _should_emit(r, threshold=4) is False
+
+    def test_threshold_zero_emits_every_cycle_including_zero_change(self) -> None:
+        r = CycleResult.diffed(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            diff=_diff_with_counts(added=0, removed=0, modified=0),
+            started_at=datetime(2026, 5, 10, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 10, tzinfo=UTC),
+        )
+        assert _should_emit(r, threshold=0) is True
+
+    def test_threshold_one_suppresses_zero_change_diffed(self) -> None:
+        r = CycleResult.diffed(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            diff=_diff_with_counts(added=0, removed=0, modified=0),
+            started_at=datetime(2026, 5, 10, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 10, tzinfo=UTC),
+        )
+        assert _should_emit(r, threshold=1) is False
+
+
+class TestEventPayload:
+    def test_baseline_payload_shape(self) -> None:
+        now = datetime(2026, 5, 10, 14, 0, 0, tzinfo=UTC)
+        r = CycleResult.baseline(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            started_at=now,
+            ended_at=now + timedelta(seconds=1),
+        )
+        p = _event_payload(r, cycle_n=0)
+        assert p["schema"] == WATCH_EVENT_SCHEMA
+        assert p["event"] == "baseline"
+        assert p["cycle"] == 0
+        assert p["rsid"] == "rs_a"
+        assert p["snapshot_path"] == "/tmp/s.json"
+        # Z-suffix matches snapshot envelope `captured_at` convention.
+        assert p["started_at"] == "2026-05-10T14:00:00Z"
+        assert p["ended_at"] == "2026-05-10T14:00:01Z"
+
+    def test_change_payload_includes_summary(self) -> None:
+        now = datetime(2026, 5, 10, 14, 0, 0, tzinfo=UTC)
+        r = CycleResult.diffed(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            diff=_diff_with_counts(added=2, removed=1, modified=0),
+            started_at=now,
+            ended_at=now + timedelta(seconds=2),
+        )
+        p = _event_payload(r, cycle_n=7)
+        assert p["event"] == "change"
+        assert p["cycle"] == 7
+        s = p["summary"]
+        assert s["added"] == 2
+        assert s["removed"] == 1
+        assert s["modified"] == 0
+        assert s["unchanged"] == 10
+        assert "by_type" in s
+        assert s["by_type"]["dimensions"]["added"] == 2
+        assert s["by_type"]["dimensions"]["removed"] == 1
+
+    def test_error_payload_shape(self) -> None:
+        now = datetime(2026, 5, 10, 14, 0, 0, tzinfo=UTC)
+        err = RuntimeError("503 Service Unavailable")
+        r = CycleResult.fetch_error(
+            rsid="rs_a",
+            error=err,
+            started_at=now,
+            ended_at=now + timedelta(seconds=1),
+        )
+        p = _event_payload(r, cycle_n=3)
+        assert p["event"] == "error"
+        assert p["error_type"] == "RuntimeError"
+        assert p["error"] == "503 Service Unavailable"
+        assert "snapshot_path" not in p
+        assert "summary" not in p
+
+    def test_error_payload_redacts_secrets(self) -> None:
+        # AA error messages can carry tokens / org IDs in URLs. The watch
+        # stream MUST pass `error` through core.logging.redact_text before emit.
+        # We craft an error string containing a Bearer token; the redactor should
+        # mask it. Exact mask shape depends on the redactor — assert the raw
+        # secret is GONE.
+        now = datetime(2026, 5, 10, 14, 0, 0, tzinfo=UTC)
+        err = RuntimeError("Bearer abc123def456ghi789 — auth failed")
+        r = CycleResult.fetch_error(
+            rsid="rs_a",
+            error=err,
+            started_at=now,
+            ended_at=now + timedelta(seconds=1),
+        )
+        p = _event_payload(r, cycle_n=3)
+        # If the redactor doesn't recognize this exact pattern, this test
+        # would fail — in which case verify what patterns redact_text DOES
+        # match (read core/logging.py) and adjust the test fixture string.
+        assert "abc123def456ghi789" not in p["error"], f"Token leaked into watch event: {p['error']!r}"
+        assert p["error_type"] == "RuntimeError"

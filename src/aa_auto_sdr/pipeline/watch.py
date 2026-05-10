@@ -222,3 +222,88 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
         started_at=started_at,
         ended_at=ctx.clock.utcnow(),
     )
+
+
+# --- emit gating + payload -------------------------------------------------
+
+from aa_auto_sdr.core.logging import redact_text  # noqa: E402 — scrubs error strings before emit
+from aa_auto_sdr.output.watch_event import WATCH_EVENT_SCHEMA  # noqa: E402
+
+
+def _total_changes(diff: DiffReport) -> int:
+    """Sum added + removed + modified across all component types."""
+    return sum(len(c.added) + len(c.removed) + len(c.modified) for c in diff.components)
+
+
+def _should_emit(result: CycleResult, *, threshold: int) -> bool:
+    """Decide whether this cycle's result should be emitted as an NDJSON event.
+
+    Rules:
+      * baseline / fetch_error → always emit.
+      * diffed → emit when total_changes >= threshold. threshold=0 means emit
+                 every cycle including zero-change (heartbeat).
+    """
+    if result.kind in ("baseline", "fetch_error"):
+        return True
+    assert result.diff is not None  # type guard — kind == "diffed"
+    if threshold == 0:
+        return True
+    return _total_changes(result.diff) >= threshold
+
+
+def _iso_z(ts: datetime) -> str:
+    """Format a UTC datetime as Z-suffixed ISO-8601 (matches snapshot envelope)."""
+    return ts.isoformat().replace("+00:00", "Z")
+
+
+def _event_name(kind: CycleKind) -> str:
+    return {"baseline": "baseline", "diffed": "change", "fetch_error": "error"}[kind]
+
+
+def _diff_summary(diff: DiffReport) -> dict[str, Any]:
+    """Aggregate counts (added/removed/modified/unchanged) + per-component-type breakdown."""
+    added = removed = modified = unchanged = 0
+    by_type: dict[str, dict[str, int]] = {}
+    for c in diff.components:
+        a, r, m = len(c.added), len(c.removed), len(c.modified)
+        added += a
+        removed += r
+        modified += m
+        unchanged += c.unchanged_count
+        by_type[c.component_type] = {"added": a, "removed": r, "modified": m}
+    return {
+        "added": added,
+        "removed": removed,
+        "modified": modified,
+        "unchanged": unchanged,
+        "by_type": by_type,
+    }
+
+
+def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
+    """Build the NDJSON event payload for a CycleResult.
+
+    Timestamps use Z-suffix. The `error` field is passed through
+    `core.logging.redact_text` so tokens / org IDs in API errors don't leak.
+    """
+    base: dict[str, Any] = {
+        "schema": WATCH_EVENT_SCHEMA,
+        "event": _event_name(result.kind),
+        "cycle": cycle_n,
+        "rsid": result.rsid,
+        "started_at": _iso_z(result.started_at),
+        "ended_at": _iso_z(result.ended_at),
+    }
+    if result.kind == "baseline":
+        base["snapshot_path"] = str(result.snapshot_path)
+        return base
+    if result.kind == "fetch_error":
+        err = result.error
+        base["error_type"] = type(err).__name__ if err is not None else "Unknown"
+        base["error"] = redact_text(str(err)) if err is not None else ""
+        return base
+    # diffed
+    assert result.diff is not None
+    base["snapshot_path"] = str(result.snapshot_path)
+    base["summary"] = _diff_summary(result.diff)
+    return base

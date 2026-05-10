@@ -54,6 +54,12 @@ def _redact_text(text: str) -> str:
         return _REDACTION_SENTINEL
 
 
+# Public alias for boundary callers (e.g. watch event emitter) that need to
+# scrub secrets from strings they emit on stdout. The private name is kept
+# for backward compatibility with existing in-module call sites.
+redact_text = _redact_text
+
+
 class SensitiveDataFilter(logging.Filter):
     """Strip sensitive credentials from records before they reach handlers.
 
