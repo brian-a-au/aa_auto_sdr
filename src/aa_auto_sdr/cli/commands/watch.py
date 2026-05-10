@@ -165,6 +165,11 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
     class _LoggingEmitter:
         def emit(self, payload: dict) -> None:
             real_emitter.emit(payload)
+            # Only emit watch_cycle_complete for `change` events — they're the
+            # only ones with a meaningful change_count. Baseline and error are
+            # observable via their stdout NDJSON; no need to double-log them.
+            if payload.get("event") != "change":
+                return
             summary = payload.get("summary") or {}
             change_count = summary.get("added", 0) + summary.get("removed", 0) + summary.get("modified", 0)
             logger.info(
