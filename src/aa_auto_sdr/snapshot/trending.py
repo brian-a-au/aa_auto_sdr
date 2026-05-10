@@ -192,8 +192,12 @@ def compute_trending(
     drift = _compute_drift_summary(series)
     name = _name_from_envelope(snapshots[-1]) if snapshots else None
 
+    # Message keys align with extras keys exactly. v1.12.1 added word-boundary
+    # matching to the vocabulary validator (Rule 2 at test_logging_vocabulary
+    # now uses (?:^|\W){key}=), so substrings like `count=` inside
+    # `snapshot_count=` no longer false-positive against VOCAB.
     logger.info(
-        "trending_compute_complete rsid=%s snapshots=%s changes=%s volatility=%s",
+        "trending_compute_complete rsid=%s snapshot_count=%s total_changes=%s volatility_score=%s",
         rsid,
         len(series),
         drift.total_changes,
