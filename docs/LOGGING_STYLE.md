@@ -162,7 +162,7 @@ in v1.7.0:
 **v1.14.0 — Watch mode (3):**
 
 - `watch_loop_start` — INFO. `cli/commands/watch.py::run`. Fires once at watch dispatch entry. Carries `rsids` (count), `interval` (str), `watch_threshold`.
-- `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted stdout NDJSON event. Carries `cycle`, `rsid`, `change_count`, `emitted`.
+- `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted `change` event on stdout (baseline / error events are observable via their stdout NDJSON and do not double-log). Carries `cycle`, `rsid`, `change_count`, `emitted`.
 - `watch_loop_stop` — INFO. `cli/commands/watch.py::run`. Fires once at loop termination (SIGINT/SIGTERM, max_cycles, or fatal). Carries `reason` (sigint|max_cycles|fatal), `cycles_completed`.
 
 **Vocabulary meta-test treatment.** All canonical events are active; the v1.4 reserved-events exemption was lifted in v1.5. The vocabulary meta-test enforces extras presence on every canonical event when its substring appears at the start of a message (token-boundary aware).

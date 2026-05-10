@@ -126,6 +126,13 @@ class TestUsageValidation:
         rc = watch_run(ns, _injected=_make_inj())
         assert rc == ExitCode.USAGE
 
+    def test_watch_with_zero_interval_returns_usage(self, capsys) -> None:
+        # `0h` parses but a zero-duration cadence would tight-loop the driver.
+        ns = _ns(interval="0h")
+        rc = watch_run(ns, _injected=_make_inj())
+        assert rc == ExitCode.USAGE
+        assert "greater than zero" in capsys.readouterr().err
+
     def test_watch_with_no_rsids_returns_usage(self) -> None:
         ns = _ns(rsids=[])
         rc = watch_run(ns, _injected=_make_inj())

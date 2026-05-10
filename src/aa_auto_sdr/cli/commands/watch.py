@@ -139,6 +139,15 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
     except ValueError as e:
         print(f"error: invalid --interval value: {e}", file=sys.stderr)
         return int(ExitCode.USAGE)
+    if interval.total_seconds() <= 0:
+        # 0h would tight-loop the watch driver. parse_duration accepts it
+        # (any non-negative integer with a unit), so we reject here at the
+        # watch boundary where the semantic of "cadence" demands > 0.
+        print(
+            f"error: --interval must be greater than zero (got {ns.interval!r})",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
 
     threshold = int(ns.watch_threshold)
 

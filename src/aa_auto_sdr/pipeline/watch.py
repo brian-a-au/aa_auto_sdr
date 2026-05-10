@@ -252,7 +252,13 @@ def _should_emit(result: CycleResult, *, threshold: int) -> bool:
 
 
 def _iso_z(ts: datetime) -> str:
-    """Format a UTC datetime as Z-suffixed ISO-8601 (matches snapshot envelope)."""
+    """Format a UTC datetime as Z-suffixed ISO-8601 (matches snapshot envelope).
+
+    Defensive: assert the datetime is tz-aware. A naive datetime would silently
+    emit a non-Z-suffixed string and break downstream consumers; we want a loud
+    failure instead.
+    """
+    assert ts.tzinfo is not None, "_iso_z requires a tz-aware datetime"
     return ts.isoformat().replace("+00:00", "Z")
 
 
