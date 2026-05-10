@@ -76,17 +76,13 @@ class TestBannerSampling:
             sampled=True,
             sample_size=3,
             sample_seed=7,
+            sample_strategy="stratified",
             total_available=10,
         )
-        # The banner reads strategy from result via a separate field if added,
-        # OR infers from the absence-of-strategy. v1.10.0 spec keeps strategy on
-        # the log line only and renders banner from a heuristic on sample_seed.
-        # If `sample_strategy` is added to BatchResult later, update this test.
         buf = StringIO()
         with patch("sys.stdout", buf):
             _print_summary(result)
         out = buf.getvalue()
-        # Random by default; stratified surface deferred unless sample_strategy
-        # field is added. Assert the seeded random banner format here.
         assert "Sampled 3 of 10 RSIDs" in out
         assert "seed=7" in out
+        assert "strategy=stratified" in out

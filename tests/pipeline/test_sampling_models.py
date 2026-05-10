@@ -11,6 +11,7 @@ class TestBatchResultSamplingFields:
         assert result.sampled is False
         assert result.sample_size is None
         assert result.sample_seed is None
+        assert result.sample_strategy is None
         assert result.total_available == 0
 
     def test_construct_sampled(self) -> None:
@@ -18,11 +19,13 @@ class TestBatchResultSamplingFields:
             sampled=True,
             sample_size=5,
             sample_seed=42,
+            sample_strategy="random",
             total_available=200,
         )
         assert result.sampled is True
         assert result.sample_size == 5
         assert result.sample_seed == 42
+        assert result.sample_strategy == "random"
         assert result.total_available == 200
 
     def test_existing_fields_still_default(self) -> None:

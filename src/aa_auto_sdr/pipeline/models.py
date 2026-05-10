@@ -41,4 +41,5 @@ class BatchResult:
     sampled: bool = False
     sample_size: int | None = None
     sample_seed: int | None = None
+    sample_strategy: str | None = None  # "random" or "stratified" when sampled
     total_available: int = 0

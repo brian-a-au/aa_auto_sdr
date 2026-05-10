@@ -114,6 +114,7 @@ def run_batch(
 
     total_available = len(rsids)
     sampled = False
+    sample_strategy: str | None = None
     if sample_size is not None and sample_size < total_available:
         rsids = sample_rsids(
             rsids,
@@ -122,18 +123,19 @@ def run_batch(
             stratified=sample_stratified,
         )
         sampled = True
+        sample_strategy = "stratified" if sample_stratified else "random"
         logger.info(
             "batch_sampled total_available=%d count=%d seed=%s strategy=%s",
             total_available,
             len(rsids),
             sample_seed,
-            "stratified" if sample_stratified else "random",
+            sample_strategy,
             extra={
                 "count": len(rsids),
                 "count_total": total_available,
                 "sample_size": sample_size,
                 "sample_seed": sample_seed,
-                "sample_strategy": "stratified" if sample_stratified else "random",
+                "sample_strategy": sample_strategy,
             },
         )
 
@@ -175,6 +177,7 @@ def run_batch(
         sampled=sampled,
         sample_size=sample_size if sampled else None,
         sample_seed=sample_seed if sampled else None,
+        sample_strategy=sample_strategy if sampled else None,
         total_available=total_available,
     )
 
