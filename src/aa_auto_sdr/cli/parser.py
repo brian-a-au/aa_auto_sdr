@@ -244,6 +244,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Quick component counts per RSID (no full SDR build)",
     )
     actions.add_argument(
+        "--inventory-summary",
+        action="store_true",
+        help="Cross-RSID aggregate rollup of component counts (totals/min/max/avg).",
+    )
+    actions.add_argument(
         "--interactive",
         action="store_true",
         help="Interactively pick an RSID from --list-reportsuites; emits to stdout",
