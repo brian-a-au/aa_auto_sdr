@@ -116,6 +116,16 @@ def _stub_fetch_table(client: object, rsid: str) -> _StubReportSuite:
     return _StubReportSuite(rsid, rsid.upper())
 
 
+def _stub_resolve_rsid(_client: object, ident: str, name_match: str = "insensitive") -> tuple[list[str], bool]:
+    """Identity-resolve: pass the supplied identifier through as the canonical RSID.
+
+    `name_match` is accepted because production calls `resolve_rsid` with it as a
+    keyword arg; the stub ignores it.
+    """
+    _ = name_match
+    return ([ident], False)
+
+
 def _patch_fetchers(*, vrs_outcome: _StubFetchOutcome | None = None, cls_outcome: _StubFetchOutcome | None = None):
     """Patch every fetcher inventory.run calls with deterministic stubs.
 
@@ -131,11 +141,7 @@ def _patch_fetchers(*, vrs_outcome: _StubFetchOutcome | None = None, cls_outcome
         patch.object(inv_command.fetch, "fetch_calculated_metrics", return_value=[{"id": f"cm{i}"} for i in range(10)]),
         patch.object(inv_command.fetch, "fetch_virtual_report_suites", return_value=vrs),
         patch.object(inv_command.fetch, "fetch_classification_datasets", return_value=cls),
-        patch.object(
-            inv_command.fetch,
-            "resolve_rsid",
-            side_effect=lambda _client, ident, name_match="insensitive": ([ident], False),  # noqa: ARG005
-        ),
+        patch.object(inv_command.fetch, "resolve_rsid", side_effect=_stub_resolve_rsid),
         patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
         patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
     ]
@@ -146,7 +152,9 @@ def _enter_all(patches: list) -> list:
 
 
 def _exit_all(patches: list) -> None:
-    for p in patches:
+    # Reverse order mirrors Python's nested-context-manager semantics —
+    # safe even if two patches stack on the same attribute.
+    for p in reversed(patches):
         p.__exit__(None, None, None)
 
 
@@ -364,16 +372,8 @@ class TestRunErrorPaths:
         with (
             patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
             patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
-            patch.object(
-                inv_command.fetch,
-                "resolve_rsid",
-                side_effect=lambda _client, ident, name_match="insensitive": ([ident], False),  # noqa: ARG005
-            ),
-            patch.object(
-                inv_command.fetch,
-                "fetch_report_suite",
-                side_effect=ApiError("503 on rs1"),
-            ),
+            patch.object(inv_command.fetch, "resolve_rsid", side_effect=_stub_resolve_rsid),
+            patch.object(inv_command.fetch, "fetch_report_suite", side_effect=ApiError("503 on rs1")),
         ):
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.API.value
