@@ -330,6 +330,29 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             ignore_fields=tuple(getattr(ns, "ignore_fields", ()) or ()),
         )
 
+    # v1.13.0 — compare-with-prev action (sugar over --diff)
+    if ns.compare_with_prev:
+        from aa_auto_sdr.cli.commands import compare_with_prev as compare_cmd
+
+        return compare_cmd.run(
+            rsids=rsids,
+            profile=ns.profile,
+            format_name=ns.format,
+            output=ns.output,
+            side_by_side=getattr(ns, "side_by_side", False),
+            summary=getattr(ns, "summary", False),
+            ignore_fields=frozenset(getattr(ns, "ignore_fields", ()) or ()),
+            extended_fields=getattr(ns, "extended_fields", False),
+            quiet=getattr(ns, "quiet", False),
+            labels=getattr(ns, "labels", None),
+            reverse=getattr(ns, "reverse", False),
+            changes_only=getattr(ns, "changes_only", False),
+            show_only=frozenset(getattr(ns, "show_only", ()) or ()),
+            max_issues=getattr(ns, "max_issues", None),
+            warn_threshold=getattr(ns, "warn_threshold", None),
+            color_theme=getattr(ns, "color_theme", "default"),
+        )
+
     # v1.2 — stats action
     if ns.stats:
         from aa_auto_sdr.cli.commands import stats as stats_cmd
