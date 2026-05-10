@@ -15,12 +15,16 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.sdr import quality as quality_module
 from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
+from aa_auto_sdr.sdr.quality import SeverityLevel
+
+if TYPE_CHECKING:
+    from aa_auto_sdr.api.cache import ValidationCache
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +80,8 @@ def build_sdr(
     component_filter: ComponentFilter | None = None,
     audit_naming: bool = False,  # NEW (v1.9.0)
     flag_stale: bool = False,  # NEW (v1.9.0)
+    fail_on_quality: SeverityLevel | None = None,  # NEW (v1.12.0)
+    cache: ValidationCache | None = None,  # NEW (v1.12.0)
 ) -> SdrDocument:
     """Fetch components for `rsid` (per `component_filter`) and assemble an SdrDocument."""
     flt = component_filter or ComponentFilter()
@@ -157,13 +163,18 @@ def build_sdr(
         extra={"rsid": rsid, "count": component_count, "duration_ms": duration_ms},
     )
 
-    # v1.9.0 quality pass (post-build, pure — no I/O, no API calls).
+    # v1.9.0 quality pass + v1.12.0 severity engine (post-build, pure —
+    # no I/O, no API calls). Composes audit_naming + detect_stale into
+    # the v1.12.0 quality block shape (with `issues` + `summary`).
     if audit_naming or flag_stale:
-        quality: dict[str, Any] = {}
-        if audit_naming:
-            quality["naming_audit"] = quality_module.audit_naming(doc)
-        if flag_stale:
-            quality["stale_components"] = quality_module.detect_stale(doc)
+        quality = quality_module.run_audits(
+            doc,
+            audit_naming_enabled=audit_naming,
+            flag_stale_enabled=flag_stale,
+            fail_on_quality=fail_on_quality,
+            cache=cache,
+            rsid=rsid,
+        )
         doc = dataclasses.replace(doc, quality=quality)
 
     return doc

@@ -96,7 +96,9 @@ def test_audit_naming_stamps_naming_audit_block(fake_client: MagicMock, monkeypa
     assert doc.quality is not None
     assert "naming_audit" in doc.quality
     assert doc.quality["naming_audit"]["total_components"] == 2
-    assert "stale_components" not in doc.quality
+    # v1.12.0: run_audits always returns both keys; when flag_stale=False the
+    # stale_components list is empty (was: key absent entirely).
+    assert doc.quality["stale_components"] == []
 
 
 def test_flag_stale_stamps_stale_block(fake_client: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -112,7 +114,9 @@ def test_flag_stale_stamps_stale_block(fake_client: MagicMock, monkeypatch: pyte
     assert "stale_components" in doc.quality
     assert len(doc.quality["stale_components"]) == 1  # "old_thing"
     assert doc.quality["stale_components"][0]["name"] == "old_thing"
-    assert "naming_audit" not in doc.quality
+    # v1.12.0: run_audits always returns both keys; when audit_naming=False the
+    # naming_audit dict is the empty-shape sentinel.
+    assert doc.quality["naming_audit"]["total_components"] == 0
 
 
 def test_both_flags_stamp_both_blocks(fake_client: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
