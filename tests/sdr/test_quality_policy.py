@@ -130,6 +130,34 @@ class TestWriteQualityReport:
         assert lines[0] == "severity,category,type,item_id,item_name,issue"
         assert lines[1].startswith("LOW,naming,version_suffix,")
 
+    def test_csv_does_not_double_translate_newlines_on_windows(self, tmp_path: Path) -> None:
+        """Regression: Path.write_text() applied universal-newline translation
+        on Windows, turning csv.writer's `\\r\\n` terminators into `\\r\\r\\n`.
+        This appeared as a blank line between every row, breaking machine
+        consumers. Catch it cross-platform by inspecting raw bytes."""
+        from aa_auto_sdr.sdr.quality_policy import write_quality_report
+
+        target = tmp_path / "report.csv"
+        issues = [
+            Issue(SeverityLevel.LOW, "naming", "version_suffix", "evar6", "v_v2", "x", {}),
+            Issue(SeverityLevel.HIGH, "stale", "stale_keyword", "evar7", "v_test", "y", {}),
+        ]
+        write_quality_report(issues=issues, summary={"total": 2}, target=target, fmt="csv")
+        raw = target.read_bytes()
+        # No \r\r\n sequences anywhere — that's the exact double-translation pattern.
+        assert b"\r\r\n" not in raw
+        # When read with newline="" (line terminators preserved), we get exactly
+        # 3 lines: header + 2 rows.
+        text = target.read_text(newline="")
+        # csv.writer emits "\r\n"; assert each row ends with exactly that.
+        rows = text.split("\r\n")
+        # Trailing empty string after the final \r\n is expected.
+        assert rows[-1] == ""
+        assert len(rows) == 4  # header + 2 issues + trailing empty
+        assert rows[0] == "severity,category,type,item_id,item_name,issue"
+        assert rows[1].startswith("LOW,naming,")
+        assert rows[2].startswith("HIGH,stale,")
+
     def test_stdout_target(self, capsys: pytest.CaptureFixture[str]) -> None:
         from aa_auto_sdr.sdr.quality_policy import write_quality_report
 

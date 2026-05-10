@@ -160,7 +160,12 @@ def write_quality_report(
         if target == "-":
             sys.stdout.write(rendered)
         else:
-            Path(target).write_text(rendered)
+            # Python's csv.writer emits "\r\n" terminators by design. On Windows,
+            # write_text()'s default universal-newline translation would convert
+            # the "\n" to "\r\n" again, producing "\r\r\n" in the file and a
+            # spurious empty line between every row. newline="" disables the
+            # translation and matches the standard csv-on-Windows recipe.
+            Path(target).write_text(rendered, newline="")
         return
 
     raise ConfigError(f"unsupported quality-report format: {fmt}")
