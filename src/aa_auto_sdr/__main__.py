@@ -36,6 +36,7 @@ def _print_help() -> int:
         "  aa_auto_sdr --validate-config        Validate credential shape without calling Adobe (v1.2)\n"
         "  aa_auto_sdr --sample-config          Emit a config.json template to stdout (v1.2)\n"
         "  aa_auto_sdr --stats [<RSID>...]      Quick component counts per RSID (v1.2)\n"
+        "  aa_auto_sdr --inventory-summary [<RSID>...]  Cross-RSID aggregate rollup (totals/min/max/avg) (v1.11.0)\n"
         "  aa_auto_sdr --interactive            Pick an RSID interactively; emit to stdout (v1.2)\n"
         "  aa_auto_sdr <RSID> --show-timings    Print per-stage timings to stderr at end of run (v1.2.1)\n"
         "  aa_auto_sdr <RSID> --run-summary-json PATH  Emit a JSON run summary to PATH or '-' (v1.2.1)\n"
@@ -76,6 +77,7 @@ def _print_help() -> int:
         "v1.8.0: parallel --batch workers (--workers, --fail-fast); validation cache scaffold (--enable-cache, --clear-cache, --cache-ttl, --cache-size).\n"
         "v1.9.0: field-level shaping + naming audits (--audit-naming, --flag-stale, --name-match, --extended-fields).\n"
         "v1.10.0: --batch RSID sampling (--sample, --sample-seed, --sample-stratified).\n"
+        "v1.11.0: --inventory-summary cross-RSID rollup (table|json|csv).\n"
     )
     return 0
 
