@@ -142,6 +142,10 @@ def test_documented_long_flags_exist_in_parser():
         # are NOT supported" prose. The unrelated `--max-issues` diff-render
         # flag still exists on the parser; only the policy key is rejected.
         "--allow-partial",
+        # v1.13.0 — flag explicitly documented in AGENTS.md as *dropped* from
+        # the v1.13.0 roadmap (cja-only org-report semantic; aa drift is
+        # per-RSID and always included in --trending-window output).
+        "--include-drift",
     }
 
     missing = documented - real_flags - allowlist

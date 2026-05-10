@@ -303,6 +303,9 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Diff at a git ref | `aa_auto_sdr --diff git:HEAD~1:snapshots/x.json git:HEAD:snapshots/x.json` |
 | Diff to JSON pipe | `aa_auto_sdr --diff a.json b.json --format json --output -` |
 | Diff to Markdown file | `aa_auto_sdr --diff a.json b.json --format markdown --output diff.md` |
+| Drift over 30 days (v1.13.0+) | `aa_auto_sdr <RSID> --trending-window 30d --profile prod` |
+| Drift as JSON for dashboards | `aa_auto_sdr rs1 rs2 rs3 --trending-window 30d --format json` |
+| Latest vs previous snapshot | `aa_auto_sdr <RSID> --compare-with-prev --profile prod` |
 | **Profile / Config** | |
 | Create profile interactively | `aa_auto_sdr --profile-add prod` |
 | Verify resolved source | `aa_auto_sdr --show-config` |

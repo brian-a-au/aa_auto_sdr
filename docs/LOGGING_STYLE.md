@@ -154,6 +154,11 @@ in v1.7.0:
 - `quality_gate_evaluated` — INFO. `sdr/quality.py::run_audits`. Fires only when `--fail-on-quality` was passed. Carries `threshold` (the configured severity name) and `verdict` (`pass`, `fail`, or `n/a`).
 - `quality_auto_enabled` — INFO. `cli/main.py::_dispatch`. Fires when the user passes `--quality-report` or `--fail-on-quality` without explicit `--audit-naming` / `--flag-stale`; auto-enables both. Carries `audit_naming` (bool) and `flag_stale` (bool).
 
+**v1.13.0 — Drift / trending windows (2):**
+
+- `trending_window_resolved` — INFO. `cli/commands/trending.py::run`. Fires once per `--trending-window` invocation after the duration string is parsed. Carries `duration` (the spec string e.g. `30d`), `start_at` (ISO datetime), `end_at` (ISO datetime).
+- `trending_compute_complete` — INFO. `snapshot/trending.py::compute_trending`. Fires once per RSID after compute_trending returns. Carries `rsid`, `snapshot_count`, `total_changes`, `volatility_score`.
+
 **Vocabulary meta-test treatment.** All canonical events are active; the v1.4 reserved-events exemption was lifted in v1.5. The vocabulary meta-test enforces extras presence on every canonical event when its substring appears at the start of a message (token-boundary aware).
 
 ## De-dup rule

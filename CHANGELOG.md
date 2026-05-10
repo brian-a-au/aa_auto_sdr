@@ -2,6 +2,88 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.13.0] — 2026-05-10
+
+Drift / trending windows. Applies the snapshot comparator across a
+window of snapshots for a single RSID, producing a per-RSID
+time-series of component lifecycle counts plus a derived drift
+summary. Two new actions ship; one roadmapped flag dropped.
+
+### Added
+- `--trending-window <duration> <RSID>...` action — emits a per-RSID
+  time-series report from existing snapshot files. Duration grammar
+  is `Nh|Nd|Nw` (reuses the retention parser). Default no default —
+  duration is required. Three output formats: `console` (default),
+  `json` (schema `aa-trending/v1`), `markdown`. Multi-RSID renders
+  per-RSID blocks (console / markdown) or wraps in
+  `{"reports": [...]}` (json).
+- `--compare-with-prev <RSID>...` action — sugar for
+  `--diff <RSID>@previous <RSID>@latest`. Uses the existing diff
+  resolver, output formats, and flag set. Multi-RSID loops; worst
+  exit code wins.
+- `snapshot/trending.py` (NEW) — `compute_trending()` orchestrator
+  + 6 frozen dataclasses (`WindowSpec`, `ComponentCounts`,
+  `LifecycleDelta`, `SnapshotPoint`, `DriftSummary`,
+  `TrendingReport`).
+- `--snapshot-dir <path>` non-mutex flag — overrides the active
+  profile's snapshot directory. Composes with `--trending-window`
+  in v1.13.0; other snapshot-aware actions (`--diff`,
+  `--list-snapshots`, `--prune-snapshots`) still resolve from
+  `--profile` only — opt-in retrofit possible later. Default
+  `None` (no behavior change for existing flows).
+- `snapshot/_duration.py` (NEW) — `parse_duration()` shared by
+  retention (`--keep-since`) and trending (`--trending-window`).
+  Pure refactor; existing retention behavior unchanged.
+- `output/trending_renderers/` (NEW) — three renderer modules.
+- Two INFO log events: `trending_window_resolved` (carries
+  `duration`, `start_at`, `end_at`); `trending_compute_complete`
+  (carries `rsid`, `snapshot_count`, `total_changes`,
+  `volatility_score`).
+
+### Roadmap deviations (dropped)
+The v1.13.0 row listed three flags; this release ships two.
+- **Removed `--include-drift`** — argparse-rejected. cja's
+  `--include-drift` triggers a cross-data-view drift score in its
+  org-report flow. aa has no org-report; drift in aa is per-RSID
+  lifecycle churn, which is the natural output of `compare()`. A
+  separate flag would either duplicate `--trending-window` output
+  or invent an aa-specific score and gate it behind redundant
+  opt-in. Drift summary is **always included** in
+  `--trending-window` output; the cost is a single dict
+  comprehension over already-computed `ComponentDiff` records.
+
+Test rejection in `tests/cli/test_v1_13_flags.py` ensures the
+removed flag receives a clear argparse error.
+
+### Behavior
+- Default behavior unchanged. Both new actions are opt-in.
+- `--trending-window` reads existing snapshot files only — no AA
+  API calls, no SDR rebuild, no auth required.
+- `--trending-window` requires positional RSIDs (no auto-discover);
+  no positional → `ExitCode.USAGE` (2).
+- Empty window for one RSID → warning + `PARTIAL_SUCCESS` (14);
+  empty for all RSIDs → `NOT_FOUND` (13).
+- Window upper bound is "now at compute time," not "the most recent
+  snapshot's timestamp" — a snapshot taken just outside the window
+  is excluded even if it's the most recent on disk.
+- `--include-drift` is argparse-rejected; CHANGELOG explains.
+- No new exit codes. No new exception classes. No new env vars. No
+  new runtime dependencies. No SDK surface change.
+- Snapshot envelope schema unchanged (v4 from v1.12.0 carries
+  forward).
+
+### Internal
+- `snapshot/retention.py::_DURATION_RE` and `_UNIT_TO_HOURS`
+  removed; replaced with `from aa_auto_sdr.snapshot._duration
+  import parse_duration`. Existing retention tests stay green.
+- `snapshot/retention.py::_restore_iso` renamed to
+  `restore_iso` (dropped leading underscore — promoted to public
+  cross-module API). `snapshot/trending.py::_path_in_window`
+  uses it to filter snapshot files into the trending window
+  without parsing JSON. No external callers existed before
+  v1.13.0 — verified by `grep -rn "_restore_iso"` returning
+  zero matches outside `retention.py` itself.
+
 ## [1.12.1] — 2026-05-10
 
 Patch release. Polish on top of v1.12.0's quality-engine surface — log
@@ -44,7 +126,6 @@ new exit codes, no behavior changes for existing flows.
   reads with the literal `"aa_auto_sdr.cli.main"` so a future logger
   rename surfaces as a clear test failure rather than a silent
   miss-match.
-
 ## [1.12.0] — 2026-05-10
 
 Quality severity engine. Promotes v1.9.0 naming-audit findings to a

@@ -192,7 +192,7 @@ def compute_trending(
     name = _name_from_envelope(snapshots[-1]) if snapshots else None
 
     logger.info(
-        "trending_compute_complete rsid=%s snapshot_count=%s total_changes=%s volatility_score=%s",
+        "trending_compute_complete rsid=%s snapshots=%s changes=%s volatility=%s",
         rsid,
         len(series),
         drift.total_changes,
