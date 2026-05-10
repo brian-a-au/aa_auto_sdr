@@ -137,6 +137,11 @@ def test_documented_long_flags_exist_in_parser():
         # metrics as first-class sections; documented to explain its absence
         # to agent consumers).
         "--inventory-only",
+        # v1.12.0 — policy keys explicitly documented in AGENTS.md as *removed*
+        # from the cja policy schema; they appear in the "Two cja policy keys
+        # are NOT supported" prose. The unrelated `--max-issues` diff-render
+        # flag still exists on the parser; only the policy key is rejected.
+        "--allow-partial",
     }
 
     missing = documented - real_flags - allowlist

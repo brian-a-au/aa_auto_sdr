@@ -2,6 +2,81 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.12.0] — 2026-05-10
+
+Quality severity engine. Promotes v1.9.0 naming-audit findings to a
+five-level severity ladder (CRITICAL > HIGH > MEDIUM > LOW > INFO),
+adds machine-readable quality reports, and gates CI on quality
+breaches via `--fail-on-quality`. Activates the v1.8.0 ValidationCache
+scaffold as its first production caller.
+
+### Added
+- `--quality-report {json,csv}` — emit a standalone machine-readable
+  quality report alongside SDR output. Default filename
+  `quality_report_<RSID>_<timestamp>.{json,csv}`.
+- `--quality-policy <path>` — JSON policy file. Top-level keys
+  `fail_on_quality` and `quality_report`. CLI flags always win over
+  policy values. Hyphen / underscore canonicalization; optional
+  `quality_policy` / `quality` envelope nesting.
+- `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` — exit
+  `ExitCode.QUALITY` (17) if any issue at or above the threshold
+  exists. SDR output and snapshot still emit normally.
+- `ExitCode.QUALITY = 17` — new soft-signal exit code (parallel to
+  `WARN = 3`); CI-actionable.
+- `sdr/quality.py`: `SeverityLevel` (StrEnum), `Issue` (frozen
+  dataclass), `run_audits` orchestrator that severity-promotes
+  v1.9.0 findings.
+- `sdr/quality_policy.py` (NEW) — policy loader, defaults applier,
+  report writer.
+- ValidationCache integration: `quality.run_audits` is the first
+  production caller of the v1.8.0 LRU+TTL cache. Cache key includes
+  the severity-table version so v1.12.x mapping changes invalidate.
+- Snapshot envelope schema bumps v3 -> v4. Two additive keys inside
+  the `quality` block: `issues` and `summary`. v3 envelopes still
+  load on v1.12.0.
+
+### Fixed
+- `SdrDocument.to_dict()` previously dropped `quality` and
+  `fetch_status`. Long-standing gap surfaced by the v1.12.0 work and
+  fixed in this release. JSON output for v1.9.0-v1.11.0 users now
+  carries the quality block; downstream consumers that ignore
+  unknown keys are unaffected.
+
+### Roadmap deviations (dropped)
+The v1.12.0 row listed three flags; this release ships all three.
+Compression happens at the **policy-schema** and **architecture**
+levels:
+- **Removed `max_issues` policy key.** cja's policy schema caps issue
+  output at N. aa's quality block is compact (severity-promoted v1.9.0
+  findings only; no risk of multi-thousand-issue payloads).
+- **Removed `allow_partial` policy key.** cja uses this with
+  `--fail-on-quality`. aa already has `PARTIAL_SUCCESS` (14) and
+  `QUALITY` (17) as orthogonal exit codes.
+- **No pandas dependency.** aa's checks operate on normalized
+  dataclasses, not dataframes.
+- **No per-RSID parallel checks.** aa parallelizes at the batch level
+  (v1.8.0); per-RSID checks are O(hundreds), sub-50ms uncached.
+
+Test rejections in `tests/sdr/test_quality_policy.py` ensure the
+removed policy keys raise `ConfigError`.
+
+### Behavior
+- Default behavior unchanged. None of the three new flags are on by
+  default. Existing v1.9.0 audits run with the same outputs plus two
+  new keys (`issues`, `summary`) inside the quality block.
+- `--quality-report` or `--fail-on-quality` without `--audit-naming` /
+  `--flag-stale` auto-enables both audits (logged as
+  `quality_auto_enabled`).
+- Quality flags outside SDR generation (`--stats`, `--list-X`,
+  `--inventory-summary`, `--diff`) exit `USAGE` (2).
+- Batch precedence: `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
+  Build failures are more actionable than quality verdicts; users
+  fixing partial failures re-run and then see the gate.
+- `BatchResult` gains `quality_verdicts: dict[str, str]` (default
+  empty).
+- No new exception classes (reuse `ConfigError`). No new env vars.
+  No new runtime dependencies.
+
 ## [1.11.0] — 2026-05-10
 
 First post-Tier 2 release. `--inventory-summary` cross-RSID aggregate
