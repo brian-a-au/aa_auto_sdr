@@ -14,7 +14,90 @@ See docs/superpowers/specs/2026-05-09-aa-auto-sdr-v1.9.0-design.md §3.2.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any, Protocol
+
+
+class SeverityLevel(StrEnum):
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    INFO = "INFO"
+
+
+_SEVERITY_RANK = {sev: i for i, sev in enumerate(SeverityLevel)}
+_SEVERITY_TABLE_VERSION = "v1.12.0"
+
+
+@dataclass(frozen=True, slots=True)
+class Issue:
+    """One severity-tagged quality finding.
+
+    `item_id` references a real component (e.g. `evar5`, `event12`) for
+    per-component findings, OR the component-type bundle name (e.g.
+    `dimensions`) for bundle-level findings such as case_inconsistency.
+    `item_name` is empty for bundle-level findings.
+    """
+
+    severity: SeverityLevel
+    category: str
+    type: str
+    item_id: str
+    item_name: str
+    issue: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "severity": self.severity.value,
+            "category": self.category,
+            "type": self.type,
+            "item_id": self.item_id,
+            "item_name": self.item_name,
+            "issue": self.issue,
+            "details": dict(self.details),
+        }
+
+
+def has_quality_issues_at_or_above(issues: list[Issue], threshold: SeverityLevel) -> bool:
+    """Returns True if any issue's severity has rank <= threshold's rank."""
+    threshold_rank = _SEVERITY_RANK[threshold]
+    return any(_SEVERITY_RANK[i.severity] <= threshold_rank for i in issues)
+
+
+_STALE_KEYWORD_SEVERITY: dict[str, SeverityLevel] = {
+    "test": SeverityLevel.MEDIUM,
+    "old": SeverityLevel.MEDIUM,
+    "deprecated": SeverityLevel.MEDIUM,
+    "legacy": SeverityLevel.MEDIUM,
+    "obsolete": SeverityLevel.MEDIUM,
+    "unused": SeverityLevel.MEDIUM,
+    "temp": SeverityLevel.LOW,
+    "backup": SeverityLevel.LOW,
+    "copy": SeverityLevel.LOW,
+    "archive": SeverityLevel.LOW,
+}
+
+
+def _severity_for_stale_reason(reason: str) -> SeverityLevel:
+    """Map a v1.9.0 reason string to a SeverityLevel.
+
+    Reasons are colon-prefixed: 'stale_keyword:<kw>', 'version_suffix:vN',
+    'date_pattern:<m>'. Unknown prefixes default to LOW (defensive).
+    """
+    kind, _, value = reason.partition(":")
+    if kind == "stale_keyword":
+        return _STALE_KEYWORD_SEVERITY.get(value, SeverityLevel.LOW)
+    if kind in ("version_suffix", "date_pattern"):
+        return SeverityLevel.LOW
+    return SeverityLevel.LOW
+
+
+def _severity_for_case_inconsistency() -> SeverityLevel:
+    return SeverityLevel.LOW
+
 
 # Verbatim from cja_auto_sdr/org/analyzer.py — keeps cross-tool audit
 # semantics aligned. If cja drifts, drift here too in the same change.
