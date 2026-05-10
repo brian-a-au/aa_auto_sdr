@@ -66,11 +66,14 @@ def _print_help() -> int:
         "  --cache-ttl SECONDS       Cache entry TTL in seconds (default: 3600)\n"
         "  --cache-size ENTRIES      Cache LRU max-size (default: 1000)\n"
         "\n"
-        "Quality audits + name matching (v1.9.0+):\n"
+        "Quality audits + name matching (v1.9.0+, severity engine v1.12.0+):\n"
         "  --audit-naming            Add naming-pattern audit to the SDR document (case styles, prefix groups, recommendations).\n"
         "  --flag-stale              Flag components with stale-name patterns (test/old/deprecated, _vN suffix, date suffix).\n"
         "  --name-match {exact,insensitive,fuzzy}  Strategy for resolving <RSID_OR_NAME> tokens (default: insensitive).\n"
         "  --extended-fields         In --diff mode, include extended fields (description, tags, category, etc.). Off by default.\n"
+        "  --quality-report {json,csv}      Emit a machine-readable quality report alongside the SDR output (v1.12.0).\n"
+        "  --quality-policy <PATH>          JSON quality-policy file; CLI flags win over policy values (v1.12.0).\n"
+        "  --fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}  Exit with code 17 if any issue at or above this severity exists (v1.12.0).\n"
         "\n"
         "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
         "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
@@ -78,6 +81,7 @@ def _print_help() -> int:
         "v1.9.0: field-level shaping + naming audits (--audit-naming, --flag-stale, --name-match, --extended-fields).\n"
         "v1.10.0: --batch RSID sampling (--sample, --sample-seed, --sample-stratified).\n"
         "v1.11.0: --inventory-summary cross-RSID rollup (table|json|csv).\n"
+        "v1.12.0: quality severity engine (--quality-report, --quality-policy, --fail-on-quality); ValidationCache activated.\n"
     )
     return 0
 
