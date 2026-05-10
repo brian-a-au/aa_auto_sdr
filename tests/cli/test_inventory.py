@@ -26,7 +26,17 @@ class TestAggregateEmpty:
             assert result["totals"][ct] == 0
             assert result["min"][ct] == 0
             assert result["max"][ct] == 0
-            assert result["avg"][ct] == 0
+            assert result["avg"][ct] == 0.0
+
+    def test_empty_avg_is_float_to_match_populated_shape(self) -> None:
+        """avg type must be float for both empty and populated input —
+        a downstream JSON consumer should not see int(0) vs float(0.0)
+        depending on whether any RSIDs were supplied."""
+        empty = _aggregate([])
+        populated = _aggregate([_row("rs1")])
+        for ct in _COMPONENT_TYPES:
+            assert isinstance(empty["avg"][ct], float)
+            assert isinstance(populated["avg"][ct], float)
 
 
 class TestAggregateSingleRow:
@@ -227,23 +237,17 @@ class TestRunCsv:
 
 
 class TestRunFormatRejection:
-    def test_excel_format_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
+    @pytest.mark.parametrize("bad_format", ["excel", "html", "markdown", "all"])
+    def test_disallowed_format_errors(self, capsys: pytest.CaptureFixture[str], bad_format: str) -> None:
         exit_code = inv_command.run(
             rsids=["rs1"],
             profile=None,
-            format_name="excel",
+            format_name=bad_format,
         )
         assert exit_code == ExitCode.OUTPUT.value
         out = capsys.readouterr().out
         assert "table|json|csv" in out
-
-    def test_html_format_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
-        exit_code = inv_command.run(
-            rsids=["rs1"],
-            profile=None,
-            format_name="html",
-        )
-        assert exit_code == ExitCode.OUTPUT.value
+        assert bad_format in out
 
 
 class TestRunNoPositional:
@@ -283,3 +287,94 @@ class TestRunFetchStatusFooter:
         payload = _json.loads(capsys.readouterr().out)
         # fetch_status appears on the per-RSID row when VRS fetch is degraded.
         assert payload["per_rsid"][0]["fetch_status"]["virtual_report_suites"]["status"] == "degraded"
+
+
+class TestRunErrorPaths:
+    """Symmetric exit codes for each upstream failure mode in inventory.run."""
+
+    def test_config_error_returns_config_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        from aa_auto_sdr.core.exceptions import ConfigError
+
+        with patch.object(inv_command.credentials, "resolve", side_effect=ConfigError("bad profile")):
+            exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
+        assert exit_code == ExitCode.CONFIG.value
+        assert "bad profile" in capsys.readouterr().out
+
+    def test_auth_error_returns_auth_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        from aa_auto_sdr.core.exceptions import AuthError
+
+        with (
+            patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
+            patch.object(inv_command.AaClient, "from_credentials", side_effect=AuthError("token expired")),
+        ):
+            exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
+        assert exit_code == ExitCode.AUTH.value
+        assert "token expired" in capsys.readouterr().out
+
+    def test_ambiguous_match_returns_not_found_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        from aa_auto_sdr.core.exceptions import AmbiguousMatchError
+
+        ambiguous = AmbiguousMatchError(
+            "two matches for 'prod'",
+            candidates=[("rs_prod_us", "Production US"), ("rs_prod_eu", "Production EU")],
+        )
+        with (
+            patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
+            patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
+            patch.object(inv_command.fetch, "resolve_rsid", side_effect=ambiguous),
+        ):
+            exit_code = inv_command.run(rsids=["prod"], profile=None, format_name="json")
+        assert exit_code == ExitCode.NOT_FOUND.value
+        err = capsys.readouterr().err
+        assert "ambiguous" in err
+        assert "rs_prod_us" in err
+        assert "rs_prod_eu" in err
+
+    def test_report_suite_not_found_returns_not_found_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
+
+        with (
+            patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
+            patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
+            patch.object(
+                inv_command.fetch, "resolve_rsid", side_effect=ReportSuiteNotFoundError("no such rsid 'rs_nope'")
+            ),
+        ):
+            exit_code = inv_command.run(rsids=["rs_nope"], profile=None, format_name="json")
+        assert exit_code == ExitCode.NOT_FOUND.value
+        assert "rs_nope" in capsys.readouterr().out
+
+    def test_api_error_during_summaries_returns_api_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """No-positional path: ApiError raised inside fetch_report_suite_summaries."""
+        from aa_auto_sdr.core.exceptions import ApiError
+
+        with (
+            patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
+            patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
+            patch.object(inv_command.fetch, "fetch_report_suite_summaries", side_effect=ApiError("502 Bad Gateway")),
+        ):
+            exit_code = inv_command.run(rsids=[], profile=None, format_name="json")
+        assert exit_code == ExitCode.API.value
+        assert "502 Bad Gateway" in capsys.readouterr().out
+
+    def test_api_error_during_per_rsid_fetch_returns_api_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Per-RSID fetch loop: ApiError on fetch_report_suite raises mid-loop."""
+        from aa_auto_sdr.core.exceptions import ApiError
+
+        with (
+            patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
+            patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
+            patch.object(
+                inv_command.fetch,
+                "resolve_rsid",
+                side_effect=lambda _client, ident, name_match="insensitive": ([ident], False),  # noqa: ARG005
+            ),
+            patch.object(
+                inv_command.fetch,
+                "fetch_report_suite",
+                side_effect=ApiError("503 on rs1"),
+            ),
+        ):
+            exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
+        assert exit_code == ExitCode.API.value
+        assert "503 on rs1" in capsys.readouterr().out

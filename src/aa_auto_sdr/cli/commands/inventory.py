@@ -57,7 +57,7 @@ def _aggregate(per_rsid_rows: list[dict[str, Any]]) -> dict[str, Any]:
             "totals": dict.fromkeys(_COMPONENT_TYPES, 0),
             "min": dict.fromkeys(_COMPONENT_TYPES, 0),
             "max": dict.fromkeys(_COMPONENT_TYPES, 0),
-            "avg": dict.fromkeys(_COMPONENT_TYPES, 0),
+            "avg": dict.fromkeys(_COMPONENT_TYPES, 0.0),
         }
     n = len(per_rsid_rows)
     totals = {ct: sum(row["counts"][ct] for row in per_rsid_rows) for ct in _COMPONENT_TYPES}
