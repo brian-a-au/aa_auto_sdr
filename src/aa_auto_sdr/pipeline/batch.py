@@ -89,6 +89,8 @@ def run_batch(
     sample_size: int | None = None,  # v1.10.0
     sample_seed: int | None = None,  # v1.10.0
     sample_stratified: bool = False,  # v1.10.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
 ) -> BatchResult:
     """Sequential or parallel per-RSID SDR generation. Continue on error.
 
@@ -153,6 +155,9 @@ def run_batch(
             component_filter=component_filter,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            fail_on_quality=fail_on_quality,
+            quality_report=quality_report,
+            cache=cache,
         )
     else:
         inner = run_parallel(
@@ -172,6 +177,13 @@ def run_batch(
             audit_naming=audit_naming,
             flag_stale=flag_stale,
         )
+
+    # v1.12.0 — collect per-RSID quality verdicts.
+    verdicts: dict[str, str] = {}
+    for ok in inner.successes:
+        if ok.quality_verdict:
+            verdicts[ok.rsid] = ok.quality_verdict
+
     return dataclasses.replace(
         inner,
         sampled=sampled,
@@ -179,6 +191,7 @@ def run_batch(
         sample_seed=sample_seed if sampled else None,
         sample_strategy=sample_strategy if sampled else None,
         total_available=total_available,
+        quality_verdicts=verdicts,
     )
 
 
@@ -196,6 +209,9 @@ def _run_sequential(
     component_filter: ComponentFilter | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    fail_on_quality: str | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0
+    cache: ValidationCache | None = None,  # v1.12.0
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -227,6 +243,9 @@ def _run_sequential(
             extra={"rsid": rsid, "batch_id": batch_id},
         )
         try:
+            from aa_auto_sdr.sdr.quality import SeverityLevel as _SeverityLevel
+
+            _foq = _SeverityLevel(fail_on_quality) if fail_on_quality else None
             result = single.run_single(
                 client=client,
                 rsid=rsid,
@@ -238,6 +257,9 @@ def _run_sequential(
                 component_filter=component_filter,
                 audit_naming=audit_naming,
                 flag_stale=flag_stale,
+                fail_on_quality=_foq,
+                quality_report=quality_report,
+                cache=cache,
             )
         except AaAutoSdrError as exc:
             message = str(exc)

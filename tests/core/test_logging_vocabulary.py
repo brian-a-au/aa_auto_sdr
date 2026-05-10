@@ -71,6 +71,15 @@ VOCAB = {
     "sample_seed",
     "sample_strategy",
     "count_total",
+    # v1.12.0 additions — quality severity engine
+    "audit_naming",
+    "flag_stale",
+    "quality_total",
+    "quality_by_severity",
+    "severity",
+    "verdict",
+    "threshold",
+    "policy_path",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of

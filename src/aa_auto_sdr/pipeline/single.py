@@ -30,12 +30,18 @@ def run_single(
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: SeverityLevel | None = None,  # v1.12.0
+    quality_report: str | None = None,  # v1.12.0 — "json" | "csv" | None
     cache: ValidationCache | None = None,  # v1.12.0
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
     If `snapshot_dir` is set, also persist the SdrDocument envelope to
-    `<snapshot_dir>/<rsid>/<captured_at-fs>.json`."""
+    `<snapshot_dir>/<rsid>/<captured_at-fs>.json`.
+
+    v1.12.0: when `quality_report` is set, also emit the standalone quality
+    report alongside SDR outputs. When `fail_on_quality` is set, populate
+    the returned `quality_verdict` so callers can decide on ExitCode.QUALITY.
+    """
     registry.bootstrap()
     with timings.Timer(f"build:{rsid}"):
         doc = build_sdr(
@@ -62,9 +68,47 @@ def run_single(
         with timings.Timer(f"snapshot:{rsid}"):
             snap_path = save_snapshot(doc, snapshot_dir=snapshot_dir)
         paths.append(snap_path)
+
+    # v1.12.0 — quality report + verdict.
+    quality_report_path: Path | None = None
+    quality_verdict: str = ""
+    if doc.quality is not None:
+        if quality_report:
+            from aa_auto_sdr.sdr.quality_policy import write_quality_report
+
+            ts = captured_at.strftime("%Y%m%dT%H%M%S")
+            target = output_dir / f"quality_report_{rsid}_{ts}.{quality_report}"
+            issues_raw = doc.quality.get("issues", [])
+            issues = [_rehydrate_issue(d) for d in issues_raw]
+            summary = doc.quality.get("summary", {})
+            with timings.Timer(f"quality_report:{rsid}"):
+                write_quality_report(issues=issues, summary=summary, target=target, fmt=quality_report)
+            paths.append(target)
+            quality_report_path = target
+        verdict = doc.quality.get("summary", {}).get("verdict", "")
+        if isinstance(verdict, str):
+            quality_verdict = verdict
+
     return RunResult(
         rsid=rsid,
         success=True,
         outputs=paths,
         report_suite_name=doc.report_suite.name,
+        quality_verdict=quality_verdict,
+        quality_report_path=quality_report_path,
+    )
+
+
+def _rehydrate_issue(d: dict):
+    """Rebuild an Issue from its to_dict() form (used inside the quality block)."""
+    from aa_auto_sdr.sdr.quality import Issue, SeverityLevel
+
+    return Issue(
+        severity=SeverityLevel(d["severity"]),
+        category=d["category"],
+        type=d["type"],
+        item_id=d["item_id"],
+        item_name=d["item_name"],
+        issue=d["issue"],
+        details=d.get("details", {}),
     )
