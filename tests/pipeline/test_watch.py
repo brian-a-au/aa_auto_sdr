@@ -4,14 +4,21 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
+from dataclasses import dataclass as _dc
+from dataclasses import field as _f
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any as _Any
+
+import pytest
 
 from aa_auto_sdr.pipeline.watch import (
     CycleResult,
     StopToken,
     WatchContext,
+    run_one_cycle,
 )
+from aa_auto_sdr.snapshot.models import ComponentDiff, DiffReport
 
 
 class TestStopToken:
@@ -47,8 +54,6 @@ class TestCycleResult:
         assert r.error is None
 
     def test_diffed_constructor(self) -> None:
-        from aa_auto_sdr.snapshot.models import DiffReport
-
         diff = DiffReport(
             a_rsid="rs_a",
             b_rsid="rs_a",
@@ -94,6 +99,7 @@ class TestWatchContext:
         @dataclass
         class FakeStore:
             def latest(self, rsid: str) -> dict | None: ...
+
             def save(self, rsid: str, doc) -> tuple[Path, dict]: ...
 
         @dataclass
@@ -119,3 +125,157 @@ class TestWatchContext:
         )
         assert ctx.fetcher is not None
         assert ctx.extended_fields is False
+
+
+# --- run_one_cycle ---------------------------------------------------------
+
+
+@_dc
+class _FakeClock:
+    """Deterministic clock — each `utcnow()` advances by 1 second."""
+
+    _now: datetime = _f(default_factory=lambda: datetime(2026, 5, 10, 14, 0, 0, tzinfo=UTC))
+
+    def utcnow(self) -> datetime:
+        out = self._now
+        self._now = self._now + timedelta(seconds=1)
+        return out
+
+
+@_dc
+class _FakeFetcher:
+    rsid_to_doc: dict[str, _Any] = _f(default_factory=dict)
+    raise_for: dict[str, BaseException] = _f(default_factory=dict)
+    calls: list[str] = _f(default_factory=list)
+
+    def fetch_snapshot(self, rsid: str) -> _Any:
+        self.calls.append(rsid)
+        if rsid in self.raise_for:
+            raise self.raise_for[rsid]
+        return self.rsid_to_doc.get(rsid, {"rsid": rsid})
+
+
+@_dc
+class _FakeStore:
+    """Fake snapshot store. `save()` returns `(path, envelope_dict)` to mirror
+    the real store contract: the envelope is what compare() consumes on the
+    next cycle, and exposing it inline avoids a re-read from disk."""
+
+    latest_by_rsid: dict[str, dict | None] = _f(default_factory=dict)
+    saved: list[tuple[str, _Any]] = _f(default_factory=list)
+
+    def latest(self, rsid: str) -> dict | None:
+        return self.latest_by_rsid.get(rsid)
+
+    def save(self, rsid: str, doc: _Any) -> tuple[Path, dict]:
+        self.saved.append((rsid, doc))
+        path = Path(f"/tmp/{rsid}/{len(self.saved)}.json")
+        envelope = {"rsid": rsid, "_seq": len(self.saved), "_doc": doc}
+        self.latest_by_rsid[rsid] = envelope
+        return path, envelope
+
+
+@_dc
+class _FakeSleeper:
+    calls: list[float] = _f(default_factory=list)
+
+    def sleep(self, seconds: float) -> None:
+        self.calls.append(seconds)
+
+
+@_dc
+class _FakeEmitter:
+    events: list[dict] = _f(default_factory=list)
+
+    def emit(self, payload: dict) -> None:
+        self.events.append(payload)
+
+
+def _ctx(**overrides) -> WatchContext:
+    defaults: dict[str, _Any] = {
+        "fetcher": _FakeFetcher(),
+        "snapshot_store": _FakeStore(),
+        "clock": _FakeClock(),
+        "sleeper": _FakeSleeper(),
+        "emitter": _FakeEmitter(),
+        "ignore_fields": frozenset(),
+        "extended_fields": False,
+    }
+    defaults.update(overrides)
+    return WatchContext(**defaults)
+
+
+class TestRunOneCycle:
+    def test_baseline_when_no_prior_snapshot(self) -> None:
+        ctx = _ctx()
+        result = run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert result.kind == "baseline"
+        assert result.rsid == "rs_a"
+        assert result.snapshot_path is not None
+        assert result.diff is None
+        assert ctx.snapshot_store.saved == [("rs_a", {"rsid": "rs_a"})]
+
+    def test_diffed_when_prior_snapshot_exists(self, monkeypatch) -> None:
+        from aa_auto_sdr.pipeline import watch as watch_mod
+
+        prior_envelope = {"some": "envelope"}
+        store = _FakeStore(latest_by_rsid={"rs_a": prior_envelope})
+        fetcher = _FakeFetcher(rsid_to_doc={"rs_a": {"current": True}})
+        expected_diff = DiffReport(
+            a_rsid="rs_a",
+            b_rsid="rs_a",
+            a_captured_at="X",
+            b_captured_at="Y",
+            a_tool_version="1.14.0",
+            b_tool_version="1.14.0",
+            components=[ComponentDiff(component_type="dimensions")],
+        )
+        captured: dict = {}
+
+        def fake_compare(*, a, b, ignore_fields, extended_fields):
+            captured["a"] = a
+            captured["b"] = b
+            captured["ignore_fields"] = ignore_fields
+            captured["extended_fields"] = extended_fields
+            return expected_diff
+
+        monkeypatch.setattr(watch_mod, "compare", fake_compare)
+
+        ctx = _ctx(snapshot_store=store, fetcher=fetcher)
+        result = run_one_cycle(rsid="rs_a", ctx=ctx)
+
+        assert result.kind == "diffed"
+        assert result.diff is expected_diff
+        # `a` is the prior envelope; `b` is the envelope returned from store.save() —
+        # NOT the raw doc from fetcher.fetch_snapshot().
+        assert captured["a"] is prior_envelope
+        assert captured["b"]["rsid"] == "rs_a"
+        assert captured["b"]["_doc"] == {"current": True}
+
+    def test_fetch_error_returns_fetch_error_variant(self) -> None:
+        boom = RuntimeError("503 Service Unavailable")
+        fetcher = _FakeFetcher(raise_for={"rs_a": boom})
+        ctx = _ctx(fetcher=fetcher)
+        result = run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert result.kind == "fetch_error"
+        assert result.error is boom
+        assert ctx.snapshot_store.saved == []  # no save on fetch failure
+
+    def test_unforeseen_exception_returns_fetch_error_variant(self) -> None:
+        boom = ValueError("unexpected garbage")
+        fetcher = _FakeFetcher(raise_for={"rs_a": boom})
+        ctx = _ctx(fetcher=fetcher)
+        result = run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert result.kind == "fetch_error"
+        assert result.error is boom
+
+    def test_keyboard_interrupt_propagates(self) -> None:
+        fetcher = _FakeFetcher(raise_for={"rs_a": KeyboardInterrupt()})
+        ctx = _ctx(fetcher=fetcher)
+        with pytest.raises(KeyboardInterrupt):
+            run_one_cycle(rsid="rs_a", ctx=ctx)
+
+    def test_snapshot_always_saved_when_fetch_succeeds(self) -> None:
+        ctx = _ctx()
+        run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert len(ctx.snapshot_store.saved) == 1

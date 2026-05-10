@@ -160,3 +160,65 @@ class CycleResult:
             ended_at=ended_at,
             error=error,
         )
+
+
+# --- compare() import + run_one_cycle ------------------------------------
+
+from aa_auto_sdr.snapshot.comparator import compare  # noqa: E402 — import-after-types
+
+
+def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
+    """Run a single watch cycle for one RSID.
+
+    Steps:
+      1. Read the prior snapshot envelope dict from the store (None on first cycle).
+      2. Fetch the current state via the injected fetcher. On any non-control-flow
+         exception, return a `fetch_error` result without saving anything.
+         KeyboardInterrupt and SystemExit propagate so signal handlers can drive a
+         clean shutdown.
+      3. Save the current snapshot. `save()` returns `(path, envelope_dict)` — the
+         envelope is the canonical shape compare() expects, so we get it back
+         in-memory without a re-read.
+      4. If prior was None, return a `baseline` result (no diff).
+      5. Otherwise, diff prior_envelope vs current_envelope and return a `diffed`
+         result. Both sides are dicts — matches the shape used by --diff and
+         v1.13 trending.
+    """
+    started_at = ctx.clock.utcnow()
+    prev = ctx.snapshot_store.latest(rsid)
+
+    try:
+        current_doc = ctx.fetcher.fetch_snapshot(rsid)
+    except KeyboardInterrupt, SystemExit:
+        raise
+    except Exception as e:  # cycle errors are non-fatal to the loop
+        return CycleResult.fetch_error(
+            rsid=rsid,
+            error=e,
+            started_at=started_at,
+            ended_at=ctx.clock.utcnow(),
+        )
+
+    snapshot_path, current_envelope = ctx.snapshot_store.save(rsid, current_doc)
+
+    if prev is None:
+        return CycleResult.baseline(
+            rsid=rsid,
+            snapshot_path=snapshot_path,
+            started_at=started_at,
+            ended_at=ctx.clock.utcnow(),
+        )
+
+    diff = compare(
+        a=prev,
+        b=current_envelope,
+        ignore_fields=ctx.ignore_fields,
+        extended_fields=ctx.extended_fields,
+    )
+    return CycleResult.diffed(
+        rsid=rsid,
+        snapshot_path=snapshot_path,
+        diff=diff,
+        started_at=started_at,
+        ended_at=ctx.clock.utcnow(),
+    )
