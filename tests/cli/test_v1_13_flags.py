@@ -81,3 +81,40 @@ class TestSnapshotDirArgparse:
         )
         assert ns.snapshot_dir == tmp_path
         assert ns.trending_window == "30d"
+
+
+class TestTrendingDispatchEndToEnd:
+    """End-to-end: --trending-window reaches cli.commands.trending::run with the right args."""
+
+    def test_dispatch_reaches_handler(self, tmp_path: Path) -> None:
+        from unittest.mock import patch
+
+        from aa_auto_sdr.__main__ import main
+        from aa_auto_sdr.cli.commands import trending as trending_cmd
+
+        captured: dict = {}
+
+        def _capture(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        with patch.object(trending_cmd, "run", side_effect=_capture) as mock_run:
+            main(["rs1", "--trending-window", "30d", "--snapshot-dir", str(tmp_path)])
+
+        assert mock_run.called
+        assert captured["rsids"] == ["rs1"]
+        assert captured["duration"] == "30d"
+        assert captured["snapshot_dir"] == tmp_path
+
+    def test_dispatch_handles_invalid_duration(self, tmp_path: Path) -> None:
+        """Handler must reject bare-int 'duration' with USAGE (2)."""
+        from aa_auto_sdr.__main__ import main
+
+        rc = main(["rs1", "--trending-window", "30", "--snapshot-dir", str(tmp_path)])
+        assert rc == 2  # ExitCode.USAGE
+
+    def test_dispatch_no_positional_returns_usage(self, tmp_path: Path) -> None:
+        from aa_auto_sdr.__main__ import main
+
+        rc = main(["--trending-window", "30d", "--snapshot-dir", str(tmp_path)])
+        assert rc == 2  # ExitCode.USAGE

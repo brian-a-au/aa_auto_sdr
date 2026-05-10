@@ -315,6 +315,21 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             name_match=ns.name_match,
         )
 
+    # v1.13.0 — trending-window action
+    if ns.trending_window:
+        from aa_auto_sdr.cli.commands import trending as trending_cmd
+
+        return trending_cmd.run(
+            rsids=rsids,
+            duration=ns.trending_window,
+            snapshot_dir=ns.snapshot_dir,
+            profile=ns.profile,
+            format_name=ns.format,
+            output=ns.output,
+            extended_fields=getattr(ns, "extended_fields", False),
+            ignore_fields=tuple(getattr(ns, "ignore_fields", ()) or ()),
+        )
+
     # v1.2 — stats action
     if ns.stats:
         from aa_auto_sdr.cli.commands import stats as stats_cmd
