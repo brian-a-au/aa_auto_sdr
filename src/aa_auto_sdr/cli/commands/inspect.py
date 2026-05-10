@@ -142,6 +142,7 @@ def _list_per_component(
     columns: list[str],
     sort_allowlist: tuple[str, ...],
     retry_policy: RetryPolicy | None = None,
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Generic list-X handler: resolve identifier → fetch per RSID → flatten →
     filter → render. Pattern 9B.3 — one start/complete pair covers all five
@@ -156,7 +157,7 @@ def _list_per_component(
             return exit_code
 
         try:
-            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
+            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
             exit_code = ExitCode.NOT_FOUND.value
@@ -316,6 +317,7 @@ def run_describe_reportsuite(
     format_name: str | None,
     output: str | None,
     retry_policy: RetryPolicy | None = None,
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Print metadata + per-component counts for one RS (or several on multi-match)."""
     started_ms = time.monotonic()
@@ -331,7 +333,7 @@ def run_describe_reportsuite(
             return exit_code
 
         try:
-            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier)
+            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
             exit_code = ExitCode.NOT_FOUND.value

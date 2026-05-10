@@ -115,6 +115,7 @@ def run(
     retry_policy: RetryPolicy | None = None,  # v1.7.0 — shared retry budget
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -143,6 +144,7 @@ def run(
             retry_policy=retry_policy,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            name_match=name_match,
         )
         return exit_code
     finally:
@@ -180,6 +182,7 @@ def _run_impl(
     retry_policy: RetryPolicy | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     started_at = datetime.now(UTC)
 
@@ -268,7 +271,7 @@ def _run_impl(
 
     try:
         with timings.Timer("resolve"):
-            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid)
+            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid, name_match=name_match)
     except ReportSuiteNotFoundError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.NOT_FOUND.value)
         _emit_timings_if_enabled(show_timings=show_timings)

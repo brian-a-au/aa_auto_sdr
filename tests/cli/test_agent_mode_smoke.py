@@ -125,7 +125,7 @@ def test_list_metrics_under_agent_mode_emits_json(monkeypatch, capsys, tmp_path)
         ),
     )
     monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
-    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident, **kwargs: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
         "fetch_metrics",
@@ -174,7 +174,7 @@ def test_single_sdr_under_agent_mode_writes_file_not_stdout(monkeypatch, tmp_pat
         ),
     )
     monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
-    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident, **kwargs: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
         "fetch_report_suite",
@@ -229,7 +229,7 @@ def test_describe_reportsuite_under_agent_mode_emits_json(monkeypatch, capsys, t
         ),
     )
     monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
-    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: (["RS1"], False))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident, **kwargs: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
         "fetch_report_suite",
@@ -279,7 +279,7 @@ def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, cap
         ),
     )
     monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
-    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident: ([ident], False))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident, **kwargs: ([ident], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
         "fetch_report_suite",

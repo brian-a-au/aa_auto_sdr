@@ -35,6 +35,7 @@ def run(
     profile: str | None,
     format_name: str | None,
     retry_policy: RetryPolicy | None = None,
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     started_ms = time.monotonic()
     logger.info("command_start command=stats", extra={"command": "stats"})
@@ -68,7 +69,7 @@ def run(
         if rsids:
             try:
                 for ident in rsids:
-                    resolved, _ = fetch.resolve_rsid(client, ident)
+                    resolved, _ = fetch.resolve_rsid(client, ident, name_match=name_match)
                     canonical.extend(resolved)
             except ReportSuiteNotFoundError as exc:
                 print(f"error: {exc}", flush=True)

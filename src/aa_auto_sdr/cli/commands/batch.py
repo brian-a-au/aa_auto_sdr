@@ -113,6 +113,7 @@ def run(
     cache_size: int = 1000,  # v1.8.0 — cache LRU max-size
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -147,6 +148,7 @@ def run(
             cache_size=cache_size,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
+            name_match=name_match,
         )
         return exit_code
     finally:
@@ -190,6 +192,7 @@ def _run_impl(
     cache_size: int = 1000,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
+    name_match: str = "insensitive",  # v1.9.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -276,7 +279,7 @@ def _run_impl(
     with timings.Timer("resolve"):
         for identifier in rsids:
             try:
-                resolved, _was_name = fetch.resolve_rsid(client, identifier)
+                resolved, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
             except ReportSuiteNotFoundError as exc:
                 print(f"error: {exc}", flush=True)
                 pre_failures.append(
