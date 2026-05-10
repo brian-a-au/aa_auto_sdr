@@ -307,3 +307,76 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
     base["snapshot_path"] = str(result.snapshot_path)
     base["summary"] = _diff_summary(result.diff)
     return base
+
+
+# --- loop driver -----------------------------------------------------------
+
+from datetime import timedelta  # noqa: E402
+
+from aa_auto_sdr.core.exit_codes import ExitCode  # noqa: E402
+
+
+def _interruptible_sleep(
+    stop: StopToken,
+    *,
+    until: datetime,
+    sleeper: Sleeper,
+    clock: Clock,
+    poll_seconds: float = 0.25,
+) -> None:
+    """Sleep until `until` or until `stop` is set, whichever comes first.
+
+    Polls `stop.is_set()` every `poll_seconds` so SIGINT is honored within a
+    quarter-second by default.
+    """
+    while not stop.is_set():
+        now = clock.utcnow()
+        if now >= until:
+            return
+        remaining = (until - now).total_seconds()
+        slice_ = min(poll_seconds, remaining)
+        if slice_ <= 0:
+            return
+        sleeper.sleep(slice_)
+
+
+def run_watch_loop(
+    *,
+    ctx: WatchContext,
+    rsids: list[str] | tuple[str, ...],
+    interval: timedelta,
+    threshold: int,
+    stop: StopToken,
+    max_cycles: int | None = None,
+) -> ExitCode:
+    """Drive the watch loop.
+
+    First cycle runs immediately (no leading sleep). Subsequent cycles sleep
+    until `cycle_start + interval`. Returns when:
+      * `stop` is set (SIGINT/SIGTERM), or
+      * `max_cycles` cycles have completed.
+
+    Per-cycle errors (`fetch_error` results) emit an `error` event and the
+    loop continues. SIGINT received between RSIDs aborts the current cycle.
+    """
+    cycle_n = 0
+    while not stop.is_set():
+        cycle_started = ctx.clock.utcnow()
+        for rsid in rsids:
+            if stop.is_set():
+                break
+            result = run_one_cycle(rsid=rsid, ctx=ctx)
+            if _should_emit(result, threshold=threshold):
+                ctx.emitter.emit(_event_payload(result, cycle_n=cycle_n))
+        cycle_n += 1
+        if max_cycles is not None and cycle_n >= max_cycles:
+            return ExitCode.OK
+        if stop.is_set():
+            break
+        _interruptible_sleep(
+            stop,
+            until=cycle_started + interval,
+            sleeper=ctx.sleeper,
+            clock=ctx.clock,
+        )
+    return ExitCode.OK

@@ -12,14 +12,17 @@ from typing import Any as _Any
 
 import pytest
 
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.watch_event import WATCH_EVENT_SCHEMA
 from aa_auto_sdr.pipeline.watch import (
     CycleResult,
     StopToken,
     WatchContext,
     _event_payload,
+    _interruptible_sleep,
     _should_emit,
     run_one_cycle,
+    run_watch_loop,
 )
 from aa_auto_sdr.snapshot.models import AddedRemovedItem, ComponentDiff, DiffReport
 
@@ -173,7 +176,15 @@ class _FakeStore:
     def save(self, rsid: str, doc: _Any) -> tuple[Path, dict]:
         self.saved.append((rsid, doc))
         path = Path(f"/tmp/{rsid}/{len(self.saved)}.json")
-        envelope = {"rsid": rsid, "_seq": len(self.saved), "_doc": doc}
+        envelope = {
+            "rsid": rsid,
+            "_seq": len(self.saved),
+            "_doc": doc,
+            # minimal keys required by snapshot.comparator.compare()
+            "captured_at": "2026-05-10T14:00:00Z",
+            "tool_version": "1.14.0",
+            "components": {"report_suite": {}},
+        }
         self.latest_by_rsid[rsid] = envelope
         return path, envelope
 
@@ -438,3 +449,160 @@ class TestEventPayload:
         # match (read core/logging.py) and adjust the test fixture string.
         assert "abc123def456ghi789" not in p["error"], f"Token leaked into watch event: {p['error']!r}"
         assert p["error_type"] == "RuntimeError"
+
+
+# --- run_watch_loop --------------------------------------------------------
+
+
+class TestInterruptibleSleep:
+    def test_returns_immediately_when_stop_set(self) -> None:
+        token = StopToken()
+        token.set()
+        sleeper = _FakeSleeper()
+        clock = _FakeClock()
+        until = clock.utcnow() + timedelta(seconds=10)
+        _interruptible_sleep(token, until=until, sleeper=sleeper, clock=clock, poll_seconds=0.1)
+        # No sleep slices when stop is already set.
+        assert sleeper.calls == []
+
+    def test_polls_in_short_intervals_until_stop_or_deadline(self) -> None:
+        token = StopToken()
+        sleeper = _FakeSleeper()
+
+        @_dc
+        class StaticClock:
+            """Clock that never advances; sets `stop` after 5 calls."""
+
+            _now: datetime = _f(default_factory=lambda: datetime(2026, 5, 10, tzinfo=UTC))
+            calls: list[int] = _f(default_factory=list)
+
+            def utcnow(self) -> datetime:
+                self.calls.append(1)
+                if len(self.calls) >= 5:
+                    token.set()
+                return self._now
+
+        clock = StaticClock()
+        until = datetime(2026, 5, 10, tzinfo=UTC) + timedelta(seconds=10)
+        _interruptible_sleep(token, until=until, sleeper=sleeper, clock=clock, poll_seconds=0.25)
+        assert 3 <= len(sleeper.calls) <= 6
+        for s in sleeper.calls:
+            assert s <= 0.25 + 1e-9
+
+
+class TestRunWatchLoop:
+    def test_first_cycle_runs_immediately_no_sleep_before(self) -> None:
+        ctx = _ctx()
+        token = StopToken()
+        rc = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a"],
+            interval=timedelta(hours=1),
+            threshold=1,
+            stop=token,
+            max_cycles=1,
+        )
+        assert rc == ExitCode.OK
+        # One baseline emitted, no sleep call (max_cycles=1 exits immediately).
+        assert len(ctx.emitter.events) == 1
+        assert ctx.emitter.events[0]["event"] == "baseline"
+        assert ctx.sleeper.calls == []
+
+    def test_three_cycles_iterate_multiple_rsids(self) -> None:
+        ctx = _ctx()
+        token = StopToken()
+        rc = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a", "rs_b"],
+            interval=timedelta(seconds=0),
+            threshold=0,
+            stop=token,
+            max_cycles=3,
+        )
+        assert rc == ExitCode.OK
+        # 2 rsids × 3 cycles = 6 events (threshold=0 emits every cycle).
+        assert len(ctx.emitter.events) == 6
+        assert ctx.emitter.events[0]["event"] == "baseline"
+        assert ctx.emitter.events[1]["event"] == "baseline"
+        for ev in ctx.emitter.events[2:]:
+            assert ev["event"] == "change"
+
+    def test_threshold_gates_change_events(self) -> None:
+        ctx = _ctx()
+        rc = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a"],
+            interval=timedelta(seconds=0),
+            threshold=1,
+            stop=StopToken(),
+            max_cycles=3,
+        )
+        assert rc == ExitCode.OK
+        # Cycle 0 baseline emits. Cycles 1-2 are zero-change diffs — threshold=1 suppresses.
+        assert len(ctx.emitter.events) == 1
+        assert ctx.emitter.events[0]["event"] == "baseline"
+
+    def test_fetch_error_does_not_terminate_loop(self) -> None:
+        fetcher = _FakeFetcher(
+            raise_for={"rs_a": RuntimeError("boom")},
+            rsid_to_doc={"rs_b": {"rsid": "rs_b"}},
+        )
+        ctx = _ctx(fetcher=fetcher)
+        rc = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a", "rs_b"],
+            interval=timedelta(seconds=0),
+            threshold=0,
+            stop=StopToken(),
+            max_cycles=2,
+        )
+        assert rc == ExitCode.OK
+        events_by_kind = [e["event"] for e in ctx.emitter.events]
+        assert events_by_kind.count("error") == 2
+        assert events_by_kind.count("baseline") == 1
+        assert events_by_kind.count("change") == 1
+
+    def test_stop_token_set_mid_loop_terminates_cleanly(self) -> None:
+        ctx = _ctx()
+        token = StopToken()
+        original_emit = ctx.emitter.emit
+
+        def emit_then_stop(payload: dict) -> None:
+            original_emit(payload)
+            token.set()
+
+        ctx.emitter.emit = emit_then_stop  # type: ignore[method-assign]
+        rc = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a", "rs_b"],
+            interval=timedelta(seconds=0),
+            threshold=0,
+            stop=token,
+            max_cycles=10,
+        )
+        assert rc == ExitCode.OK
+        # rs_a baseline emits, sets stop. rs_b never runs.
+        assert len(ctx.emitter.events) == 1
+        assert ctx.emitter.events[0]["rsid"] == "rs_a"
+
+    def test_max_cycles_none_relies_on_stop_token(self) -> None:
+        ctx = _ctx()
+        token = StopToken()
+        original_emit = ctx.emitter.emit
+
+        def emit_then_maybe_stop(payload: dict) -> None:
+            original_emit(payload)
+            if len(ctx.emitter.events) >= 2:
+                token.set()
+
+        ctx.emitter.emit = emit_then_maybe_stop  # type: ignore[method-assign]
+        rc = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a"],
+            interval=timedelta(seconds=0),
+            threshold=0,
+            stop=token,
+            max_cycles=None,
+        )
+        assert rc == ExitCode.OK
+        assert len(ctx.emitter.events) == 2
