@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import argparse
+import logging
 from pathlib import Path
 
 import pytest
 
+from aa_auto_sdr.cli import main as cli_main
 from aa_auto_sdr.cli.parser import build_parser
+
+# Literal logger name (per docs/LOGGING_STYLE.md). Hard-coded rather than read
+# from cli_main.logger so a future logger rename surfaces as a clear test
+# failure instead of a silent miss-match.
+_CLI_MAIN_LOGGER = "aa_auto_sdr.cli.main"
 
 
 class TestQualityFlagDefaults:
@@ -83,18 +91,13 @@ class TestQualityAutoEnableLog:
         self,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        import argparse
-        import logging
-
-        from aa_auto_sdr.cli import main as cli_main
-
         ns = argparse.Namespace(
             quality_report="json",
             fail_on_quality=None,
             audit_naming=False,
             flag_stale=False,
         )
-        with caplog.at_level(logging.INFO, logger=cli_main.logger.name):
+        with caplog.at_level(logging.INFO, logger=_CLI_MAIN_LOGGER):
             cli_main._apply_quality_auto_enable(ns)
 
         assert ns.audit_naming is True
@@ -108,18 +111,13 @@ class TestQualityAutoEnableLog:
         self,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        import argparse
-        import logging
-
-        from aa_auto_sdr.cli import main as cli_main
-
         ns = argparse.Namespace(
             quality_report=None,
             fail_on_quality="HIGH",
             audit_naming=False,
             flag_stale=False,
         )
-        with caplog.at_level(logging.INFO, logger=cli_main.logger.name):
+        with caplog.at_level(logging.INFO, logger=_CLI_MAIN_LOGGER):
             cli_main._apply_quality_auto_enable(ns)
         assert any("quality_auto_enabled" in r.getMessage() for r in caplog.records)
         assert ns.audit_naming is True
@@ -129,18 +127,13 @@ class TestQualityAutoEnableLog:
         self,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        import argparse
-        import logging
-
-        from aa_auto_sdr.cli import main as cli_main
-
         ns = argparse.Namespace(
             quality_report="json",
             fail_on_quality=None,
             audit_naming=True,  # already on — auto-enable should be a no-op
             flag_stale=False,
         )
-        with caplog.at_level(logging.INFO, logger=cli_main.logger.name):
+        with caplog.at_level(logging.INFO, logger=_CLI_MAIN_LOGGER):
             cli_main._apply_quality_auto_enable(ns)
         assert not any("quality_auto_enabled" in r.getMessage() for r in caplog.records)
 
@@ -148,18 +141,13 @@ class TestQualityAutoEnableLog:
         self,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        import argparse
-        import logging
-
-        from aa_auto_sdr.cli import main as cli_main
-
         ns = argparse.Namespace(
             quality_report=None,
             fail_on_quality=None,
             audit_naming=False,
             flag_stale=False,
         )
-        with caplog.at_level(logging.INFO, logger=cli_main.logger.name):
+        with caplog.at_level(logging.INFO, logger=_CLI_MAIN_LOGGER):
             cli_main._apply_quality_auto_enable(ns)
         assert not any("quality_auto_enabled" in r.getMessage() for r in caplog.records)
         assert ns.audit_naming is False

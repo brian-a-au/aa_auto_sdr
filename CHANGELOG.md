@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.12.1] — 2026-05-10
+
+Patch release. Polish on top of v1.12.0's quality-engine surface — log
+correlation in batch runs, a tighter logging-vocabulary validator, and a
+documentation note on a small JSON-output shape change. No new flags, no
+new exit codes, no behavior changes for existing flows.
+
+### Changed
+- `quality_audit_complete` and `quality_gate_evaluated` log events
+  now include the `rsid` extras key. Multi-RSID `--batch` runs can
+  correlate every audit / gate decision back to a specific RSID
+  without parsing log message bodies. Empty string when the caller
+  doesn't supply one (direct `run_audits()` use in tests).
+- The two events' message format strings now use keys that match
+  their `extra` dict keys exactly (`quality_total=`,
+  `quality_by_severity=`) — pre-v1.12.1 the message used `total=` and
+  `by_severity=`, which the canonical-event vocabulary validator
+  could not unambiguously match against extras keys.
+
+### Fixed
+- `tests/core/test_logging_vocabulary.py` validator now uses
+  word-boundary matching when inspecting log-message format strings,
+  so substring collisions like `severity=` inside `quality_by_severity=`
+  no longer false-positive. `src/aa_auto_sdr/sdr/quality.py` is now
+  in the instrumented-modules set, so the quality engine's emissions
+  are validated alongside other instrumented surfaces.
+
+### Documented
+- `PerRsidResult` (the per-RSID record in `--run-summary-json` output)
+  carries a new `quality_verdict: str` field as of v1.12.0. The field
+  is empty (`""`) when no audits ran; `"pass"` / `"fail"` / `"n/a"`
+  when audits + `--fail-on-quality` were active. JSON consumers that
+  ignore unknown keys are unaffected; consumers with strict-key
+  schemas should add the field to their allowlist. (This shape
+  change shipped in v1.12.0; the CHANGELOG note was missed there.)
+
+### Internal
+- `tests/cli/test_v1_12_flags.py`: hoisted `argparse` / `logging`
+  imports to module top; replaced `cli_main.logger.name` attribute
+  reads with the literal `"aa_auto_sdr.cli.main"` so a future logger
+  rename surfaces as a clear test failure rather than a silent
+  miss-match.
+
 ## [1.12.0] — 2026-05-10
 
 Quality severity engine. Promotes v1.9.0 naming-audit findings to a

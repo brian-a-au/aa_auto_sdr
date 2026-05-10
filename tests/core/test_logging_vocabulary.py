@@ -21,6 +21,7 @@ v1.5 changes vs v1.4:
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -101,6 +102,10 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
     # v1.12.0 — quality engine
     "quality_policy_loaded": {"policy_path"},
+    # v1.12.1 — rsid added to quality_audit_complete + quality_gate_evaluated
+    # so multi-RSID batch logs can be correlated.
+    "quality_audit_complete": {"rsid", "quality_total", "quality_by_severity"},
+    "quality_gate_evaluated": {"rsid", "threshold", "verdict"},
 }
 
 INSTRUMENTED_MODULES = [
@@ -127,6 +132,7 @@ INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/pipeline/batch.py"),
     Path("src/aa_auto_sdr/pipeline/workers.py"),
     Path("src/aa_auto_sdr/sdr/builder.py"),
+    Path("src/aa_auto_sdr/sdr/quality.py"),
     Path("src/aa_auto_sdr/snapshot/store.py"),
     Path("src/aa_auto_sdr/snapshot/comparator.py"),
     Path("src/aa_auto_sdr/snapshot/resolver.py"),
@@ -183,13 +189,13 @@ def test_logger_calls_use_canonical_vocabulary(module_path):
             f"then to the VOCAB set in this test."
         )
         # Rule 2: if message contains `key=` for a vocabulary key, that key
-        # must be in extras. (Substring match `key=` is safer than bare
-        # substring — avoids false positives on words like 'format' inside
-        # other text.)
+        # must be in extras. Word-boundary match (start-of-string OR a
+        # non-word char before the key) avoids false positives on substring
+        # collisions like `severity=` inside `quality_by_severity=`.
         if msg is None:
             continue
         for key in VOCAB:
-            if f"{key}=" in msg and key not in extras:
+            if re.search(rf"(?:^|\W){re.escape(key)}=", msg) and key not in extras:
                 pytest.fail(
                     f"{module_path}: logger call message mentions "
                     f"`{key}=` but `extra={{}}` does not carry the key. "

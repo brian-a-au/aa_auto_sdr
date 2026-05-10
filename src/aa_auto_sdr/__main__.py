@@ -82,6 +82,7 @@ def _print_help() -> int:
         "v1.10.0: --batch RSID sampling (--sample, --sample-seed, --sample-stratified).\n"
         "v1.11.0: --inventory-summary cross-RSID rollup (table|json|csv).\n"
         "v1.12.0: quality severity engine (--quality-report, --quality-policy, --fail-on-quality); ValidationCache activated.\n"
+        "v1.12.1: rsid added to quality_audit_complete + quality_gate_evaluated logs; vocabulary validator polish.\n"
     )
     return 0
 
