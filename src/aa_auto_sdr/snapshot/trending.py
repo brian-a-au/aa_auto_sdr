@@ -17,6 +17,7 @@ from typing import Any
 
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.models import ComponentDiff
+from aa_auto_sdr.snapshot.retention import restore_iso
 from aa_auto_sdr.snapshot.store import list_snapshots, load_snapshot
 
 logger = logging.getLogger(__name__)
@@ -213,8 +214,6 @@ def _path_in_window(path: Path, window: WindowSpec) -> bool:
     Reuses `retention.restore_iso` (promoted to public in v1.13.0) so
     we don't have to load the JSON envelope just to check the timestamp.
     """
-    from aa_auto_sdr.snapshot.retention import restore_iso
-
     captured = restore_iso(path.stem)
     return window.start_at <= captured <= window.end_at
 

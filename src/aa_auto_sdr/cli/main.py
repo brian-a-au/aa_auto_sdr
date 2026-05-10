@@ -319,6 +319,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.trending_window:
         from aa_auto_sdr.cli.commands import trending as trending_cmd
 
+        # `ns.ignore_fields` is a CSV string (parser stores it as-is); split
+        # before passing to the trending handler so we get field names, not
+        # individual characters. Mirrors the --diff branch's pattern.
+        ignore = tuple(f.strip() for f in (ns.ignore_fields or "").split(",") if f.strip())
         return trending_cmd.run(
             rsids=rsids,
             duration=ns.trending_window,
@@ -326,31 +330,44 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             profile=ns.profile,
             format_name=ns.format,
             output=ns.output,
-            extended_fields=getattr(ns, "extended_fields", False),
-            ignore_fields=tuple(getattr(ns, "ignore_fields", ()) or ()),
+            extended_fields=ns.extended_fields,
+            ignore_fields=ignore,
         )
 
     # v1.13.0 — compare-with-prev action (sugar over --diff)
     if ns.compare_with_prev:
         from aa_auto_sdr.cli.commands import compare_with_prev as compare_cmd
 
+        # Mirror the --diff branch's argument shaping (see line ~537 below)
+        # so compare_with_prev → diff_cmd.run gets identical inputs.
+        # ignore_fields / show_only are CSV strings on the namespace; split
+        # before frozenset construction (otherwise we get a frozenset of
+        # characters). diff_labels is a 2-tuple of "A=baseline"/"B=candidate"
+        # strings; reverse_diff is the actual flag (not "reverse").
+        ignore = frozenset(f.strip() for f in (ns.ignore_fields or "").split(",") if f.strip())
+        show_only = frozenset(t.strip() for t in (ns.show_only or "").split(",") if t.strip())
+        labels: tuple[str, str] | None = None
+        if ns.diff_labels:
+            a_label = ns.diff_labels[0].split("=", 1)[-1]
+            b_label = ns.diff_labels[1].split("=", 1)[-1]
+            labels = (a_label, b_label)
         return compare_cmd.run(
             rsids=rsids,
             profile=ns.profile,
             format_name=ns.format,
             output=ns.output,
-            side_by_side=getattr(ns, "side_by_side", False),
-            summary=getattr(ns, "summary", False),
-            ignore_fields=frozenset(getattr(ns, "ignore_fields", ()) or ()),
-            extended_fields=getattr(ns, "extended_fields", False),
-            quiet=getattr(ns, "quiet", False),
-            labels=getattr(ns, "labels", None),
-            reverse=getattr(ns, "reverse", False),
-            changes_only=getattr(ns, "changes_only", False),
-            show_only=frozenset(getattr(ns, "show_only", ()) or ()),
-            max_issues=getattr(ns, "max_issues", None),
-            warn_threshold=getattr(ns, "warn_threshold", None),
-            color_theme=getattr(ns, "color_theme", "default"),
+            side_by_side=ns.side_by_side,
+            summary=ns.summary,
+            ignore_fields=ignore,
+            extended_fields=ns.extended_fields,
+            quiet=ns.quiet_diff,
+            labels=labels,
+            reverse=ns.reverse_diff,
+            changes_only=ns.changes_only,
+            show_only=show_only,
+            max_issues=ns.max_issues,
+            warn_threshold=ns.warn_threshold,
+            color_theme=ns.color_theme,
         )
 
     # v1.2 — stats action

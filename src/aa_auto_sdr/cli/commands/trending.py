@@ -115,7 +115,10 @@ def run(
         if output is None or output == "-":
             sys.stdout.write(rendered)
         else:
-            Path(output).write_text(rendered)
+            # Console + markdown renderers emit em-dashes / unicode glyphs;
+            # explicit utf-8 prevents the Windows cp1252 default from corrupting
+            # them. Same fix as v1.12.0's quality_policy CSV path.
+            Path(output).write_text(rendered, encoding="utf-8")
 
         # Decide exit code based on per-RSID series presence.
         if len(empty_rsids) == len(rsids) and rsids:
