@@ -35,3 +35,8 @@ class BatchResult:
     total_duration_seconds: float = 0.0
     total_output_bytes: int = 0
     batch_id: str = ""
+    # v1.10.0 — sampling
+    sampled: bool = False
+    sample_size: int | None = None
+    sample_seed: int | None = None
+    total_available: int = 0
