@@ -230,6 +230,18 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.sample_config:
         return config_cmd.sample_config()
 
+    # v1.11.0 — inventory-summary action
+    if ns.inventory_summary:
+        from aa_auto_sdr.cli.commands import inventory as inventory_cmd
+
+        return inventory_cmd.run(
+            rsids=rsids,
+            profile=ns.profile,
+            format_name=ns.format,
+            retry_policy=ns.retry_policy,
+            name_match=ns.name_match,
+        )
+
     # v1.2 — stats action
     if ns.stats:
         from aa_auto_sdr.cli.commands import stats as stats_cmd

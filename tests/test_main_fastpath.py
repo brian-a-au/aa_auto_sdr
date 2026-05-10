@@ -11,7 +11,7 @@ def test_version_flag_short() -> None:
         text=True,
         check=True,
     )
-    assert "1.10.0" in result.stdout
+    assert "1.11.0" in result.stdout
 
 
 def test_version_flag_long() -> None:
@@ -21,7 +21,7 @@ def test_version_flag_long() -> None:
         text=True,
         check=True,
     )
-    assert "1.10.0" in result.stdout
+    assert "1.11.0" in result.stdout
 
 
 def test_help_flag_does_not_import_aanalytics2() -> None:
@@ -103,3 +103,15 @@ def test_help_lists_sampling_flags() -> None:
     assert "--sample-stratified" in out
     assert "--memory-limit" not in out
     assert "--memory-warning" not in out
+
+
+def test_help_lists_inventory_flag() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    out = result.stdout
+    assert "--inventory-summary" in out
+    assert "--inventory-only" not in out

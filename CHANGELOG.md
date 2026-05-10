@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.11.0] — 2026-05-10
+
+First post-Tier 2 release. `--inventory-summary` cross-RSID aggregate
+rollup. One flag adapted from cja's inventory family; one dropped
+because the cja semantic doesn't translate to AA's data model.
+
+### Added
+- `--inventory-summary [RSID...]` action — emits a cross-RSID
+  aggregate rollup of component counts (totals, min, max, avg per
+  component type) plus a per-RSID detail block. With no positional
+  RSIDs, summarizes every visible report suite (mirrors `--stats`
+  precedent). Three output formats: `table` (default), `json`, `csv`.
+  Reuses the v1.7.2 `count_only` fetcher path — no new SDK surface.
+  Lives in the existing `actions` mutex argparse group, so combining
+  it with `--stats` / `--describe-reportsuite` / `--list-X` yields a
+  clean argparse error.
+- `cli/commands/inventory.py` (NEW) — `run()` handler + `_aggregate()`
+  pure helper.
+
+### Roadmap deviations (dropped)
+The v1.11.0 row in the roadmap listed two flags; this release ships
+one. One flag deliberately removed during spec design:
+- **Removed `--inventory-only`** — argparse-rejected. cja uses this
+  flag to drop "standard SDR sections" and emit only the inventory
+  sheets (`output/inventory/`). aa's SDR document treats calculated
+  metrics + segments as first-class sections; aa already has
+  `--metrics-only` / `--dimensions-only` (v1.2.0) for component-type
+  filtering and `--list-calculated-metrics` / `--list-segments` for
+  detail. A separate `--inventory-only` would either duplicate those
+  or invent a redundant filter mode.
+
+Test rejection in `tests/cli/test_v1_11_flags.py` ensures the removed
+flag receives a clear argparse error.
+
+### Behavior
+- Default behavior unchanged. `--inventory-summary` is opt-in.
+- `--inventory-summary --format excel` errors with `ExitCode.OUTPUT`
+  (15). Allowlist is `{table, json, csv}`.
+- Per-RSID fetch failures mark the per-RSID row's components with
+  `*` in table output and add a footer disclaimer; `fetch_status`
+  appears on the per-RSID JSON row when at least one component is
+  non-healthy. Mirrors `--stats` exactly.
+- No new exit codes. No new exception classes. No new env vars. No
+  new runtime dependencies (stdlib `csv`, `json`).
+- No SDK surface change. Snapshot envelope schema unchanged (v3
+  carries forward).
+
 ## [1.10.0] — 2026-05-09
 
 Tier 2 milestone closes: `--batch` sampling. Three flags adapted from

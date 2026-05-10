@@ -286,6 +286,9 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |
 | Describe (counts only) | `aa_auto_sdr --describe-reportsuite <RSID>` |
 | List as JSON for scripting | `aa_auto_sdr --list-reportsuites --format json --output -` |
+| Org-wide inventory rollup (v1.11.0+) | `aa_auto_sdr --inventory-summary` |
+| Inventory across selected RSes as CSV | `aa_auto_sdr rs1 rs2 rs3 --inventory-summary --format csv` |
+| Inventory as machine-readable JSON | `aa_auto_sdr --inventory-summary --format json` |
 | **Snapshot** | |
 | Capture snapshot alongside generation | `aa_auto_sdr <RSID> --snapshot --profile prod` |
 | Capture snapshots for multiple RSes (auto-batch) | `aa_auto_sdr RS1 RS2 --snapshot --profile prod` |
