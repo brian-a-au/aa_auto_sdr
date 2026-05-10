@@ -301,7 +301,10 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
         "ended_at": _iso_z(result.ended_at),
     }
     if result.kind == "baseline":
-        base["snapshot_path"] = str(result.snapshot_path)
+        # POSIX form keeps the NDJSON event contract platform-agnostic — Windows'
+        # str(Path) emits backslashes, which downstream consumers should not have
+        # to handle.
+        base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
         return base
     if result.kind == "fetch_error":
         err = result.error
@@ -310,7 +313,7 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
         return base
     # diffed
     assert result.diff is not None
-    base["snapshot_path"] = str(result.snapshot_path)
+    base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
     base["summary"] = _diff_summary(result.diff)
     return base
 
