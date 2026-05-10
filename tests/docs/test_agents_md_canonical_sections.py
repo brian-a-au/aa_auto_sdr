@@ -127,6 +127,11 @@ def test_documented_long_flags_exist_in_parser():
         "--lock-stale-threshold",
         "--include-names",
         "--include-metadata",
+        # Flags explicitly documented in AGENTS.md as *removed* from the v1.10.0
+        # roadmap (CJA-only — guards a cross-DV index aa doesn't build;
+        # documented to explain their absence to agent consumers).
+        "--memory-limit",
+        "--memory-warning",
     }
 
     missing = documented - real_flags - allowlist

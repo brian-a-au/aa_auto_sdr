@@ -271,6 +271,9 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Flag stale components (v1.9.0+) | `aa_auto_sdr RS1 --flag-stale` |
 | Resolve by name (v1.9.0+) | `aa_auto_sdr "Production RS" --name-match fuzzy` |
 | Extended-field diff (v1.9.0+) | `aa_auto_sdr --diff snap_a snap_b --extended-fields` |
+| Sample batch (v1.10.0+) | `aa_auto_sdr --batch RS1 RS2 RS3 RS4 RS5 --sample 2` |
+| Sample reproducibly | `aa_auto_sdr --batch RS1 RS2 RS3 --sample 2 --sample-seed 42` |
+| Stratified sample by prefix | `aa_auto_sdr --batch prod.us prod.eu dev.us --sample 2 --sample-stratified` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
 | Excel (default) | `aa_auto_sdr <RSID>` |

@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.10.0] — 2026-05-09
+
+Tier 2 milestone closes: `--batch` sampling. Three flags adapted from
+the CJA `--sample` family; two roadmap-listed flags deliberately
+dropped because they target a CJA-only data structure that aa
+doesn't build. Mirrors the v1.8.0 (dropped 2/8) and v1.9.0 (dropped
+4/8) compression pattern.
+
+### Added
+- `--sample N` flag (`--batch`-only): subset N RSIDs from the batch
+  list before dispatch. `N >= 1`. When `N >= len(batch)`, the full
+  list runs and `BatchResult.sampled = False` (no-op).
+- `--sample-seed N` flag: integer RNG seed for reproducible sampling.
+  Default: non-deterministic (Python's `random` default).
+- `--sample-stratified` flag: group RSIDs by code prefix (split on
+  first `.` / `_` / `-`); sample proportionally per group. Without
+  this flag, sampling is uniform random.
+- Four sampling fields on `BatchResult`: `sampled` (bool),
+  `sample_size` (int | None), `sample_seed` (int | None),
+  `total_available` (int). All default-valued so existing callers
+  continue to construct `BatchResult` unchanged.
+- Logging vocabulary gains three keys — `sample_size` (int),
+  `sample_seed` (int | None), `sample_strategy` (str: `random` or
+  `stratified`) — plus `count_total` (int) for the canonical
+  pre-sample population size. All four allowlisted in
+  `tests/core/test_logging_vocabulary.py`.
+- New canonical INFO event `batch_sampled` (single record per
+  sampled batch). Carries `count`, `count_total`, `sample_size`,
+  `sample_seed`, `sample_strategy`. Fires only when sampling
+  actually applied (`sample_size < len(batch)`).
+- `pipeline/sampling.py` (NEW) — pure RNG-driven sampler with
+  random and stratified strategies.
+
+### Changed
+- `pipeline/batch.py::run_batch` gains three keyword-only sampling
+  parameters (`sample_size`, `sample_seed`, `sample_stratified`).
+  Existing callers that don't pass them get the v1.9.0 sequential
+  / parallel paths unchanged.
+- Batch summary banner prints
+  `Sampled X of Y RSIDs (strategy=random[, seed=N])` when sampling
+  was applied; otherwise the v1.9.0 banner is byte-equivalent.
+
+### Roadmap deviations (dropped)
+The v1.10.0 row in the roadmap listed five flags; this release
+ships three. Two flags were deliberately removed during spec design:
+- **Removed `--memory-limit`** — argparse-rejected. CJA uses this
+  flag to guard a cross-DataView component-index dict that aa does
+  not build (batch streams to disk; `ValidationCache` is bounded).
+  No surface to guard.
+- **Removed `--memory-warning`** — argparse-rejected. Same rationale.
+
+Test rejections in `tests/cli/test_v1_10_flags.py` ensure the two
+removed flags receive a clear argparse error.
+
+### Behavior
+- Default batch invocations (no `--sample`) are byte-equivalent to
+  v1.9.0, modulo four extra default-valued fields on `BatchResult`
+  (`sampled=False`, `sample_size=None`, `sample_seed=None`,
+  `total_available=len(batch)`).
+- Per-RSID SDR documents and snapshot files are byte-identical to
+  v1.9.0.
+- Mode-scoping: `--sample`, `--sample-seed`, `--sample-stratified`
+  outside `--batch` exit with `ExitCode.USAGE` (2) and a clear
+  error message.
+- `--sample N` where `N >= len(batch)` is a no-op: full list runs,
+  `BatchResult.sampled = False`.
+- No new exit codes. No new exception classes. Snapshot envelope
+  schema unchanged (v3 carries forward).
+
+### Other
+- Coverage gate ≥90% preserved.
+- Vocabulary meta-test extended to recognize the new logging keys.
+
 ## [1.9.0] — 2026-05-09
 
 Tier 2 milestone: field-level shaping + naming audits. Four CJA-port

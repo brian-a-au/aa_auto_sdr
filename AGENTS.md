@@ -174,6 +174,37 @@ v1.9.0 spec design (see CHANGELOG):
 Attempting to pass any of these returns the standard argparse
 "unrecognized argument" error.
 
+### Batch sampling (v1.10.0+)
+
+`aa_auto_sdr --batch <RSID...>` accepts three sampling flags that
+subset the batch list before dispatch. All three require `--batch`;
+passing them outside `--batch` exits with `USAGE` (2).
+
+| Flag | Type | Effect |
+|------|------|--------|
+| `--sample N` | int (>=1) | Subset N RSIDs from the batch list. `N >= len(batch)` is a no-op (full list runs, `BatchResult.sampled=False`). |
+| `--sample-seed N` | int | Integer RNG seed for reproducible sampling. Default: non-deterministic. |
+| `--sample-stratified` | bool flag | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group. Without the flag, sampling is uniform random. |
+
+When sampling actually applies, the batch summary banner prints
+`Sampled X of Y RSIDs (strategy=random[, seed=N])`, the run emits a
+`batch_sampled` INFO log record (carrying `count`, `count_total`,
+`sample_size`, `sample_seed`, `sample_strategy`), and `BatchResult`
+records `sampled=True` along with `sample_size`, `sample_seed`, and
+`total_available` fields. JSON-summary consumers can read those
+fields directly.
+
+Per-RSID SDR documents and snapshots are byte-identical to v1.9.0;
+sampling only changes which RSIDs run, not what each run produces.
+
+Two flags listed in the public roadmap were deliberately removed
+during v1.10.0 spec design (see CHANGELOG):
+- `--memory-limit` (CJA-only — guards a cross-DV index aa doesn't build)
+- `--memory-warning` (same rationale)
+
+Attempting to pass either returns the standard argparse
+"unrecognized argument" error.
+
 ### Comparison / Diff
 
 ```bash
