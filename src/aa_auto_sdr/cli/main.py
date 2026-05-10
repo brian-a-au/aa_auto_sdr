@@ -81,11 +81,13 @@ def run(argv: list[str]) -> int:
       2. ``_apply_agent_mode_defaults`` — `--agent-mode` preset fills in
          `format` / `output` / `log_format` for options the user did not
          explicitly pass on argv.
-      3. quiet-from-output prelude — if the resolved `output` or
+      3. Validate v1.10.0 sampling flag combinations; raise
+         ``SystemExit(USAGE)`` if invalid.
+      4. quiet-from-output prelude — if the resolved `output` or
          `run_summary_json` targets stdout and `--quiet` was not explicit,
          flip ``ns.quiet = True`` so INFO records do not leak onto stderr
          alongside the stdout payload.
-      4. ``setup_logging(ns)`` — wires console + file handlers from the
+      5. ``setup_logging(ns)`` — wires console + file handlers from the
          now-final ``ns``.
 
     After step 4, ``ns`` is read-only by convention; downstream dispatch
@@ -96,9 +98,11 @@ def run(argv: list[str]) -> int:
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
 
-    # v1.10.0 — sampling flag mode-scoping (must run before any handler dispatch
-    # or creds resolution). Raises SystemExit so the failure surfaces cleanly
-    # the same way argparse's own usage errors do, with ExitCode.USAGE.
+    # v1.10.0 — sampling flag mode-scoping. Uses raise SystemExit (not return)
+    # so the exit happens before setup_logging/run_start fire — matches argparse's
+    # own behavior on usage errors and keeps stderr-only output for these failures.
+    # (Contrast with the retry-policy block below, which returns ExitCode.USAGE.value
+    # after setup_logging has already wired handlers — that path logs run_complete.)
     is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
     if ns.sample_size is not None:
         if ns.sample_size < 1:

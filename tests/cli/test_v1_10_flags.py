@@ -27,6 +27,13 @@ class TestSamplingArgparse:
         assert ns.sample_seed is None
         assert ns.sample_stratified is False
 
+    def test_sample_with_auto_batch_positionals(self) -> None:
+        """Two-or-more positional RSIDs are auto-batch — sampling flags should parse."""
+        ns = build_parser().parse_args(["rs1", "rs2", "rs3", "--sample", "2"])
+        assert ns.sample_size == 2
+        # The dispatch path treats >=2 positional RSIDs as batch mode; argparse itself
+        # is agnostic — this test just confirms the namespace shape is consistent.
+
 
 class TestDroppedFlagsRejected:
     def test_memory_limit_rejected(self) -> None:
@@ -41,7 +48,7 @@ class TestDroppedFlagsRejected:
 class TestModeScoping:
     """--sample-* require --batch (or implicit auto-batch with 2+ RSIDs)."""
 
-    def test_sample_in_single_mode_errors(self, capsys: pytest.CaptureFixture[str], tmp_path: object) -> None:
+    def test_sample_in_single_mode_errors(self, capsys: pytest.CaptureFixture[str]) -> None:
         from aa_auto_sdr.__main__ import main
 
         with pytest.raises(SystemExit) as exc:
@@ -83,3 +90,5 @@ class TestModeScoping:
         with pytest.raises(SystemExit) as exc:
             main(["--batch", "rs1", "rs2", "--sample", "-3"])
         assert exc.value.code == ExitCode.USAGE.value
+        captured = capsys.readouterr()
+        assert "--sample must be >= 1" in captured.err + captured.out
