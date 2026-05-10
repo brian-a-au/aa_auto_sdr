@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.14.0] — 2026-05-10
+
+Watch mode. Enters a foreground monitoring loop that fetches, snapshots, and diffs a set of report suites on a repeating interval — emitting structured NDJSON events on stdout so agents and CI pipelines can react to changes without polling the tool themselves.
+
+### Added
+- `--watch <RSID>...` — enter the monitoring loop for one or more report suites.
+- `--interval Nh|Nd|Nw` — cycle interval, required with `--watch`. Same duration grammar as `--trending-window` and `--keep-since` (e.g. `1h`, `6h`, `1d`).
+- `--watch-threshold N` (default `1`) — minimum total change count to emit a `change` event. Pass `0` to emit every cycle including zero-change cycles (heartbeat mode).
+- Three canonical log events: `watch_loop_start` (INFO, fires once at dispatch entry, carries `rsids` count, `interval`, `watch_threshold`); `watch_cycle_complete` (INFO, fires once per emitted NDJSON event, carries `cycle`, `rsid`, `change_count`, `emitted`); `watch_loop_stop` (INFO, fires at loop termination, carries `reason` and `cycles_completed`).
+- `aa-watch-event/v1` NDJSON schema. Three event types emitted on stdout:
+  - `baseline` — first cycle for an RSID, always emitted (no previous snapshot to diff against).
+  - `change` — subsequent cycle where `total_changes >= watch_threshold`.
+  - `error` — per-RSID fetch failure within a cycle; loop continues.
+- `cli/commands/watch.py` (NEW) — watch command entry point and `_LoggingEmitter`.
+- `pipeline/watch.py` (NEW) — cycle orchestrator; calls the existing single-RSID fetcher, snapshot store, and comparator.
+- `output/watch_event.py` (NEW) — NDJSON event serializer; timestamps are Z-suffixed ISO-8601.
+- `redact_text` public alias in `core/logging.py` — scrubs Bearer tokens and secrets from error message strings before they are included in `error` events.
+
+### Roadmap deviations (dropped)
+- **`--on-change` is not shipped.** The original roadmap item envisioned a subprocess hook. In practice, `--watch-threshold` controls emission precisely and stdout NDJSON already gives downstream consumers a clean event stream to react to. The v1.10–v1.13 pattern of compressing roadmap complexity into the fewest orthogonal flags applies here: `--watch | jq -c . | xargs ...` is the composable form, not a built-in subprocess spawner. Argparse rejects `--on-change` with the standard unrecognized-argument error.
+
+### Rejected with `--watch`
+- `--format` — watch emits NDJSON directly on stdout; per-run output formats do not apply. Rejected with `USAGE` (2).
+- `--quality-policy` — the quality engine runs on a completed SDR document; the watch loop does not assemble one. Rejected with `USAGE` (2).
+- `--fail-on-quality` — same rationale as `--quality-policy`. Rejected with `USAGE` (2).
+- `--interval` or non-default `--watch-threshold` without `--watch` — rejected by the pre-dispatch validator with `USAGE` (2).
+
+### Unchanged
+- Default behavior (single SDR / batch / diff / inspect / discovery) — byte-equivalent to v1.13.0.
+- Snapshot envelope schema — still `aa-sdr-snapshot/v4` from v1.12.0.
+- Exit codes — SIGINT / SIGTERM exit `0`; no new codes added.
+- SDK surface — no new `aanalytics2` methods called beyond the existing read surface.
+- Environment variables and runtime dependencies — no additions.
+
 ## [1.13.0] — 2026-05-10
 
 Drift / trending windows. Applies the snapshot comparator across a

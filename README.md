@@ -306,6 +306,8 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Drift over 30 days (v1.13.0+) | `aa_auto_sdr <RSID> --trending-window 30d --profile prod` |
 | Drift as JSON for dashboards | `aa_auto_sdr rs1 rs2 rs3 --trending-window 30d --format json` |
 | Latest vs previous snapshot | `aa_auto_sdr <RSID> --compare-with-prev --profile prod` |
+| Watch for changes (v1.14.0+) | `aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode \| jq -c .` |
+| Watch multiple RSIDs every 6 h | `aa_auto_sdr rs1 rs2 --watch --interval 6h --watch-threshold 5` |
 | **Profile / Config** | |
 | Create profile interactively | `aa_auto_sdr --profile-add prod` |
 | Verify resolved source | `aa_auto_sdr --show-config` |
@@ -314,6 +316,17 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | List exit codes | `aa_auto_sdr --exit-codes` |
 | Explain one exit code | `aa_auto_sdr --explain-exit-code 11` |
 | Generate completion script | `aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr` |
+
+### Watch mode (v1.14.0+)
+
+Watch mode enters a foreground monitoring loop that fetches, snapshots, and diffs a report suite on a repeating interval, emitting structured NDJSON events on stdout. Pair it with `--agent-mode` and pipe to `jq` to react to changes in real time:
+
+```bash
+# Watch a report suite for changes — emits NDJSON events on stdout (Ctrl+C to stop)
+uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
+```
+
+Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0.
 
 ### Retry tuning (v1.7.0+)
 
