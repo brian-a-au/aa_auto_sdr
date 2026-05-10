@@ -359,6 +359,12 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             ignore_fields=ignore,
         )
 
+    # v1.14.0 — watch action
+    if getattr(ns, "watch", False):
+        from aa_auto_sdr.cli.commands import watch as watch_cmd
+
+        return watch_cmd.run(ns)
+
     # v1.13.0 — compare-with-prev action (sugar over --diff)
     if ns.compare_with_prev:
         from aa_auto_sdr.cli.commands import compare_with_prev as compare_cmd
