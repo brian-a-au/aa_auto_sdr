@@ -324,12 +324,18 @@ def run_audits(
         "summary": summary,
     }
 
-    # Per spec §3.12 — fires after every audit run.
+    # Per spec §3.12 — fires after every audit run. `rsid` included so
+    # multi-RSID batch logs can be correlated by RSID; empty string when the
+    # caller didn't supply one (e.g., direct `run_audits(...)` use in tests).
+    # Format-string keys are aligned with extras keys so the canonical-event
+    # validator (tests/core/test_logging_vocabulary.py) sees a clean match.
     logger.info(
-        "quality_audit_complete total=%s by_severity=%s",
+        "quality_audit_complete rsid=%s quality_total=%s quality_by_severity=%s",
+        rsid,
         total,
         by_severity,
         extra={
+            "rsid": rsid,
             "quality_total": total,
             "quality_by_severity": by_severity,
         },
@@ -337,10 +343,12 @@ def run_audits(
     # Per spec §3.12 — fires only when --fail-on-quality was set.
     if fail_on_quality is not None:
         logger.info(
-            "quality_gate_evaluated threshold=%s verdict=%s",
+            "quality_gate_evaluated rsid=%s threshold=%s verdict=%s",
+            rsid,
             fail_on_quality.value,
             summary["verdict"],
             extra={
+                "rsid": rsid,
                 "threshold": fail_on_quality.value,
                 "verdict": summary["verdict"],
             },
