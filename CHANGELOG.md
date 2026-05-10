@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.9.0] — 2026-05-XX
+## [1.9.0] — 2026-05-09
 
 Tier 2 milestone: field-level shaping + naming audits. Four CJA-port
 flags adapted to aa_auto_sdr's surface; four roadmap-listed flags

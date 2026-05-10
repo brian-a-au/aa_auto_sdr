@@ -60,9 +60,16 @@ def _print_help() -> int:
         "  --cache-ttl SECONDS       Cache entry TTL in seconds (default: 3600)\n"
         "  --cache-size ENTRIES      Cache LRU max-size (default: 1000)\n"
         "\n"
+        "Quality audits + name matching (v1.9.0+):\n"
+        "  --audit-naming            Add naming-pattern audit to the SDR document (case styles, prefix groups, recommendations).\n"
+        "  --flag-stale              Flag components with stale-name patterns (test/old/deprecated, _vN suffix, date suffix).\n"
+        "  --name-match {exact,insensitive,fuzzy}  Strategy for resolving <RSID_OR_NAME> tokens (default: insensitive).\n"
+        "  --extended-fields         In --diff mode, include extended fields (description, tags, category, etc.). Off by default.\n"
+        "\n"
         "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
         "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
         "v1.8.0: parallel --batch workers (--workers, --fail-fast); validation cache scaffold (--enable-cache, --clear-cache, --cache-ttl, --cache-size).\n"
+        "v1.9.0: field-level shaping + naming audits (--audit-naming, --flag-stale, --name-match, --extended-fields).\n"
     )
     return 0
 
