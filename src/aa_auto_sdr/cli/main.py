@@ -91,6 +91,27 @@ def _apply_quality_auto_enable(ns: argparse.Namespace) -> None:
         )
 
 
+def _validate_watch_modifiers(ns: argparse.Namespace) -> int:
+    """Reject --interval / non-default --watch-threshold without --watch.
+
+    Returns ExitCode.OK if the namespace is consistent, ExitCode.USAGE
+    (printing a message to stderr) if a modifier was set without --watch.
+
+    Lives in cli/main.py rather than cli/commands/watch.py because the watch
+    handler only runs when --watch is true; the bare --interval / bare
+    --watch-threshold cases never reach it otherwise.
+    """
+    if getattr(ns, "watch", False):
+        return int(ExitCode.OK)
+    if getattr(ns, "interval", None) is not None:
+        print("error: --interval requires --watch", file=sys.stderr)
+        return int(ExitCode.USAGE)
+    if getattr(ns, "watch_threshold", 1) != 1:
+        print("error: --watch-threshold requires --watch", file=sys.stderr)
+        return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -200,6 +221,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     ``return X.value`` in the dispatch chain. Verbatim move — no behavior
     changes inside this helper. ``parser`` is threaded through so the
     no-args USAGE branch can still call ``parser.print_usage(sys.stderr)``."""
+    rc = _validate_watch_modifiers(ns)
+    if rc != int(ExitCode.OK):
+        return rc
+
     from aa_auto_sdr.core import colors
 
     colors.set_theme(getattr(ns, "color_theme", "default"))
@@ -333,6 +358,12 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             extended_fields=ns.extended_fields,
             ignore_fields=ignore,
         )
+
+    # v1.14.0 — watch action
+    if getattr(ns, "watch", False):
+        from aa_auto_sdr.cli.commands import watch as watch_cmd
+
+        return watch_cmd.run(ns)
 
     # v1.13.0 — compare-with-prev action (sugar over --diff)
     if ns.compare_with_prev:

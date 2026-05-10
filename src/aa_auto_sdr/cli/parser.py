@@ -264,6 +264,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     actions.add_argument(
+        "--watch",
+        action="store_true",
+        help=(
+            "Enter watch mode: loop over the positional RSID(s) at --interval, "
+            "snapshot + diff each cycle, emit NDJSON events to stdout. "
+            "SIGINT to stop. (v1.14.0)"
+        ),
+    )
+    actions.add_argument(
         "--interactive",
         action="store_true",
         help="Interactively pick an RSID from --list-reportsuites; emits to stdout",
@@ -401,6 +410,22 @@ def build_parser() -> argparse.ArgumentParser:
             "Override the active profile's snapshot directory. Used by --trending-window "
             "in v1.13.0; other snapshot-aware actions resolve from --profile only. "
             "Useful for CI / governance contexts where snapshots live outside ~/.aa/."
+        ),
+    )
+    p.add_argument(
+        "--interval",
+        type=str,
+        default=None,
+        metavar="DURATION",
+        help="Watch cadence (Nh|Nd|Nw, e.g. '1h'). Required with --watch. (v1.14.0)",
+    )
+    p.add_argument(
+        "--watch-threshold",
+        type=int,
+        default=1,
+        metavar="N",
+        help=(
+            "Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1. (v1.14.0)"
         ),
     )
     p.add_argument(

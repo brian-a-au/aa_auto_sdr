@@ -146,6 +146,11 @@ def test_documented_long_flags_exist_in_parser():
         # the v1.13.0 roadmap (cja-only org-report semantic; aa drift is
         # per-RSID and always included in --trending-window output).
         "--include-drift",
+        # v1.14.0 — flag explicitly documented in AGENTS.md / CHANGELOG as
+        # *dropped* from the v1.14.0 roadmap. With --watch-threshold gating
+        # event emission and the watch stream being stdout NDJSON only (no
+        # shell-hook surface), --on-change had no remaining semantic.
+        "--on-change",
     }
 
     missing = documented - real_flags - allowlist

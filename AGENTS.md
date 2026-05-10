@@ -346,6 +346,42 @@ Roadmap deviation (dropped):
   behind redundant opt-in. Argparse rejects it with the standard
   unrecognized-argument error.
 
+### Watch mode (v1.14.0)
+
+`aa_auto_sdr <RSID>... --watch --interval <duration>` enters a foreground
+monitoring loop. Each cycle: fetch the report suite, save a snapshot, diff
+vs the previous snapshot, and emit one NDJSON event on stdout. The loop
+runs until SIGINT / SIGTERM (exit 0) or an unrecoverable fatal error. Per-cycle
+fetch failures emit `error` events and continue the loop — they do not
+terminate it. `--watch-threshold N` (default `1`) sets the minimum total
+change count to trigger a `change` event; `--watch-threshold 0` emits every
+cycle including zero-change cycles (heartbeat mode).
+
+```bash
+# Watch one report suite every hour; pipe events to jq
+uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
+
+# Watch multiple RSIDs every 6 hours; threshold of 5 changes before emitting
+uv run aa_auto_sdr rs_prod_us rs_prod_eu --watch --interval 6h --watch-threshold 5
+
+# Heartbeat mode — emit every cycle even when nothing changed
+uv run aa_auto_sdr rs_prod_us --watch --interval 1d --watch-threshold 0
+
+# Route events to a file while keeping stderr logs
+uv run aa_auto_sdr rs_prod_us --watch --interval 1h --log-format json > events.ndjson
+```
+
+Event types (schema `aa-watch-event/v1`, NDJSON on stdout):
+
+- `baseline` — first cycle for an RSID; always emitted (no prior snapshot to diff against).
+- `change` — subsequent cycle where `total_changes >= watch_threshold`.
+- `error` — per-RSID fetch failure within a cycle; loop continues.
+
+SIGINT / SIGTERM → exit 0. `--format`, `--quality-policy`, and
+`--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2).
+`--interval` or non-default `--watch-threshold` without `--watch` are also
+rejected (exit `USAGE` 2).
+
 ### Comparison / Diff
 
 ```bash
