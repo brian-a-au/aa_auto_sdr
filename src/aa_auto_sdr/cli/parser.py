@@ -428,6 +428,29 @@ def build_parser() -> argparse.ArgumentParser:
             "Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1. (v1.14.0)"
         ),
     )
+
+    # v1.15.0 — git integration modifiers (NOT in any mutex group)
+    p.add_argument(
+        "--git-commit",
+        action="store_true",
+        help=(
+            "After saving a snapshot, commit it to the snapshot dir's git repo. "
+            "Auto-inits the dir as a git repo on first use. (v1.15.0)"
+        ),
+    )
+    p.add_argument(
+        "--git-push",
+        action="store_true",
+        help="Push after a successful --git-commit. Requires --git-commit. (v1.15.0)",
+    )
+    p.add_argument(
+        "--git-message",
+        type=str,
+        default=None,
+        metavar="TEXT",
+        help="Override the auto-generated commit message. Requires --git-commit. (v1.15.0)",
+    )
+
     p.add_argument(
         "--dry-run",
         action="store_true",

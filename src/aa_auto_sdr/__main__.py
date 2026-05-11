@@ -40,6 +40,8 @@ def _print_help() -> int:
         "  aa_auto_sdr <RSID...> --trending-window <DURATION>  Per-RSID drift window over snapshots (Nh|Nd|Nw) (v1.13.0)\n"
         "  aa_auto_sdr <RSID...> --compare-with-prev    Diff latest vs previous snapshot per RSID (v1.13.0)\n"
         "  aa_auto_sdr <RSID...> --watch --interval <DUR>  Foreground monitoring loop emitting NDJSON change events (v1.14.0)\n"
+        "  aa_auto_sdr <RSID> --git-commit               Commit the saved snapshot to git (auto-inits snapshot dir) (v1.15.0)\n"
+        "  aa_auto_sdr <RSID> --git-commit --git-push    Commit and push (requires user's git config for remote/auth) (v1.15.0)\n"
         "  aa_auto_sdr --interactive            Pick an RSID interactively; emit to stdout (v1.2)\n"
         "  aa_auto_sdr <RSID> --show-timings    Print per-stage timings to stderr at end of run (v1.2.1)\n"
         "  aa_auto_sdr <RSID> --run-summary-json PATH  Emit a JSON run summary to PATH or '-' (v1.2.1)\n"
@@ -83,6 +85,11 @@ def _print_help() -> int:
         "  --interval DURATION       Watch cadence (Nh|Nd|Nw, e.g. '1h'). Required with --watch.\n"
         "  --watch-threshold N       Min total change count to emit a change event (0=heartbeat, default 1)\n"
         "\n"
+        "Git integration (v1.15.0):\n"
+        "  --git-commit              After saving a snapshot, commit it to the snapshot dir's git repo (auto-inits on first use)\n"
+        "  --git-push                Push after a successful --git-commit (requires --git-commit)\n"
+        "  --git-message TEXT        Override the auto-generated commit message (requires --git-commit)\n"
+        "\n"
         "v1.2.0: diff polish (quiet, labels, reverse, warn-threshold, filters); --stats / --interactive; --dry-run for generate/batch; generation modifiers (--metrics-only, --dimensions-only); --profile-overwrite; config introspection (--config-status, --validate-config, --sample-config); --open and --yes.\n"
         "v1.2.1: --show-timings + --run-summary-json wired (M-7); typed wrappers in api/fetch.py + CI-enforced no-SDK-reach-through meta-test (M-1); breaking change: --prune-snapshots non-interactive stdin without --yes now exits 2 (USAGE) instead of 0 (M-6).\n"
         "v1.8.0: parallel --batch workers (--workers, --fail-fast); validation cache scaffold (--enable-cache, --clear-cache, --cache-ttl, --cache-size).\n"
@@ -93,6 +100,7 @@ def _print_help() -> int:
         "v1.12.1: rsid added to quality_audit_complete + quality_gate_evaluated logs; vocabulary validator polish.\n"
         "v1.13.0: drift / trending windows (--trending-window, --compare-with-prev); cja's include-drift roadmap row dropped.\n"
         "v1.14.0: watch / scheduled mode (--watch, --interval, --watch-threshold); on-change hook dropped per CHANGELOG.\n"
+        "v1.15.0: git integration (--git-commit, --git-push, --git-message). See CHANGELOG for dropped flags.\n"
     )
     return 0
 
