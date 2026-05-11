@@ -90,7 +90,7 @@ uv run aa_auto_sdr <RSID1> <RSID2> <RSID3> --format ci
 uv run aa_auto_sdr <RSID> --format json --run-summary-json -
 ```
 
-### Parallel batch (v1.8.0+)
+### Parallel batch
 
 `aa_auto_sdr --batch <RSID...>` accepts `--workers N` (1..16, default 1)
 to run per-RSID SDR generation in parallel via a `ThreadPoolExecutor`.
@@ -113,17 +113,15 @@ v1.8.0 spec design (see CHANGELOG):
 Attempting to pass any of these returns a standard argparse "unrecognized
 argument" error.
 
-### Validation cache (dormant)
+### Validation cache
 
 `--enable-cache`, `--clear-cache`, `--cache-ttl SECONDS`, `--cache-size
-ENTRIES` flags wire through to a `ValidationCache` instance. The cache
-target is empty in v1.8.0 — the class ships now to lock the API and
-flag surface ahead of v1.12.0's quality engine, which will be the first
-caller. DEBUG log records emit `cache_event=hit/miss/evict/expire` from
-the cache class itself; production code paths see neither hits nor misses
-in v1.8.0.
+ENTRIES` flags wire through to a `ValidationCache` instance. The quality
+severity engine is the production caller; cache keys include the
+severity-table version so mapping changes invalidate. DEBUG log records
+emit `cache_event=hit/miss/evict/expire`.
 
-### Quality audits (v1.9.0+)
+### Quality audits
 
 `aa_auto_sdr <RSID> --audit-naming` adds a `quality.naming_audit` block
 to the SDR document with case-style counts, prefix groupings, and
@@ -137,10 +135,11 @@ Both flags are independent (either alone, or both together). Default
 behavior (both off) preserves v1.8.0 byte-equivalence — `quality` field
 is `None` and absent from the JSON output.
 
-Snapshot envelope schema is bumped to `aa-sdr-snapshot/v3`. v1 and v2
-envelopes remain readable.
+Snapshot envelope schema is `aa-sdr-snapshot/v4`. Older majors (`v1`,
+`v2`, `v3`) remain readable with missing fields defaulted. See
+`CHANGELOG.md` for the per-version field additions.
 
-### Name resolution (v1.9.0+)
+### Name resolution
 
 `aa_auto_sdr <RSID_OR_NAME>` accepts `--name-match {exact,insensitive,fuzzy}`
 (default: `insensitive`). The default preserves pre-v1.9.0 case-insensitive
@@ -157,7 +156,7 @@ exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr.
 `insensitive` mode preserves pre-v1.9.0 behavior of returning all
 matches (CLI generates per-RSID).
 
-### Diff field shaping (v1.9.0+)
+### Diff field shaping
 
 `aa_auto_sdr --diff <a> <b> --extended-fields` includes noisy fields
 (description, tags, category, etc.) in diff output. Without the flag,
@@ -174,7 +173,7 @@ v1.9.0 spec design (see CHANGELOG):
 Attempting to pass any of these returns the standard argparse
 "unrecognized argument" error.
 
-### Batch sampling (v1.10.0+)
+### Batch sampling
 
 `aa_auto_sdr --batch <RSID...>` accepts three sampling flags that
 subset the batch list before dispatch. All three require `--batch`;
@@ -205,7 +204,7 @@ during v1.10.0 spec design (see CHANGELOG):
 Attempting to pass either returns the standard argparse
 "unrecognized argument" error.
 
-### Inventory summary (v1.11.0+)
+### Inventory summary
 
 `aa_auto_sdr [<RSID>...] --inventory-summary` emits a cross-RSID
 aggregate rollup of component counts (totals, min, max, avg per
@@ -238,7 +237,7 @@ during v1.11.0 spec design (see CHANGELOG):
 Attempting to pass it returns the standard argparse "unrecognized
 argument" error.
 
-### Quality severity engine (v1.12.0+)
+### Quality severity engine
 
 The v1.9.0 naming audits (`--audit-naming`, `--flag-stale`) are now
 severity-tagged and machine-readable. Three new flags promote them
@@ -286,7 +285,7 @@ Note: the unrelated `--max-issues` flag for `--diff` rendering predates
 v1.12.0 and remains valid; only the *policy* key of the same name is
 rejected.
 
-### Drift / trending windows (v1.13.0+)
+### Drift / trending windows
 
 Apply the snapshot comparator across a window of snapshots for one or
 more RSIDs. Reads existing snapshot files only — no AA API contact, no
@@ -346,7 +345,7 @@ Roadmap deviation (dropped):
   behind redundant opt-in. Argparse rejects it with the standard
   unrecognized-argument error.
 
-### Watch mode (v1.14.0)
+### Watch mode
 
 `aa_auto_sdr <RSID>... --watch --interval <duration>` enters a foreground
 monitoring loop. Each cycle: fetch the report suite, save a snapshot, diff
@@ -449,6 +448,7 @@ uv run aa_auto_sdr <RSID> --dry-run
 | `14` | Batch ran with mixed success and failure                    | Flag for review; consume per-RSID summary          |
 | `15` | Output writer failure (filesystem / format mismatch / mutex)| Abort; check `--output-dir` perms, `--output -` mutex with `--run-summary-json -` |
 | `16` | Snapshot resolve / schema / git failure                     | Abort; verify snapshot path / git ref              |
+| `17` | Quality gate breached: `--fail-on-quality` threshold exceeded | SDR + snapshot still emitted; consume `quality.summary` from output |
 | `130`| KeyboardInterrupt (SIGINT)                                  | Treat as cancelled; retry if appropriate           |
 
 Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE` for runtime lookup.
@@ -502,7 +502,7 @@ fetchers (dimensions / metrics / segments / calculated metrics /
 classifications / report-suite / VRS-summary discovery) use the
 single-rung formula above.
 
-### `fetch_status` field on inspect/stats JSON output (v1.7.2+)
+### `fetch_status` field on inspect/stats JSON output
 
 `--describe-reportsuite` and `--stats` JSON output gains an optional
 per-record `fetch_status` field that mirrors the snapshot envelope's
@@ -551,17 +551,19 @@ diff comparator suppresses sections with mismatched fetch quality rather
 than rendering false-modified VRS rows. Pre-v1.7.1 (`v1` schema) snapshots
 load forward-compat as if all components were healthy.
 
-**Envelope keys for agent introspection.** v2 snapshots carry two
-fetch-status keys directly accessible via `jq`:
+**Envelope keys for agent introspection.** Current (`v4`) snapshots
+carry two fetch-status keys directly accessible via `jq`:
 
 - `.degraded_components` — list of component-type names whose fetch
   returned no data (e.g., `["classifications"]`).
 - `.partial_components` — dict mapping component-type name to expansion
   level (e.g., `{"virtual_report_suites": "minimal"}`).
 
-Both keys are always present in v2 envelopes (empty `[]` / `{}` when
-nothing is degraded). v1 envelopes (taken under v1.7.0 or earlier) lack
-these keys; the loader fills them in-memory at load time.
+Both keys are always present (empty `[]` / `{}` when nothing is
+degraded). Pre-`v2` snapshots lack these keys; the loader fills them
+in-memory at load time. The `v4` envelope additionally carries a
+`quality` block (`issues`, `summary`) — empty when the quality engine
+was not run.
 
 ---
 

@@ -13,14 +13,14 @@ Diffs run on the **normalized model**, not on rendered files — renaming a colu
 
 ## Snapshot file format
 
-Schema: `aa-sdr-snapshot/v1`. Sorted keys, atomic writes, git-diff-friendly out of the box.
+Schema: `aa-sdr-snapshot/v4`. Sorted keys, atomic writes, git-diff-friendly out of the box. Loaders read older majors (`v1`, `v2`, `v3`) forward-compat — see `CHANGELOG.md` for the per-version field additions.
 
 ```json
 {
-  "schema": "aa-sdr-snapshot/v1",
+  "schema": "aa-sdr-snapshot/v4",
   "rsid": "demo.prod",
   "captured_at": "2026-04-26T17:29:01+00:00",
-  "tool_version": "1.0.0",
+  "tool_version": "X.Y.Z",
   "components": {
     "report_suite": { ... },
     "dimensions": [ ... ],
@@ -29,11 +29,16 @@ Schema: `aa-sdr-snapshot/v1`. Sorted keys, atomic writes, git-diff-friendly out 
     "calculated_metrics": [ ... ],
     "virtual_report_suites": [ ... ],
     "classifications": [ ... ]
+  },
+  "quality": {
+    "fetch_status": { ... },
+    "issues": [ ... ],
+    "summary": { ... }
   }
 }
 ```
 
-The `schema` field enables future migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same.
+The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load with missing fields defaulted (v1 envelopes load as if `fetch_status` reports all components healthy and the `quality` block is empty).
 
 ## Storage convention
 
@@ -72,7 +77,7 @@ Each token is one of five forms:
 
 | Token form | Example | Resolution |
 |----|----|----|
-| Filesystem path | `./snap-a.json` or `/abs/path.json` | Read JSON, validate v1 schema, return envelope. |
+| Filesystem path | `./snap-a.json` or `/abs/path.json` | Read JSON, validate schema, return envelope. |
 | `<rsid>@<timestamp>` | `demo.prod@2026-04-26T17-29-01+00-00` | Profile-scoped exact match. |
 | `<rsid>@latest` | `demo.prod@latest` | Most-recent file in profile dir. |
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file (errors if only one exists). |
@@ -148,8 +153,8 @@ Banner-style output with ANSI colors (auto-disabled for non-TTY stdout or `NO_CO
 ============================================================
 SDR DIFF
 ============================================================
-Source: demo.prod @ 2026-04-20T10:00:00+00:00 (tool 0.7.0)
-Target: demo.prod @ 2026-04-26T17:29:01+00:00 (tool 1.0.0)
+Source: demo.prod @ 2026-04-20T10:00:00+00:00 (tool X.Y.Z)
+Target: demo.prod @ 2026-04-26T17:29:01+00:00 (tool X.Y.Z)
 
 Dimensions: +2 added, -0 removed, ~1 modified, 124 unchanged
   + evar99 — Mobile Operator
@@ -240,20 +245,21 @@ uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod --format 
   && echo "DRIFT DETECTED" || echo "no changes"
 ```
 
-## Exit codes
+## Exit codes (diff- and snapshot-relevant subset)
 
 | Code | Meaning |
 |----|----|
 | 0 | Diff ran successfully (regardless of whether changes exist) |
+| 3 | `--warn-threshold` exceeded (diff itself ran successfully) |
 | 10 | `--list-snapshots` / `--prune-snapshots` missing `--profile` or policy |
 | 15 | Bad `--format`/`--output` combination |
 | 16 | Snapshot resolve / schema / git failure |
 
-For full code-by-code remediation, run `aa_auto_sdr --explain-exit-code 16`.
+Full table: `src/aa_auto_sdr/core/exit_codes.py` (consumed by `aa_auto_sdr --exit-codes`). For code-by-code remediation, run `aa_auto_sdr --explain-exit-code 16`.
 
-## v1.1: snapshot lifecycle
+## Snapshot lifecycle
 
-Beyond the per-run `--snapshot` flag, v1.1 adds three first-class actions for managing snapshots as a long-lived, profile-scoped store.
+Beyond the per-run `--snapshot` flag, three first-class actions manage snapshots as a long-lived, profile-scoped store.
 
 ### Auto-snapshot on every run
 
@@ -299,7 +305,7 @@ aa_auto_sdr --diff $(aa_auto_sdr --list-snapshots RS1 --profile prod --format js
 
 …or just use the `@latest` / `@previous` shortcuts described in the diff section above.
 
-## v1.1: diff modes
+## Diff modes
 
 Three modifier flags reshape the diff output without changing the comparator:
 
@@ -312,11 +318,55 @@ aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --summary
 aa_auto_sdr --diff a.json b.json --ignore-fields description,tags
 ```
 
-A new diff renderer, `--format pr-comment`, produces compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub's comment limit is 65,536); when exceeded, truncates at the last `</details>` boundary with a banner line.
+The `--format pr-comment` renderer produces compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub's comment limit is 65,536); when exceeded, truncates at the last `</details>` boundary with a banner line.
 
 ```bash
 aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | pbcopy
 ```
+
+### Other diff-shaping flags
+
+- `--extended-fields` — include extended/auxiliary fields in the comparison that are otherwise summarized away.
+- `--changes-only` — drop component types with no changes from the rendered output.
+- `--show-only dimensions,metrics` — restrict the diff to listed component types.
+- `--max-issues N` — cap per-component added/removed/modified counts in the rendered output.
+- `--quiet-diff` — suppress unchanged-count trailers.
+- `--diff-labels Source=Before Target=After` — override the default Source/Target labels.
+- `--reverse-diff` — swap a/b before compare.
+- `--warn-threshold N` — exit `3` (WARN) if total changes are `>= N`. Useful in CI.
+- `--color-theme {default,accessible}` — console diff color palette.
+
+## Sugar for the common diff
+
+```bash
+aa_auto_sdr --compare-with-prev <RSID> --profile prod
+```
+
+`--compare-with-prev` is shorthand for `--diff <RSID>@previous <RSID>@latest --profile <name>`. It's the typical "what changed since last capture" form, so prefer it to the long form unless you need a non-default base.
+
+## Trending: rollup across a window of snapshots
+
+```bash
+aa_auto_sdr --trending-window 30d <RSID> --profile prod
+aa_auto_sdr --trending-window 30d <RSID> --profile prod --format json --output - | jq '.summary'
+```
+
+`--trending-window <DURATION>` reads existing snapshots from the profile snapshot store (no API contact) and emits a rollup of how component counts and quality signals moved across the window. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the profile's snapshot directory for the trending read; other snapshot-aware actions still resolve from `--profile`.
+
+Trending renderers live under `output/trending_renderers/` (`console`, `json`, `markdown`); select with `--format`.
+
+## Watch: foreground monitoring loop
+
+```bash
+aa_auto_sdr --watch --interval 1h <RSID> --profile prod
+```
+
+`--watch` runs a foreground loop that captures a fresh snapshot at each `--interval` tick, diffs it against the prior baseline, and emits NDJSON events to stdout (`aa-watch-event/v1`). Event types: `baseline` (first cycle), `change` (when at least `--watch-threshold` components differ; default 1), `error`.
+
+- `--interval Nh|Nd|Nw` — required with `--watch`.
+- `--watch-threshold N` — minimum changes to emit (default 1; `0` = heartbeat, emits every cycle).
+- SIGINT / SIGTERM exit cleanly with code 0.
+- `--format`, `--quality-policy`, and `--fail-on-quality` are rejected with `--watch` (exit 2).
 
 ## Sample outputs
 

@@ -265,18 +265,18 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Auto-batch — multiple positional identifiers | `aa_auto_sdr rs1 rs2 rs3` |
 | Auto-batch with mixed RSIDs and names | `aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod` |
 | Batch via explicit flag | `aa_auto_sdr --batch RS1 RS2 RS3` |
-| Parallel batch (v1.8.0+) | `aa_auto_sdr --batch RS1 RS2 RS3 --workers 4` |
+| Parallel batch | `aa_auto_sdr --batch RS1 RS2 RS3 --workers 4` |
 | Parallel + fail-fast | `aa_auto_sdr --batch RS1 RS2 --workers 2 --fail-fast` |
-| Naming audit (v1.9.0+) | `aa_auto_sdr RS1 --audit-naming` |
-| Flag stale components (v1.9.0+) | `aa_auto_sdr RS1 --flag-stale` |
-| Resolve by name (v1.9.0+) | `aa_auto_sdr "Production RS" --name-match fuzzy` |
-| Extended-field diff (v1.9.0+) | `aa_auto_sdr --diff snap_a snap_b --extended-fields` |
-| Sample batch (v1.10.0+) | `aa_auto_sdr --batch RS1 RS2 RS3 RS4 RS5 --sample 2` |
+| Naming audit | `aa_auto_sdr RS1 --audit-naming` |
+| Flag stale components | `aa_auto_sdr RS1 --flag-stale` |
+| Resolve by name | `aa_auto_sdr "Production RS" --name-match fuzzy` |
+| Extended-field diff | `aa_auto_sdr --diff snap_a snap_b --extended-fields` |
+| Sample batch | `aa_auto_sdr --batch RS1 RS2 RS3 RS4 RS5 --sample 2` |
 | Sample reproducibly | `aa_auto_sdr --batch RS1 RS2 RS3 --sample 2 --sample-seed 42` |
 | Stratified sample by prefix | `aa_auto_sdr --batch prod.us prod.eu dev.us --sample 2 --sample-stratified` |
-| Quality report (v1.12.0+) | `aa_auto_sdr <RSID> --audit-naming --quality-report json` |
-| Fail CI on HIGH or worse (v1.12.0+) | `aa_auto_sdr <RSID> --fail-on-quality HIGH` |
-| Quality policy from file (v1.12.0+) | `aa_auto_sdr <RSID> --quality-policy ./policy.json` |
+| Quality report | `aa_auto_sdr <RSID> --audit-naming --quality-report json` |
+| Fail CI on HIGH or worse | `aa_auto_sdr <RSID> --fail-on-quality HIGH` |
+| Quality policy from file | `aa_auto_sdr <RSID> --quality-policy ./policy.json` |
 | Use a named profile | `aa_auto_sdr <RSID> --profile prod` |
 | **Output Formats** | |
 | Excel (default) | `aa_auto_sdr <RSID>` |
@@ -289,7 +289,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |
 | Describe (counts only) | `aa_auto_sdr --describe-reportsuite <RSID>` |
 | List as JSON for scripting | `aa_auto_sdr --list-reportsuites --format json --output -` |
-| Org-wide inventory rollup (v1.11.0+) | `aa_auto_sdr --inventory-summary` |
+| Org-wide inventory rollup | `aa_auto_sdr --inventory-summary` |
 | Inventory across selected RSes as CSV | `aa_auto_sdr rs1 rs2 rs3 --inventory-summary --format csv` |
 | Inventory as machine-readable JSON | `aa_auto_sdr --inventory-summary --format json` |
 | **Snapshot** | |
@@ -303,10 +303,10 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Diff at a git ref | `aa_auto_sdr --diff git:HEAD~1:snapshots/x.json git:HEAD:snapshots/x.json` |
 | Diff to JSON pipe | `aa_auto_sdr --diff a.json b.json --format json --output -` |
 | Diff to Markdown file | `aa_auto_sdr --diff a.json b.json --format markdown --output diff.md` |
-| Drift over 30 days (v1.13.0+) | `aa_auto_sdr <RSID> --trending-window 30d --profile prod` |
+| Drift over 30 days | `aa_auto_sdr <RSID> --trending-window 30d --profile prod` |
 | Drift as JSON for dashboards | `aa_auto_sdr rs1 rs2 rs3 --trending-window 30d --format json` |
 | Latest vs previous snapshot | `aa_auto_sdr <RSID> --compare-with-prev --profile prod` |
-| Watch for changes (v1.14.0+) | `aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode \| jq -c .` |
+| Watch for changes | `aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode \| jq -c .` |
 | Watch multiple RSIDs every 6 h | `aa_auto_sdr rs1 rs2 --watch --interval 6h --watch-threshold 5` |
 | **Profile / Config** | |
 | Create profile interactively | `aa_auto_sdr --profile-add prod` |
@@ -317,7 +317,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Explain one exit code | `aa_auto_sdr --explain-exit-code 11` |
 | Generate completion script | `aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr` |
 
-### Watch mode (v1.14.0+)
+### Watch mode
 
 Watch mode enters a foreground monitoring loop that fetches, snapshots, and diffs a report suite on a repeating interval, emitting structured NDJSON events on stdout. Pair it with `--agent-mode` and pipe to `jq` to react to changes in real time:
 
@@ -328,7 +328,7 @@ uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
 
 Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0.
 
-### Retry tuning (v1.7.0+)
+### Retry tuning
 
 For flaky AA orgs or noisy CI environments, tune retry behavior:
 
@@ -340,22 +340,24 @@ Defaults are conservative (3 retries, 0.5s base, 10s cap). Retries fire only
 on transient failures; permanent errors (auth, validation, unknown RSID)
 surface immediately.
 
-### Snapshot envelope (v2)
+### Snapshot envelope
 
-Snapshot files emitted under v1.7.1+ carry two additional top-level keys:
+Current schema: `aa-sdr-snapshot/v4`. Snapshot files carry two top-level fetch-quality keys:
 
 - `degraded_components: list[str]` — component types whose fetch returned no
   data (e.g., when Adobe's VRS endpoint flapped). Empty by default.
 - `partial_components: dict[str, str]` — component types whose fetch fell
   back to a reduced expansion level. Empty by default.
 
+…plus a `quality` block (`issues`, `summary`) populated when the quality engine runs.
+
 When `--diff` compares two snapshots and either side has a degraded or
 partial-with-mismatched-level fetch for a component type, that section's
 diff is suppressed with a single annotation rather than rendering false
-"modified" rows. v1 snapshots (pre-v1.7.1) load with both keys defaulted to
-empty.
+"modified" rows. Older majors (`v1`–`v3`) load forward-compat with missing
+fields defaulted. See [`docs/SNAPSHOT_DIFF.md`](docs/SNAPSHOT_DIFF.md) for the full schema and `CHANGELOG.md` for version history.
 
-### Fetch-quality signal (v1.7.2+)
+### Fetch-quality signal
 
 When Adobe's VRS or classifications endpoint flaps,
 `--describe-reportsuite` and `--stats` annotate the affected count cell
