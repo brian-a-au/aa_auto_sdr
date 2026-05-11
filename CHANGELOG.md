@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.15.0] — unreleased
+
+Git integration. Full entry written at end of release; this stub satisfies the `## [<version>]` invariant enforced by `scripts/check_version_sync.py` while the implementation is in progress.
+
 ## [1.14.0] — 2026-05-10
 
 Watch mode. Enters a foreground monitoring loop that fetches, snapshots, and diffs a set of report suites on a repeating interval — emitting structured NDJSON events on stdout so agents and CI pipelines can react to changes without polling the tool themselves.
