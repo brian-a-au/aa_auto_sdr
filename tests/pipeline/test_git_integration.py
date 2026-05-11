@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse  # noqa: F401
 from dataclasses import dataclass, field
-from datetime import timedelta  # noqa: F401
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any  # noqa: F401
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest  # noqa: F401
@@ -151,8 +151,6 @@ class TestBatchModeGit:
 
 
 def _now_utc():
-    from datetime import UTC, datetime
-
     return datetime.now(UTC)
 
 
@@ -174,3 +172,140 @@ def _fake_sdr_doc(*, rsid: str):
             return {"report_suite": {"name": self.report_suite.name}}
 
     return _Doc()
+
+
+# --- watch-mode fakes (duplicated from tests/cli/test_watch_command.py) ---
+
+
+@dataclass
+class _WFakeFetcher:
+    rsid_to_doc: dict[str, Any] = field(default_factory=dict)
+    raise_for: dict[str, BaseException] = field(default_factory=dict)
+    calls: list[str] = field(default_factory=list)
+
+    def fetch_snapshot(self, rsid: str) -> Any:
+        self.calls.append(rsid)
+        if rsid in self.raise_for:
+            raise self.raise_for[rsid]
+        return self.rsid_to_doc.get(rsid, {"rsid": rsid})
+
+
+@dataclass
+class _WFakeStore:
+    latest_by_rsid: dict[str, dict | None] = field(default_factory=dict)
+    saved: list[tuple[str, Any]] = field(default_factory=list)
+
+    def latest(self, rsid: str) -> dict | None:
+        return self.latest_by_rsid.get(rsid)
+
+    def save(self, rsid: str, doc: Any) -> tuple[Path, dict]:
+        self.saved.append((rsid, doc))
+        path = Path(f"/tmp/{rsid}/{len(self.saved)}.json")
+        envelope = {
+            "rsid": rsid,
+            "captured_at": f"2026-05-11T14:00:0{len(self.saved)}Z",
+            "tool_version": "1.15.0",
+            "components": {
+                "report_suite": {"rsid": rsid, "name": rsid},
+                "dimensions": [],
+                "metrics": [],
+                "segments": [],
+                "calculated_metrics": [],
+                "virtual_report_suites": [],
+                "classifications": [],
+            },
+        }
+        self.latest_by_rsid[rsid] = envelope
+        return path, envelope
+
+
+@dataclass
+class _WFakeClock:
+    _now: datetime = field(default_factory=lambda: datetime(2026, 5, 11, tzinfo=UTC))
+
+    def utcnow(self) -> datetime:
+        out = self._now
+        self._now = out + timedelta(seconds=1)
+        return out
+
+
+@dataclass
+class _WFakeSleeper:
+    calls: list[float] = field(default_factory=list)
+
+    def sleep(self, seconds: float) -> None:
+        self.calls.append(seconds)
+
+
+@dataclass
+class _WFakeEmitter:
+    events: list[dict] = field(default_factory=list)
+
+    def emit(self, payload: dict) -> None:
+        self.events.append(payload)
+
+
+@dataclass
+class _WInjection:
+    fetcher: _WFakeFetcher = field(default_factory=_WFakeFetcher)
+    store: _WFakeStore = field(default_factory=_WFakeStore)
+    clock: _WFakeClock = field(default_factory=_WFakeClock)
+    sleeper: _WFakeSleeper = field(default_factory=_WFakeSleeper)
+    emitter: _WFakeEmitter = field(default_factory=_WFakeEmitter)
+
+
+def _make_inj() -> _WInjection:
+    return _WInjection()
+
+
+class TestWatchModeGit:
+    def test_watch_emits_error_event_after_change_when_git_fails(self) -> None:
+        from aa_auto_sdr.pipeline import watch as watch_mod
+        from aa_auto_sdr.pipeline.watch import (
+            StopToken,
+            WatchContext,
+            run_watch_loop,
+        )
+
+        inj = _make_inj()
+        failing_git = GitOpResult(
+            ok=False,
+            committed=True,
+            pushed=False,
+            commit_sha="d" * 40,
+            error_kind="GitPushError",
+            error_message="remote rejected: refusing to update protected ref",
+        )
+        with (
+            patch.object(watch_mod, "git_commit_snapshot", return_value=failing_git),
+        ):
+            ctx = WatchContext(
+                fetcher=inj.fetcher,
+                snapshot_store=inj.store,
+                clock=inj.clock,
+                sleeper=inj.sleeper,
+                emitter=inj.emitter,
+                ignore_fields=frozenset(),
+                extended_fields=False,
+                git_commit=True,
+                git_push=True,
+                git_message=None,
+                snapshot_dir=Path("/tmp/snaps"),
+            )
+            run_watch_loop(
+                ctx=ctx,
+                rsids=["rs_a"],
+                interval=timedelta(hours=1),
+                threshold=0,
+                max_cycles=1,
+                stop=StopToken(),
+            )
+
+        assert len(inj.emitter.events) == 2
+        assert inj.emitter.events[0]["event"] == "baseline"
+        assert "git" in inj.emitter.events[0]
+        assert inj.emitter.events[0]["git"]["committed"] is True
+        assert inj.emitter.events[0]["git"]["pushed"] is False
+        assert inj.emitter.events[1]["event"] == "error"
+        assert inj.emitter.events[1]["error_type"] == "GitPushError"
+        assert "rejected" in inj.emitter.events[1]["error"]

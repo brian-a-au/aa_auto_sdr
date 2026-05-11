@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from aa_auto_sdr.snapshot.git import GitOpResult, generate_commit_message, git_commit_snapshot
 from aa_auto_sdr.snapshot.models import DiffReport
 
 # --- Stop token ------------------------------------------------------------
@@ -88,6 +89,12 @@ class WatchContext:
     emitter: Emitter
     ignore_fields: frozenset[str] = field(default_factory=frozenset)
     extended_fields: bool = False
+    # v1.15.0 — git integration. snapshot_dir is needed because git_commit_snapshot
+    # operates on a directory path; we cannot derive it from snapshot_store alone.
+    git_commit: bool = False
+    git_push: bool = False
+    git_message: str | None = None
+    snapshot_dir: Path | None = None
 
 
 # --- Cycle result ----------------------------------------------------------
@@ -107,6 +114,9 @@ class CycleResult:
     snapshot_path: Path | None = None
     diff: DiffReport | None = None
     error: BaseException | None = None
+    # v1.15.0 — git operation outcome; None when ctx.git_commit is False
+    # or when this cycle didn't get to git (e.g. fetch_error).
+    git_op: GitOpResult | None = None
 
     @classmethod
     def baseline(
@@ -202,26 +212,46 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
     snapshot_path, current_envelope = ctx.snapshot_store.save(rsid, current_doc)
 
     if prev is None:
-        return CycleResult.baseline(
+        result: CycleResult = CycleResult.baseline(
             rsid=rsid,
             snapshot_path=snapshot_path,
             started_at=started_at,
             ended_at=ctx.clock.utcnow(),
         )
+    else:
+        diff = compare(
+            a=prev,
+            b=current_envelope,
+            ignore_fields=ctx.ignore_fields,
+            extended_fields=ctx.extended_fields,
+        )
+        result = CycleResult.diffed(
+            rsid=rsid,
+            snapshot_path=snapshot_path,
+            diff=diff,
+            started_at=started_at,
+            ended_at=ctx.clock.utcnow(),
+        )
 
-    diff = compare(
-        a=prev,
-        b=current_envelope,
-        ignore_fields=ctx.ignore_fields,
-        extended_fields=ctx.extended_fields,
-    )
-    return CycleResult.diffed(
-        rsid=rsid,
-        snapshot_path=snapshot_path,
-        diff=diff,
-        started_at=started_at,
-        ended_at=ctx.clock.utcnow(),
-    )
+    # v1.15.0 — git commit after snapshot save.
+    if ctx.git_commit and result.kind in ("baseline", "diffed") and ctx.snapshot_dir is not None:
+        from dataclasses import replace
+
+        summary = _diff_summary(result.diff) if result.diff is not None else None
+        message = ctx.git_message or generate_commit_message(
+            rsid=rsid,
+            captured_at=_iso_z(result.started_at),
+            change_summary=summary,
+        )
+        git_op = git_commit_snapshot(
+            ctx.snapshot_dir,
+            rsid=rsid,
+            message=message,
+            push=ctx.git_push,
+        )
+        result = replace(result, git_op=git_op)
+
+    return result
 
 
 # --- emit gating + payload -------------------------------------------------
@@ -291,6 +321,12 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
 
     Timestamps use Z-suffix. The `error` field is passed through
     `core.logging.redact_text` so tokens / org IDs in API errors don't leak.
+
+    v1.15.0: when `result.git_op` carries a completed commit, attach a `git`
+    block to baseline/change events so consumers see the commit_sha in the
+    structured stream. Gated on `committed=True` (NOT `ok=True`) so a commit
+    followed by a push failure still surfaces the sha — the follow-up error
+    event (emitted by `_emit_cycle`) carries the push failure detail.
     """
     base: dict[str, Any] = {
         "schema": WATCH_EVENT_SCHEMA,
@@ -305,17 +341,44 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
         # str(Path) emits backslashes, which downstream consumers should not have
         # to handle.
         base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
-        return base
-    if result.kind == "fetch_error":
+    elif result.kind == "fetch_error":
         err = result.error
         base["error_type"] = type(err).__name__ if err is not None else "Unknown"
         base["error"] = redact_text(str(err)) if err is not None else ""
-        return base
-    # diffed
-    assert result.diff is not None
-    base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
-    base["summary"] = _diff_summary(result.diff)
+    else:
+        # diffed
+        assert result.diff is not None
+        base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
+        base["summary"] = _diff_summary(result.diff)
+
+    # v1.15.0 — git operation block on snapshot events.
+    if result.kind in ("baseline", "diffed") and result.git_op is not None and result.git_op.committed:
+        base["git"] = {
+            "committed": True,
+            "commit_sha": result.git_op.commit_sha,
+            "pushed": bool(result.git_op.pushed),
+        }
+
     return base
+
+
+def _emit_cycle(ctx: WatchContext, result: CycleResult, *, cycle_n: int) -> None:
+    """Emit the per-cycle event(s). Most cycles emit one event; when git_op
+    failed, we emit the snapshot event first then a follow-up error event."""
+    ctx.emitter.emit(_event_payload(result, cycle_n=cycle_n))
+    if result.git_op is not None and not result.git_op.ok:
+        ctx.emitter.emit(
+            {
+                "schema": WATCH_EVENT_SCHEMA,
+                "event": "error",
+                "cycle": cycle_n,
+                "rsid": result.rsid,
+                "started_at": _iso_z(result.started_at),
+                "ended_at": _iso_z(result.ended_at),
+                "error_type": result.git_op.error_kind or "GitError",
+                "error": redact_text(result.git_op.error_message or ""),
+            },
+        )
 
 
 # --- loop driver -----------------------------------------------------------
@@ -380,7 +443,7 @@ def run_watch_loop(
                 break
             result = run_one_cycle(rsid=rsid, ctx=ctx)
             if _should_emit(result, threshold=threshold):
-                ctx.emitter.emit(_event_payload(result, cycle_n=cycle_n))
+                _emit_cycle(ctx, result, cycle_n=cycle_n)
         cycle_n += 1
         if max_cycles is not None and cycle_n >= max_cycles:
             return ExitCode.OK, cycle_n
