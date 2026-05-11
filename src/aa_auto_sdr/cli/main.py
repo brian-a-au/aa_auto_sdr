@@ -143,6 +143,7 @@ def _validate_git_modifiers(ns: argparse.Namespace) -> int:
         or getattr(ns, "list_dimensions", None) is not None
         or getattr(ns, "list_segments", None) is not None
         or getattr(ns, "list_calculated_metrics", None) is not None
+        or getattr(ns, "list_classification_datasets", None) is not None
         or getattr(ns, "trending_window", None) is not None
         or bool(getattr(ns, "compare_with_prev", False))
         or bool(getattr(ns, "inventory_summary", False))
