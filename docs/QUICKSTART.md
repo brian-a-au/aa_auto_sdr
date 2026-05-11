@@ -50,31 +50,25 @@ uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr
 
 Replace `<RSID>` with any value from the list. Default output is Excel; other formats: `--format json`, `--format markdown`, `--format all`.
 
-## 5. Capture a snapshot
+## 5. Capture a snapshot (and keep capturing on every run)
 
 ```text
-uv run aa_auto_sdr <RSID> --profile prod --snapshot --output-dir /tmp/sdr
+uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot --output-dir /tmp/sdr
 ```
 
-The snapshot lands at `~/.aa/orgs/prod/snapshots/<RSID>/<ISO-timestamp>.json` — JSON, sorted keys, git-diff-friendly.
+`--auto-snapshot` is the recommended default: every generate run lands a snapshot under `~/.aa/orgs/prod/snapshots/<RSID>/<ISO-timestamp>.json`. JSON, sorted keys, git-diff-friendly. Pair with `--auto-prune --keep-last 10` to bound the store.
 
-## 6. Generate a second snapshot a day later
+## 6. Diff against the previous capture
 
-(After the report suite changes — new dimension, renamed metric, etc.)
+After a later run produces a second snapshot:
 
 ```text
-uv run aa_auto_sdr <RSID> --profile prod --snapshot --output-dir /tmp/sdr
+uv run aa_auto_sdr --compare-with-prev <RSID> --profile prod
 ```
 
-## 7. Diff the two
+`--compare-with-prev` is sugar for `--diff <RSID>@previous <RSID>@latest`. Outputs a structured banner with added / removed / modified components and per-field deltas. The token order treats `latest` as the "after" side — what's *added* in the rendered output is what's new since the previous snapshot.
 
-```text
-uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod
-```
-
-Outputs a structured banner with added / removed / modified components and per-field deltas.
-
-## 8. Tab completion (optional)
+## 7. Tab completion (optional)
 
 ```bash
 aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr   # zsh

@@ -90,12 +90,12 @@ uv run aa_auto_sdr <RSID1> <RSID2> <RSID3> --format ci
 uv run aa_auto_sdr <RSID> --format json --run-summary-json -
 ```
 
-### Parallel batch (v1.8.0+)
+### Parallel batch
 
 `aa_auto_sdr --batch <RSID...>` accepts `--workers N` (1..16, default 1)
 to run per-RSID SDR generation in parallel via a `ThreadPoolExecutor`.
 
-- `--workers 1` (default): byte-equivalent sequential behavior as in v1.7.2.
+- `--workers 1` (default): sequential, single-threaded.
 - `--workers N>=2`: parallel run; `--fail-fast` opts out of the
   continue-on-error default and cancels pending workers on first
   exception.
@@ -104,26 +104,17 @@ JSON log records on parallel runs include `worker_id` (the per-RSID
 submission index, 0..N-1). Sequential runs omit the field. Agents
 parsing logs should treat the field as optional.
 
-Three flags listed in the public roadmap were deliberately removed during
-v1.8.0 spec design (see CHANGELOG):
-- `--continue-on-error` (existing default; flag would be redundant)
-- `--shared-cache` (no implementation under threads)
-- `--use-cache` (redundant with `--enable-cache`)
+Continue-on-error is the batch default; no opt-in flag is needed. Cache sharing across workers is not implemented; cache is per-process and gated by `--enable-cache`.
 
-Attempting to pass any of these returns a standard argparse "unrecognized
-argument" error.
-
-### Validation cache (dormant)
+### Validation cache
 
 `--enable-cache`, `--clear-cache`, `--cache-ttl SECONDS`, `--cache-size
-ENTRIES` flags wire through to a `ValidationCache` instance. The cache
-target is empty in v1.8.0 — the class ships now to lock the API and
-flag surface ahead of v1.12.0's quality engine, which will be the first
-caller. DEBUG log records emit `cache_event=hit/miss/evict/expire` from
-the cache class itself; production code paths see neither hits nor misses
-in v1.8.0.
+ENTRIES` flags wire through to a `ValidationCache` instance. The quality
+severity engine is the production caller; cache keys include the
+severity-table version so mapping changes invalidate. DEBUG log records
+emit `cache_event=hit/miss/evict/expire`.
 
-### Quality audits (v1.9.0+)
+### Quality audits
 
 `aa_auto_sdr <RSID> --audit-naming` adds a `quality.naming_audit` block
 to the SDR document with case-style counts, prefix groupings, and
@@ -134,47 +125,31 @@ block listing components matching stale-keyword / version-suffix /
 date-pattern regexes.
 
 Both flags are independent (either alone, or both together). Default
-behavior (both off) preserves v1.8.0 byte-equivalence — `quality` field
-is `None` and absent from the JSON output.
+behavior (both off) leaves the `quality` field as `None` (absent from
+JSON output).
 
-Snapshot envelope schema is bumped to `aa-sdr-snapshot/v3`. v1 and v2
-envelopes remain readable.
+Snapshot envelope schema is `aa-sdr-snapshot/v4`. Older majors (`v1`,
+`v2`, `v3`) remain readable with missing fields defaulted. See
+`CHANGELOG.md` for the per-version field additions.
 
-### Name resolution (v1.9.0+)
+### Name resolution
 
-`aa_auto_sdr <RSID_OR_NAME>` accepts `--name-match {exact,insensitive,fuzzy}`
-(default: `insensitive`). The default preserves pre-v1.9.0 case-insensitive
-name matching.
+`aa_auto_sdr <RSID_OR_NAME>` accepts `--name-match {exact,insensitive,fuzzy}` (default: `insensitive`).
 
 - `exact`: literal RSID match, then exact-case name match.
-- `insensitive`: literal RSID, then case-insensitive name match
-  (DEFAULT).
-- `fuzzy`: insensitive first; falls back to SequenceMatcher at threshold
-  0.85.
+- `insensitive` (default): literal RSID, then case-insensitive name match.
+- `fuzzy`: insensitive first; falls back to SequenceMatcher at threshold 0.85.
 
-Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with
-exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr.
-`insensitive` mode preserves pre-v1.9.0 behavior of returning all
-matches (CLI generates per-RSID).
+Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr. `insensitive` mode returns all matches (the CLI then generates per-RSID).
 
-### Diff field shaping (v1.9.0+)
+### Diff field shaping
 
 `aa_auto_sdr --diff <a> <b> --extended-fields` includes noisy fields
 (description, tags, category, etc.) in diff output. Without the flag,
 these fields are suppressed by default — diff output focuses on
 identity, structure, and definition changes.
 
-Four flags listed in the public roadmap were deliberately removed during
-v1.9.0 spec design (see CHANGELOG):
-- `--no-component-types` (CJA-only concept)
-- `--lock-stale-threshold` (CJA org-report lock)
-- `--include-names` (AA includes by default)
-- `--include-metadata` (AA includes by default)
-
-Attempting to pass any of these returns the standard argparse
-"unrecognized argument" error.
-
-### Batch sampling (v1.10.0+)
+### Batch sampling
 
 `aa_auto_sdr --batch <RSID...>` accepts three sampling flags that
 subset the batch list before dispatch. All three require `--batch`;
@@ -194,24 +169,11 @@ records `sampled=True` along with `sample_size`, `sample_seed`, and
 `total_available` fields. JSON-summary consumers can read those
 fields directly.
 
-Per-RSID SDR documents and snapshots are byte-identical to v1.9.0;
-sampling only changes which RSIDs run, not what each run produces.
+Per-RSID SDR documents and snapshots are unaffected by sampling — it only changes which RSIDs run, not what each run produces.
 
-Two flags listed in the public roadmap were deliberately removed
-during v1.10.0 spec design (see CHANGELOG):
-- `--memory-limit` (CJA-only — guards a cross-DV index aa doesn't build)
-- `--memory-warning` (same rationale)
+### Inventory summary
 
-Attempting to pass either returns the standard argparse
-"unrecognized argument" error.
-
-### Inventory summary (v1.11.0+)
-
-`aa_auto_sdr [<RSID>...] --inventory-summary` emits a cross-RSID
-aggregate rollup of component counts (totals, min, max, avg per
-component type) plus a per-RSID detail block. With no positional
-RSIDs, summarizes every visible report suite (mirrors `--stats`).
-Reuses the v1.7.2 `count_only` fetcher path — no new SDK surface.
+`aa_auto_sdr [<RSID>...] --inventory-summary` emits a cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. With no positional RSIDs, summarizes every visible report suite (mirrors `--stats`). Uses the `count_only` fetcher path — no full SDR build.
 
 | Flag combination | Effect |
 |------------------|--------|
@@ -224,25 +186,11 @@ group as `--stats`, `--describe-reportsuite`, and the list-actions, so
 combining it with any other action returns a clean argparse error
 (no manual precedence in `cli/main.py`).
 
-Per-RSID fetch failures mark the affected components with `*` in
-table output; the JSON form attaches a `fetch_status` map to the
-per-RSID row. Mirrors `--stats` exactly.
+Per-RSID fetch failures mark the affected components with `*` in table output; the JSON form attaches a `fetch_status` map to the per-RSID row. Mirrors `--stats` exactly.
 
-One flag listed in the public roadmap was deliberately removed
-during v1.11.0 spec design (see CHANGELOG):
-- `--inventory-only` (CJA-only — aa's SDR document treats segments
-  and calculated metrics as first-class sections; aa already has
-  `--metrics-only` / `--dimensions-only` and the list-actions
-  inspection commands)
+### Quality severity engine
 
-Attempting to pass it returns the standard argparse "unrecognized
-argument" error.
-
-### Quality severity engine (v1.12.0+)
-
-The v1.9.0 naming audits (`--audit-naming`, `--flag-stale`) are now
-severity-tagged and machine-readable. Three new flags promote them
-into a CI gate.
+Naming audits (`--audit-naming`, `--flag-stale`) are severity-tagged and machine-readable; three flags promote them into a CI gate.
 
 | Flag | Effect |
 |------|--------|
@@ -270,23 +218,11 @@ Behavior:
 - **Batch precedence.** `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
   Build failures are more actionable than quality verdicts; users
   fixing partial failures re-run and then see the gate.
-- **Cache.** `quality.run_audits` is the first production caller of
-  the v1.8.0 `ValidationCache`. Cache key includes the severity-table
-  version so v1.12.x mapping changes invalidate.
+- **Cache.** `quality.run_audits` is the production caller of `ValidationCache`. Cache key includes the severity-table version so mapping changes invalidate.
 
-Two cja policy keys are NOT supported and are rejected by the policy
-loader with an explicit `ConfigError`:
+Note on `--max-issues`: there are *two* concepts with the same surface name. The CLI flag `--max-issues N` for `--diff` rendering is real and valid (caps per-component added/removed/modified counts in the rendered diff). The policy-file key `max_issues` (and `allow_partial`) are NOT supported keys in `--quality-policy` files — the loader rejects them with `ConfigError`.
 
-- `--max-issues` / `max_issues` policy key (cja's per-component cap;
-  aa's quality block is compact — promoted v1.9.0 findings only)
-- `--allow-partial` / `allow_partial` policy key (aa already has
-  `PARTIAL_SUCCESS` (14) and `QUALITY` (17) as orthogonal codes)
-
-Note: the unrelated `--max-issues` flag for `--diff` rendering predates
-v1.12.0 and remains valid; only the *policy* key of the same name is
-rejected.
-
-### Drift / trending windows (v1.13.0+)
+### Drift / trending windows
 
 Apply the snapshot comparator across a window of snapshots for one or
 more RSIDs. Reads existing snapshot files only — no AA API contact, no
@@ -297,7 +233,7 @@ exclusive with the rest of the actions group.
 |------|--------|
 | `--trending-window <DURATION>` | Per-RSID time-series of component lifecycle counts plus a derived drift summary. Duration grammar `Nh|Nd|Nw` (e.g. `30d`, `12h`, `4w`). Multi-RSID supported via positionals. |
 | `--compare-with-prev` | Sugar over `--diff <RSID>@previous <RSID>@latest`. Multi-RSID loops; worst exit code wins. Reuses the diff resolver, output formats, and flag set. |
-| `--snapshot-dir <PATH>` | Override the active profile's snapshot directory. Composes with `--trending-window`; other snapshot-aware actions still resolve from `--profile` only in v1.13.0. |
+| `--snapshot-dir <PATH>` | Override the active profile's snapshot directory. Composes with `--trending-window`; other snapshot-aware actions still resolve from `--profile` only. |
 
 Examples:
 
@@ -333,20 +269,11 @@ Behavior:
   for all RSIDs → `NOT_FOUND` (13).
 - Window upper bound is "now at compute time," not "the most recent
   snapshot's timestamp."
-- Suppressed component sections (degraded / partial fetches) contribute
-  zeros to drift counts so degraded snapshots don't inflate scores.
+- Suppressed component sections (degraded / partial fetches) contribute zeros to drift counts so degraded snapshots don't inflate scores.
 
-Roadmap deviation (dropped):
+Drift in `aa_auto_sdr` is per-RSID lifecycle churn and is always included in `--trending-window` output; no separate opt-in flag is needed.
 
-- **`--include-drift` is rejected.** cja's `--include-drift` is a
-  cross-data-view org-report toggle; aa has no org-report. Drift in aa
-  is per-RSID lifecycle churn, computed from the existing comparator
-  and always included in `--trending-window` output. The flag would
-  either duplicate that output or invent an aa-specific score gated
-  behind redundant opt-in. Argparse rejects it with the standard
-  unrecognized-argument error.
-
-### Watch mode (v1.14.0)
+### Watch mode
 
 `aa_auto_sdr <RSID>... --watch --interval <duration>` enters a foreground
 monitoring loop. Each cycle: fetch the report suite, save a snapshot, diff
@@ -449,6 +376,7 @@ uv run aa_auto_sdr <RSID> --dry-run
 | `14` | Batch ran with mixed success and failure                    | Flag for review; consume per-RSID summary          |
 | `15` | Output writer failure (filesystem / format mismatch / mutex)| Abort; check `--output-dir` perms, `--output -` mutex with `--run-summary-json -` |
 | `16` | Snapshot resolve / schema / git failure                     | Abort; verify snapshot path / git ref              |
+| `17` | Quality gate breached: `--fail-on-quality` threshold exceeded | SDR + snapshot still emitted; consume `quality.summary` from output |
 | `130`| KeyboardInterrupt (SIGINT)                                  | Treat as cancelled; retry if appropriate           |
 
 Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE` for runtime lookup.
@@ -493,16 +421,9 @@ stalls scale similarly because urllib3 honors `Retry-After` and exponential
 backoff. Tune `--max-retries` deliberately for unattended runs where total
 budget matters.
 
-**VRS doubles this budget.** `fetch_virtual_report_suites` runs the v1.7.0
-reduced-expansion ladder as two sequential retry rungs (full → minimal),
-and each rung consumes the full `--max-retries` budget independently.
-So VRS worst case is `2 × (urllib3_retries + 1) × (--max-retries + 1)` —
-up to **32 requests** at default, **56** at `--max-retries 6`. Other
-fetchers (dimensions / metrics / segments / calculated metrics /
-classifications / report-suite / VRS-summary discovery) use the
-single-rung formula above.
+**VRS doubles this budget.** `fetch_virtual_report_suites` runs the reduced-expansion ladder as two sequential retry rungs (full → minimal), and each rung consumes the full `--max-retries` budget independently. So VRS worst case is `2 × (urllib3_retries + 1) × (--max-retries + 1)` — up to **32 requests** at default, **56** at `--max-retries 6`. Other fetchers (dimensions / metrics / segments / calculated metrics / classifications / report-suite / VRS-summary discovery) use the single-rung formula above.
 
-### `fetch_status` field on inspect/stats JSON output (v1.7.2+)
+### `fetch_status` field on inspect/stats JSON output
 
 `--describe-reportsuite` and `--stats` JSON output gains an optional
 per-record `fetch_status` field that mirrors the snapshot envelope's
@@ -536,32 +457,23 @@ stderr banner.
 
 ## VRS Reduced Expansion
 
-When Adobe's `/reportsuites/virtualreportsuites` endpoint fails on the full
-expansion request (after the configured retry budget exhausts), `aa_auto_sdr`
-v1.7.0+ falls back to a minimal-expansion call (`extended_info=False`) so the
-SDR still gets a partial VRS list. The structured `expansion_level` field on
-the `component_fetch` INFO record carries `full` / `minimal` / `exhausted` so
-operators can spot when an org is hitting the fallback. A separate
-`vrs_expansion_fallback` WARNING fires for the minimal/exhausted paths.
+When Adobe's `/reportsuites/virtualreportsuites` endpoint fails on the full expansion request (after the configured retry budget exhausts), `aa_auto_sdr` falls back to a minimal-expansion call (`extended_info=False`) so the SDR still gets a partial VRS list. The structured `expansion_level` field on the `component_fetch` INFO record carries `full` / `minimal` / `exhausted` so operators can spot when an org is hitting the fallback. A separate `vrs_expansion_fallback` WARNING fires for the minimal/exhausted paths.
 
-**Snapshot caveat — closed in v1.7.1.** Snapshots taken at
-`expansion_level=minimal` (and degraded-fetch snapshots) now carry
-`partial_components` / `degraded_components` markers in the envelope; the
-diff comparator suppresses sections with mismatched fetch quality rather
-than rendering false-modified VRS rows. Pre-v1.7.1 (`v1` schema) snapshots
-load forward-compat as if all components were healthy.
+**Snapshot signalling.** Snapshots taken at `expansion_level=minimal` (and degraded-fetch snapshots) carry `partial_components` / `degraded_components` markers in the envelope; the diff comparator suppresses sections with mismatched fetch quality rather than rendering false-modified VRS rows. Pre-`v2` snapshots load forward-compat as if all components were healthy.
 
-**Envelope keys for agent introspection.** v2 snapshots carry two
-fetch-status keys directly accessible via `jq`:
+**Envelope keys for agent introspection.** Current (`v4`) snapshots
+carry two fetch-status keys directly accessible via `jq`:
 
 - `.degraded_components` — list of component-type names whose fetch
   returned no data (e.g., `["classifications"]`).
 - `.partial_components` — dict mapping component-type name to expansion
   level (e.g., `{"virtual_report_suites": "minimal"}`).
 
-Both keys are always present in v2 envelopes (empty `[]` / `{}` when
-nothing is degraded). v1 envelopes (taken under v1.7.0 or earlier) lack
-these keys; the loader fills them in-memory at load time.
+Both keys are always present (empty `[]` / `{}` when nothing is
+degraded). Pre-`v2` snapshots lack these keys; the loader fills them
+in-memory at load time. The `v4` envelope additionally carries a
+`quality` block (`issues`, `summary`) — empty when the quality engine
+was not run.
 
 ---
 

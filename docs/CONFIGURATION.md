@@ -29,7 +29,7 @@ additional_info.projectedProductContext
 
 #### Recommended (broader endpoint coverage)
 
-Add either or both if your org's IMS rules require them for the endpoints this tool calls — they're commonly included in Adobe OAuth Server-to-Server integrations, but neither was empirically required for the v1.0.0 read surface:
+Add either or both if your org's IMS rules require them for the endpoints this tool calls — they're commonly included in Adobe OAuth Server-to-Server integrations, but neither is empirically required for the current read surface:
 
 ```
 read_organizations
@@ -169,113 +169,22 @@ uv run aa_auto_sdr --list-reportsuites --profile client-b
 
 Profiles are isolated under `~/.aa/orgs/<name>/`. Snapshot files are also profile-scoped: `~/.aa/orgs/<name>/snapshots/<RSID>/<ts>.json`.
 
-## Logging (v1.3.0)
+## Logging
 
-Every non-fast-path invocation writes a per-run log file under `./logs/` (relative to the working directory). Fast-path entries (`--version`, `--help`, `--exit-codes`, `--explain-exit-code`, `--completion`) skip logging — they exit too quickly to be worth recording.
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` | `INFO` (or `LOG_LEVEL` env var) | Sets root logger level. |
-| `--log-format {text,json}` | `text` | Output format for both console and file. `json` emits NDJSON (one JSON object per line) — Splunk / ELK / CloudWatch / Datadog ingest it directly. |
-| `--quiet` / `-q` | off | Suppresses INFO-level console output (banners, progress). Errors and final result paths still print. **The log file is unaffected** — full records still land on disk. Designed for CI: `aa_auto_sdr <RSID> --quiet` gives clean stdout for piping; if a run fails, the log file has the trail. |
-
-**Log file naming** (timestamp is UTC `YYYYMMDD_HHMMSS`, file rotated at 10 MB / 5 backups):
-
-| Run mode | Filename pattern |
-|----------|------------------|
-| single generate | `logs/SDR_Generation_<RSID>_<UTC_TS>.log` |
-| batch generate | `logs/SDR_Batch_Generation_<UTC_TS>.log` |
-| diff | `logs/SDR_Diff_<UTC_TS>.log` |
-| everything else | `logs/SDR_Run_<UTC_TS>.log` |
-
-**Redaction** — the following patterns are scrubbed from records before they reach disk (case-insensitive):
-
-- `Bearer <token>` → `Bearer [REDACTED]`
-- `Authorization: <value>` → `Authorization: [REDACTED]` (full header value, not just the scheme)
-- `client_secret=<value>` → `client_secret=[REDACTED]`
-- `access_token=<value>` → `access_token=[REDACTED]`
-- `extra={"client_secret": "..."}` and other known sensitive keys are also redacted in JSON output.
-
-**Scoped to OAuth Server-to-Server.** The redaction patterns cover the credential shapes that actually appear on the OAuth S2S wire — `Bearer` headers, the `Authorization:` line, and `client_secret`/`access_token` form/query values. Patterns for `id_token`, `refresh_token`, and `jwt_token` are deliberately not included: OAuth S2S responses do not emit them, JWT auth is sunset, and `CLAUDE.md` mandates OAuth S2S as the only supported path. If a future Adobe API change adds new shapes, extend `_REDACTION_PATTERNS` in `src/aa_auto_sdr/core/logging.py`.
-
-**`logs/` is git-ignored.** Treat as ephemeral run artifacts.
-
-### Reading the log file (v1.4.0)
-
-Beyond the v1.3 startup banner, v1.4 emits the following events at INFO/ERROR
-from four core modules. See [`LOGGING_STYLE.md`](LOGGING_STYLE.md) for the
-binding contract.
-
-| Event | Level | Source | Meaning |
-|---|---|---|---|
-| `run_start` | INFO | `cli/main.py` | Top-level invocation begins. Carries `run_mode`, `argv_summary`. |
-| `run_complete` | INFO | `cli/main.py` | Top-level invocation succeeded. Carries `exit_code`, `duration_ms`. |
-| `run_failure` | ERROR | `cli/main.py` | Top-level exception escaped command dispatch. Carries `exit_code`, `error_class`. |
-| `rsid_start` | INFO | `pipeline/batch.py` | Per-RSID processing begins. Carries `rsid`, `batch_id`. |
-| `rsid_complete` | INFO | `pipeline/batch.py` | Per-RSID processing succeeded. Carries `rsid`, `batch_id`, `duration_ms`, `count`. |
-| `rsid_failure` | ERROR | `pipeline/batch.py` | Per-RSID processing failed (continue-on-error swallowed it). Carries `rsid`, `batch_id`, `exit_code`, `error_class`. |
-| `auth_failure` | ERROR | `api/client.py` | Credentials bootstrap failed. Carries `error_class`, `reason`. |
-| `snapshot_save` | INFO | `snapshot/store.py` | Snapshot persisted to disk. Carries `snapshot_id`, `rsid`, `output_path`, `count`, `duration_ms`. |
-| `component_fetch` | INFO | `api/fetch.py` | Per-component AA fetch returned. Carries `rsid`, `component_type` (one of: dimension/metric/segment/calculated_metric/virtual_report_suite/classification), `count`, `duration_ms`. **New in v1.5.** |
-| `output_write` | INFO | `output/writers/*` | Output file written. Carries `format` (one of: excel/csv/json/html/markdown), `output_path`, `count` (1 for excel/json/html/markdown, 7 for csv), `duration_ms`, `rsid`. **New in v1.5.** |
-
-### Per-RSID instrumentation (v1.5.0)
-
-Each RSID processed in a single or batch run emits **per-component fetch records** and **output write records** in the log file.
-
-**Component fetch records** trace each AA API fetch:
-```
-2026-05-06 12:34:56 - aa_auto_sdr.api.fetch - INFO - component_fetch rsid=demo.prod component_type=dimension count=42 duration_ms=180
-2026-05-06 12:34:57 - aa_auto_sdr.api.fetch - INFO - component_fetch rsid=demo.prod component_type=metric count=15 duration_ms=125
-```
-
-Six records per RSID, one per component type. Use these to triage where time is spent or which fetch failed:
-```
-grep "component_fetch" logs/SDR_*.log | wc -l   # should be 6 × N RSIDs
-grep "component_fetch" logs/SDR_*.log | grep duration_ms=$(seq -s'\|' 1000 5000)   # find slow fetches
-```
-
-**Output write records** trace each format file written:
-```
-2026-05-06 12:35:01 - aa_auto_sdr.output.writers.excel - INFO - output_write format=excel output_path=output/demo.prod.xlsx count=1 duration_ms=820
-2026-05-06 12:35:02 - aa_auto_sdr.output.writers.csv - INFO - output_write format=csv output_path=output/demo.prod_summary.csv count=7 duration_ms=140
-```
-
-CSV emits ONE record with `count=7` (the writer produces a summary file plus six per-component files); other formats emit `count=1`. To verify the run wrote everything expected:
-```
-grep "output_write" logs/SDR_*.log
-```
-
-### Reading credential resolution (v1.5.0)
-
-Every non-fast-path invocation logs which credentials source resolved:
-
-```
-2026-05-06 12:34:55 - aa_auto_sdr.core.credentials - INFO - creds_resolved source=env
-```
-
-The four `creds_source` values are:
-- `profile:<name>` — a named profile under `~/.aa/orgs/<name>/`
-- `env` — environment variables (`ORG_ID`, `CLIENT_ID`, `SECRET`, `SCOPES`)
-- `.env` — a `.env` file in the working directory
-- `config.json` — a `config.json` file in the working directory
-
-Each command also emits a lifecycle pair:
-```
-2026-05-06 12:34:55 - aa_auto_sdr.cli.commands.generate - INFO - command_start command=generate
-[... fetches and writes ...]
-2026-05-06 12:35:02 - aa_auto_sdr.cli.commands.generate - INFO - command_complete command=generate exit_code=0 duration_ms=7400
-```
-
-Use these to triage which command path was dispatched and how long the work took.
+Logging is documented in [`LOGGING.md`](LOGGING.md): flags (`--log-level`, `--log-format`, `--quiet`), file naming, redaction, the canonical events the log file emits, and how to read credential resolution from the log. The internal logger-call contract lives in [`LOGGING_STYLE.md`](LOGGING_STYLE.md).
 
 ## Diagnostics
 
-```bash
-uv run aa_auto_sdr --show-config
-```
-
-Prints which credential source resolved, the truncated client_id (no secret exposure).
+| Command | Purpose |
+|---|---|
+| `aa_auto_sdr --show-config` | Print which credential source resolved (truncated `client_id`, no secret exposure). |
+| `aa_auto_sdr --config-status` | Full credential resolution chain — which sources are present, which one won, and why. |
+| `aa_auto_sdr --validate-config` | Validate the resolved credential shape locally. Does not contact Adobe. |
+| `aa_auto_sdr --sample-config` | Emit a `config.json` template to stdout. |
+| `aa_auto_sdr --profile-list` | List profiles under `~/.aa/orgs/`. |
+| `aa_auto_sdr --profile-show <NAME>` | Show a profile's fields with secrets masked. |
+| `aa_auto_sdr --profile-test <NAME>` | Live test: OAuth + `getCompanyId()`. Prints PASS / FAIL. |
+| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a named profile. Use `--profile-overwrite` to replace. |
 
 ## Common failure modes
 
@@ -293,5 +202,6 @@ For full per-code remediation, run `aa_auto_sdr --explain-exit-code <CODE>`.
 
 - [`QUICKSTART.md`](QUICKSTART.md) — the 5-step onboarding flow
 - [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — every flag with examples
+- [`LOGGING.md`](LOGGING.md) — log output, events, redaction
 - [Adobe I/O Console](https://developer.adobe.com/console) — credential setup
 - [`aanalytics2` SDK getting-started](https://github.com/pitchmuc/adobe-analytics-api-2.0/blob/master/docs/getting_started.md) — underlying SDK auth flow

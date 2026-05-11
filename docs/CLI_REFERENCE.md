@@ -1,6 +1,59 @@
 # CLI Reference
 
-Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md).
+Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md). For the agent-mode contract see [`AGENTS.md`](../AGENTS.md). The full source of truth for exit codes is `src/aa_auto_sdr/core/exit_codes.py` (consumed by `aa_auto_sdr --exit-codes`).
+
+## Quick navigation
+
+- [Common options](#common-options) — global flags
+- [Exit codes](#exit-codes) — table + lookup commands
+- [Generation](#generation) — single, auto-batch, `--batch`, modifiers
+- [Discovery and inspection](#discovery-and-inspection) — list / describe / stats / interactive
+- [Snapshot](#snapshot) — capture, auto-snapshot, prune, list
+- [Diff](#diff) — snapshot comparison, modifiers, polish
+- [Trending and drift](#trending-and-drift)
+- [Watch and scheduled](#watch-and-scheduled)
+- [Quality severity engine](#quality-severity-engine)
+- [Inventory and stats](#inventory-and-stats)
+- [Batch tuning](#batch-tuning) — workers, sampling
+- [Validation cache](#validation-cache)
+- [Resilience](#resilience) — retries
+- [Profile and config](#profile-and-config)
+- [Logging and observability](#logging-and-observability)
+- [Machine-readable errors](#machine-readable-errors)
+- [Fast-path actions](#fast-path-actions)
+
+## Common options
+
+| Flag | Applies to | Behavior |
+|----|----|----|
+| `--format FMT` | generate, list/inspect, diff | Per-action allowlist (excel/csv/json/html/markdown plus aliases all/reports/data/ci for generate; json/csv for list/inspect; console/json/markdown/pr-comment for diff). |
+| `--output PATH \| -` | list/inspect, diff, generate JSON pipe | File path, or `-` for stdout pipe (where supported). |
+| `--output-dir DIR` | generate, batch | Output directory for SDR file(s). Default: cwd. |
+| `--filter STR` | list/inspect | Case-insensitive substring on `name`. |
+| `--exclude STR` | list/inspect | Case-insensitive substring exclusion on `name`. |
+| `--sort FIELD` | list/inspect | Sort by allowlisted field per command. |
+| `--limit N` | list/inspect | Cap output to N records. |
+| `--profile NAME` | all (when needed) | Use named profile for credentials. Required for `<rsid>@<spec>` diff tokens and `--snapshot`. |
+| `--yes` / `-y` | destructive actions | Skip confirmation prompts. Non-tty stdin refuses to prompt and aborts safely without `--yes`. |
+
+## Exit codes
+
+Source of truth: `src/aa_auto_sdr/core/exit_codes.py`. Run `aa_auto_sdr --exit-codes` for the one-line table or `aa_auto_sdr --explain-exit-code CODE` for full remediation.
+
+| Code | Meaning |
+|----|----|
+| 0 | Success |
+| 1 | Generic error |
+| 2 | Argument / usage error (argparse) |
+| 3 | Diff `--warn-threshold` exceeded (diff itself ran successfully) |
+| 10 | Bad config or missing credentials |
+| 11 | Adobe OAuth Server-to-Server failure |
+| 12 | Adobe Analytics API request failed |
+| 13 | Report suite or other resource not found |
+| 14 | `--batch` partial success — some ok, some failed |
+| 15 | Output writer failure |
+| 16 | Snapshot resolve / schema / git failure |
+| 17 | Quality gate breached: `--fail-on-quality` threshold exceeded |
 
 ## Generation
 
@@ -15,20 +68,15 @@ uv run aa_auto_sdr "Adobe Store" --format json --output-dir /tmp/sdr
 
 Default format: Excel. Output filename keys off the canonical RSID.
 
-Exit codes: `0` (success), `10` (config), `11` (auth), `12` (api), `13` (rs not found), `15` (output error).
+Exit codes: `0`, `10`, `11`, `12`, `13`, `15`, `17` (when `--fail-on-quality` is set).
 
-### `aa_auto_sdr <RSID...> [<NAME>...]` — auto-batch (v1.1)
+### `aa_auto_sdr <RSID...> [<NAME>...]` — auto-batch
 
 Pass two or more identifiers and the tool automatically routes to batch mode — no `--batch` flag needed. **RSIDs and names may be mixed freely** in a single invocation; per-RSID name resolution happens inside the batch loop.
 
 ```bash
-# Three RSIDs
 uv run aa_auto_sdr rs1 rs2 rs3 --output-dir /tmp/sdr
-
-# Mixed RSIDs and names
 uv run aa_auto_sdr dgeo1xxpnwcidadobestore "Adobe Store" demo.prod --format json
-
-# Auto-batch + auto-snapshot
 uv run aa_auto_sdr rs1 "Adobe Store" --profile prod --auto-snapshot --auto-prune --keep-last 5
 ```
 
@@ -36,29 +84,34 @@ uv run aa_auto_sdr rs1 "Adobe Store" --profile prod --auto-snapshot --auto-prune
 
 ### `aa_auto_sdr --batch RSID1 RSID2 ...`
 
-Original v0.5 form — kept for backward compatibility. Sequential generation across multiple report suites. Continue-on-error: a per-RSID failure does not stop the rest. After the run, a CJA-style summary banner prints counts, success rate, total bytes/duration, and per-RSID ✓/✗ rows.
+Explicit batch form. Equivalent to auto-batch above. Sequential by default; with `--workers N` (see [Batch tuning](#batch-tuning)) workers run in parallel. Continue-on-error: a per-RSID failure does not stop the rest. After the run, a CJA-style summary banner prints counts, success rate, total bytes/duration, and per-RSID ✓/✗ rows.
 
 ```bash
 uv run aa_auto_sdr --batch RS1 RS2 RS3 --format json --output-dir /tmp/sdr
 ```
 
-Mutually exclusive with positional RSIDs (use one form or the other; mixing them returns exit 2). `--output -` is rejected (multiple SDRs cannot share one stream → exit 15).
+Mutually exclusive with positional RSIDs. `--output -` is rejected.
 
-Exit codes: `0`, `14` (partial — some succeeded, some failed), or the last failure's exit code if all failed.
+Exit codes: `0`, `14` (partial), `17` (quality gate, if `--fail-on-quality` is set), or the last failure's exit code if all failed.
 
-## Discovery
+### Generation modifiers
 
-### `aa_auto_sdr --list-reportsuites`
+| Flag | Behavior |
+|---|---|
+| `--metrics-only` / `--dimensions-only` (mutex) | Slim the SDR by skipping API calls for excluded component types. Cannot be combined with `--snapshot` / `--auto-snapshot` (filtered snapshots produce misleading diffs → exit 2). |
+| `--dry-run` | Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then print what would be written without doing the heavy component fetch or any file writes. |
+| `--open` | After successful generation, open the first output file (single) or output dir (batch) in the OS default app. Best-effort; silently skips on headless. |
 
-List every report suite visible to the org's credentials.
+```bash
+aa_auto_sdr <RSID> --metrics-only --format json --output-dir /tmp/metrics-only
+aa_auto_sdr <RSID> --dry-run --auto-snapshot --profile prod
+```
 
-### `aa_auto_sdr --list-virtual-reportsuites`
+## Discovery and inspection
 
-Same shape, for virtual report suites.
+### `aa_auto_sdr --list-reportsuites` / `--list-virtual-reportsuites`
 
-Both accept `--filter STR`, `--exclude STR`, `--sort FIELD`, `--limit N`, `--format json|csv` (default: fixed-width table to stdout), `--output PATH|-`.
-
-## Inspection
+List every (virtual) report suite visible to the org's credentials. Both accept `--filter STR`, `--exclude STR`, `--sort FIELD`, `--limit N`, `--format json|csv` (default: fixed-width table to stdout), `--output PATH|-`.
 
 ### `aa_auto_sdr --describe-reportsuite <RSID-or-name>`
 
@@ -66,13 +119,74 @@ Print metadata + per-component counts (no full SDR built).
 
 ### `aa_auto_sdr --list-{metrics,dimensions,segments,calculated-metrics,classification-datasets} <RSID>`
 
-Lists one component type for one RS. Same options as discovery: `--filter`, `--exclude`, `--sort`, `--limit`, `--format`, `--output`.
+Lists one component type for one RS. Same options as discovery.
 
 ```bash
 uv run aa_auto_sdr --list-metrics demo.prod --filter page --sort name --limit 10
 ```
 
-## Diff (snapshot comparison)
+### `aa_auto_sdr --stats [<RSID>...]`
+
+Quick component counts per RSID — no full SDR build, no metadata. Lighter than `--describe-reportsuite`. With no positional args, lists every visible report suite.
+
+- `--format table` (default): `RSID  NAME  DIM  MET  SEG  CALC  VRS  CLS`
+- `--format json`: `[{"rsid", "name", "counts": {...}}, ...]`
+
+### `aa_auto_sdr --interactive`
+
+Print a numbered menu of visible report suites to stderr, prompt for selection by index or `all` on stdin, emit the chosen RSID(s) to stdout. Designed for shell composition:
+
+```bash
+RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot
+```
+
+Exit 130 on Ctrl-C. Exit 2 (USAGE) on out-of-range index.
+
+## Snapshot
+
+For deeper coverage of snapshot semantics, file format, retention, and the diff resolver see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md).
+
+### `<RSID> --snapshot --profile <name>`
+
+Persist the built SDR to `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json` alongside the format outputs. Requires `--profile`. Works on `<RSID>` and `--batch`.
+
+`--snapshot --output -` works — the snapshot is an out-of-band side effect.
+
+### `<RSID> --auto-snapshot --profile <name>`
+
+Like `--snapshot` but designed to be set as a default for every run. Combines with `--snapshot` to a single save (no double-write). Requires `--profile`.
+
+### `<RSID> --auto-prune --keep-last N | --keep-since DURATION`
+
+After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires `--profile` and exactly one of `--keep-last` or `--keep-since`. Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set.
+
+- `--keep-last N` — keep the N most recent snapshots **per RSID**.
+- `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10.
+
+```bash
+uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot --auto-prune --keep-last 5
+uv run aa_auto_sdr --batch RS1 RS2 --profile prod --auto-snapshot --auto-prune --keep-since 30d
+```
+
+### `aa_auto_sdr --list-snapshots [<RSID>] --profile <name>`
+
+List snapshots in the profile's snapshot dir. Optional positional `<RSID>` narrows to one suite.
+
+- `--format table` (default): fixed-width columns `RSID`, `CAPTURED_AT`, `PATH`.
+- `--format json`: `[{"rsid", "captured_at", "path"}, ...]`. `captured_at` is canonical ISO-8601 (with colons).
+
+### `aa_auto_sdr --prune-snapshots [<RSID>] --keep-last N | --keep-since DURATION --profile <name>`
+
+Apply the retention policy and delete snapshots that fail the keep test. Per-RSID. `--dry-run` previews deletions without unlinking.
+
+```bash
+uv run aa_auto_sdr --prune-snapshots --profile prod --keep-last 10 --dry-run
+uv run aa_auto_sdr --prune-snapshots RS1 --profile prod --keep-since 90d
+```
+
+On non-interactive stdin without `--yes` the command refuses with exit code 2.
+
+## Diff
 
 ### `aa_auto_sdr --diff <a> <b>`
 
@@ -80,7 +194,7 @@ Compute a structured diff between two snapshot envelopes. Each token is one of:
 
 | Token form | Example | Resolution |
 |----|----|----|
-| File path | `./snap-a.json` | Read JSON, validate v1 schema, compare. |
+| File path | `./snap-a.json` | Read JSON, validate schema, compare. |
 | `<rsid>@<timestamp>` | `demo.prod@2026-04-26T17-29-01+00-00` | Look in `~/.aa/orgs/<profile>/snapshots/<rsid>/`. |
 | `<rsid>@latest` | `demo.prod@latest` | Most-recent file in that dir. |
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file. |
@@ -96,313 +210,170 @@ uv run aa_auto_sdr --diff a.json b.json --format json --output -
 uv run aa_auto_sdr --diff git:HEAD~1:snap.json git:HEAD:snap.json
 ```
 
-#### v1.1 diff modifiers
+Exit codes: `0`, `3` (`--warn-threshold` exceeded), `15` (bad format/output combo), `16` (snapshot resolve / schema / git failure).
 
-- `--side-by-side` — render modified-component fields with before/after columns (console). Markdown's existing layout already includes Before/After columns; the flag is a no-op there.
-- `--summary` — collapse output to per-component-type counts only; suppress per-item / per-field detail. Honored by all four diff renderers.
-- `--ignore-fields description,tags` — comma-separated field names to skip during compare. Match is exact at every nesting level (e.g., skips `segments[*].definition.description` too). Filtering happens in the comparator, so the resulting `DiffReport` is clean for piped JSON consumers.
-- `--format pr-comment` — compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub comment limit is 65,536); truncates at the last `</details>` boundary with a banner.
-
-```bash
-uv run aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --summary
-uv run aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | pbcopy
-uv run aa_auto_sdr --diff a.json b.json --ignore-fields description,tags
-```
-
-Exit codes: `0` (diff ran — even if it shows changes), `15` (bad format/output combo), `16` (snapshot resolve / schema / git failure).
-
-## Snapshot
-
-### `<RSID> --snapshot --profile <name>`
-
-Persist the built SDR to `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json` alongside the format outputs. Requires `--profile`. Works on `<RSID>` and `--batch`.
-
-```bash
-uv run aa_auto_sdr <RSID> --profile prod --snapshot
-uv run aa_auto_sdr --batch RS1 RS2 --profile prod --snapshot
-```
-
-`--snapshot --output -` works — the snapshot is an out-of-band side effect.
-
-### `<RSID> --auto-snapshot --profile <name>` (v1.1)
-
-Like `--snapshot` but designed to be set as a default for every run — no need to remember the flag each time. Combines with `--snapshot` to a single save (no double-write). Requires `--profile`.
-
-```bash
-uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot
-uv run aa_auto_sdr --batch RS1 RS2 --profile prod --auto-snapshot
-```
-
-### `<RSID> --auto-prune --keep-last N | --keep-since DURATION` (v1.1)
-
-After auto-saving (or alongside `--prune-snapshots`), apply a retention policy and delete older snapshots per RSID. Requires `--profile` and exactly one of `--keep-last` or `--keep-since`. Currently a silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set — wire either to make pruning actually run.
-
-- `--keep-last N` — keep the N most recent snapshots **per RSID** (delete the rest).
-- `--keep-since DURATION` — keep snapshots newer than DURATION. Format: `<int><h|d|w>` (e.g., `30d`, `12h`, `4w`). Bad format → exit 10.
-
-```bash
-uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot --auto-prune --keep-last 5
-uv run aa_auto_sdr --batch RS1 RS2 --profile prod --auto-snapshot --auto-prune --keep-since 30d
-```
-
-### `aa_auto_sdr --list-snapshots [<RSID>] --profile <name>` (v1.1)
-
-List snapshots in the profile's snapshot dir. Optional positional `<RSID>` narrows to one suite.
-
-- `--format table` (default): fixed-width columns `RSID`, `CAPTURED_AT`, `PATH`.
-- `--format json`: `[{"rsid", "captured_at", "path"}, ...]`. `captured_at` is canonical ISO-8601 (with colons), suitable for `jq` / `datetime.fromisoformat`.
-
-```bash
-uv run aa_auto_sdr --list-snapshots --profile prod
-uv run aa_auto_sdr --list-snapshots RS1 --profile prod --format json | jq '.[].captured_at'
-```
-
-Exit codes: `0`, `10` (no profile or unknown profile), `15` (bad format value).
-
-### `aa_auto_sdr --prune-snapshots [<RSID>] --keep-last N | --keep-since DURATION --profile <name>` (v1.1)
-
-Apply the retention policy and delete snapshots that fail the keep test. Per-RSID — `--keep-last 5` keeps 5 *per RSID*, not 5 total.
-
-- `--dry-run` — list deletions without unlinking.
-
-```bash
-uv run aa_auto_sdr --prune-snapshots --profile prod --keep-last 10 --dry-run
-uv run aa_auto_sdr --prune-snapshots RS1 --profile prod --keep-since 90d
-```
-
-Exit codes: `0`, `10` (no profile / no policy / bad keep-since format).
-
-**v1.2.1 behavior:** on non-interactive stdin without `--yes` the command
-now refuses with exit code 2 (`USAGE`), not exit 0. Pass `--yes`,
-pipe `yes |`, or run from a tty.
-
-## Profile / config
-
-### `aa_auto_sdr --profile-add <name>`
-
-Interactive prompt; writes `~/.aa/orgs/<name>/config.json`.
-
-### `aa_auto_sdr --profile <name>`
-
-Use a named profile for credentials.
-
-### `aa_auto_sdr --profile-list` (v1.1)
-
-List profile names in `~/.aa/orgs/`. `--format json` for scripts.
-
-### `aa_auto_sdr --profile-show <NAME>` (v1.1)
-
-Print profile fields with `client_id` masked and `secret` never shown. Includes a count of snapshots stored under that profile. Exit 10 if profile not found.
-
-### `aa_auto_sdr --profile-test <NAME>` (v1.1)
-
-Authenticate the named profile (full OAuth + `getCompanyId()` round trip) and print PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure. Useful for diagnosing scope / Admin Console issues without running a full SDR.
-
-```bash
-uv run aa_auto_sdr --profile-test prod
-# PASS: profile 'prod' authenticated; company_id=...
-```
-
-### `aa_auto_sdr --profile-import <NAME> <FILE>` (v1.1)
-
-Import a JSON file (with `org_id`, `client_id`, `secret`, `scopes` fields) as a new profile. Exit 10 on missing file, bad JSON, or missing required fields.
-
-**Breaking change in v1.2:** errors with exit 10 if the profile already exists. Pass `--profile-overwrite` to allow replacement.
-
-### `aa_auto_sdr --show-config`
-
-Show which credential source resolved (env / profile / .env / config.json) without exposing secrets.
-
-### `aa_auto_sdr --config-status` (v1.2)
-
-Print the full credential resolution chain — every source checked, which one matched. More verbose than `--show-config`. Useful for debugging why a profile isn't being picked up.
-
-```text
-Resolution chain (highest precedence first):
-  1. --profile=prod              ✓ MATCHED
-  2. env vars                     ⊘ skipped
-  3. .env (cwd)                   ⊘ skipped
-  4. config.json (cwd)            ⊘ skipped
-
-Resolved values (sensitive fields masked):
-  org_id:    abc@AdobeOrg
-  client_id: 1234…5678
-  ...
-```
-
-### `aa_auto_sdr --validate-config` (v1.2)
-
-Resolve credentials and validate shape **without** calling Adobe. Fast pre-flight check. Exit 0 on valid shape, exit 10 on missing fields or malformed `org_id` (must end with `@AdobeOrg`).
-
-### `aa_auto_sdr --sample-config` (v1.2)
-
-Emit a `config.json` template to stdout. Pipe to a file:
-
-```bash
-aa_auto_sdr --sample-config > config.json
-```
-
-## Discovery & UX (v1.2)
-
-### `aa_auto_sdr --stats [<RSID>...]` (v1.2)
-
-Quick component counts per RSID — no full SDR build, no metadata. Lighter than `--describe-reportsuite`. With no positional args, lists every visible report suite.
-
-- `--format table` (default): `RSID  NAME  DIM  MET  SEG  CALC  VRS  CLS`
-- `--format json`: `[{"rsid", "name", "counts": {...}}, ...]`
-
-### `aa_auto_sdr --interactive` (v1.2)
-
-Print a numbered menu of visible report suites to stderr, prompt for selection by index or `all` on stdin, emit the chosen RSID(s) to stdout. Designed for shell composition:
-
-```bash
-RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot
-```
-
-Exit 130 on Ctrl-C. Exit 2 (USAGE) on out-of-range index.
-
-## Diff polish (v1.2)
-
-These flags refine the existing `--diff` output without changing its core behavior. They compose with v1.1's `--side-by-side`, `--summary`, `--ignore-fields`.
+### Diff modifiers
 
 | Flag | Behavior |
-|------|----------|
-| `--quiet-diff` | Suppress unchanged trailers; show only changed sections (console + markdown) |
-| `--diff-labels A=… B=…` | Override "Source" / "Target" labels in renderer output |
-| `--reverse-diff` | Swap a and b before compare |
+|---|---|
+| `--side-by-side` | Render modified-component fields with before/after columns (console). Markdown's existing layout already includes Before/After columns. |
+| `--summary` | Collapse output to per-component-type counts; suppress per-item / per-field detail. |
+| `--ignore-fields description,tags` | Comma-separated field names to skip during compare. Match is exact at every nesting level. Filtering happens in the comparator, so the resulting `DiffReport` is clean for piped JSON consumers. |
+| `--extended-fields` | Include extended fields (description, tags, category, etc.) in comparison. Off by default. |
+| `--quiet-diff` | Suppress unchanged trailers; show only changed sections. |
+| `--diff-labels A=… B=…` | Override "Source" / "Target" labels in renderer output. |
+| `--reverse-diff` | Swap a and b before compare. |
 | `--warn-threshold N` | Exit 3 (`WARN`) if total changes ≥ N. Diff itself still runs. |
-| `--changes-only` | In rendered output, drop component types with no changes |
-| `--show-only TYPES` | Restrict diff output to listed types (CSV: `metrics,dimensions`) |
-| `--max-issues N` | Cap each component's added/removed/modified to N items in render |
+| `--changes-only` | In rendered output, drop component types with no changes. |
+| `--show-only TYPES` | Restrict diff output to listed types (CSV: `metrics,dimensions`). |
+| `--max-issues N` | Cap each component's added/removed/modified to N items in render. |
+| `--color-theme {default,accessible}` | Diff color palette. |
 
 ```bash
-aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --quiet-diff --warn-threshold 10
-aa_auto_sdr --diff a.json b.json --diff-labels "A=baseline" "B=candidate"
+aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --summary
+aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | pbcopy
+aa_auto_sdr --diff a.json b.json --ignore-fields description,tags --warn-threshold 10
 aa_auto_sdr --diff a.json b.json --show-only metrics --max-issues 20
 ```
 
-**`$GITHUB_STEP_SUMMARY` (v1.2):** when the env var is set (GitHub Actions does this automatically per job), every `--diff` invocation also appends a markdown render to that file. No flag needed; uses the full unfiltered report.
+**`$GITHUB_STEP_SUMMARY`:** when the env var is set (GitHub Actions does this automatically per job), every `--diff` invocation also appends a markdown render to that file. No flag needed; uses the full unfiltered report.
 
-## Generation modifiers (v1.2)
+## Trending and drift
 
-### `<RSID> --metrics-only` / `--dimensions-only` (mutex)
+For deeper coverage see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md).
 
-Slim the SDR by skipping the API calls for excluded component types. Real perf win for large RSes.
-
-```bash
-aa_auto_sdr <RSID> --metrics-only --format json --output-dir /tmp/metrics-only
-```
-
-`--metrics-only` and `--dimensions-only` are mutually exclusive. These flags **cannot** be combined with `--snapshot` or `--auto-snapshot` (filtered snapshots produce misleading diffs against full ones — exit 2).
-
-### `<RSID> --dry-run` / `--batch RS1 RS2 --dry-run` (v1.2)
-
-Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then **print what would be written** without doing the heavy component fetch or any file writes. Auth still validates so the user knows the run would succeed.
-
-```bash
-aa_auto_sdr <RSID> --dry-run --auto-snapshot --profile prod
-# DRY RUN — would generate:
-#   demo.prod.xlsx
-#   ~/.aa/orgs/prod/snapshots/demo.prod/2026-04-27T...json
-# (no files were written; remove --dry-run to execute)
-```
-
-### `<RSID> --open` (v1.2)
-
-After successful generation, open the first output file (single) or output dir (batch) in the OS default app. Best-effort — silently skips on headless / no-display environments.
-
-### `--yes` / `-y` (v1.2)
-
-Skip confirmation prompts on destructive actions. Currently only `--prune-snapshots` (without `--dry-run`) prompts. Non-tty stdin (CI / pipes) refuses to prompt and aborts safely without `--yes`.
-
-## Observability (v1.2.1)
-
-### `--show-timings`
-
-Print a per-stage timings block to stderr at end of a `<RSID>` or `--batch`
-run. Stages: `auth`, `resolve`, per-RSID `build:<rsid>`, per-format
-`write:<fmt>:<rsid>`, optional `snapshot:<rsid>`. Format is fixed-width
-(32-char label, right-aligned `{:.3f}s`, trailing `Total`).
-
-Example:
-
-    uv run aa_auto_sdr demo.prod --show-timings
-
-### `--run-summary-json PATH`
-
-Emit a structured JSON summary of the run to `PATH` (or `-` for stdout).
-Includes `started_at`, `finished_at`, `duration_seconds`, `tool_version`,
-`profile`, per-RSID `rsids` (rsid, name, succeeded, formats, output_paths,
-snapshot_path, error), and `timings` (populated only when `--show-timings`
-is also set; otherwise an empty list).
-
-Use cases: CI artifact, downstream tooling (e.g. PR-comment generators,
-dashboards), audit trail.
-
-Conflict: `--run-summary-json -` combined with `--output -` returns
-`OUTPUT` (15) before any work happens, since both want stdout.
-
-Example:
-
-    uv run aa_auto_sdr --batch demo.prod demo.staging --run-summary-json runs/$(date -u +%Y%m%dT%H%M%SZ).json
-
-## Fast-path actions
-
-These complete in <100ms with no `pandas`/`aanalytics2` import:
-
-### `aa_auto_sdr -V` / `--version`
-Print the version.
-
-### `aa_auto_sdr -h` / `--help`
-Print usage summary.
-
-### `aa_auto_sdr --exit-codes`
-List every exit code with a one-line meaning.
-
-### `aa_auto_sdr --explain-exit-code <CODE>`
-Paragraph-form explanation of one exit code: meaning, likely causes, "What to try".
-
-### `aa_auto_sdr --completion {bash,zsh,fish}`
-Emit a static shell-completion script. Redirect to your shell's completion dir.
-
-```bash
-aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
-```
-
-## Common options
-
-| Flag | Applies to | Behavior |
-|----|----|----|
-| `--format FMT` | generate, list/inspect, diff | Per-action allowlist (excel/csv/json/html/markdown plus aliases all/reports/data/ci for generate; json/csv for list/inspect; console/json/markdown/pr-comment for diff). |
-| `--output PATH \| -` | list/inspect, diff | File path, or `-` for stdout pipe (where supported). |
-| `--output-dir DIR` | generate, batch | Output directory for SDR file(s). Default: cwd. |
-| `--filter STR` | list/inspect | Case-insensitive substring on `name`. |
-| `--exclude STR` | list/inspect | Case-insensitive substring exclusion on `name`. |
-| `--sort FIELD` | list/inspect | Sort by allowlisted field per command. |
-| `--limit N` | list/inspect | Cap output to N records. |
-| `--profile NAME` | all (when needed) | Use named profile for credentials. Required for `<rsid>@<spec>` diff tokens and `--snapshot`. |
-| `--snapshot` | generate, batch | Persist SDR snapshot under the profile's snapshot dir. |
-
-## Exit codes
-
-| Code | Meaning |
+| Flag | Behavior |
 |----|----|
-| 0 | Success |
-| 1 | Generic error |
-| 2 | Argument / usage error (argparse) |
-| 3 | Diff `--warn-threshold` exceeded (diff itself ran successfully; v1.2) |
-| 10 | Bad config or missing credentials |
-| 11 | Adobe OAuth Server-to-Server failure |
-| 12 | Adobe Analytics API request failed |
-| 13 | Report suite or other resource not found |
-| 14 | `--batch` partial success — some ok, some failed |
-| 15 | Output writer failure |
-| 16 | Snapshot resolve / schema / git failure |
-
-For per-code details:
+| `--trending-window DURATION` | Rollup across snapshots in a profile-scoped window (`Nh\|Nd\|Nw`). Reads existing snapshots; no API contact. |
+| `--compare-with-prev` | Sugar for `--diff <RSID>@previous <RSID>@latest --profile <name>`. |
+| `--snapshot-dir PATH` | Override the active profile's snapshot directory for the trending read. |
 
 ```bash
-aa_auto_sdr --explain-exit-code 11
+aa_auto_sdr <RSID> --trending-window 30d --profile prod
+aa_auto_sdr rs1 rs2 rs3 --trending-window 30d --format json --profile prod
+aa_auto_sdr <RSID> --compare-with-prev --profile prod
+```
+
+## Watch and scheduled
+
+```bash
+aa_auto_sdr <RSID> --watch --interval 1h --profile prod
+```
+
+| Flag | Behavior |
+|----|----|
+| `--watch` | Foreground monitoring loop. Each cycle: fetch, snapshot, diff, emit one NDJSON event on stdout (`aa-watch-event/v1`). Event types: `baseline` / `change` / `error`. SIGINT/SIGTERM exit 0. |
+| `--interval Nh\|Nd\|Nw` | Required with `--watch`. |
+| `--watch-threshold N` | Minimum total change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). |
+
+Rejected with `--watch`: `--format`, `--quality-policy`, `--fail-on-quality` (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
+
+## Quality severity engine
+
+Naming audits are severity-tagged and machine-readable. Three flags promote them into a CI gate.
+
+| Flag | Behavior |
+|----|----|
+| `--audit-naming` | Adds a naming-pattern audit block (case-style counts, prefix groupings, recommendations) to the SDR document. |
+| `--flag-stale` | Adds a stale-component block listing components matching stale-keyword / version-suffix / date-pattern regexes. |
+| `--name-match {exact,insensitive,fuzzy}` | Name-resolution strategy (default `insensitive`). |
+| `--quality-report {json,csv}` | Emit a machine-readable quality report alongside the SDR. Default filename `quality_report_<RSID>_<timestamp>.{json,csv}`. |
+| `--quality-policy PATH` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`. CLI flags always win over policy values. Hyphen/underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
+| `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `17` (`QUALITY`) if any issue at or above the threshold exists. The SDR and snapshot still emit normally. |
+
+`--quality-report` or `--fail-on-quality` without `--audit-naming` / `--flag-stale` auto-enables both audits. Quality flags outside SDR generation (`--stats`, the list-actions, `--inventory-summary`, `--diff`) exit `USAGE` (2). In batch, `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
+
+The policy-file key `max_issues` is NOT supported (rejected by the loader with `ConfigError`); the unrelated CLI flag `--max-issues` for `--diff` rendering still exists.
+
+## Inventory and stats
+
+| Flag | Behavior |
+|----|----|
+| `--stats [<RSID>...]` | Quick component counts per RSID. With no positional args, lists every visible report suite. See [Discovery and inspection](#discovery-and-inspection) for full description. |
+| `--inventory-summary` | Cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. Mutex with other actions. Format allowlist: `table`, `json`, `csv`. |
+
+```bash
+aa_auto_sdr --inventory-summary
+aa_auto_sdr rs1 rs2 rs3 --inventory-summary --format csv
+aa_auto_sdr --inventory-summary --format json
+```
+
+## Batch tuning
+
+| Flag | Behavior |
+|----|----|
+| `--workers N` | Parallel batch workers (1..16, default `1`). Implemented via `ThreadPoolExecutor`. JSON log records on parallel runs include `worker_id`. |
+| `--fail-fast` | In parallel batch, cancel pending workers on the first failure (opt-out of continue-on-error default). |
+| `--sample N` | Subset N RSIDs from `--batch` before dispatch. `N >= len(batch)` is a no-op. Requires `--batch`. |
+| `--sample-seed N` | RNG seed for `--sample` (integer; default non-deterministic). |
+| `--sample-stratified` | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group. |
+
+When sampling actually applies, the summary banner prints `Sampled X of Y RSIDs (strategy=random[, seed=N])` and the run emits a `batch_sampled` INFO log record.
+
+## Validation cache
+
+| Flag | Behavior |
+|----|----|
+| `--enable-cache` | Instantiate the validation cache (used by the quality severity engine). |
+| `--clear-cache` | Clear cache state at run start. |
+| `--cache-ttl SECS` | Cache entry TTL (default `3600`). |
+| `--cache-size N` | LRU max entries (default `1000`). |
+
+DEBUG log records emit `cache_event=hit|miss|evict|expire`. Cache keys include the severity-table version so mapping changes invalidate.
+
+## Resilience
+
+For per-RSID API stability under flaky orgs or noisy CI:
+
+| Flag | Behavior |
+|----|----|
+| `--max-retries N` | Retry attempts on transient SDK failures (429 / 5xx, connection timeout). Default `3`. |
+| `--retry-base-delay SECS` | Initial exponential-backoff delay (default `0.5`). |
+| `--retry-max-delay SECS` | Cap between retries (default `10.0`). |
+
+Retries fire only on transient failures; permanent errors (auth, validation, unknown RSID) surface immediately. See [`AGENTS.md`](../AGENTS.md) "Retry Budget" for the worst-case request-count math.
+
+## Profile and config
+
+### Profile management
+
+| Command | Purpose |
+|---|---|
+| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. |
+| `aa_auto_sdr --profile <name> …` | Use a named profile for credentials. |
+| `aa_auto_sdr --profile-list` | List profile names in `~/.aa/orgs/`. `--format json` for scripts. |
+| `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked and `secret` never shown. Includes snapshot count for the profile. Exit 10 if not found. |
+| `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure. |
+| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
+| `aa_auto_sdr --profile-overwrite` | Allow `--profile-import` to overwrite an existing profile. |
+
+### Credential resolution diagnostics
+
+| Command | Purpose |
+|---|---|
+| `aa_auto_sdr --show-config` | Show which credential source resolved (env / profile / .env / config.json) without exposing secrets. |
+| `aa_auto_sdr --config-status` | Print the full credential resolution chain — every source checked, which one matched. Verbose. |
+| `aa_auto_sdr --validate-config` | Resolve and validate credential shape **without** calling Adobe. Exit 0 on valid, 10 on missing fields or malformed `org_id`. |
+| `aa_auto_sdr --sample-config` | Emit a `config.json` template to stdout. |
+
+For the credential resolution model itself, see [`CONFIGURATION.md`](CONFIGURATION.md).
+
+## Logging and observability
+
+For the user-facing logging reference (events, log file naming, redaction), see [`LOGGING.md`](LOGGING.md). For the internal logger-call contract see [`LOGGING_STYLE.md`](LOGGING_STYLE.md).
+
+| Flag | Behavior |
+|----|----|
+| `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` | Default: `INFO` (or `LOG_LEVEL` env var). |
+| `--log-format {text,json}` | Output format for both console and file. `json` emits NDJSON. |
+| `--quiet` / `-q` | Suppress progress banners and INFO console output. Errors and final paths still print. Log file is unaffected. |
+| `--show-timings` | Print a per-stage timings block to stderr at end of run. Stages: `auth`, `resolve`, per-RSID `build:<rsid>`, per-format `write:<fmt>:<rsid>`, optional `snapshot:<rsid>`. |
+| `--run-summary-json PATH \| -` | Emit a structured JSON run summary (started_at, finished_at, duration_seconds, tool_version, profile, per-RSID rsids, timings). Conflict: `--run-summary-json -` with `--output -` returns `OUTPUT` (15). |
+| `--agent-mode` | Agent-friendly preset: defaults to `--format json --output - --log-format json` for options the user did not explicitly pass. `--output -` implies `--quiet`. |
+
+```bash
+uv run aa_auto_sdr <RSID> --log-format json --quiet
+uv run aa_auto_sdr --batch demo.prod demo.staging --run-summary-json runs/$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
 ## Machine-readable errors
@@ -413,4 +384,20 @@ When `--output -` (generate JSON pipe) or `--format json|markdown --output -` (d
 {"error":{"code":11,"type":"AuthError","message":"...","hint":"Verify credentials in Adobe Developer Console."}}
 ```
 
-Stdout stays silent so downstream `jq` etc. sees empty input.
+The envelope is stable; agent consumers can parse it without text matching.
+
+## Fast-path actions
+
+These complete in <100ms with no `pandas` / `aanalytics2` import:
+
+| Command | Purpose |
+|---|---|
+| `aa_auto_sdr -V` / `--version` | Print the version. |
+| `aa_auto_sdr -h` / `--help` | Print usage summary. |
+| `aa_auto_sdr --exit-codes` | List every exit code with a one-line meaning. |
+| `aa_auto_sdr --explain-exit-code <CODE>` | Paragraph explanation: meaning, likely causes, "What to try". |
+| `aa_auto_sdr --completion {bash,zsh,fish}` | Emit a static shell-completion script. Redirect to your shell's completion dir. |
+
+```bash
+aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
+```
