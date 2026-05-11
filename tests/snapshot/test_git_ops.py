@@ -15,6 +15,20 @@ from aa_auto_sdr.snapshot.git import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _git_identity(monkeypatch):
+    """Ensure git commit identity is set without relying on the dev's global config.
+
+    Covers both the ``Initial commit`` inside ``git_init_snapshot_repo`` and any
+    subsequent commits in individual tests. This avoids silent failures on CI
+    where no global user.email/user.name is configured.
+    """
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Test User")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@example.com")
+    monkeypatch.setenv("GIT_COMMITTER_NAME", "Test User")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+
+
 def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     """Test helper: run a git command in cwd, return CompletedProcess."""
     return subprocess.run(
@@ -40,8 +54,6 @@ class TestIsGitRepository:
 
 class TestGitInitSnapshotRepo:
     def test_creates_git_dir_and_initial_commit(self, tmp_path: Path) -> None:
-        _run_git(["config", "--local", "user.email", "test@example.com"], tmp_path)
-        _run_git(["config", "--local", "user.name", "Test User"], tmp_path)
         result = git_init_snapshot_repo(tmp_path)
         assert result.ok is True
         assert result.error_kind is None
@@ -54,8 +66,6 @@ class TestGitInitSnapshotRepo:
 
     def test_idempotent_on_existing_repo(self, tmp_path: Path) -> None:
         # First init.
-        _run_git(["config", "--local", "user.email", "test@example.com"], tmp_path)
-        _run_git(["config", "--local", "user.name", "Test User"], tmp_path)
         git_init_snapshot_repo(tmp_path)
         # Second init: idempotent — returns ok without re-initializing.
         result = git_init_snapshot_repo(tmp_path)
@@ -65,22 +75,16 @@ class TestGitInitSnapshotRepo:
         assert log.stdout.count("\n") == 1  # only the initial commit
 
     def test_sets_commit_gpgsign_false_locally(self, tmp_path: Path) -> None:
-        _run_git(["config", "--local", "user.email", "test@example.com"], tmp_path)
-        _run_git(["config", "--local", "user.name", "Test User"], tmp_path)
         git_init_snapshot_repo(tmp_path)
         config = _run_git(["config", "--local", "commit.gpgsign"], tmp_path)
         assert config.stdout.strip() == "false"
 
     def test_initial_branch_is_main(self, tmp_path: Path) -> None:
-        _run_git(["config", "--local", "user.email", "test@example.com"], tmp_path)
-        _run_git(["config", "--local", "user.name", "Test User"], tmp_path)
         git_init_snapshot_repo(tmp_path)
         branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], tmp_path)
         assert branch.stdout.strip() == "main"
 
     def test_readme_identifies_snapshot_store(self, tmp_path: Path) -> None:
-        _run_git(["config", "--local", "user.email", "test@example.com"], tmp_path)
-        _run_git(["config", "--local", "user.name", "Test User"], tmp_path)
         git_init_snapshot_repo(tmp_path)
         readme = (tmp_path / "README.md").read_text()
         assert "aa_auto_sdr" in readme
