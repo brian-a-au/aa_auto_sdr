@@ -41,6 +41,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `command` | str — dispatch attribute name | Emitted on `command_start` / `command_complete` un-prefixed records from `cli/commands/*`. Values match dispatch attribute names (e.g., `generate`, `batch`, `diff`, `list_metrics`). Vocabulary meta-test enforces presence of *some* `command` extra on cli/commands/*.py INFO records, not a fixed enum. |
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the INFO record from `core/credentials.resolve()` indicating which source matched. |
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
+| `tool_version` | str | The running tool's version. May appear on records that need provenance (e.g. snapshot save). |
 | `agent_mode` | bool | `run_start` / `run_complete` / `run_failure` records — `True` when `--agent-mode` preset was active; `False` otherwise. Lets log-aggregation queries filter by agent-driven runs without joining on `argv_summary`. |
 | `expansion_level` | str — `full`/`minimal`/`exhausted`/`count_only` | VRS-fetch records (`api/fetch.py::fetch_virtual_report_suites`). Records which rung of the two-rung expansion ladder produced the result. See [VRS fetch behavior](#vrs-fetch-behavior) for emission sites. |
 | `pulled` | int | `vrs_parent_filter` DEBUG record. Number of VRS rows the SDK returned before client-side parent filtering. |

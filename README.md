@@ -447,7 +447,7 @@ aa_auto_sdr/
 │       │   └── document.py    # SdrDocument boundary type
 │       └── snapshot/          # version control of SDR
 │           ├── store.py       # save/load + path convention
-│           ├── schema.py      # aa-sdr-snapshot/v1 envelope + validator
+│           ├── schema.py      # aa-sdr-snapshot envelope + validator
 │           ├── resolver.py    # token grammar dispatcher
 │           ├── git.py         # git show wrapper
 │           ├── comparator.py  # diff algorithm + value normalization
