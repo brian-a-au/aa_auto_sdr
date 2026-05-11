@@ -119,7 +119,7 @@ def is_git_repository(path: Path) -> bool:
             cwd=path,
             timeout_s=5,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except FileNotFoundError, subprocess.TimeoutExpired:
         return False
     if result.returncode != 0:
         return False

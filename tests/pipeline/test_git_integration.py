@@ -654,9 +654,7 @@ class TestWatchThresholdGitsCommitGate:
         # Cycle 0 is a baseline → always emits → git commits.
         # Cycle 1 is a 1-change diff suppressed by threshold=5 → no git commit.
         # So git_commit_snapshot must be called exactly ONCE (for the baseline).
-        assert git_mock.call_count == 1, (
-            f"expected 1 git commit (baseline only), got {git_mock.call_count}"
-        )
+        assert git_mock.call_count == 1, f"expected 1 git commit (baseline only), got {git_mock.call_count}"
         # Only the baseline event emitted.
         assert len(inj.emitter.events) == 1
         assert inj.emitter.events[0]["event"] == "baseline"
@@ -694,6 +692,4 @@ class TestWatchThresholdGitsCommitGate:
             )
 
         # Both cycle 0 (baseline) and cycle 1 (diffed) emit → both commit.
-        assert git_mock.call_count == 2, (
-            f"expected 2 git commits (one per emitted cycle), got {git_mock.call_count}"
-        )
+        assert git_mock.call_count == 2, f"expected 2 git commits (one per emitted cycle), got {git_mock.call_count}"
