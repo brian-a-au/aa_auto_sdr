@@ -538,11 +538,28 @@ def _run_impl(
 
     _emit_timings_if_enabled(show_timings=show_timings)
 
+    # v1.15.0 — escalate exit code when per-RSID git operations failed.
+    # Spec §3.10 originally said batch exit codes wouldn't change on git
+    # failures, but silently exiting 0 when every push failed defeats the
+    # agent-mode deterministic-exit contract (same argument that justified
+    # single-mode SNAPSHOT exit code). SDR succeeded but the side-effect
+    # (commit/push) didn't → PARTIAL_SUCCESS (14).
+    git_failures = [s for s in final.successes if s.git_op is not None and not s.git_op.ok]
+    if git_failures:
+        for rs in git_failures:
+            print(
+                f"warning: rsid={rs.rsid} git {rs.git_op.error_kind or 'operation'} failed: "
+                f"{rs.git_op.error_message or '(no message)'}",
+                file=sys.stderr,
+            )
+
     # v1.12.0 — batch quality-gate evaluation. Per spec §3.10:
     #   PARTIAL_SUCCESS (14) outranks QUALITY (17). Build failures are more
     #   actionable than quality verdicts. Only when all RSIDs succeed AND at
     #   least one breached do we surface QUALITY.
     if not final.failures:
+        if git_failures:
+            return ExitCode.PARTIAL_SUCCESS.value
         if fail_on_quality and any(v == "fail" for v in final.quality_verdicts.values()):
             return ExitCode.QUALITY.value
         return ExitCode.OK.value

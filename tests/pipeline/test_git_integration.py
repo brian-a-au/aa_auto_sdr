@@ -297,6 +297,114 @@ class TestBatchModeGit:
         assert result.successes[1].git_op.ok is False
 
 
+class TestBatchModeGitExitCode:
+    """P2a regression — batch must not silently exit 0 when git pushes fail.
+
+    Before the fix, per-RSID git failures stashed in RunResult.git_op were
+    invisible to the exit-code logic (which only checked BatchResult.failures).
+    All SDRs succeed + all git pushes fail → now correctly returns
+    PARTIAL_SUCCESS (14) instead of 0.
+    """
+
+    def _make_batch_result_with_git_failures(self, tmp_path: Path, *, all_fail: bool):
+        """Return a (BatchResult, fake_run_batch) pair where git ops fail."""
+        from aa_auto_sdr.pipeline.models import BatchResult, RunResult
+
+        if all_fail:
+            successes = [
+                RunResult(
+                    rsid="rs_a",
+                    success=True,
+                    outputs=[],
+                    git_op=GitOpResult(ok=False, committed=True, error_kind="GitPushError", error_message="no remote"),
+                ),
+                RunResult(
+                    rsid="rs_b",
+                    success=True,
+                    outputs=[],
+                    git_op=GitOpResult(ok=False, committed=True, error_kind="GitPushError", error_message="no remote"),
+                ),
+            ]
+        else:
+            successes = [
+                RunResult(
+                    rsid="rs_a",
+                    success=True,
+                    outputs=[],
+                    git_op=GitOpResult(ok=True, committed=True, commit_sha="a" * 40),
+                ),
+                RunResult(
+                    rsid="rs_b",
+                    success=True,
+                    outputs=[],
+                    git_op=GitOpResult(ok=True, committed=True, commit_sha="b" * 40),
+                ),
+            ]
+        return BatchResult(
+            successes=successes,
+            failures=[],
+            total_duration_seconds=0.1,
+            total_output_bytes=0,
+        )
+
+    def test_all_sdrs_succeed_all_git_pushes_fail_returns_partial_success(self, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.pipeline import batch as batch_mod
+
+        br = self._make_batch_result_with_git_failures(tmp_path, all_fail=True)
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=MagicMock()),
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch.object(batch_mod, "run_batch", return_value=br),
+        ):
+            rc = batch_cmd._run_impl(
+                rsids=["rs_a"],
+                output_dir=tmp_path,
+                format_name="json",
+                profile="testprofile",
+                git_commit=True,
+                git_push=True,
+                git_message=None,
+            )
+
+        assert rc == int(ExitCode.PARTIAL_SUCCESS), f"expected PARTIAL_SUCCESS (14), got {rc}"
+        assert int(ExitCode.PARTIAL_SUCCESS) == 14
+
+    def test_all_sdrs_succeed_all_git_ops_ok_returns_ok(self, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.pipeline import batch as batch_mod
+
+        br = self._make_batch_result_with_git_failures(tmp_path, all_fail=False)
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=MagicMock()),
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch.object(batch_mod, "run_batch", return_value=br),
+        ):
+            rc = batch_cmd._run_impl(
+                rsids=["rs_a"],
+                output_dir=tmp_path,
+                format_name="json",
+                profile="testprofile",
+                git_commit=True,
+                git_push=True,
+                git_message=None,
+            )
+
+        assert rc == int(ExitCode.OK), f"expected OK (0), got {rc}"
+
+
 # --- helpers ---
 
 
