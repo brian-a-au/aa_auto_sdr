@@ -282,13 +282,18 @@ def test_batch_snapshot_writes_one_per_success(
     assert len(list((snap_root / "demo.prod").glob("*.json"))) == 1
 
 
-def test_batch_snapshot_without_profile_returns_10(monkeypatch, tmp_path) -> None:
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_snapshot_without_profile_resolves_default(mock_client_cls, monkeypatch, tmp_path) -> None:
+    """v1.15.0 P1 fix: --snapshot without --profile falls back to 'default' profile
+    dir. No longer returns CONFIG (10) at the profile check."""
     from aa_auto_sdr.cli.commands import batch as batch_cmd
+    from aa_auto_sdr.core.exceptions import AuthError
 
     monkeypatch.setenv("ORG_ID", "O")
     monkeypatch.setenv("CLIENT_ID", "C")
     monkeypatch.setenv("SECRET", "S")
     monkeypatch.setenv("SCOPES", "X")
+    mock_client_cls.from_credentials.side_effect = AuthError("bad creds")
     rc = batch_cmd.run(
         rsids=["demo.prod"],
         output_dir=tmp_path,
@@ -296,7 +301,8 @@ def test_batch_snapshot_without_profile_returns_10(monkeypatch, tmp_path) -> Non
         profile=None,
         snapshot=True,
     )
-    assert rc == 10
+    # Must NOT be CONFIG (10) — the profile check no longer fires.
+    assert rc != 10
 
 
 # ---------------------------------------------------------------------------
@@ -341,14 +347,20 @@ class TestBatchAutoSnapshot:
         assert len(list((snap_root / "demo.prod").glob("*.json"))) == 1
         assert len(list((snap_root / "demo.staging").glob("*.json"))) == 1
 
-    def test_auto_snapshot_requires_profile(
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_auto_snapshot_without_profile_resolves_default(
         self,
+        mock_client_cls,
         authed_env,
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        """v1.15.0 P1 fix: --auto-snapshot without --profile falls back to 'default'
+        profile dir. No longer returns CONFIG (10) at the profile check."""
         from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exceptions import AuthError
 
+        mock_client_cls.from_credentials.side_effect = AuthError("bad creds")
         rc = batch_cmd.run(
             rsids=["demo.prod"],
             output_dir=tmp_path,
@@ -356,8 +368,8 @@ class TestBatchAutoSnapshot:
             profile=None,
             auto_snapshot=True,
         )
-        assert rc == 10
-        assert "requires --profile" in capsys.readouterr().out
+        # Must NOT be CONFIG (10) — the profile check no longer fires.
+        assert rc != 10
 
     @patch("aa_auto_sdr.cli.commands.batch.AaClient")
     def test_auto_prune_applies_policy_per_rsid(
