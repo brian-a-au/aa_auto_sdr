@@ -104,18 +104,27 @@ this directory and re-invoke `aa_auto_sdr --git-commit --git-push`.
 
 
 def is_git_repository(path: Path) -> bool:
-    """True iff `path` is the root of a git working tree."""
+    """True iff `path` is the ROOT of a git working tree (not just inside one).
+
+    Uses `git rev-parse --show-toplevel` and compares to the resolved input
+    path. Returning True only for the repo root prevents lazy auto-init from
+    committing snapshot files into a parent repository when --snapshot-dir
+    points to a subdirectory of an unrelated checkout.
+    """
     if not path.is_dir():
         return False
     try:
         result = _run_git(
-            ["rev-parse", "--is-inside-work-tree"],
+            ["rev-parse", "--show-toplevel"],
             cwd=path,
             timeout_s=5,
         )
-    except FileNotFoundError, subprocess.TimeoutExpired:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
-    return result.returncode == 0 and result.stdout.strip() == "true"
+    if result.returncode != 0:
+        return False
+    toplevel = Path(result.stdout.strip()).resolve()
+    return toplevel == path.resolve()
 
 
 def git_init_snapshot_repo(snapshot_dir: Path) -> GitOpResult:

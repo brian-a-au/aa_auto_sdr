@@ -51,6 +51,23 @@ class TestIsGitRepository:
     def test_returns_false_for_nonexistent_path(self, tmp_path: Path) -> None:
         assert is_git_repository(tmp_path / "does-not-exist") is False
 
+    def test_returns_false_for_subdir_of_existing_repo(self, tmp_path: Path) -> None:
+        """P3 regression — is_git_repository must return False for a subdirectory
+        of a git repo, even though `git rev-parse --is-inside-work-tree` would
+        return true. Prevents lazy auto-init from committing snapshot files into
+        a parent repository when --snapshot-dir is a subdir of an unrelated checkout.
+        """
+        git_init_snapshot_repo(tmp_path)
+        subdir = tmp_path / "snapshots"
+        subdir.mkdir()
+        # Even though subdir is inside the repo, it is NOT the repo root.
+        assert is_git_repository(subdir) is False
+
+    def test_returns_true_for_repo_root_after_git_init_snapshot_repo(self, tmp_path: Path) -> None:
+        """Companion: the repo root itself must still return True (no regression)."""
+        git_init_snapshot_repo(tmp_path)
+        assert is_git_repository(tmp_path) is True
+
 
 class TestGitInitSnapshotRepo:
     def test_creates_git_dir_and_initial_commit(self, tmp_path: Path) -> None:
