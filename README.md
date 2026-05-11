@@ -386,10 +386,12 @@ when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
 | Guide | Description |
 |-------|-------------|
 | [Quickstart](docs/QUICKSTART.md) | 90-second onboarding from clone to first SDR |
-| [CLI Reference](docs/CLI_REFERENCE.md) | Every flag with examples + exit codes + token grammar |
-| [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, troubleshooting |
-| [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, common workflows |
+| [CLI Reference](docs/CLI_REFERENCE.md) | Every flag organized by capability, exit codes, machine-readable error envelope |
+| [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, diagnostics, troubleshooting |
+| [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, trending, watch, common workflows |
 | [Output Formats](docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
+| [Logging](docs/LOGGING.md) | Log flags, file naming, redaction, canonical events |
+| [Logging Style Guide](docs/LOGGING_STYLE.md) | Internal logger-call contract — canonical vocabulary, required extras (binds `tests/core/test_logging_vocabulary.py`) |
 | [Sample Outputs](sample_outputs/) | Browse representative outputs without installing |
 | [`AGENTS.md`](AGENTS.md) | Machine-readable contract for unattended / agent-driven runs (`--agent-mode`) |
 
