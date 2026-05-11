@@ -92,6 +92,61 @@ class TestSingleModeGit:
         mock_commit.assert_not_called()
 
 
+class TestBatchModeGit:
+    def test_batch_threads_git_flags_to_each_rsid(self, tmp_path: Path) -> None:
+        """Each RSID in --batch passes through git_commit/git_push/git_message
+        to run_single. Per-RSID commit failures isolate (one fail doesn't
+        abort the batch)."""
+        from aa_auto_sdr.pipeline import batch as batch_mod
+        from aa_auto_sdr.pipeline.models import RunResult
+
+        rsid_results = {
+            "rs_a": RunResult(
+                rsid="rs_a",
+                success=True,
+                git_op=GitOpResult(ok=True, committed=True, commit_sha="a" * 40),
+            ),
+            "rs_b": RunResult(
+                rsid="rs_b",
+                success=True,
+                git_op=GitOpResult(
+                    ok=False,
+                    committed=True,
+                    error_kind="GitPushError",
+                    error_message="remote rejected",
+                ),
+            ),
+        }
+
+        captured_kwargs: list[dict] = []
+
+        def fake_run_single(**kwargs):
+            captured_kwargs.append(kwargs)
+            return rsid_results[kwargs["rsid"]]
+
+        with patch.object(batch_mod, "run_single", side_effect=fake_run_single):
+            result = batch_mod.run_batch(
+                client=_fake_client(),
+                rsids=["rs_a", "rs_b"],
+                formats=["json"],
+                output_dir=tmp_path,
+                captured_at=_now_utc(),
+                tool_version="1.15.0",
+                snapshot_dir=tmp_path,
+                git_commit=True,
+                git_push=True,
+                git_message=None,
+            )
+
+        assert len(captured_kwargs) == 2
+        for kw in captured_kwargs:
+            assert kw["git_commit"] is True
+            assert kw["git_push"] is True
+            assert kw["git_message"] is None
+        assert len(result.successes) == 2
+        assert result.successes[1].git_op.ok is False
+
+
 # --- helpers ---
 
 

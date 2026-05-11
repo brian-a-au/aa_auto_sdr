@@ -31,9 +31,9 @@ from aa_auto_sdr.core.exceptions import (
     ReportSuiteNotFoundError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
-from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
 from aa_auto_sdr.pipeline.sampling import sample_rsids
+from aa_auto_sdr.pipeline.single import run_single
 from aa_auto_sdr.pipeline.workers import run_parallel
 from aa_auto_sdr.sdr.builder import ComponentFilter
 
@@ -91,6 +91,10 @@ def run_batch(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> BatchResult:
     """Sequential or parallel per-RSID SDR generation. Continue on error.
 
@@ -158,6 +162,9 @@ def run_batch(
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
             cache=cache,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
     else:
         inner = run_parallel(
@@ -178,6 +185,9 @@ def run_batch(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
 
     # v1.12.0 — collect per-RSID quality verdicts.
@@ -214,6 +224,10 @@ def _run_sequential(
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
     cache: ValidationCache | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -248,7 +262,7 @@ def _run_sequential(
             from aa_auto_sdr.sdr.quality import SeverityLevel as _SeverityLevel
 
             _foq = _SeverityLevel(fail_on_quality) if fail_on_quality else None
-            result = single.run_single(
+            result = run_single(
                 client=client,
                 rsid=rsid,
                 formats=formats,
@@ -262,6 +276,9 @@ def _run_sequential(
                 fail_on_quality=_foq,
                 quality_report=quality_report,
                 cache=cache,
+                git_commit=git_commit,
+                git_push=git_push,
+                git_message=git_message,
             )
         except AaAutoSdrError as exc:
             message = str(exc)

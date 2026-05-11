@@ -52,7 +52,7 @@ def test_run_batch_emits_rsid_start_per_rsid(caplog, tmp_path):
     caplog.set_level(logging.INFO, logger="aa_auto_sdr.pipeline.batch")
     fake_client = MagicMock()
     with patch(
-        "aa_auto_sdr.pipeline.batch.single.run_single",
+        "aa_auto_sdr.pipeline.batch.run_single",
         side_effect=lambda **kw: _fake_run_result(kw["rsid"]),
     ):
         result = run_batch(
@@ -80,7 +80,7 @@ def test_run_batch_emits_rsid_complete_with_duration_and_count(caplog, tmp_path)
         duration_seconds=0.0,
     )
     with patch(
-        "aa_auto_sdr.pipeline.batch.single.run_single",
+        "aa_auto_sdr.pipeline.batch.run_single",
         return_value=fake_with_outputs,
     ):
         run_batch(
@@ -109,7 +109,7 @@ def test_run_batch_emits_rsid_failure_on_continue_on_error(caplog, tmp_path):
             raise ApiError("boom")
         return _fake_run_result(kw["rsid"])
 
-    with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=maybe_fail):
+    with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=maybe_fail):
         run_batch(
             client=fake_client,
             rsids=["RS1", "BAD", "RS3"],
@@ -135,7 +135,7 @@ def test_run_batch_emits_summary_record(caplog, tmp_path):
             raise ApiError("boom")
         return _fake_run_result(kw["rsid"])
 
-    with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=maybe_fail):
+    with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=maybe_fail):
         result = run_batch(
             client=fake_client,
             rsids=["RS1", "BAD", "RS3"],
@@ -159,7 +159,7 @@ def test_run_batch_does_not_emit_run_start_or_run_complete(caplog, tmp_path):
     caplog.set_level(logging.DEBUG)
     fake_client = MagicMock()
     with patch(
-        "aa_auto_sdr.pipeline.batch.single.run_single",
+        "aa_auto_sdr.pipeline.batch.run_single",
         side_effect=lambda **kw: _fake_run_result(kw["rsid"]),
     ):
         run_batch(

@@ -128,6 +128,10 @@ def run(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -168,6 +172,9 @@ def run(
             sample_stratified=sample_stratified,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
         return exit_code
     finally:
@@ -217,6 +224,10 @@ def _run_impl(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -458,6 +469,9 @@ def _run_impl(
             sample_stratified=sample_stratified,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

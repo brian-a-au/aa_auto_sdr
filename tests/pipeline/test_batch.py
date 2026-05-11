@@ -88,7 +88,7 @@ def test_run_batch_partial_success_continues_after_failure(
     tmp_path: Path,
 ) -> None:
     """If one RSID raises mid-batch, run_batch records the failure and keeps going."""
-    real_run_single = batch.single.run_single
+    real_run_single = batch.run_single
     call_count = {"n": 0}
 
     def fake_run_single(**kwargs):
@@ -97,7 +97,7 @@ def test_run_batch_partial_success_continues_after_failure(
             raise ApiError("rate limit exceeded")
         return real_run_single(**kwargs)
 
-    monkeypatch.setattr(batch.single, "run_single", fake_run_single)
+    monkeypatch.setattr(batch, "run_single", fake_run_single)
 
     result = batch.run_batch(
         client=mock_client,
@@ -126,7 +126,7 @@ def test_run_batch_all_fail(
     def fake_run_single(**kwargs):
         raise ReportSuiteNotFoundError(f"not found: {kwargs['rsid']}")
 
-    monkeypatch.setattr(batch.single, "run_single", fake_run_single)
+    monkeypatch.setattr(batch, "run_single", fake_run_single)
 
     result = batch.run_batch(
         client=mock_client,
@@ -164,7 +164,7 @@ def test_run_batch_failure_callback_fires_with_message(
     def fake_run_single(**kwargs):
         raise ApiError("boom")
 
-    monkeypatch.setattr(batch.single, "run_single", fake_run_single)
+    monkeypatch.setattr(batch, "run_single", fake_run_single)
 
     seen: list[tuple[int, int, str, str]] = []
     batch.run_batch(

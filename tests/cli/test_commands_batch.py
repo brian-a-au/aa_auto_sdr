@@ -87,7 +87,7 @@ def test_batch_partial_success_returns_14(
             raise ApiError("rate limit exceeded")
         return real_run_single(**kwargs)
 
-    monkeypatch.setattr("aa_auto_sdr.pipeline.batch.single.run_single", fake_run_single)
+    monkeypatch.setattr("aa_auto_sdr.pipeline.batch.run_single", fake_run_single)
 
     rc = batch_cmd.run(
         rsids=["demo.prod", "demo.staging", "demo.dev"],
@@ -121,7 +121,7 @@ def test_batch_all_fail_returns_last_failure_code(
             raise ApiError("rate")
         raise ReportSuiteNotFoundError("not here")
 
-    monkeypatch.setattr("aa_auto_sdr.pipeline.batch.single.run_single", fake_run_single)
+    monkeypatch.setattr("aa_auto_sdr.pipeline.batch.run_single", fake_run_single)
 
     rc = batch_cmd.run(
         rsids=["demo.prod", "demo.staging"],

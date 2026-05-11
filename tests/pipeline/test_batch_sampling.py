@@ -38,7 +38,7 @@ def common_kwargs(tmp_path: Path) -> dict[str, object]:
 class TestRunBatchSampling:
     def test_unsampled_run_records_total_available(self, common_kwargs: dict[str, object]) -> None:
         rsids = [f"rs{i}" for i in range(5)]
-        with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=_stub_run_single):
+        with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=_stub_run_single):
             result = batch_runner.run_batch(rsids=rsids, **common_kwargs)
         assert isinstance(result, BatchResult)
         assert result.sampled is False
@@ -49,7 +49,7 @@ class TestRunBatchSampling:
 
     def test_sampled_run_subsets_rsids(self, common_kwargs: dict[str, object]) -> None:
         rsids = [f"rs{i}" for i in range(20)]
-        with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=_stub_run_single):
+        with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=_stub_run_single):
             result = batch_runner.run_batch(
                 rsids=rsids,
                 sample_size=5,
@@ -64,7 +64,7 @@ class TestRunBatchSampling:
 
     def test_sample_size_ge_total_is_no_op(self, common_kwargs: dict[str, object]) -> None:
         rsids = [f"rs{i}" for i in range(3)]
-        with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=_stub_run_single):
+        with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=_stub_run_single):
             result = batch_runner.run_batch(
                 rsids=rsids,
                 sample_size=99,
@@ -77,7 +77,7 @@ class TestRunBatchSampling:
 
     def test_sample_seed_reproducibility(self, common_kwargs: dict[str, object]) -> None:
         rsids = [f"rs{i}" for i in range(20)]
-        with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=_stub_run_single):
+        with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=_stub_run_single):
             a = batch_runner.run_batch(rsids=rsids, sample_size=5, sample_seed=7, **common_kwargs)
             b = batch_runner.run_batch(rsids=rsids, sample_size=5, sample_seed=7, **common_kwargs)
         a_rsids = sorted(r.rsid for r in a.successes)
@@ -86,7 +86,7 @@ class TestRunBatchSampling:
 
     def test_stratified_flag_reaches_sampler(self, common_kwargs: dict[str, object]) -> None:
         rsids = [f"prod_{i}" for i in range(5)] + [f"dev_{i}" for i in range(5)]
-        with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=_stub_run_single):
+        with patch("aa_auto_sdr.pipeline.batch.run_single", side_effect=_stub_run_single):
             result = batch_runner.run_batch(
                 rsids=rsids,
                 sample_size=4,
@@ -105,7 +105,7 @@ class TestRunBatchSampling:
     def test_sampling_runs_before_workers_dispatch(self, common_kwargs: dict[str, object]) -> None:
         # workers=2 still operates on the sampled subset.
         rsids = [f"rs{i}" for i in range(20)]
-        with patch("aa_auto_sdr.pipeline.batch.single.run_single", side_effect=_stub_run_single):
+        with patch("aa_auto_sdr.pipeline.single.run_single", side_effect=_stub_run_single):
             result = batch_runner.run_batch(
                 rsids=rsids,
                 sample_size=4,

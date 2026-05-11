@@ -104,6 +104,10 @@ def _run_single_for_batch(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
@@ -135,6 +139,9 @@ def _run_single_for_batch(
         fail_on_quality=foq,
         quality_report=quality_report,
         cache=cache,  # type: ignore[arg-type]
+        git_commit=git_commit,
+        git_push=git_push,
+        git_message=git_message,
     )
 
 
@@ -154,6 +161,10 @@ def _run_with_worker_id(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -177,6 +188,9 @@ def _run_with_worker_id(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -205,6 +219,10 @@ def run_parallel(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -260,6 +278,9 @@ def run_parallel(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future
