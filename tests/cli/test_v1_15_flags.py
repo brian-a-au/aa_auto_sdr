@@ -6,6 +6,8 @@ Also: dropped flags `--git-init` and `--git-push-on-change` are argparse-rejecte
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -174,6 +176,102 @@ class TestPreDispatchValidator:
         )
         rc = _validate_git_modifiers(ns)
         assert rc == int(ExitCode.OK)
+
+
+class TestGitCommitImpliesAutoSnapshot:
+    """--git-commit must imply save_required so snapshot_dir is resolved (C1)."""
+
+    def test_generate_git_commit_without_profile_fails_cfg_not_silently(self, capsys, tmp_path: Path) -> None:
+        """When --git-commit is True but no profile, save_required must be True
+        so we get a CONFIG error (not a silent no-op)."""
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        # credentials.resolve is called before the snapshot_dir block, so mock it
+        # to not fail — we want to reach the profile-check inside save_required.
+        with patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()):
+            rc = generate_cmd._run_impl(
+                rsid="rs_a",
+                output_dir=tmp_path,
+                format_name="json",
+                profile=None,  # no profile
+                git_commit=True,
+                git_push=False,
+                git_message=None,
+            )
+        assert rc == ExitCode.CONFIG.value
+        # generate._run_impl uses _emit_pipe_or_print which prints to stdout (non-pipe path)
+        out = capsys.readouterr().out
+        assert "--git-commit" in out
+        assert "profile" in out.lower()
+
+    def test_generate_git_commit_with_profile_calls_git_commit_snapshot(self, tmp_path: Path) -> None:
+        """When --git-commit=True and a profile is set, git_commit_snapshot must
+        be called — snapshot_dir is not None (the implication is in effect)."""
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.snapshot.git import GitOpResult
+
+        fake_doc = MagicMock()
+        fake_doc.quality = None
+        fake_doc.report_suite.name = "Test Suite"
+
+        fake_writer = MagicMock()
+        fake_writer.extension = ".json"
+        fake_writer.write.return_value = [tmp_path / "rs_a.json"]
+
+        git_result = GitOpResult(ok=True, committed=True, commit_sha="a" * 40)
+
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve") as mock_creds,
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials") as mock_client,
+            patch("aa_auto_sdr.pipeline.single.build_sdr", return_value=fake_doc),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=fake_writer),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.snapshot.store.save_snapshot", return_value=tmp_path / "snap.json"),
+            patch(
+                "aa_auto_sdr.snapshot.git.git_commit_snapshot",
+                return_value=git_result,
+            ) as mock_git,
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+        ):
+            mock_creds.return_value = MagicMock()
+            mock_client.return_value = MagicMock()
+            rc = generate_cmd._run_impl(
+                rsid="rs_a",
+                output_dir=tmp_path,
+                format_name="json",
+                profile="testprofile",
+                git_commit=True,
+                git_push=False,
+                git_message=None,
+            )
+
+        assert rc == ExitCode.OK.value
+        mock_git.assert_called_once()
+
+    def test_batch_git_commit_without_profile_fails_cfg(self, capsys, tmp_path: Path) -> None:
+        """Batch mode: --git-commit without profile → CONFIG error, not silent no-op."""
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        # credentials.resolve is called before the snapshot_dir block, so mock it
+        with patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()):
+            rc = batch_cmd._run_impl(
+                rsids=["rs_a"],
+                output_dir=tmp_path,
+                format_name="json",
+                profile=None,  # no profile
+                git_commit=True,
+                git_push=False,
+                git_message=None,
+            )
+        assert rc == ExitCode.CONFIG.value
+        out = capsys.readouterr().out
+        assert "--git-commit" in out
+        assert "profile" in out.lower()
 
 
 class TestHelpListsFlags:

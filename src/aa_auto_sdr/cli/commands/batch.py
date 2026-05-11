@@ -269,10 +269,10 @@ def _run_impl(
         return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
-    save_required = snapshot or auto_snapshot
+    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
     if save_required:
         if not profile:
-            flag = "--snapshot" if snapshot else "--auto-snapshot"
+            flag = "--snapshot" if snapshot else ("--auto-snapshot" if auto_snapshot else "--git-commit")
             print(
                 f"error: {flag} requires --profile (snapshots are profile-scoped)",
                 flush=True,
