@@ -92,6 +92,55 @@ class TestSingleModeGit:
         mock_commit.assert_not_called()
 
 
+class TestSingleModeGitExitCode:
+    def test_run_single_git_failure_returns_snapshot_exit_code(self, tmp_path: Path) -> None:
+        """Spec §10 #2 — single-mode git push failure surfaces as ExitCode.SNAPSHOT (16)
+        via the generate CLI dispatch layer."""
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.pipeline import single as single_mod
+        from aa_auto_sdr.pipeline.models import RunResult
+
+        failing_result = RunResult(
+            rsid="rs_a",
+            success=True,
+            outputs=[tmp_path / "rs_a.json"],
+            report_suite_name="Test Suite",
+            git_op=GitOpResult(
+                ok=False,
+                committed=True,
+                pushed=False,
+                commit_sha="x" * 40,
+                error_kind="GitPushError",
+                error_message="remote rejected",
+            ),
+        )
+
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=MagicMock()),
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch.object(single_mod, "run_single", return_value=failing_result),
+        ):
+            rc = generate_cmd._run_impl(
+                rsid="rs_a",
+                output_dir=tmp_path,
+                format_name="json",
+                profile="testprofile",
+                git_commit=True,
+                git_push=True,
+                git_message=None,
+            )
+
+        assert rc == int(ExitCode.SNAPSHOT), f"expected {int(ExitCode.SNAPSHOT)}, got {rc}"
+        # SNAPSHOT exit code must be 16 per exit_codes.py
+        assert int(ExitCode.SNAPSHOT) == 16
+
+
 class TestBatchModeGit:
     def test_batch_threads_git_flags_to_each_rsid(self, tmp_path: Path) -> None:
         """Each RSID in --batch passes through git_commit/git_push/git_message
