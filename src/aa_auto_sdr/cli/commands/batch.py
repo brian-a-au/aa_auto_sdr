@@ -128,6 +128,10 @@ def run(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -168,6 +172,9 @@ def run(
             sample_stratified=sample_stratified,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
         return exit_code
     finally:
@@ -217,6 +224,10 @@ def _run_impl(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -258,18 +269,16 @@ def _run_impl(
         return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
-    save_required = snapshot or auto_snapshot
+    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
     if save_required:
-        if not profile:
-            flag = "--snapshot" if snapshot else "--auto-snapshot"
-            print(
-                f"error: {flag} requires --profile (snapshots are profile-scoped)",
-                flush=True,
-            )
-            return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
 
-        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
+        # v1.15.0 — mirror watch.py fallback: when no --profile is given,
+        # resolve to the "default" profile dir rather than erroring.
+        # This makes `aa_auto_sdr --batch RS1 RS2 --git-commit` work without
+        # an explicit --profile flag.
+        resolved_profile = profile or "default"
+        snapshot_dir = default_base() / "orgs" / resolved_profile / "snapshots"
 
     try:
         formats = registry.resolve_formats(format_name or "excel")
@@ -458,6 +467,9 @@ def _run_impl(
             sample_stratified=sample_stratified,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the
@@ -526,11 +538,28 @@ def _run_impl(
 
     _emit_timings_if_enabled(show_timings=show_timings)
 
+    # v1.15.0 — escalate exit code when per-RSID git operations failed.
+    # Spec §3.10 originally said batch exit codes wouldn't change on git
+    # failures, but silently exiting 0 when every push failed defeats the
+    # agent-mode deterministic-exit contract (same argument that justified
+    # single-mode SNAPSHOT exit code). SDR succeeded but the side-effect
+    # (commit/push) didn't → PARTIAL_SUCCESS (14).
+    git_failures = [s for s in final.successes if s.git_op is not None and not s.git_op.ok]
+    if git_failures:
+        for rs in git_failures:
+            print(
+                f"warning: rsid={rs.rsid} git {rs.git_op.error_kind or 'operation'} failed: "
+                f"{rs.git_op.error_message or '(no message)'}",
+                file=sys.stderr,
+            )
+
     # v1.12.0 — batch quality-gate evaluation. Per spec §3.10:
     #   PARTIAL_SUCCESS (14) outranks QUALITY (17). Build failures are more
     #   actionable than quality verdicts. Only when all RSIDs succeed AND at
     #   least one breached do we surface QUALITY.
     if not final.failures:
+        if git_failures:
+            return ExitCode.PARTIAL_SUCCESS.value
         if fail_on_quality and any(v == "fail" for v in final.quality_verdicts.values()):
             return ExitCode.QUALITY.value
         return ExitCode.OK.value

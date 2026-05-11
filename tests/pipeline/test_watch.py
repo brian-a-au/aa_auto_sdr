@@ -608,3 +608,149 @@ class TestRunWatchLoop:
         assert rc == ExitCode.OK
         assert len(ctx.emitter.events) == 2
         assert cycles >= 2  # at least the two cycles that emitted events
+
+
+# --- v1.15.0 git composition ----------------------------------------------
+
+from aa_auto_sdr.snapshot.git import GitOpResult as _GitOpResult  # noqa: E402
+
+
+def _diff_with_counts_v2(*, added: int, removed: int, modified: int) -> DiffReport:
+    """Build a minimal DiffReport with a single 'dimensions' component carrying
+    the requested counts.
+    """
+    return DiffReport(
+        a_rsid="rs_a",
+        b_rsid="rs_a",
+        a_captured_at="2026-05-11T13:00:00Z",
+        b_captured_at="2026-05-11T14:00:00Z",
+        a_tool_version="1.15.0",
+        b_tool_version="1.15.0",
+        components=[
+            ComponentDiff(
+                component_type="dimensions",
+                added=[AddedRemovedItem(id=f"a{i}", name=f"a{i}") for i in range(added)],
+                removed=[AddedRemovedItem(id=f"r{i}", name=f"r{i}") for i in range(removed)],
+                modified=[],
+                unchanged_count=0,
+            ),
+        ],
+    )
+
+
+class TestRunOneCycleGit:
+    """run_one_cycle itself no longer calls git_commit_snapshot (P2b refactor).
+
+    Git commits are now done by _maybe_commit, called from run_watch_loop
+    AFTER the _should_emit gate. These tests verify that:
+
+      * run_one_cycle always returns git_op=None (the git step moved out).
+      * _maybe_commit populates git_op when git_commit=True.
+      * _maybe_commit skips git when git_commit=False.
+    """
+
+    def test_run_one_cycle_never_populates_git_op(self, monkeypatch) -> None:
+        from aa_auto_sdr.pipeline import watch as watch_mod
+
+        ctx = _ctx(
+            git_commit=True,
+            git_push=False,
+            git_message=None,
+            snapshot_dir=Path("/tmp/snaps"),
+        )
+
+        called: list[int] = []
+        monkeypatch.setattr(
+            watch_mod,
+            "git_commit_snapshot",
+            lambda *_a, **_kw: (called.append(1), _GitOpResult(ok=True))[1],
+        )
+
+        # After the P2b refactor run_one_cycle never calls git_commit_snapshot.
+        cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert cycle.git_op is None
+        assert called == [], "git_commit_snapshot must NOT be called from run_one_cycle"
+
+    def test_maybe_commit_populates_git_op_when_git_commit_true(self, monkeypatch) -> None:
+        from aa_auto_sdr.pipeline import watch as watch_mod
+
+        ctx = _ctx(
+            git_commit=True,
+            git_push=False,
+            git_message=None,
+            snapshot_dir=Path("/tmp/snaps"),
+        )
+
+        canned_result = _GitOpResult(
+            ok=True,
+            committed=True,
+            commit_sha="abc1234567" * 4,
+        )
+        monkeypatch.setattr(watch_mod, "git_commit_snapshot", lambda *_a, **_kw: canned_result)
+
+        base_cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert base_cycle.git_op is None  # not yet populated
+
+        committed_cycle = watch_mod._maybe_commit(ctx, base_cycle)
+        assert committed_cycle.git_op is canned_result
+
+    def test_maybe_commit_skips_git_when_git_commit_false(self, monkeypatch) -> None:
+        from aa_auto_sdr.pipeline import watch as watch_mod
+
+        ctx = _ctx(git_commit=False)
+
+        called: list[int] = []
+        monkeypatch.setattr(
+            watch_mod,
+            "git_commit_snapshot",
+            lambda *_a, **_kw: (called.append(1), _GitOpResult(ok=True))[1],
+        )
+
+        base_cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
+        result = watch_mod._maybe_commit(ctx, base_cycle)
+        assert result.git_op is None
+        assert called == []
+
+
+class TestEventPayloadGit:
+    def test_change_event_includes_git_block_on_success(self) -> None:
+        from dataclasses import replace
+
+        from aa_auto_sdr.pipeline.watch import CycleResult, _event_payload
+
+        diff = _diff_with_counts_v2(added=2, removed=0, modified=0)
+        git_op = _GitOpResult(
+            ok=True,
+            committed=True,
+            pushed=True,
+            commit_sha="x" * 40,
+        )
+        base = CycleResult.diffed(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            diff=diff,
+            started_at=datetime(2026, 5, 11, 14, 0, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 11, 14, 0, 1, tzinfo=UTC),
+        )
+        r = replace(base, git_op=git_op)
+        p = _event_payload(r, cycle_n=7)
+        assert p["event"] == "change"
+        assert p["git"] == {
+            "committed": True,
+            "commit_sha": "x" * 40,
+            "pushed": True,
+        }
+
+    def test_change_event_omits_git_block_when_no_git_op(self) -> None:
+        from aa_auto_sdr.pipeline.watch import CycleResult, _event_payload
+
+        diff = _diff_with_counts_v2(added=1, removed=0, modified=0)
+        r = CycleResult.diffed(
+            rsid="rs_a",
+            snapshot_path=Path("/tmp/s.json"),
+            diff=diff,
+            started_at=datetime(2026, 5, 11, 14, 0, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 11, 14, 0, 1, tzinfo=UTC),
+        )
+        p = _event_payload(r, cycle_n=3)
+        assert "git" not in p

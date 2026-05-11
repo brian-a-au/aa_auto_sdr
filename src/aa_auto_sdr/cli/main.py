@@ -112,6 +112,51 @@ def _validate_watch_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _validate_git_modifiers(ns: argparse.Namespace) -> int:
+    """Reject --git-push / --git-message without --git-commit, and --git-commit
+    with non-generating actions.
+
+    Returns ExitCode.OK if consistent, ExitCode.USAGE (with stderr message)
+    otherwise.
+    """
+    git_commit = getattr(ns, "git_commit", False)
+    git_push = getattr(ns, "git_push", False)
+    git_message = getattr(ns, "git_message", None)
+
+    if git_push and not git_commit:
+        print("error: --git-push requires --git-commit", file=sys.stderr)
+        return int(ExitCode.USAGE)
+    if git_message is not None and not git_commit:
+        print("error: --git-message requires --git-commit", file=sys.stderr)
+        return int(ExitCode.USAGE)
+
+    if not git_commit:
+        return int(ExitCode.OK)
+
+    non_generating_action_set = (
+        getattr(ns, "diff", None) is not None
+        or bool(getattr(ns, "stats", False))
+        or bool(getattr(ns, "list_reportsuites", False))
+        or bool(getattr(ns, "list_virtual_reportsuites", False))
+        or bool(getattr(ns, "describe_reportsuite", False))
+        or getattr(ns, "list_metrics", None) is not None
+        or getattr(ns, "list_dimensions", None) is not None
+        or getattr(ns, "list_segments", None) is not None
+        or getattr(ns, "list_calculated_metrics", None) is not None
+        or getattr(ns, "list_classification_datasets", None) is not None
+        or getattr(ns, "trending_window", None) is not None
+        or bool(getattr(ns, "compare_with_prev", False))
+        or bool(getattr(ns, "inventory_summary", False))
+    )
+    if non_generating_action_set:
+        print(
+            "error: --git-commit requires an SDR-generating action (bare RSID, --batch, or --watch)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -222,6 +267,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     changes inside this helper. ``parser`` is threaded through so the
     no-args USAGE branch can still call ``parser.print_usage(sys.stderr)``."""
     rc = _validate_watch_modifiers(ns)
+    if rc != int(ExitCode.OK):
+        return rc
+
+    rc = _validate_git_modifiers(ns)
     if rc != int(ExitCode.OK):
         return rc
 
@@ -699,6 +748,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             sample_stratified=ns.sample_stratified,
             fail_on_quality=ns.fail_on_quality,
             quality_report=ns.quality_report,
+            git_commit=getattr(ns, "git_commit", False),
+            git_push=getattr(ns, "git_push", False),
+            git_message=getattr(ns, "git_message", None),
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -732,6 +784,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         name_match=ns.name_match,
         fail_on_quality=ns.fail_on_quality,
         quality_report=ns.quality_report,
+        git_commit=getattr(ns, "git_commit", False),
+        git_push=getattr(ns, "git_push", False),
+        git_message=getattr(ns, "git_message", None),
     )
 
 

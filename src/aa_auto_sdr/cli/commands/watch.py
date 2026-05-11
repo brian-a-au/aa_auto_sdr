@@ -152,6 +152,7 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
     threshold = int(ns.watch_threshold)
 
     # --- 3. Build the watch context --------------------------------------
+    snapshot_dir: Path | None = None
     if _injected is not None:
         fetcher = _injected.fetcher
         store = _injected.store
@@ -205,6 +206,10 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         emitter=emitter,
         ignore_fields=frozenset(getattr(ns, "ignore_fields", []) or []),
         extended_fields=bool(getattr(ns, "extended_fields", False)),
+        git_commit=getattr(ns, "git_commit", False),
+        git_push=getattr(ns, "git_push", False),
+        git_message=getattr(ns, "git_message", None),
+        snapshot_dir=snapshot_dir,
     )
 
     # --- 4. Install signal handlers --------------------------------------

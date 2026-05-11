@@ -309,6 +309,71 @@ SIGINT / SIGTERM → exit 0. `--format`, `--quality-policy`, and
 `--interval` or non-default `--watch-threshold` without `--watch` are also
 rejected (exit `USAGE` 2).
 
+### Git integration (v1.15.0)
+
+Commit each snapshot to a git-versioned audit trail under the snapshot
+directory. The directory IS the git repo — initialized on first use, no
+explicit setup step.
+
+```bash
+# Commit each snapshot from a single SDR build.
+uv run aa_auto_sdr <RSID> --git-commit
+
+# Commit and push.
+uv run aa_auto_sdr <RSID> --git-commit --git-push
+
+# Custom commit message.
+uv run aa_auto_sdr <RSID> --git-commit --git-message "Audit trail: release 2.3"
+
+# Inside a watch loop — closes the agent-native loop.
+uv run aa_auto_sdr <RSID> --watch --interval 1h --git-commit --git-push
+```
+
+**Auto-init:** First `--git-commit` on a non-repo directory runs:
+`git init --initial-branch=main`, `git config --local commit.gpgsign false`,
+writes `README.md`, creates the initial commit.
+
+**Remote configuration:** Run `git remote add origin <url>` inside the
+snapshot directory before using `--git-push`. We do not manage
+credentials or remotes.
+
+**Composition:**
+- `--git-commit` is a modifier; it requires an SDR-generating action
+  (bare RSID, `--batch`, or `--watch`). Pairing with `--diff`,
+  `--stats`, `--list-X`, `--trending-window`, `--compare-with-prev`, or
+  `--inventory-summary` is rejected (USAGE 2).
+- `--git-push` requires `--git-commit` (USAGE 2 otherwise).
+- `--git-message` requires `--git-commit` (USAGE 2 otherwise).
+
+**Watch composition:** Each cycle that emits a `baseline` or `change`
+event also commits. NDJSON event payload gains an optional `git` block
+on success:
+
+```json
+{"schema": "aa-watch-event/v1", "event": "change", "cycle": 7,
+ "rsid": "rs_a", "started_at": "…", "ended_at": "…",
+ "snapshot_path": "rs_a/2026-05-11T15-00-00+00-00.json",
+ "summary": {},
+ "git": {"committed": true, "commit_sha": "abc1234567…", "pushed": true}}
+```
+
+On git failure, the original baseline/change event emits first (with no
+`git` block), followed by a separate `error` event:
+
+```json
+{"schema": "aa-watch-event/v1", "event": "error", "cycle": 7,
+ "rsid": "rs_a", "started_at": "…", "ended_at": "…",
+ "error_type": "GitPushError", "error": "remote rejected: …"}
+```
+
+The watch loop never dies on git failure — per-cycle errors continue
+the loop (same posture as fetch errors from v1.14.0).
+
+**Dropped flags (for parity with cja):**
+- `--git-init` — replaced by lazy auto-init on first `--git-commit`.
+- `--git-push-on-change` — reduces to `--git-push` (commit already
+  short-circuits on no-diff).
+
 ### Comparison / Diff
 
 ```bash

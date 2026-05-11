@@ -111,8 +111,21 @@ def test_documented_long_flags_exist_in_parser():
     # `--format` values like `json|csv|markdown|excel|html|all|reports|data|ci|pr-comment`
     # and config / value placeholders that share the `--` prefix syntactically.
     # Plus fast-path flags handled in ``__main__.py`` before argparse runs.
+    # Plus v1.15.0 — flags explicitly documented as DROPPED from the roadmap:
+    # `--git-init` (replaced by lazy auto-init) and `--git-push-on-change`
+    # (reduced to `--git-push`). They appear in AGENTS.md only inside the
+    # "Dropped flags" callout, never as live invocations.
+    # Plus v1.15.0 git-command flags that appear in shell examples inside the
+    # Git integration subsection but belong to the `git` CLI, not aa_auto_sdr:
+    # `--initial-branch` (git init), `--local` (git config --local).
+    # `--list-` is a fragment from the prose "``--list-X``" shorthand.
     allowlist = {
         "--version",
+        "--git-init",
+        "--git-push-on-change",
+        "--initial-branch",
+        "--local",
+        "--list-",
     }
 
     missing = documented - real_flags - allowlist

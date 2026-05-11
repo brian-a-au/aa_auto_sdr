@@ -285,14 +285,18 @@ def test_generate_snapshot_writes_to_profile_dir(
     assert len(files) == 1
 
 
-def test_generate_snapshot_without_profile_returns_10(
-    monkeypatch: pytest.MonkeyPatch,
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_snapshot_without_profile_resolves_default(
+    mock_client_cls,
+    env_creds,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setenv("ORG_ID", "O")
-    monkeypatch.setenv("CLIENT_ID", "C")
-    monkeypatch.setenv("SECRET", "S")
-    monkeypatch.setenv("SCOPES", "X")
+    """v1.15.0 P1 fix: --snapshot without --profile now falls back to 'default'
+    profile dir rather than returning CONFIG (10). The run proceeds past the
+    snapshot-dir check (auth error or success), never CONFIG."""
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("bad creds")
     rc = cmd.run(
         rsid="demo.prod",
         output_dir=tmp_path,
@@ -300,7 +304,9 @@ def test_generate_snapshot_without_profile_returns_10(
         profile=None,
         snapshot=True,
     )
-    assert rc == 10
+    # Must NOT be CONFIG (10) — the profile check no longer fires.
+    # We mock auth to fail cleanly (11) rather than reaching real network.
+    assert rc != 10
 
 
 # ---------------------------------------------------------------------------
@@ -362,8 +368,14 @@ def test_generate_non_pipe_auth_error_prints_to_stdout(mock_client_cls, env_cred
     assert "auth error" in captured.out
 
 
-def test_generate_pipe_snapshot_without_profile_emits_envelope(env_creds, capsys) -> None:
-    """`--snapshot` without `--profile` on pipe path must still emit envelope."""
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_pipe_snapshot_without_profile_no_longer_config_error(mock_client_cls, env_creds, capsys) -> None:
+    """`--snapshot` without `--profile` on pipe path: v1.15.0 P1 fix means we no
+    longer return CONFIG (10) at the profile check. Auth failure emits envelope
+    with a non-10 code."""
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("bad creds")
     rc = cmd.run(
         rsid="demo.prod",
         output_dir=Path("-"),
@@ -371,12 +383,8 @@ def test_generate_pipe_snapshot_without_profile_emits_envelope(env_creds, capsys
         profile=None,
         snapshot=True,
     )
-    assert rc == 10
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    payload = json.loads(captured.err.strip())
-    assert payload["error"]["code"] == 10
-    assert "snapshot" in payload["error"]["message"].lower() or "profile" in payload["error"]["message"].lower()
+    # Must NOT be CONFIG (10) — the profile check no longer fires.
+    assert rc != 10
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
@@ -458,12 +466,19 @@ def test_generate_non_pipe_runsingle_outputerror(
 
 
 class TestAutoSnapshot:
-    def test_auto_snapshot_requires_profile(
+    @patch("aa_auto_sdr.cli.commands.generate.AaClient")
+    def test_auto_snapshot_without_profile_resolves_default(
         self,
+        mock_client_cls,
         env_creds,
         tmp_path: Path,
         capsys: pytest.CaptureFixture[str],
     ) -> None:
+        """v1.15.0 P1 fix: --auto-snapshot without --profile falls back to 'default'
+        profile dir. No longer returns CONFIG (10) at the profile check."""
+        from aa_auto_sdr.core.exceptions import AuthError
+
+        mock_client_cls.from_credentials.side_effect = AuthError("bad creds")
         rc = cmd.run(
             rsid="demo.prod",
             output_dir=tmp_path,
@@ -471,8 +486,8 @@ class TestAutoSnapshot:
             profile=None,
             auto_snapshot=True,
         )
-        assert rc == 10  # ExitCode.CONFIG
-        assert "requires --profile" in capsys.readouterr().out
+        # Must NOT be CONFIG (10) — the profile check no longer fires.
+        assert rc != 10
 
     @patch("aa_auto_sdr.cli.commands.generate.AaClient")
     def test_auto_snapshot_saves_once_with_profile(

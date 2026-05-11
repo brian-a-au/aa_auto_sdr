@@ -7,7 +7,7 @@
 [![Version Sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/downloads/)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)](tests/)
-[![Tests](https://img.shields.io/badge/tests-1666-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1729-brightgreen.svg)](tests/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -327,6 +327,18 @@ uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
 ```
 
 Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0.
+
+### Git-versioned snapshot audit trail
+
+The snapshot directory is the git repo. The first `--git-commit` initializes it automatically — no separate setup step.
+
+```bash
+# Commit each snapshot to a git-versioned audit trail.
+uv run aa_auto_sdr rs_prod_us --git-commit
+
+# In a watch loop — each baseline/change cycle commits automatically.
+uv run aa_auto_sdr rs_prod_us --watch --interval 1h --git-commit --git-push
+```
 
 ### Retry tuning
 

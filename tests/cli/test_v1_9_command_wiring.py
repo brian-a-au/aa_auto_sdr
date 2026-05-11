@@ -118,7 +118,7 @@ def test_run_batch_default_no_audit_no_stale(tmp_path: Path) -> None:
 
 def test_run_batch_sequential_path_threads_audit_naming(tmp_path: Path) -> None:
     """workers=1 (sequential path) also threads audit_naming/flag_stale to single.run_single."""
-    with patch("aa_auto_sdr.pipeline.batch.single.run_single") as run_single_mock:
+    with patch("aa_auto_sdr.pipeline.batch.run_single") as run_single_mock:
         from aa_auto_sdr.pipeline.models import RunResult
 
         run_single_mock.return_value = RunResult(

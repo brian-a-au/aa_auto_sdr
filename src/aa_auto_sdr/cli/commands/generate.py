@@ -120,6 +120,9 @@ def run(
     name_match: str = "insensitive",  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    git_commit: bool = False,  # v1.15.0
+    git_push: bool = False,  # v1.15.0
+    git_message: str | None = None,  # v1.15.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -151,6 +154,9 @@ def run(
             name_match=name_match,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            git_commit=git_commit,
+            git_push=git_push,
+            git_message=git_message,
         )
         return exit_code
     finally:
@@ -191,6 +197,9 @@ def _run_impl(
     name_match: str = "insensitive",  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    git_commit: bool = False,  # v1.15.0
+    git_push: bool = False,  # v1.15.0
+    git_message: str | None = None,  # v1.15.0
 ) -> int:
     started_at = datetime.now(UTC)
     # v1.12.0 — translate string severity to enum once, here.
@@ -241,16 +250,16 @@ def _run_impl(
         return ExitCode.CONFIG.value
 
     snapshot_dir: Path | None = None
-    save_required = snapshot or auto_snapshot
+    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
     if save_required:
-        if not profile:
-            flag = "--snapshot" if snapshot else "--auto-snapshot"
-            msg = f"error: {flag} requires --profile (snapshots are profile-scoped)"
-            _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.CONFIG.value)
-            return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
 
-        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
+        # v1.15.0 — mirror watch.py fallback: when no --profile is given,
+        # resolve to the "default" profile dir rather than erroring.
+        # This makes `aa_auto_sdr <RSID> --git-commit` (the marquee example)
+        # work without requiring an explicit --profile flag.
+        resolved_profile = profile or "default"
+        snapshot_dir = default_base() / "orgs" / resolved_profile / "snapshots"
 
     try:
         formats = registry.resolve_formats(format_name)
@@ -514,6 +523,9 @@ def _run_impl(
                 flag_stale=flag_stale,
                 fail_on_quality=_fail_on_quality,
                 quality_report=quality_report,
+                git_commit=git_commit,
+                git_push=git_push,
+                git_message=git_message,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)
@@ -624,6 +636,23 @@ def _run_impl(
                 quality_verdict=result.quality_verdict,
             ),
         )
+
+        if result.git_op is not None and not result.git_op.ok:
+            print(
+                f"error: git {result.git_op.error_kind or 'operation'} failed: "
+                f"{result.git_op.error_message or '(no message)'}",
+                file=sys.stderr,
+            )
+            _emit_run_summary(
+                run_summary_json=run_summary_json,
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                profile=profile,
+                per_rsid=per_rsid_results,
+                show_timings=show_timings,
+            )
+            _emit_timings_if_enabled(show_timings=show_timings)
+            return int(ExitCode.SNAPSHOT)
 
     if auto_prune and snapshot_dir is not None:
         rc = _apply_auto_prune(
