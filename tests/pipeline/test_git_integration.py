@@ -92,6 +92,107 @@ class TestSingleModeGit:
         mock_commit.assert_not_called()
 
 
+class TestDefaultSnapshotDirFallback:
+    """P1 regression — --git-commit without --profile should NOT error.
+
+    Before the fix, generate._run_impl and batch._run_impl returned
+    ExitCode.CONFIG when profile=None and git_commit=True. They now fall back
+    to the "default" profile directory, matching watch.py's behavior.
+    """
+
+    def test_generate_git_commit_no_profile_resolves_to_default(self, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli.commands import generate as generate_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.pipeline import single as single_mod
+        from aa_auto_sdr.pipeline.models import RunResult
+
+        ok_result = RunResult(
+            rsid="rs_a",
+            success=True,
+            outputs=[tmp_path / "rs_a.json"],
+            report_suite_name="Test Suite",
+            git_op=GitOpResult(ok=True, committed=True, commit_sha="a" * 40),
+        )
+
+        captured_snapshot_dirs: list[Path] = []
+
+        def fake_run_single(**kwargs):
+            captured_snapshot_dirs.append(kwargs.get("snapshot_dir"))
+            return ok_result
+
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=MagicMock()),
+            # Override default_base so the test doesn't touch the real ~/.aa
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch.object(single_mod, "run_single", side_effect=fake_run_single),
+        ):
+            rc = generate_cmd._run_impl(
+                rsid="rs_a",
+                output_dir=tmp_path,
+                format_name="json",
+                profile=None,  # <-- no --profile
+                git_commit=True,
+                git_push=False,
+                git_message=None,
+            )
+
+        # Must NOT be CONFIG (10) — must succeed (0)
+        assert rc == int(ExitCode.OK), f"expected {int(ExitCode.OK)}, got {rc}"
+        # Snapshot dir should resolve to ~/.aa/orgs/default/snapshots
+        assert len(captured_snapshot_dirs) == 1
+        assert captured_snapshot_dirs[0] is not None
+        assert captured_snapshot_dirs[0].parts[-1] == "snapshots"
+        assert captured_snapshot_dirs[0].parts[-2] == "default"
+
+    def test_batch_git_commit_no_profile_resolves_to_default(self, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.pipeline import batch as batch_mod
+        from aa_auto_sdr.pipeline.models import BatchResult, RunResult
+
+        ok_result = RunResult(
+            rsid="rs_a",
+            success=True,
+            outputs=[],
+            report_suite_name="Test Suite",
+            git_op=GitOpResult(ok=True, committed=True, commit_sha="b" * 40),
+        )
+        batch_result = BatchResult(
+            successes=[ok_result],
+            failures=[],
+            total_duration_seconds=0.1,
+            total_output_bytes=0,
+        )
+
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=MagicMock()),
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch.object(batch_mod, "run_batch", return_value=batch_result),
+        ):
+            rc = batch_cmd._run_impl(
+                rsids=["rs_a"],
+                output_dir=tmp_path,
+                format_name="json",
+                profile=None,  # <-- no --profile
+                git_commit=True,
+                git_push=False,
+                git_message=None,
+            )
+
+        # Must NOT be CONFIG (10)
+        assert rc == int(ExitCode.OK), f"expected {int(ExitCode.OK)}, got {rc}"
+
+
 class TestSingleModeGitExitCode:
     def test_run_single_git_failure_returns_snapshot_exit_code(self, tmp_path: Path) -> None:
         """Spec §10 #2 — single-mode git push failure surfaces as ExitCode.SNAPSHOT (16)

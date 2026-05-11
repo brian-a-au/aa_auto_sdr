@@ -252,14 +252,14 @@ def _run_impl(
     snapshot_dir: Path | None = None
     save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
     if save_required:
-        if not profile:
-            flag = "--snapshot" if snapshot else ("--auto-snapshot" if auto_snapshot else "--git-commit")
-            msg = f"error: {flag} requires --profile (snapshots are profile-scoped)"
-            _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.CONFIG.value)
-            return ExitCode.CONFIG.value
         from aa_auto_sdr.core.profiles import default_base
 
-        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
+        # v1.15.0 — mirror watch.py fallback: when no --profile is given,
+        # resolve to the "default" profile dir rather than erroring.
+        # This makes `aa_auto_sdr <RSID> --git-commit` (the marquee example)
+        # work without requiring an explicit --profile flag.
+        resolved_profile = profile or "default"
+        snapshot_dir = default_base() / "orgs" / resolved_profile / "snapshots"
 
     try:
         formats = registry.resolve_formats(format_name)
