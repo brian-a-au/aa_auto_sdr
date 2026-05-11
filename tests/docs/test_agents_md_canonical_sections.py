@@ -110,47 +110,9 @@ def test_documented_long_flags_exist_in_parser():
     # Allow-list: tokens that look like flags but are placeholders or values.
     # `--format` values like `json|csv|markdown|excel|html|all|reports|data|ci|pr-comment`
     # and config / value placeholders that share the `--` prefix syntactically.
-    # Allow-list — only fast-path flags handled in ``__main__.py`` before
-    # argparse runs. Everything else must appear on the actual parser.
+    # Plus fast-path flags handled in ``__main__.py`` before argparse runs.
     allowlist = {
         "--version",
-        # Flags explicitly documented in AGENTS.md as *removed* from the v1.8.0
-        # roadmap (they appear in the "deliberately removed" prose but were never
-        # added to the parser; the doc explains their absence to agent consumers).
-        "--continue-on-error",
-        "--shared-cache",
-        "--use-cache",
-        # Flags explicitly documented in AGENTS.md as *removed* from the v1.9.0
-        # roadmap (CJA-only concepts or redundant in AA's per-RSID generation;
-        # documented to explain their absence to agent consumers).
-        "--no-component-types",
-        "--lock-stale-threshold",
-        "--include-names",
-        "--include-metadata",
-        # Flags explicitly documented in AGENTS.md as *removed* from the v1.10.0
-        # roadmap (CJA-only — guards a cross-DV index aa doesn't build;
-        # documented to explain their absence to agent consumers).
-        "--memory-limit",
-        "--memory-warning",
-        # Flag explicitly documented in AGENTS.md as *removed* from the v1.11.0
-        # roadmap (CJA-only — aa's SDR document treats segments and calculated
-        # metrics as first-class sections; documented to explain its absence
-        # to agent consumers).
-        "--inventory-only",
-        # v1.12.0 — policy keys explicitly documented in AGENTS.md as *removed*
-        # from the cja policy schema; they appear in the "Two cja policy keys
-        # are NOT supported" prose. The unrelated `--max-issues` diff-render
-        # flag still exists on the parser; only the policy key is rejected.
-        "--allow-partial",
-        # v1.13.0 — flag explicitly documented in AGENTS.md as *dropped* from
-        # the v1.13.0 roadmap (cja-only org-report semantic; aa drift is
-        # per-RSID and always included in --trending-window output).
-        "--include-drift",
-        # v1.14.0 — flag explicitly documented in AGENTS.md / CHANGELOG as
-        # *dropped* from the v1.14.0 roadmap. With --watch-threshold gating
-        # event emission and the watch stream being stdout NDJSON only (no
-        # shell-hook surface), --on-change had no remaining semantic.
-        "--on-change",
     }
 
     missing = documented - real_flags - allowlist
