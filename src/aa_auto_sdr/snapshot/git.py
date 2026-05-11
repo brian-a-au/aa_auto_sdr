@@ -167,10 +167,17 @@ def git_init_snapshot_repo(snapshot_dir: Path) -> GitOpResult:
         )
 
     sha = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir)
+    commit_sha = sha.stdout.strip() if sha.returncode == 0 else None
+    logger.info(
+        "git_init_repo path=%s initial_commit=%s",
+        snapshot_dir,
+        commit_sha,
+        extra={"path": str(snapshot_dir), "initial_commit": commit_sha},
+    )
     return GitOpResult(
         ok=True,
         committed=True,
-        commit_sha=sha.stdout.strip() if sha.returncode == 0 else None,
+        commit_sha=commit_sha,
     )
 
 
@@ -244,10 +251,25 @@ def git_commit_snapshot(
     passed in; this fallback exists for one-shot invocations where the
     caller may not have a change summary handy.
     """
+    started = time.monotonic()
     # Lazy init.
     if not is_git_repository(snapshot_dir):
         init = git_init_snapshot_repo(snapshot_dir)
         if not init.ok:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            logger.info(
+                "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+                rsid,
+                "init",
+                init.error_kind,
+                duration_ms,
+                extra={
+                    "rsid": rsid,
+                    "op": "init",
+                    "error_class": init.error_kind,
+                    "duration_ms": duration_ms,
+                },
+            )
             return init
 
     # Nothing to commit if the per-RSID subdir doesn't exist yet — bail
@@ -261,6 +283,20 @@ def git_commit_snapshot(
     pathspec = f"{rsid}/"
     add = _run_git(["add", "-A", "--", pathspec], cwd=snapshot_dir, timeout_s=timeout_s)
     if add.returncode != 0:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+            rsid,
+            "commit",
+            "GitCommitError",
+            duration_ms,
+            extra={
+                "rsid": rsid,
+                "op": "commit",
+                "error_class": "GitCommitError",
+                "duration_ms": duration_ms,
+            },
+        )
         return GitOpResult(
             ok=False,
             error_kind="GitCommitError",
@@ -289,6 +325,20 @@ def git_commit_snapshot(
         timeout_s=timeout_s,
     )
     if commit.returncode != 0:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+            rsid,
+            "commit",
+            "GitCommitError",
+            duration_ms,
+            extra={
+                "rsid": rsid,
+                "op": "commit",
+                "error_class": "GitCommitError",
+                "duration_ms": duration_ms,
+            },
+        )
         return GitOpResult(
             ok=False,
             error_kind="GitCommitError",
@@ -299,6 +349,20 @@ def git_commit_snapshot(
     commit_sha = rev.stdout.strip() if rev.returncode == 0 else None
 
     if not push:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "git_commit_complete rsid=%s commit_sha=%s pushed=%s duration_ms=%d",
+            rsid,
+            commit_sha,
+            False,
+            duration_ms,
+            extra={
+                "rsid": rsid,
+                "commit_sha": commit_sha,
+                "pushed": False,
+                "duration_ms": duration_ms,
+            },
+        )
         return GitOpResult(
             ok=True,
             committed=True,
@@ -308,6 +372,20 @@ def git_commit_snapshot(
 
     push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=60)
     if push_result.returncode != 0:
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info(
+            "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+            rsid,
+            "push",
+            "GitPushError",
+            duration_ms,
+            extra={
+                "rsid": rsid,
+                "op": "push",
+                "error_class": "GitPushError",
+                "duration_ms": duration_ms,
+            },
+        )
         return GitOpResult(
             ok=False,
             committed=True,
@@ -317,6 +395,20 @@ def git_commit_snapshot(
             error_message=push_result.stderr.strip() or push_result.stdout.strip(),
         )
 
+    duration_ms = int((time.monotonic() - started) * 1000)
+    logger.info(
+        "git_commit_complete rsid=%s commit_sha=%s pushed=%s duration_ms=%d",
+        rsid,
+        commit_sha,
+        True,
+        duration_ms,
+        extra={
+            "rsid": rsid,
+            "commit_sha": commit_sha,
+            "pushed": True,
+            "duration_ms": duration_ms,
+        },
+    )
     return GitOpResult(
         ok=True,
         committed=True,

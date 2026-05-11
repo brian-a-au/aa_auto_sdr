@@ -98,6 +98,12 @@ VOCAB = {
     "emitted",
     "cycles_completed",
     "rsids",
+    # v1.15.0 additions — git integration
+    "path",
+    "initial_commit",
+    "commit_sha",
+    "pushed",
+    "op",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -128,6 +134,10 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "watch_loop_start": {"rsids", "interval", "watch_threshold"},
     "watch_cycle_complete": {"cycle", "rsid", "change_count", "emitted"},
     "watch_loop_stop": {"reason", "cycles_completed"},
+    # v1.15.0 — git integration
+    "git_init_repo": {"path", "initial_commit"},
+    "git_commit_complete": {"rsid", "commit_sha", "pushed", "duration_ms"},
+    "git_op_failed": {"rsid", "op", "error_class", "duration_ms"},
 }
 
 INSTRUMENTED_MODULES = [
