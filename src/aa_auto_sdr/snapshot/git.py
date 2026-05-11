@@ -228,7 +228,7 @@ def git_commit_snapshot(
     *,
     rsid: str,
     message: str | None,
-    push: bool,  # noqa: ARG001 — wired in Task 5
+    push: bool,
     timeout_s: int = 30,
 ) -> GitOpResult:
     """Stage `<snapshot_dir>/<rsid>/*`, commit, optionally push.
@@ -298,10 +298,28 @@ def git_commit_snapshot(
     rev = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir, timeout_s=5)
     commit_sha = rev.stdout.strip() if rev.returncode == 0 else None
 
-    # Push is implemented in Task 5.
+    if not push:
+        return GitOpResult(
+            ok=True,
+            committed=True,
+            pushed=False,
+            commit_sha=commit_sha,
+        )
+
+    push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=60)
+    if push_result.returncode != 0:
+        return GitOpResult(
+            ok=False,
+            committed=True,
+            pushed=False,
+            commit_sha=commit_sha,
+            error_kind="GitPushError",
+            error_message=push_result.stderr.strip() or push_result.stdout.strip(),
+        )
+
     return GitOpResult(
         ok=True,
         committed=True,
-        pushed=False,
+        pushed=True,
         commit_sha=commit_sha,
     )

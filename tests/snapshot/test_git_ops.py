@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from aa_auto_sdr.snapshot.git import (
     git_commit_snapshot,
     git_init_snapshot_repo,
@@ -188,3 +190,84 @@ class TestGitCommitSnapshot:
         assert result.committed is True
         log = _run_git(["log", "-1", "--pretty=%s"], tmp_path)
         assert "SDR snapshot" in log.stdout or "Snapshot" in log.stdout
+
+
+class TestGitPush:
+    @pytest.fixture
+    def repo_with_remote(self, tmp_path: Path) -> tuple[Path, Path]:
+        """Init a snapshot repo + a local bare-repo remote; wire them together."""
+        snapshot_dir = tmp_path / "snapshots"
+        remote_dir = tmp_path / "remote.git"
+        # Create a bare remote.
+        subprocess.run(
+            ["git", "init", "--bare", str(remote_dir)],
+            check=True,
+            capture_output=True,
+        )
+        # Init the snapshot dir and point it at the bare remote.
+        git_init_snapshot_repo(snapshot_dir)
+        subprocess.run(
+            ["git", "remote", "add", "origin", str(remote_dir)],
+            cwd=snapshot_dir,
+            check=True,
+            capture_output=True,
+        )
+        # Configure a default upstream so plain `git push` works.
+        subprocess.run(
+            ["git", "push", "-u", "origin", "main"],
+            cwd=snapshot_dir,
+            check=True,
+            capture_output=True,
+        )
+        return snapshot_dir, remote_dir
+
+    def test_push_after_commit(self, repo_with_remote: tuple[Path, Path]) -> None:
+        snapshot_dir, remote_dir = repo_with_remote
+        _write_snapshot(snapshot_dir, "rs_a", '{"rsid":"rs_a"}')
+        result = git_commit_snapshot(
+            snapshot_dir,
+            rsid="rs_a",
+            message="test",
+            push=True,
+        )
+        assert result.ok is True
+        assert result.committed is True
+        assert result.pushed is True
+        log = subprocess.run(
+            ["git", "log", "--oneline", "main"],
+            cwd=remote_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert result.commit_sha[:7] in log.stdout
+
+    def test_push_fail_without_remote(self, tmp_path: Path) -> None:
+        # Repo with no remote configured.
+        git_init_snapshot_repo(tmp_path)
+        _write_snapshot(tmp_path, "rs_a", '{"rsid":"rs_a"}')
+        result = git_commit_snapshot(
+            tmp_path,
+            rsid="rs_a",
+            message="test",
+            push=True,
+        )
+        # Commit succeeds; push fails.
+        assert result.committed is True
+        assert result.ok is False
+        assert result.pushed is False
+        assert result.error_kind == "GitPushError"
+        assert result.error_message  # non-empty stderr
+
+    def test_no_diff_means_no_push(self, tmp_path: Path) -> None:
+        # When there's no commit, push is also skipped.
+        git_init_snapshot_repo(tmp_path)
+        result = git_commit_snapshot(
+            tmp_path,
+            rsid="rs_a",
+            message="x",
+            push=True,
+        )
+        assert result.ok is True
+        assert result.committed is False
+        assert result.pushed is False
