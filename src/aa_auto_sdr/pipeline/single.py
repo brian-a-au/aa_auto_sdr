@@ -12,6 +12,7 @@ from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline.models import RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter, build_sdr
 from aa_auto_sdr.sdr.quality import SeverityLevel
+from aa_auto_sdr.snapshot.git import GitOpResult
 
 if TYPE_CHECKING:
     from aa_auto_sdr.api.cache import ValidationCache
@@ -32,6 +33,10 @@ def run_single(
     fail_on_quality: SeverityLevel | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0 — "json" | "csv" | None
     cache: ValidationCache | None = None,  # v1.12.0
+    # v1.15.0 — git integration
+    git_commit: bool = False,
+    git_push: bool = False,
+    git_message: str | None = None,
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -69,6 +74,19 @@ def run_single(
             snap_path = save_snapshot(doc, snapshot_dir=snapshot_dir)
         paths.append(snap_path)
 
+    # v1.15.0 — git commit after snapshot save.
+    git_op: GitOpResult | None = None
+    if git_commit and snapshot_dir is not None:
+        from aa_auto_sdr.snapshot.git import git_commit_snapshot
+
+        with timings.Timer(f"git_commit:{rsid}"):
+            git_op = git_commit_snapshot(
+                snapshot_dir,
+                rsid=rsid,
+                message=git_message,
+                push=git_push,
+            )
+
     # v1.12.0 — quality report + verdict.
     quality_report_path: Path | None = None
     quality_verdict: str = ""
@@ -96,6 +114,7 @@ def run_single(
         report_suite_name=doc.report_suite.name,
         quality_verdict=quality_verdict,
         quality_report_path=quality_report_path,
+        git_op=git_op,
     )
 
 

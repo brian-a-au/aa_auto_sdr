@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from aa_auto_sdr.snapshot.git import GitOpResult
+
 
 @dataclass(frozen=True, slots=True)
 class RunResult:
@@ -18,6 +20,8 @@ class RunResult:
     # "pass" / "fail" / "n/a" / "" (empty when no audit ran).
     quality_verdict: str = ""
     quality_report_path: Path | None = None
+    # v1.15.0 — git operation outcome when --git-commit is set.
+    git_op: GitOpResult | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -780,6 +780,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         name_match=ns.name_match,
         fail_on_quality=ns.fail_on_quality,
         quality_report=ns.quality_report,
+        git_commit=getattr(ns, "git_commit", False),
+        git_push=getattr(ns, "git_push", False),
+        git_message=getattr(ns, "git_message", None),
     )
 
 
