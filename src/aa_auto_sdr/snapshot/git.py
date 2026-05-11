@@ -107,7 +107,7 @@ def is_git_repository(path: Path) -> bool:
             cwd=path,
             timeout_s=5,
         )
-    except FileNotFoundError, subprocess.TimeoutExpired:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
     return result.returncode == 0 and result.stdout.strip() == "true"
 
@@ -172,3 +172,52 @@ def git_init_snapshot_repo(snapshot_dir: Path) -> GitOpResult:
         committed=True,
         commit_sha=sha.stdout.strip() if sha.returncode == 0 else None,
     )
+
+
+_COMPONENT_TYPES_ORDER = (
+    "dimensions",
+    "metrics",
+    "segments",
+    "calculated_metrics",
+    "virtual_report_suites",
+    "classifications",
+)
+
+
+def generate_commit_message(
+    *,
+    rsid: str,
+    captured_at: str,
+    change_summary: dict[str, object] | None,
+    watch_cycle: int | None = None,
+) -> str:
+    """Build the default commit message for a snapshot commit.
+
+    Subject: ``SDR snapshot: <rsid> @ <captured_at>`` truncated to <=72 chars.
+    Body: per-component-type counts when `change_summary` is provided, else
+    ``Initial snapshot``.
+    Footer: ``(watch cycle <n>)`` when `watch_cycle` is provided.
+    """
+    subject = f"SDR snapshot: {rsid} @ {captured_at}"
+    if len(subject) > 72:
+        subject = subject[:71] + "…"
+
+    if change_summary is None:
+        body = "Initial snapshot"
+    else:
+        by_type = change_summary.get("by_type", {}) or {}
+        lines: list[str] = []
+        for ct in _COMPONENT_TYPES_ORDER:
+            counts = by_type.get(ct)
+            if not counts:
+                continue
+            a = counts.get("added", 0)
+            r = counts.get("removed", 0)
+            m = counts.get("modified", 0)
+            lines.append(f"{ct + ':':<12}+{a} -{r} ~{m}")
+        body = "\n".join(lines) if lines else "Snapshot updated (no per-type counts available)"
+
+    parts = [subject, "", body]
+    if watch_cycle is not None:
+        parts.extend(["", f"(watch cycle {watch_cycle})"])
+    return "\n".join(parts) + "\n"
