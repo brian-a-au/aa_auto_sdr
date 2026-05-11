@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
@@ -271,3 +272,57 @@ class TestGitPush:
         assert result.ok is True
         assert result.committed is False
         assert result.pushed is False
+
+
+class TestGitCommitConcurrency:
+    """Regression: parallel workers must not race on .git/index.lock (C2)."""
+
+    def test_three_concurrent_commits_all_succeed(self, tmp_path: Path) -> None:
+        """Spawn 3 threads each committing a different RSID to the same repo.
+
+        Without _GIT_LOCK this test would fail frequently with
+        ``index.lock`` errors. With the lock all 3 must succeed with
+        distinct commit SHAs, and the log must have 4 commits total
+        (initial + 3 per-RSID).
+        """
+        git_init_snapshot_repo(tmp_path)
+        rsids = ["rs_alpha", "rs_beta", "rs_gamma"]
+        results: list[tuple[str, object]] = []
+        errors: list[BaseException] = []
+
+        def commit_one(rsid: str) -> None:
+            rsid_dir = tmp_path / rsid
+            rsid_dir.mkdir(parents=True, exist_ok=True)
+            (rsid_dir / "snap.json").write_text(f'{{"rsid":"{rsid}"}}')
+            try:
+                r = git_commit_snapshot(
+                    tmp_path,
+                    rsid=rsid,
+                    message=f"snapshot for {rsid}",
+                    push=False,
+                )
+                results.append((rsid, r))
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=commit_one, args=(rsid,)) for rsid in rsids]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"Thread errors: {errors}"
+        assert len(results) == 3
+        for rsid, result in results:
+            assert result.ok is True, f"{rsid} failed: {result.error_message}"
+            assert result.committed is True, f"{rsid} was not committed"
+            assert result.commit_sha is not None
+
+        # 3 distinct commit SHAs.
+        shas = {r.commit_sha for _, r in results}
+        assert len(shas) == 3
+
+        # Git log: initial commit + 3 per-RSID = 4 total.
+        log = _run_git(["log", "--oneline"], tmp_path)
+        assert log.returncode == 0
+        assert log.stdout.count("\n") == 4

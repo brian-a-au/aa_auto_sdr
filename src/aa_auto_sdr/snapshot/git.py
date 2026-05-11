@@ -6,11 +6,17 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading as _threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from aa_auto_sdr.core.exceptions import SnapshotResolveError
+
+# Serializes write operations against the snapshot repo to prevent parallel
+# workers (under --batch --workers > 1) from racing on .git/index.lock.
+# Spec §3.8: "Workers run sequentially with respect to git operations."
+_GIT_LOCK = _threading.Lock()
 
 logger = logging.getLogger(__name__)
 
@@ -250,168 +256,173 @@ def git_commit_snapshot(
     (with change counts + watch_cycle footer) is built by the caller and
     passed in; this fallback exists for one-shot invocations where the
     caller may not have a change summary handy.
+
+    Thread-safe: all git subprocess calls are serialized via ``_GIT_LOCK``
+    so parallel ``--batch --workers > 1`` runs do not race on
+    ``.git/index.lock`` (spec §3.8).
     """
-    started = time.monotonic()
-    # Lazy init.
-    if not is_git_repository(snapshot_dir):
-        init = git_init_snapshot_repo(snapshot_dir)
-        if not init.ok:
+    with _GIT_LOCK:
+        started = time.monotonic()
+        # Lazy init.
+        if not is_git_repository(snapshot_dir):
+            init = git_init_snapshot_repo(snapshot_dir)
+            if not init.ok:
+                duration_ms = int((time.monotonic() - started) * 1000)
+                logger.info(
+                    "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+                    rsid,
+                    "init",
+                    init.error_kind,
+                    duration_ms,
+                    extra={
+                        "rsid": rsid,
+                        "op": "init",
+                        "error_class": init.error_kind,
+                        "duration_ms": duration_ms,
+                    },
+                )
+                return init
+
+        # Nothing to commit if the per-RSID subdir doesn't exist yet — bail
+        # before `git add` so we don't surface 'pathspec did not match any files'
+        # (modern git's exit-code 128) as a spurious failure.
+        rsid_dir = snapshot_dir / rsid
+        if not rsid_dir.exists():
+            return GitOpResult(ok=True, committed=False)
+
+        # Stage everything under <rsid>/ (matches cja's pathspec scoping).
+        pathspec = f"{rsid}/"
+        add = _run_git(["add", "-A", "--", pathspec], cwd=snapshot_dir, timeout_s=timeout_s)
+        if add.returncode != 0:
             duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(
                 "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
                 rsid,
-                "init",
-                init.error_kind,
+                "commit",
+                "GitCommitError",
                 duration_ms,
                 extra={
                     "rsid": rsid,
-                    "op": "init",
-                    "error_class": init.error_kind,
+                    "op": "commit",
+                    "error_class": "GitCommitError",
                     "duration_ms": duration_ms,
                 },
             )
-            return init
+            return GitOpResult(
+                ok=False,
+                error_kind="GitCommitError",
+                error_message=f"git add {pathspec} failed: {add.stderr.strip()}",
+            )
 
-    # Nothing to commit if the per-RSID subdir doesn't exist yet — bail
-    # before `git add` so we don't surface 'pathspec did not match any files'
-    # (modern git's exit-code 128) as a spurious failure.
-    rsid_dir = snapshot_dir / rsid
-    if not rsid_dir.exists():
-        return GitOpResult(ok=True, committed=False)
+        # Anything to commit?
+        diff = _run_git(["diff", "--cached", "--quiet"], cwd=snapshot_dir, timeout_s=10)
+        if diff.returncode == 0:
+            # No staged changes; not an error.
+            return GitOpResult(ok=True, committed=False)
 
-    # Stage everything under <rsid>/ (matches cja's pathspec scoping).
-    pathspec = f"{rsid}/"
-    add = _run_git(["add", "-A", "--", pathspec], cwd=snapshot_dir, timeout_s=timeout_s)
-    if add.returncode != 0:
-        duration_ms = int((time.monotonic() - started) * 1000)
-        logger.info(
-            "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
-            rsid,
-            "commit",
-            "GitCommitError",
-            duration_ms,
-            extra={
-                "rsid": rsid,
-                "op": "commit",
-                "error_class": "GitCommitError",
-                "duration_ms": duration_ms,
-            },
+        # Build the message if the caller didn't supply one.
+        if message is None:
+            from datetime import UTC, datetime
+
+            message = generate_commit_message(
+                rsid=rsid,
+                captured_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                change_summary=None,
+            )
+
+        commit = _run_git(
+            ["commit", "-m", message],
+            cwd=snapshot_dir,
+            timeout_s=timeout_s,
         )
-        return GitOpResult(
-            ok=False,
-            error_kind="GitCommitError",
-            error_message=f"git add {pathspec} failed: {add.stderr.strip()}",
-        )
+        if commit.returncode != 0:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            logger.info(
+                "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+                rsid,
+                "commit",
+                "GitCommitError",
+                duration_ms,
+                extra={
+                    "rsid": rsid,
+                    "op": "commit",
+                    "error_class": "GitCommitError",
+                    "duration_ms": duration_ms,
+                },
+            )
+            return GitOpResult(
+                ok=False,
+                error_kind="GitCommitError",
+                error_message=commit.stderr.strip() or commit.stdout.strip(),
+            )
 
-    # Anything to commit?
-    diff = _run_git(["diff", "--cached", "--quiet"], cwd=snapshot_dir, timeout_s=10)
-    if diff.returncode == 0:
-        # No staged changes; not an error.
-        return GitOpResult(ok=True, committed=False)
+        rev = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir, timeout_s=5)
+        commit_sha = rev.stdout.strip() if rev.returncode == 0 else None
 
-    # Build the message if the caller didn't supply one.
-    if message is None:
-        from datetime import UTC, datetime
+        if not push:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            logger.info(
+                "git_commit_complete rsid=%s commit_sha=%s pushed=%s duration_ms=%d",
+                rsid,
+                commit_sha,
+                False,
+                duration_ms,
+                extra={
+                    "rsid": rsid,
+                    "commit_sha": commit_sha,
+                    "pushed": False,
+                    "duration_ms": duration_ms,
+                },
+            )
+            return GitOpResult(
+                ok=True,
+                committed=True,
+                pushed=False,
+                commit_sha=commit_sha,
+            )
 
-        message = generate_commit_message(
-            rsid=rsid,
-            captured_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            change_summary=None,
-        )
+        push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=60)
+        if push_result.returncode != 0:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            logger.info(
+                "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
+                rsid,
+                "push",
+                "GitPushError",
+                duration_ms,
+                extra={
+                    "rsid": rsid,
+                    "op": "push",
+                    "error_class": "GitPushError",
+                    "duration_ms": duration_ms,
+                },
+            )
+            return GitOpResult(
+                ok=False,
+                committed=True,
+                pushed=False,
+                commit_sha=commit_sha,
+                error_kind="GitPushError",
+                error_message=push_result.stderr.strip() or push_result.stdout.strip(),
+            )
 
-    commit = _run_git(
-        ["commit", "-m", message],
-        cwd=snapshot_dir,
-        timeout_s=timeout_s,
-    )
-    if commit.returncode != 0:
-        duration_ms = int((time.monotonic() - started) * 1000)
-        logger.info(
-            "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
-            rsid,
-            "commit",
-            "GitCommitError",
-            duration_ms,
-            extra={
-                "rsid": rsid,
-                "op": "commit",
-                "error_class": "GitCommitError",
-                "duration_ms": duration_ms,
-            },
-        )
-        return GitOpResult(
-            ok=False,
-            error_kind="GitCommitError",
-            error_message=commit.stderr.strip() or commit.stdout.strip(),
-        )
-
-    rev = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir, timeout_s=5)
-    commit_sha = rev.stdout.strip() if rev.returncode == 0 else None
-
-    if not push:
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
             "git_commit_complete rsid=%s commit_sha=%s pushed=%s duration_ms=%d",
             rsid,
             commit_sha,
-            False,
+            True,
             duration_ms,
             extra={
                 "rsid": rsid,
                 "commit_sha": commit_sha,
-                "pushed": False,
+                "pushed": True,
                 "duration_ms": duration_ms,
             },
         )
         return GitOpResult(
             ok=True,
             committed=True,
-            pushed=False,
+            pushed=True,
             commit_sha=commit_sha,
         )
-
-    push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=60)
-    if push_result.returncode != 0:
-        duration_ms = int((time.monotonic() - started) * 1000)
-        logger.info(
-            "git_op_failed rsid=%s op=%s error_class=%s duration_ms=%d",
-            rsid,
-            "push",
-            "GitPushError",
-            duration_ms,
-            extra={
-                "rsid": rsid,
-                "op": "push",
-                "error_class": "GitPushError",
-                "duration_ms": duration_ms,
-            },
-        )
-        return GitOpResult(
-            ok=False,
-            committed=True,
-            pushed=False,
-            commit_sha=commit_sha,
-            error_kind="GitPushError",
-            error_message=push_result.stderr.strip() or push_result.stdout.strip(),
-        )
-
-    duration_ms = int((time.monotonic() - started) * 1000)
-    logger.info(
-        "git_commit_complete rsid=%s commit_sha=%s pushed=%s duration_ms=%d",
-        rsid,
-        commit_sha,
-        True,
-        duration_ms,
-        extra={
-            "rsid": rsid,
-            "commit_sha": commit_sha,
-            "pushed": True,
-            "duration_ms": duration_ms,
-        },
-    )
-    return GitOpResult(
-        ok=True,
-        committed=True,
-        pushed=True,
-        commit_sha=commit_sha,
-    )
