@@ -107,7 +107,7 @@ def is_git_repository(path: Path) -> bool:
             cwd=path,
             timeout_s=5,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except FileNotFoundError, subprocess.TimeoutExpired:
         return False
     return result.returncode == 0 and result.stdout.strip() == "true"
 
@@ -221,3 +221,87 @@ def generate_commit_message(
     if watch_cycle is not None:
         parts.extend(["", f"(watch cycle {watch_cycle})"])
     return "\n".join(parts) + "\n"
+
+
+def git_commit_snapshot(
+    snapshot_dir: Path,
+    *,
+    rsid: str,
+    message: str | None,
+    push: bool,  # noqa: ARG001 — wired in Task 5
+    timeout_s: int = 30,
+) -> GitOpResult:
+    """Stage `<snapshot_dir>/<rsid>/*`, commit, optionally push.
+
+    Auto-inits the snapshot dir as a git repo on first invocation. Skips
+    the commit (returns ``ok=True, committed=False``) when there's no
+    staged diff. Returns ``error_kind="GitCommitError"`` or
+    ``error_kind="GitPushError"`` on failure.
+
+    If `message` is None, generates a default via `generate_commit_message`
+    using the RSID and current UTC timestamp. The full per-cycle message
+    (with change counts + watch_cycle footer) is built by the caller and
+    passed in; this fallback exists for one-shot invocations where the
+    caller may not have a change summary handy.
+    """
+    # Lazy init.
+    if not is_git_repository(snapshot_dir):
+        init = git_init_snapshot_repo(snapshot_dir)
+        if not init.ok:
+            return init
+
+    # Nothing to commit if the per-RSID subdir doesn't exist yet — bail
+    # before `git add` so we don't surface 'pathspec did not match any files'
+    # (modern git's exit-code 128) as a spurious failure.
+    rsid_dir = snapshot_dir / rsid
+    if not rsid_dir.exists():
+        return GitOpResult(ok=True, committed=False)
+
+    # Stage everything under <rsid>/ (matches cja's pathspec scoping).
+    pathspec = f"{rsid}/"
+    add = _run_git(["add", "-A", "--", pathspec], cwd=snapshot_dir, timeout_s=timeout_s)
+    if add.returncode != 0:
+        return GitOpResult(
+            ok=False,
+            error_kind="GitCommitError",
+            error_message=f"git add {pathspec} failed: {add.stderr.strip()}",
+        )
+
+    # Anything to commit?
+    diff = _run_git(["diff", "--cached", "--quiet"], cwd=snapshot_dir, timeout_s=10)
+    if diff.returncode == 0:
+        # No staged changes; not an error.
+        return GitOpResult(ok=True, committed=False)
+
+    # Build the message if the caller didn't supply one.
+    if message is None:
+        from datetime import UTC, datetime
+
+        message = generate_commit_message(
+            rsid=rsid,
+            captured_at=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            change_summary=None,
+        )
+
+    commit = _run_git(
+        ["commit", "-m", message],
+        cwd=snapshot_dir,
+        timeout_s=timeout_s,
+    )
+    if commit.returncode != 0:
+        return GitOpResult(
+            ok=False,
+            error_kind="GitCommitError",
+            error_message=commit.stderr.strip() or commit.stdout.strip(),
+        )
+
+    rev = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir, timeout_s=5)
+    commit_sha = rev.stdout.strip() if rev.returncode == 0 else None
+
+    # Push is implemented in Task 5.
+    return GitOpResult(
+        ok=True,
+        committed=True,
+        pushed=False,
+        commit_sha=commit_sha,
+    )
