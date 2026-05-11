@@ -70,7 +70,7 @@ Both dropped flags are allowlisted in
   output to v1.14.0).
 - Read-only AA 2.0 invariant preserved: git writes are local-filesystem,
   not AA-side.
-- Exit codes unchanged. Reuses `ExitCode.SNAPSHOT` (11) on one-shot git
+- Exit codes unchanged. Reuses `ExitCode.SNAPSHOT` (16) on one-shot git
   failure. **Diverges from cja** (which warns and exits 0) for the
   agent-mode deterministic-exit contract.
 - Snapshot envelope schema unchanged (v4 from v1.12.0 carries forward).

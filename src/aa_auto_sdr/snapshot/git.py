@@ -243,6 +243,7 @@ def git_commit_snapshot(
     message: str | None,
     push: bool,
     timeout_s: int = 30,
+    push_timeout_s: int = 60,  # push is typically slower than local ops
 ) -> GitOpResult:
     """Stage `<snapshot_dir>/<rsid>/*`, commit, optionally push.
 
@@ -256,6 +257,10 @@ def git_commit_snapshot(
     (with change counts + watch_cycle footer) is built by the caller and
     passed in; this fallback exists for one-shot invocations where the
     caller may not have a change summary handy.
+
+    ``timeout_s`` applies to local git operations (add / commit / rev-parse);
+    ``push_timeout_s`` applies to the push subprocess, which may be slower
+    over a remote connection (default 60 s vs. 30 s for local ops).
 
     Thread-safe: all git subprocess calls are serialized via ``_GIT_LOCK``
     so parallel ``--batch --workers > 1`` runs do not race on
@@ -381,7 +386,7 @@ def git_commit_snapshot(
                 commit_sha=commit_sha,
             )
 
-        push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=60)
+        push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=push_timeout_s)
         if push_result.returncode != 0:
             duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(
