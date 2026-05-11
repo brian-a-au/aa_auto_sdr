@@ -639,7 +639,39 @@ def _diff_with_counts_v2(*, added: int, removed: int, modified: int) -> DiffRepo
 
 
 class TestRunOneCycleGit:
-    def test_cycle_result_carries_git_op_when_git_commit_true(self, monkeypatch) -> None:
+    """run_one_cycle itself no longer calls git_commit_snapshot (P2b refactor).
+
+    Git commits are now done by _maybe_commit, called from run_watch_loop
+    AFTER the _should_emit gate. These tests verify that:
+
+      * run_one_cycle always returns git_op=None (the git step moved out).
+      * _maybe_commit populates git_op when git_commit=True.
+      * _maybe_commit skips git when git_commit=False.
+    """
+
+    def test_run_one_cycle_never_populates_git_op(self, monkeypatch) -> None:
+        from aa_auto_sdr.pipeline import watch as watch_mod
+
+        ctx = _ctx(
+            git_commit=True,
+            git_push=False,
+            git_message=None,
+            snapshot_dir=Path("/tmp/snaps"),
+        )
+
+        called: list[int] = []
+        monkeypatch.setattr(
+            watch_mod,
+            "git_commit_snapshot",
+            lambda *_a, **_kw: (called.append(1), _GitOpResult(ok=True))[1],
+        )
+
+        # After the P2b refactor run_one_cycle never calls git_commit_snapshot.
+        cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert cycle.git_op is None
+        assert called == [], "git_commit_snapshot must NOT be called from run_one_cycle"
+
+    def test_maybe_commit_populates_git_op_when_git_commit_true(self, monkeypatch) -> None:
         from aa_auto_sdr.pipeline import watch as watch_mod
 
         ctx = _ctx(
@@ -656,10 +688,13 @@ class TestRunOneCycleGit:
         )
         monkeypatch.setattr(watch_mod, "git_commit_snapshot", lambda *_a, **_kw: canned_result)
 
-        cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
-        assert cycle.git_op is canned_result
+        base_cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert base_cycle.git_op is None  # not yet populated
 
-    def test_cycle_result_git_op_none_when_git_commit_false(self, monkeypatch) -> None:
+        committed_cycle = watch_mod._maybe_commit(ctx, base_cycle)
+        assert committed_cycle.git_op is canned_result
+
+    def test_maybe_commit_skips_git_when_git_commit_false(self, monkeypatch) -> None:
         from aa_auto_sdr.pipeline import watch as watch_mod
 
         ctx = _ctx(git_commit=False)
@@ -671,8 +706,9 @@ class TestRunOneCycleGit:
             lambda *_a, **_kw: (called.append(1), _GitOpResult(ok=True))[1],
         )
 
-        cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
-        assert cycle.git_op is None
+        base_cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
+        result = watch_mod._maybe_commit(ctx, base_cycle)
+        assert result.git_op is None
         assert called == []
 
 

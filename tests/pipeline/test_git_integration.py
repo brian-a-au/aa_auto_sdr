@@ -567,3 +567,133 @@ class TestWatchModeGit:
         assert inj.emitter.events[1]["event"] == "error"
         assert inj.emitter.events[1]["error_type"] == "GitPushError"
         assert "rejected" in inj.emitter.events[1]["error"]
+
+
+class TestWatchThresholdGitsCommitGate:
+    """P2b regression — git commits must NOT happen for threshold-suppressed cycles.
+
+    Before the fix, git_commit_snapshot was called inside run_one_cycle for
+    every baseline/diffed cycle regardless of the --watch-threshold gate.
+    Now _maybe_commit is called after _should_emit inside run_watch_loop, so
+    suppressed cycles never generate commits.
+    """
+
+    def _make_watch_ctx(self, inj: _WInjection, *, git_commit_mock):  # type: ignore[return]
+        from aa_auto_sdr.pipeline.watch import WatchContext
+
+        return WatchContext(
+            fetcher=inj.fetcher,
+            snapshot_store=inj.store,
+            clock=inj.clock,
+            sleeper=inj.sleeper,
+            emitter=inj.emitter,
+            ignore_fields=frozenset(),
+            extended_fields=False,
+            git_commit=True,
+            git_push=False,
+            git_message=None,
+            snapshot_dir=Path("/tmp/snaps"),
+        )
+
+    def test_git_commit_not_called_when_cycle_suppressed_by_threshold(self) -> None:
+        """Threshold=5, diff has 1 change → cycle suppressed → git MUST NOT commit."""
+        from unittest.mock import MagicMock, patch
+
+        from aa_auto_sdr.pipeline import watch as watch_mod
+        from aa_auto_sdr.pipeline.watch import StopToken, run_watch_loop
+        from aa_auto_sdr.snapshot.models import AddedRemovedItem, ComponentDiff, DiffReport
+
+        inj = _make_inj()
+        # Seed the store so cycle 0 is a baseline (always emitted), then cycle 1
+        # produces a 1-change diff that threshold=5 suppresses.
+        # We need a second doc to force a diff on cycle 1.
+        call_count = 0
+
+        def fetch_rotating(rsid: str) -> Any:
+            nonlocal call_count
+            call_count += 1
+            return {"rsid": rsid, "call": call_count}
+
+        inj.fetcher.fetch_snapshot = fetch_rotating  # type: ignore[assignment]
+
+        git_mock = MagicMock(return_value=GitOpResult(ok=True, committed=True, commit_sha="a" * 40))
+
+        # Patch compare so cycle 1 produces exactly 1 change.
+        small_diff = DiffReport(
+            a_rsid="rs_a",
+            b_rsid="rs_a",
+            a_captured_at="X",
+            b_captured_at="Y",
+            a_tool_version="1.15.0",
+            b_tool_version="1.15.0",
+            components=[
+                ComponentDiff(
+                    component_type="dimensions",
+                    added=[AddedRemovedItem(id="a0", name="a0")],
+                    removed=[],
+                    modified=[],
+                    unchanged_count=0,
+                )
+            ],
+        )
+
+        with (
+            patch.object(watch_mod, "git_commit_snapshot", git_mock),
+            patch.object(watch_mod, "compare", return_value=small_diff),
+        ):
+            ctx = self._make_watch_ctx(inj, git_commit_mock=git_mock)
+            run_watch_loop(
+                ctx=ctx,
+                rsids=["rs_a"],
+                interval=__import__("datetime").timedelta(seconds=0),
+                threshold=5,  # 1 change < 5 → cycle 1 suppressed
+                max_cycles=2,
+                stop=StopToken(),
+            )
+
+        # Cycle 0 is a baseline → always emits → git commits.
+        # Cycle 1 is a 1-change diff suppressed by threshold=5 → no git commit.
+        # So git_commit_snapshot must be called exactly ONCE (for the baseline).
+        assert git_mock.call_count == 1, (
+            f"expected 1 git commit (baseline only), got {git_mock.call_count}"
+        )
+        # Only the baseline event emitted.
+        assert len(inj.emitter.events) == 1
+        assert inj.emitter.events[0]["event"] == "baseline"
+
+    def test_git_commit_called_when_cycle_meets_threshold(self) -> None:
+        """Threshold=0 → every cycle emits → git MUST commit for each one."""
+        from unittest.mock import MagicMock, patch
+
+        from aa_auto_sdr.pipeline import watch as watch_mod
+        from aa_auto_sdr.pipeline.watch import StopToken, run_watch_loop
+
+        inj = _make_inj()
+        call_count = 0
+
+        def fetch_rotating(rsid: str) -> Any:
+            nonlocal call_count
+            call_count += 1
+            return {"rsid": rsid, "call": call_count}
+
+        inj.fetcher.fetch_snapshot = fetch_rotating  # type: ignore[assignment]
+
+        git_mock = MagicMock(return_value=GitOpResult(ok=True, committed=True, commit_sha="a" * 40))
+
+        with (
+            patch.object(watch_mod, "git_commit_snapshot", git_mock),
+        ):
+            ctx = self._make_watch_ctx(inj, git_commit_mock=git_mock)
+            run_watch_loop(
+                ctx=ctx,
+                rsids=["rs_a"],
+                interval=__import__("datetime").timedelta(seconds=0),
+                threshold=0,  # emit every cycle
+                max_cycles=2,
+                stop=StopToken(),
+            )
+
+        # Both cycle 0 (baseline) and cycle 1 (diffed) emit → both commit.
+        assert git_mock.call_count == 2, (
+            f"expected 2 git commits (one per emitted cycle), got {git_mock.call_count}"
+        )

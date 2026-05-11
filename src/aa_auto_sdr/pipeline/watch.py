@@ -233,24 +233,6 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
             ended_at=ctx.clock.utcnow(),
         )
 
-    # v1.15.0 — git commit after snapshot save.
-    if ctx.git_commit and result.kind in ("baseline", "diffed") and ctx.snapshot_dir is not None:
-        from dataclasses import replace
-
-        summary = _diff_summary(result.diff) if result.diff is not None else None
-        message = ctx.git_message or generate_commit_message(
-            rsid=rsid,
-            captured_at=_iso_z(result.started_at),
-            change_summary=summary,
-        )
-        git_op = git_commit_snapshot(
-            ctx.snapshot_dir,
-            rsid=rsid,
-            message=message,
-            push=ctx.git_push,
-        )
-        result = replace(result, git_op=git_op)
-
     return result
 
 
@@ -381,6 +363,35 @@ def _emit_cycle(ctx: WatchContext, result: CycleResult, *, cycle_n: int) -> None
         )
 
 
+def _maybe_commit(ctx: WatchContext, result: CycleResult) -> CycleResult:
+    """If --git-commit is set and the cycle has a snapshot to commit, run
+    git_commit_snapshot and return a new CycleResult with git_op populated.
+    Returns the original result unchanged otherwise.
+
+    Called AFTER _should_emit returns True so threshold-suppressed cycles
+    don't generate commits the user can't see in the event stream.
+    """
+    if not ctx.git_commit or ctx.snapshot_dir is None:
+        return result
+    if result.kind not in ("baseline", "diffed"):
+        return result
+    from dataclasses import replace
+
+    summary = _diff_summary(result.diff) if result.diff is not None else None
+    message = ctx.git_message or generate_commit_message(
+        rsid=result.rsid,
+        captured_at=_iso_z(result.started_at),
+        change_summary=summary,
+    )
+    git_op = git_commit_snapshot(
+        ctx.snapshot_dir,
+        rsid=result.rsid,
+        message=message,
+        push=ctx.git_push,
+    )
+    return replace(result, git_op=git_op)
+
+
 # --- loop driver -----------------------------------------------------------
 
 from datetime import timedelta  # noqa: E402
@@ -443,6 +454,7 @@ def run_watch_loop(
                 break
             result = run_one_cycle(rsid=rsid, ctx=ctx)
             if _should_emit(result, threshold=threshold):
+                result = _maybe_commit(ctx, result)
                 _emit_cycle(ctx, result, cycle_n=cycle_n)
         cycle_n += 1
         if max_cycles is not None and cycle_n >= max_cycles:
