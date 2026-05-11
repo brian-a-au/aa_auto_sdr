@@ -147,6 +147,14 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted `change` event on stdout (baseline / error events are observable via their stdout NDJSON and do not double-log). Carries `cycle`, `rsid`, `change_count`, `emitted`.
 - `watch_loop_stop` — INFO. `cli/commands/watch.py::run`. Fires once at loop termination (SIGINT/SIGTERM, max_cycles, or fatal). Carries `reason` (sigint|max_cycles|fatal), `cycles_completed`.
 
+### Git integration (v1.15.0)
+
+| Event                  | When                                                  | Extra keys                                           |
+|------------------------|-------------------------------------------------------|------------------------------------------------------|
+| `git_init_repo`        | After lazy auto-init creates `.git/` + initial commit | `path`, `initial_commit`                             |
+| `git_commit_complete`  | After a successful commit (and optional push)         | `rsid`, `commit_sha`, `pushed`, `duration_ms`        |
+| `git_op_failed`        | On any git op failure (init / commit / push)          | `rsid`, `op` (init\|commit\|push), `error_class`, `duration_ms` |
+
 ## De-dup rule
 
 `run_start` and `run_complete` fire **once per invocation**, from `cli/main.run` (the top frame). Sub-frames (e.g. `pipeline/batch.run_batch`) emit only their own scope-specific events (`rsid_start`, `rsid_complete`, `rsid_failure`) and never re-emit lifecycle events.
@@ -246,3 +254,4 @@ Most maintainers will not need this table. It exists because the vocabulary meta
 | Quality severity engine: `quality_audit_complete`, `quality_gate_evaluated`, `quality_auto_enabled`, `quality_policy_loaded`; vocabulary: `audit_naming`, `flag_stale`, `quality_total`, `quality_by_severity`, `severity`, `verdict`, `threshold`, `policy_path`, `fail_on_quality`, `quality_report` | v1.12.0 |
 | Drift / trending: `trending_window_resolved`, `trending_compute_complete`; vocabulary: `duration`, `start_at`, `end_at`, `snapshot_count`, `total_changes`, `volatility_score` | v1.13.0 |
 | Watch / scheduled: `watch_loop_start`, `watch_cycle_complete`, `watch_loop_stop`; vocabulary: `cycle`, `interval`, `watch_threshold`, `change_count`, `emitted`, `cycles_completed`, `rsids` | v1.14.0 |
+| Git integration: `git_init_repo`, `git_commit_complete`, `git_op_failed`; vocabulary: `commit_sha`, `pushed`, `op`, `initial_commit` | v1.15.0 |

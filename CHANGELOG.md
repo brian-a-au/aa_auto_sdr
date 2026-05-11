@@ -2,9 +2,92 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.15.0] — unreleased
+## [1.15.0] — 2026-05-11
 
-Git integration. Full entry written at end of release; this stub satisfies the `## [<version>]` invariant enforced by `scripts/check_version_sync.py` while the implementation is in progress.
+Git integration. After saving a snapshot (one-shot, batch, or watch cycle),
+`--git-commit` stages and commits the per-RSID pathspec to the snapshot
+directory's git repo, auto-initializing the directory as a repo on first
+use. `--git-push` pushes after each commit. `--git-message` overrides
+the auto-generated commit message. Composes naturally with watch mode:
+every baseline/change cycle commits, closing the agent-native loop.
+
+### Added
+- `--git-commit` modifier flag. After saving a snapshot, stage
+  `<snapshot_dir>/<rsid>/*` and commit. Auto-inits the snapshot dir as a
+  git repo on first invocation (`.git/`, `README.md`, `commit.gpgsign=false`
+  set locally to avoid unattended GPG prompts). Skips commit when there
+  is no staged diff (`git diff --cached --quiet`).
+- `--git-push` modifier flag. Pushes after a successful commit. Requires
+  `--git-commit`. Reads the user's existing `git config` for remote /
+  branch / auth — we don't manage credentials.
+- `--git-message <text>` modifier flag. Overrides the auto-generated
+  commit message verbatim (no template interpolation). Requires
+  `--git-commit`.
+- `snapshot/git.py` extensions (~150 LOC): `GitOpResult` dataclass,
+  `is_git_repository`, `git_init_snapshot_repo`, `git_commit_snapshot`,
+  `generate_commit_message`. Reuses the existing `subprocess`-based
+  pattern from `git_show` (read path) — no new dependencies.
+- `pipeline/single.py`, `pipeline/batch.py`, `pipeline/watch.py` compose
+  `git_commit_snapshot` on top of `save_snapshot` without duplicating
+  logic. `RunResult.git_op` and `CycleResult.git_op` are new optional
+  fields carrying the `GitOpResult` outcome.
+- Watch event payload gains an optional `git` block on baseline/change
+  events when `--git-commit` is set: `{"committed": bool, "commit_sha":
+  str, "pushed": bool}`. On git failure, the original baseline/change
+  event still emits, followed by a separate `error` event with
+  `error_type="GitCommitError"` or `"GitPushError"`. Schema version
+  unchanged (`aa-watch-event/v1` — the additions are additive).
+- Three canonical log events: `git_init_repo` (path, initial_commit),
+  `git_commit_complete` (rsid, commit_sha, pushed, duration_ms),
+  `git_op_failed` (rsid, op, error_class, duration_ms).
+- Pre-dispatch validator (`_validate_git_modifiers`) rejects `--git-push`
+  and `--git-message` without `--git-commit`, and rejects `--git-commit`
+  with non-generating actions (`--diff`, `--stats`, `--list-X`,
+  `--trending-window`, `--compare-with-prev`, `--inventory-summary`).
+
+### Roadmap deviations (dropped)
+The v1.15.0 row listed "`--git-commit`, `--git-push-on-change`, etc." —
+two flags drop from this release.
+
+- **Dropped `--git-init`** — argparse-rejected. cja's `--git-init` is a
+  standalone action that initializes a snapshot directory as a git repo.
+  aa replaces it with **lazy auto-init**: the first invocation of
+  `--git-commit` on a non-repo directory automatically runs the same
+  initialization sequence. Detecting `is_git_repository(snapshot_dir)`
+  and `git init`-ing if absent costs nothing and matches the agent-mode
+  posture of "configure once, run many."
+- **Dropped `--git-push-on-change`** — argparse-rejected. The roadmap
+  suffix was redundant. `--git-commit` already short-circuits on no-diff
+  (`git diff --cached --quiet` skips no-op commits), so "push only on
+  change" is the natural behavior of `--git-push` after `--git-commit`.
+  The shorter name is cja's; we adopt it for cross-tool UX parity.
+
+Both dropped flags are allowlisted in
+`tests/docs/test_agents_md_canonical_sections.py` (v1.10–v1.14 pattern).
+
+### Behavior
+- Default behavior unchanged (no `--git-commit` flag → byte-equivalent
+  output to v1.14.0).
+- Read-only AA 2.0 invariant preserved: git writes are local-filesystem,
+  not AA-side.
+- Exit codes unchanged. Reuses `ExitCode.SNAPSHOT` (11) on one-shot git
+  failure. **Diverges from cja** (which warns and exits 0) for the
+  agent-mode deterministic-exit contract.
+- Snapshot envelope schema unchanged (v4 from v1.12.0 carries forward).
+- No new env vars, no new runtime dependencies (stdlib `subprocess` only).
+- Auto-init is idempotent on existing repos.
+- `commit.gpgsign=false` is set per-repo via `git config --local`; users
+  who want GPG-signed snapshot commits can `git config --unset` inside
+  the snapshot dir.
+
+### Internal
+- `snapshot/git.py` was previously 44 LOC of read-only `git_show`. v1.15.0
+  extends it to ~200 LOC. The boundary holds: every git operation is a
+  thin subprocess wrapper. Business logic lives in the pipeline
+  orchestrators.
+- `RunResult.git_op: GitOpResult | None` and `CycleResult.git_op:
+  GitOpResult | None` are additive. Existing consumers ignore the new
+  field unchanged.
 
 ## [1.14.0] — 2026-05-10
 

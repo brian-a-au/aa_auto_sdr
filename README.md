@@ -328,6 +328,18 @@ uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
 
 Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0.
 
+### Git-versioned snapshot audit trail
+
+The snapshot directory is the git repo. The first `--git-commit` initializes it automatically — no separate setup step.
+
+```bash
+# Commit each snapshot to a git-versioned audit trail.
+uv run aa_auto_sdr rs_prod_us --git-commit
+
+# In a watch loop — each baseline/change cycle commits automatically.
+uv run aa_auto_sdr rs_prod_us --watch --interval 1h --git-commit --git-push
+```
+
 ### Retry tuning
 
 For flaky AA orgs or noisy CI environments, tune retry behavior:
