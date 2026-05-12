@@ -66,3 +66,42 @@ def test_write_round_trip_preserves_untouched_cells(
     assert wb["eVars"]["C1"].value == "Adobe Analytics"
     assert wb["eVars"]["C2"].value == "=Glossary!C2"
     assert wb["eVars"]["B4"].value == "eVars"
+
+
+def test_glossary_c2_defaults_to_report_suite_name(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    writer.write(_doc(rsid="my_rs"), out)
+    wb = load_workbook(out)
+    assert wb["Glossary"]["C2"].value == "Test Report Suite"
+
+
+def test_glossary_c2_uses_organization_override(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    writer.organization = "Acme Corp"
+    out = tmp_path / "out.xlsx"
+    writer.write(_doc(), out)
+    wb = load_workbook(out)
+    assert wb["Glossary"]["C2"].value == "Acme Corp"
+
+
+def test_cross_sheet_formula_still_present_after_glossary_write(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    """The cross-sheet formula on every non-Glossary C2 must survive."""
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    writer.write(_doc(), out)
+    wb = load_workbook(out)
+    for sheet in ("eVars", "props", "custom events (metrics)", "metrics-segments"):
+        assert wb[sheet]["C2"].value == "=Glossary!C2", sheet

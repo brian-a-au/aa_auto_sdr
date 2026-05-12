@@ -33,6 +33,15 @@ class ExcelTemplateWriter:
         self.template_path: Path | None = None
         self.organization: str | None = None
 
+    def _fill_glossary_org(self, wb, doc: SdrDocument) -> None:
+        """Write the org name to Glossary!C2 — the source-of-truth cell
+        every other sheet's C2 formula references. Skips if 'Glossary' is
+        absent (defensive — real Adobe templates always include it)."""
+        if "Glossary" not in wb.sheetnames:
+            return
+        org = self.organization or doc.report_suite.name
+        wb["Glossary"]["C2"] = org
+
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         if self.template_path is None:
             raise RuntimeError(
@@ -51,7 +60,9 @@ class ExcelTemplateWriter:
             extra={"path": str(self.template_path), "sheets": len(wb.sheetnames)},
         )
 
-        # Subsequent tasks add: _fill_glossary_org, _fill_dimensions,
+        self._fill_glossary_org(wb, doc)
+
+        # Subsequent tasks add: _fill_dimensions,
         # _fill_metrics, _fill_metrics_segments.
 
         target.parent.mkdir(parents=True, exist_ok=True)
