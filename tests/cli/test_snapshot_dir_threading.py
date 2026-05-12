@@ -40,3 +40,106 @@ class TestResolveSnapshotDir:
         monkeypatch.setattr(profiles, "default_base", lambda: tmp_path / ".aa")
         ns = _ns(snapshot_dir=None, profile=None)
         assert _shared.resolve_snapshot_dir(ns) == tmp_path / ".aa" / "orgs" / "default" / "snapshots"
+
+
+class TestGenerateHonorsSnapshotDir:
+    def test_generate_passes_explicit_snapshot_dir_to_pipeline(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.api import fetch as fetch_mod
+        from aa_auto_sdr.api.client import AaClient
+        from aa_auto_sdr.cli.commands import generate
+        from aa_auto_sdr.core import credentials
+        from aa_auto_sdr.pipeline import single as single_mod
+        from aa_auto_sdr.pipeline.models import RunResult
+
+        captured: dict[str, object] = {}
+
+        def _fake_run_single(**kwargs):
+            captured["snapshot_dir"] = kwargs.get("snapshot_dir")
+            return RunResult(
+                rsid=kwargs["rsid"],
+                success=True,
+                outputs=[],
+                report_suite_name="stub",
+                git_op=None,
+            )
+
+        monkeypatch.setattr(single_mod, "run_single", _fake_run_single)
+        monkeypatch.setattr(credentials, "resolve", lambda profile=None: object())  # noqa: ARG005
+        monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, *a, **kw: object()))  # noqa: ARG005
+        monkeypatch.setattr(fetch_mod, "resolve_rsid", lambda *a, **kw: (["rs_a"], False))  # noqa: ARG005
+
+        explicit = tmp_path / "explicit"
+        rc = generate.run(
+            rsid="rs_a",
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            git_commit=True,
+            snapshot_dir=explicit,
+        )
+        assert rc == 0
+        assert captured["snapshot_dir"] == explicit
+
+    def test_generate_runs_without_snapshot_dir_when_no_save_required(self, monkeypatch, tmp_path: Path) -> None:
+        """No --git-commit / --snapshot / --auto-snapshot → snapshot_dir is None."""
+        from aa_auto_sdr.api import fetch as fetch_mod
+        from aa_auto_sdr.api.client import AaClient
+        from aa_auto_sdr.cli.commands import generate
+        from aa_auto_sdr.core import credentials
+        from aa_auto_sdr.pipeline import single as single_mod
+        from aa_auto_sdr.pipeline.models import RunResult
+
+        captured: dict[str, object] = {}
+
+        def _fake_run_single(**kwargs):
+            captured["snapshot_dir"] = kwargs.get("snapshot_dir")
+            return RunResult(
+                rsid=kwargs["rsid"],
+                success=True,
+                outputs=[],
+                report_suite_name="stub",
+                git_op=None,
+            )
+
+        monkeypatch.setattr(single_mod, "run_single", _fake_run_single)
+        monkeypatch.setattr(credentials, "resolve", lambda profile=None: object())  # noqa: ARG005
+        monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, *a, **kw: object()))  # noqa: ARG005
+        monkeypatch.setattr(fetch_mod, "resolve_rsid", lambda *a, **kw: (["rs_a"], False))  # noqa: ARG005
+
+        rc = generate.run(
+            rsid="rs_a",
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            git_commit=False,
+            snapshot_dir=None,
+        )
+        assert rc == 0
+        assert captured["snapshot_dir"] is None
+
+
+class TestGenerateCliBoundaryThreadsSnapshotDir:
+    def test_main_passes_resolver_output_to_generate(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import generate
+
+        captured: dict[str, object] = {}
+
+        def _fake_generate_run(**kwargs):
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(generate, "run", _fake_generate_run)
+        explicit = tmp_path / "explicit"
+        rc = main_mod.run(
+            [
+                "rs_a",
+                "--git-commit",
+                "--snapshot-dir",
+                str(explicit),
+                "--output-dir",
+                str(tmp_path / "out"),
+            ],
+        )
+        assert rc == 0
+        assert captured["snapshot_dir"] == explicit

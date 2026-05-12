@@ -17,6 +17,7 @@ from aa_auto_sdr.cli.agent_output import (
 )
 from aa_auto_sdr.cli.commands import config as config_cmd
 from aa_auto_sdr.cli.commands import generate as generate_cmd
+from aa_auto_sdr.cli.commands._shared import resolve_snapshot_dir
 from aa_auto_sdr.cli.parser import (
     _apply_agent_mode_defaults,
     _configured_long_options,
@@ -787,6 +788,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         git_commit=getattr(ns, "git_commit", False),
         git_push=getattr(ns, "git_push", False),
         git_message=getattr(ns, "git_message", None),
+        snapshot_dir=resolve_snapshot_dir(ns),
     )
 
 

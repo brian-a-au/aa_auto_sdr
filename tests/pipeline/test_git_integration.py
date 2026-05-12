@@ -139,6 +139,7 @@ class TestDefaultSnapshotDirFallback:
                 git_commit=True,
                 git_push=False,
                 git_message=None,
+                snapshot_dir=tmp_path / "orgs" / "default" / "snapshots",
             )
 
         # Must NOT be CONFIG (10) — must succeed (0)

@@ -277,6 +277,7 @@ def test_generate_snapshot_writes_to_profile_dir(
         format_name="json",
         profile="prod",
         snapshot=True,
+        snapshot_dir=fake_home / ".aa" / "orgs" / "prod" / "snapshots",
     )
     assert rc == 0
     snap_dir = fake_home / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
@@ -522,6 +523,7 @@ class TestAutoSnapshot:
             format_name="excel",
             profile="prod",
             auto_snapshot=True,
+            snapshot_dir=tmp_path / ".aa" / "orgs" / "prod" / "snapshots",
         )
         assert rc == 0
         snap_dir = tmp_path / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
@@ -566,6 +568,7 @@ class TestAutoSnapshot:
             auto_snapshot=True,
             auto_prune=True,
             keep_last=1,
+            snapshot_dir=tmp_path / ".aa" / "orgs" / "prod" / "snapshots",
         )
         assert rc == 0
         # Auto-snapshot wrote 1 new; auto-prune --keep-last 1 leaves 1.
@@ -605,6 +608,7 @@ class TestAutoSnapshot:
             profile="prod",
             snapshot=True,
             auto_snapshot=True,
+            snapshot_dir=tmp_path / ".aa" / "orgs" / "prod" / "snapshots",
         )
         assert rc == 0
         snap_dir = tmp_path / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
