@@ -104,6 +104,14 @@ VOCAB = {
     "commit_sha",
     "pushed",
     "op",
+    # v1.16.0 additions — template-fill writer
+    "sheet",
+    "sheets",
+    "rows_matched",
+    "rows_appended",
+    "rows_dropped",
+    "soft_cap",
+    "overflow_rows",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of

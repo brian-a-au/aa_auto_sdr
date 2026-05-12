@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.16.0] — 2026-05-12
+
+Template-fill Excel writer.
+
 ## [1.15.1] — 2026-05-12
 
 Patch release closing three deliberately-deferred items from v1.15.0.
