@@ -14,7 +14,7 @@ _ALIASES: dict[str, list[str]] = {
     "ci": ["json", "markdown"],
 }
 
-_CONCRETE = {"excel", "csv", "json", "html", "markdown"}
+_CONCRETE = {"excel", "csv", "json", "html", "markdown", "excel-template"}
 
 _WRITERS: dict[str, Writer] = {}
 
@@ -26,6 +26,22 @@ def resolve_formats(name: str) -> list[str]:
     if name in _CONCRETE:
         return [name]
     raise KeyError(f"Unknown format or alias: {name!r}")
+
+
+def swap_excel_for_template(formats: list[str]) -> list[str]:
+    """Replace every 'excel' entry with 'excel-template'; preserve order, dedupe.
+
+    Called after format resolution when --template is set. v1.16.0.
+    """
+    seen: set[str] = set()
+    out: list[str] = []
+    for fmt in formats:
+        replacement = "excel-template" if fmt == "excel" else fmt
+        if replacement in seen:
+            continue
+        seen.add(replacement)
+        out.append(replacement)
+    return out
 
 
 def register_writer(name: str, writer: Writer) -> None:
@@ -45,6 +61,7 @@ def bootstrap() -> None:
     so the fast-path entry stays cheap."""
     from aa_auto_sdr.output.writers import csv as _csv  # noqa: F401
     from aa_auto_sdr.output.writers import excel as _excel  # noqa: F401
+    from aa_auto_sdr.output.writers import excel_template as _excel_template  # noqa: F401
     from aa_auto_sdr.output.writers import html as _html  # noqa: F401
     from aa_auto_sdr.output.writers import json as _json  # noqa: F401
     from aa_auto_sdr.output.writers import markdown as _markdown  # noqa: F401
