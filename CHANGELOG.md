@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.15.1] — 2026-05-12
+
+Patch release closing three deliberately-deferred items from v1.15.0.
+
+### Added
+- `--snapshot-dir <path>` now works for single + batch dispatch (was
+  silently ignored — only watch + trending consumed it in v1.15.0).
+  Closes the v1.15.0 deferral surfaced by Codex P3: the snapshot
+  directory (and therefore the git repo `--git-commit` operates on)
+  can now live anywhere, independent of profile resolution.
+- Auto-generated watch commit messages now include a `(watch cycle <n>)`
+  footer. The wiring became trivial after Codex P2b moved the git-commit
+  step into `_maybe_commit`. User-supplied `--git-message <text>` remains
+  verbatim — no footer appended.
+
+### Documentation
+- CHANGELOG + AGENTS.md updated to reflect the as-shipped batch
+  exit-code escalation behavior. Codex P2a on PR #42 overrode the
+  original v1.15.0 spec §3.10 decision (which said batch git failures
+  would not alter the exit code); the as-shipped behavior escalates to
+  `PARTIAL_SUCCESS` (14), and the docs now match.
+
+### Internal
+- Extracted `resolve_snapshot_dir(ns)` from `cli/commands/watch.py` to
+  `cli/commands/_shared.py` so generate / batch / watch share one
+  precedence chain (`--snapshot-dir > --profile > "default"`). No
+  behavioral change for watch mode.
+
+### Behavior
+- Default behavior unchanged. No new CLI flags, no new exit codes, no
+  envelope schema bump, no new runtime dependencies.
+- Read-only AA 2.0 invariant preserved.
+
 ## [1.15.0] — 2026-05-11
 
 Git integration. After saving a snapshot (one-shot, batch, or watch cycle),
@@ -73,6 +106,12 @@ Both dropped flags are allowlisted in
 - Exit codes unchanged. Reuses `ExitCode.SNAPSHOT` (16) on one-shot git
   failure. **Diverges from cja** (which warns and exits 0) for the
   agent-mode deterministic-exit contract.
+- Batch git failures escalate to `PARTIAL_SUCCESS` (14) when every SDR
+  generated successfully but one or more per-RSID git operations failed.
+  Each failed RSID's `error_kind` and `error_message` are surfaced on
+  stderr. Matches the single-mode `SNAPSHOT` (16) divergence from cja
+  for the agent-mode deterministic-exit contract. If every SDR also
+  failed, the existing batch-all-failed precedence still applies.
 - Snapshot envelope schema unchanged (v4 from v1.12.0 carries forward).
 - No new env vars, no new runtime dependencies (stdlib `subprocess` only).
 - Auto-init is idempotent on existing repos.
