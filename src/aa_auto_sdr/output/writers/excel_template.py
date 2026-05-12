@@ -176,9 +176,9 @@ class ExcelTemplateWriter:
     # ---- dimensions ---------------------------------------------------------
 
     def _fill_dimensions(self, wb, doc: SdrDocument) -> None:
-        evar_components = [d for d in doc.dimensions if d.id.lower().startswith("evar") or d.id == "campaign"]
+        evar_components = [d for d in doc.dimensions if d.id.lower().startswith("evar") or d.id.lower() == "campaign"]
         prop_components = [
-            d for d in doc.dimensions if d.id.lower().startswith("prop") or d.id in {"pageName", "linkName"}
+            d for d in doc.dimensions if d.id.lower().startswith("prop") or d.id.lower() in {"pagename", "linkname"}
         ]
         column_map: dict[str, Callable[[Any], Any]] = {
             "Analytics Variable": lambda d: d.id,

@@ -234,6 +234,31 @@ def test_evars_sheet_filtering_includes_campaign_excludes_prop(
     assert wb["props"].cell(row=7, column=4).value == "Internal Section"
 
 
+def test_dimension_filter_case_insensitive_on_reserved_ids(
+    synthetic_template_with_campaign_skeleton: Path,
+    tmp_path: Path,
+) -> None:
+    """Reserved ids (campaign, pageName, linkName) match case-insensitively."""
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_with_campaign_skeleton
+    out = tmp_path / "out.xlsx"
+    writer.write(
+        _doc(
+            dimensions=[
+                _dim("CAMPAIGN", "Mixed Case Campaign"),
+                _dim("PAGENAME", "Mixed Case Page Name"),
+            ],
+        ),
+        out,
+    )
+    wb = load_workbook(out)
+    # CAMPAIGN matches the lowercase 'campaign' skeleton row at eVars row 10
+    assert wb["eVars"].cell(row=10, column=3).value in ("campaign", "CAMPAIGN")
+    assert wb["eVars"].cell(row=10, column=4).value == "Mixed Case Campaign"
+    # PAGENAME matches the lowercase 'pageName' skeleton row at props row 8
+    assert wb["props"].cell(row=8, column=4).value == "Mixed Case Page Name"
+
+
 def _metric(id_: str, name: str, description: str | None = None) -> models.Metric:
     return models.Metric(
         id=id_,

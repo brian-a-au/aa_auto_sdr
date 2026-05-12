@@ -146,6 +146,12 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "git_init_repo": {"path", "initial_commit"},
     "git_commit_complete": {"rsid", "commit_sha", "pushed", "duration_ms"},
     "git_op_failed": {"rsid", "op", "error_class", "duration_ms"},
+    # v1.16.0 — template-fill writer
+    "template_load": {"path", "sheets"},
+    "template_sheet_filled": {"sheet", "rows_matched", "rows_appended"},
+    "template_sheet_skipped": {"sheet", "reason"},
+    "template_overflow": {"sheet", "overflow_rows"},
+    "template_sheet_clipped": {"sheet", "rows_dropped", "soft_cap"},
 }
 
 INSTRUMENTED_MODULES = [
@@ -183,6 +189,8 @@ INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/cli/commands/compare_with_prev.py"),
     # v1.14.0
     Path("src/aa_auto_sdr/cli/commands/watch.py"),
+    # v1.16.0
+    Path("src/aa_auto_sdr/output/writers/excel_template.py"),
 ]
 
 
