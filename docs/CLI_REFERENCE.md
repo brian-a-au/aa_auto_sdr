@@ -109,6 +109,8 @@ aa_auto_sdr <RSID> --dry-run --auto-snapshot --profile prod
 
 ### `--template PATH` *(v1.16.0)*
 
+> **Workflow guide:** [`docs/TEMPLATE_WORKFLOW.md`](TEMPLATE_WORKFLOW.md) — first-run + batch + troubleshooting walkthroughs, coverage map, log-signals reference.
+
 Path to an existing `.xlsx` template. When set, every resolved `excel` format slot is swapped to `excel-template` (the template-fill writer). Adobe's official `aa_en_BRD_SDR_template.xlsx` is the canonical target; any `.xlsx` with the same anchor layout (sheet names, `B4` section titles, `ID` header markers in rows 5–10) also works.
 
 The fill writer is non-destructive: it matches existing skeleton rows by id and overwrites in-place, leaves non-matching skeleton rows untouched, and appends API-only ids past `max_row` (with a `template_overflow` WARNING).

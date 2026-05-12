@@ -311,6 +311,8 @@ rejected (exit `USAGE` 2).
 
 ### Template-fill Excel writer (v1.16.0)
 
+Hands-on workflow guide: [`docs/TEMPLATE_WORKFLOW.md`](docs/TEMPLATE_WORKFLOW.md) — covers first-run, batch, snapshot/git composition, coverage map, and the five `template_*` log events used as health signals in unattended runs.
+
 | Flag | Semantics |
 |------|-----------|
 | `--template PATH` | Path to an existing `.xlsx` template. Switches the Excel writer to fill-mode for the run. Required readable `.xlsx`; missing/dir/non-`.xlsx` → USAGE (2). Routes resolved `excel` formats to `excel-template`. Composes with `--batch`. Rejected with `--watch`, `--diff`, list/inspect actions, and naturally rejected by `--agent-mode` (no `excel` in agent-mode's forced format set). |
