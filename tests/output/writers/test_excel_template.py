@@ -232,3 +232,65 @@ def test_evars_sheet_filtering_includes_campaign_excludes_prop(
     assert wb["eVars"].cell(row=10, column=4).value == "Tracking Code"
     # prop1 lands in props sheet, not eVars
     assert wb["props"].cell(row=7, column=4).value == "Internal Section"
+
+
+def _metric(id_: str, name: str, description: str | None = None) -> models.Metric:
+    return models.Metric(
+        id=id_,
+        name=name,
+        type="counter",
+        category=None,
+        precision=0,
+        segmentable=True,
+        description=description,
+    )
+
+
+def test_metrics_fill_custom_events_sheet(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    writer.write(
+        _doc(
+            metrics=[
+                _metric("event1", "Add to Cart", "Click on the add-to-cart button"),
+                _metric("event5", "Checkout Start", None),
+            ],
+        ),
+        out,
+    )
+    wb = load_workbook(out)
+    ws = wb["custom events (metrics)"]
+    # event1 at row 7 was pre-seeded; should overwrite
+    assert ws.cell(row=7, column=3).value == "event1"
+    assert ws.cell(row=7, column=4).value == "Add to Cart"
+    assert ws.cell(row=7, column=5).value == "Click on the add-to-cart button"
+
+
+def test_metrics_exclude_built_in_visitors(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    """Built-in metrics like 'visitors' / 'pageViews' must not be written
+    to the events sheet."""
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    writer.write(
+        _doc(
+            metrics=[
+                _metric("visitors", "Visitors"),
+                _metric("event1", "Add to Cart"),
+            ],
+        ),
+        out,
+    )
+    wb = load_workbook(out)
+    ws = wb["custom events (metrics)"]
+    # event1 written; 'visitors' must NOT appear anywhere on this sheet.
+    seen = {ws.cell(row=r, column=3).value for r in range(7, ws.max_row + 1)}
+    assert "event1" in seen
+    assert "visitors" not in seen

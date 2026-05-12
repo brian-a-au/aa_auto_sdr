@@ -172,6 +172,22 @@ class ExcelTemplateWriter:
             column_map=column_map,
         )
 
+    def _fill_metrics(self, wb, doc: SdrDocument) -> None:
+        custom_events = [m for m in doc.metrics if m.id.lower().startswith("event")]
+        column_map: dict[str, Callable[[Any], Any]] = {
+            "Event": lambda m: m.id,
+            "Event Name": lambda m: m.name,
+            "Event Description": lambda m: m.description,
+        }
+        self._fill_by_id_sheet(
+            wb,
+            anchor=ANCHORS["events"],
+            id_column_header="Event",
+            components=custom_events,
+            get_id=lambda m: m.id,
+            column_map=column_map,
+        )
+
     def _fill_glossary_org(self, wb, doc: SdrDocument) -> None:
         """Write the org name to Glossary!C2 — the source-of-truth cell
         every other sheet's C2 formula references. Skips if 'Glossary' is
@@ -201,8 +217,9 @@ class ExcelTemplateWriter:
 
         self._fill_glossary_org(wb, doc)
         self._fill_dimensions(wb, doc)
+        self._fill_metrics(wb, doc)
 
-        # Subsequent tasks add: _fill_metrics, _fill_metrics_segments.
+        # Subsequent tasks add: _fill_metrics_segments.
 
         target.parent.mkdir(parents=True, exist_ok=True)
         wb.save(target)
