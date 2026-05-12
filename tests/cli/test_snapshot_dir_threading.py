@@ -182,7 +182,7 @@ class TestBatchHonorsSnapshotDir:
         assert captured["snapshot_dir"] == explicit
 
 
-class TestSnapshotDirIsGitRepoRoot:
+class TestExplicitSnapshotDirReachesPipeline:
     def test_explicit_snapshot_dir_propagates_to_single_pipeline(self, monkeypatch, tmp_path: Path) -> None:
         """End-to-end at the cli/main.py boundary: --snapshot-dir /tmp/explicit/
         + --git-commit on a single RSID surfaces /tmp/explicit/ as the

@@ -132,7 +132,7 @@ def run(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
-    snapshot_dir: Path | None = None,  # v1.15.1 — resolved by CLI boundary
+    snapshot_dir: Path | None = None,  # resolved by CLI boundary
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -230,7 +230,7 @@ def _run_impl(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
-    snapshot_dir: Path | None = None,  # v1.15.1 — resolved by CLI boundary
+    snapshot_dir: Path | None = None,  # resolved by CLI boundary
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
