@@ -1,9 +1,7 @@
 """Shared helpers for CLI command modules.
 
-Currently exposes `resolve_snapshot_dir`, originally defined in
-`cli/commands/watch.py` and used only by the watch driver. v1.15.1 promotes
-it to a shared helper so `generate` and `batch` can honor `--snapshot-dir`
-uniformly — closing a deferral from v1.15.0 (Codex P3).
+Currently exposes `resolve_snapshot_dir`, used by `generate`, `batch`, and
+`watch` to settle the snapshot directory from `--snapshot-dir` / `--profile`.
 """
 
 from __future__ import annotations
@@ -20,9 +18,8 @@ def resolve_snapshot_dir(ns: argparse.Namespace) -> Path:
       2. `~/.aa/orgs/<--profile>/snapshots` when a profile is set.
       3. `~/.aa/orgs/default/snapshots` as the final fallback.
 
-    The fallback to a `"default"` profile mirrors the v1.15.0 + Codex-P1
-    behavior in `generate`/`batch`: `--git-commit` without `--profile`
-    should not error out.
+    The fallback to a `"default"` profile means `--git-commit` without
+    `--profile` resolves to a valid snapshot dir instead of erroring out.
     """
     explicit = getattr(ns, "snapshot_dir", None)
     if explicit:
