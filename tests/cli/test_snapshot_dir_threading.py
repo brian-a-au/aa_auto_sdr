@@ -180,3 +180,58 @@ class TestBatchHonorsSnapshotDir:
         )
         assert rc == 0
         assert captured["snapshot_dir"] == explicit
+
+
+class TestSnapshotDirIsGitRepoRoot:
+    def test_explicit_snapshot_dir_propagates_to_single_pipeline(self, monkeypatch, tmp_path: Path) -> None:
+        """End-to-end at the cli/main.py boundary: --snapshot-dir /tmp/explicit/
+        + --git-commit on a single RSID surfaces /tmp/explicit/ as the
+        snapshot_dir passed into pipeline.single.run_single. This pins the
+        wiring that determines where the lazy git auto-init happens (the
+        actual auto-init is exercised by tests/pipeline/test_git_integration.py
+        and live smoke)."""
+        from aa_auto_sdr.api import fetch as fetch_mod
+        from aa_auto_sdr.api.client import AaClient
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.core import credentials
+        from aa_auto_sdr.pipeline import single as single_mod
+        from aa_auto_sdr.pipeline.models import RunResult
+        from aa_auto_sdr.snapshot.git import GitOpResult
+
+        seen: dict[str, Path | None] = {}
+
+        def _fake_run_single(**kwargs):
+            seen["snapshot_dir"] = kwargs.get("snapshot_dir")
+            return RunResult(
+                rsid=kwargs["rsid"],
+                success=True,
+                outputs=[],
+                report_suite_name="stub",
+                git_op=GitOpResult(
+                    ok=True,
+                    committed=True,
+                    commit_sha="deadbeef",
+                    pushed=False,
+                    error_kind=None,
+                    error_message=None,
+                ),
+            )
+
+        monkeypatch.setattr(single_mod, "run_single", _fake_run_single)
+        monkeypatch.setattr(credentials, "resolve", lambda profile=None: object())  # noqa: ARG005
+        monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, *a, **kw: object()))  # noqa: ARG005
+        monkeypatch.setattr(fetch_mod, "resolve_rsid", lambda *a, **kw: (["rs_a"], False))  # noqa: ARG005
+
+        explicit = tmp_path / "explicit"
+        rc = main_mod.run(
+            [
+                "rs_a",
+                "--git-commit",
+                "--snapshot-dir",
+                str(explicit),
+                "--output-dir",
+                str(tmp_path / "out"),
+            ],
+        )
+        assert rc == 0
+        assert seen["snapshot_dir"] == explicit
