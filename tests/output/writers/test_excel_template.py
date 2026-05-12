@@ -424,6 +424,63 @@ def test_dimension_append_path_extends_past_max_row(
     assert getattr(rec, "overflow_rows", 0) >= 1
 
 
+def test_aa_2_api_prefixed_ids_match_template_bare_ids(
+    synthetic_template_with_campaign_skeleton: Path,
+    tmp_path: Path,
+) -> None:
+    """AA 2.0 returns dimension ids like `variables/campaign` and metric ids
+    like `metrics/event1`. The template's cell values are bare ids
+    (`campaign`, `event1`). The writer must strip the namespace prefix on
+    both ends of the match. Regression for the live-smoke finding."""
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_with_campaign_skeleton
+    out = tmp_path / "out.xlsx"
+    writer.write(
+        _doc(
+            dimensions=[
+                # API-shape ids with the `variables/` namespace prefix.
+                _dim("variables/campaign", "Tracking Code", "From paid marketing efforts"),
+                _dim("variables/evar1", "Customer ID", "Logged-in customer hash"),
+                _dim("variables/prop1", "Internal Section"),
+                _dim("variables/pageName", "Page Name", "Canonical URL path"),
+            ],
+            metrics=[
+                _metric("metrics/event1", "Add to Cart", "Click on the add-to-cart button"),
+                _metric("metrics/visitors", "Visitors"),  # built-in — must NOT appear
+            ],
+        ),
+        out,
+    )
+    wb = load_workbook(out)
+    # Campaign skeleton was at row 10 in this fixture; verify it's now filled.
+    ev = wb["eVars"]
+    campaign_row = None
+    for r in range(7, ev.max_row + 1):
+        if str(ev.cell(row=r, column=3).value or "").lower() == "campaign":
+            campaign_row = r
+            break
+    assert campaign_row is not None
+    assert ev.cell(row=campaign_row, column=4).value == "Tracking Code"
+    assert ev.cell(row=campaign_row, column=5).value == "From paid marketing efforts"
+    # eVar1 skeleton was at row 7 (first starter); verify Variable Name overwritten.
+    found_evar1 = False
+    for r in range(7, ev.max_row + 1):
+        if str(ev.cell(row=r, column=3).value or "").lower() == "evar1":
+            assert ev.cell(row=r, column=4).value == "Customer ID"
+            found_evar1 = True
+    assert found_evar1
+    # props sheet: prop1 + pageName both should be present.
+    props = wb["props"]
+    seen_props = {str(props.cell(row=r, column=3).value or "").lower() for r in range(7, props.max_row + 1)}
+    assert "prop1" in seen_props
+    assert "pagename" in seen_props
+    # events sheet: event1 present, visitors absent.
+    events = wb["custom events (metrics)"]
+    seen_events = {str(events.cell(row=r, column=3).value or "").lower() for r in range(7, events.max_row + 1)}
+    assert "event1" in seen_events
+    assert "visitors" not in seen_events
+
+
 def test_pipeline_writer_instance_is_configured_via_attribute(
     synthetic_template_path: Path,
     tmp_path: Path,

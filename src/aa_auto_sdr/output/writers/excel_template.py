@@ -29,6 +29,21 @@ from aa_auto_sdr.sdr.document import SdrDocument
 logger = logging.getLogger(__name__)
 
 
+def _normalize_id(raw_id: str) -> str:
+    """Strip the AA 2.0 namespace prefix (`variables/` for dimensions,
+    `metrics/` for metrics) so component ids can be matched against the
+    template's cell values, which are bare implementation ids
+    (e.g. `campaign`, `pageName`, `eVar1`).
+
+    Returns the bare id when there's no namespace; otherwise drops the
+    leading `<ns>/` segment. Always returns the result as-is (callers
+    handle case-folding via `.lower()` where appropriate).
+    """
+    if "/" in raw_id:
+        return raw_id.split("/", 1)[1]
+    return raw_id
+
+
 def _calc_format_label(cm: Any) -> str | None:
     """Map (precision, type) → 'Percent' / 'Decimal' / 'Time' / 'Currency'.
 
@@ -176,12 +191,20 @@ class ExcelTemplateWriter:
     # ---- dimensions ---------------------------------------------------------
 
     def _fill_dimensions(self, wb, doc: SdrDocument) -> None:
-        evar_components = [d for d in doc.dimensions if d.id.lower().startswith("evar") or d.id.lower() == "campaign"]
+        # AA 2.0 returns ids like `variables/campaign`; templates use bare ids
+        # like `campaign`. Match on the stripped id throughout.
+        evar_components = [
+            d
+            for d in doc.dimensions
+            if _normalize_id(d.id).lower().startswith("evar") or _normalize_id(d.id).lower() == "campaign"
+        ]
         prop_components = [
-            d for d in doc.dimensions if d.id.lower().startswith("prop") or d.id.lower() in {"pagename", "linkname"}
+            d
+            for d in doc.dimensions
+            if _normalize_id(d.id).lower().startswith("prop") or _normalize_id(d.id).lower() in {"pagename", "linkname"}
         ]
         column_map: dict[str, Callable[[Any], Any]] = {
-            "Analytics Variable": lambda d: d.id,
+            "Analytics Variable": lambda d: _normalize_id(d.id),
             "Variable Name": lambda d: d.name,
             "Variable Description": lambda d: d.description,
         }
@@ -190,7 +213,7 @@ class ExcelTemplateWriter:
             anchor=ANCHORS["evars"],
             id_column_header="Analytics Variable",
             components=evar_components,
-            get_id=lambda d: d.id,
+            get_id=lambda d: _normalize_id(d.id),
             column_map=column_map,
         )
         self._fill_by_id_sheet(
@@ -198,14 +221,15 @@ class ExcelTemplateWriter:
             anchor=ANCHORS["props"],
             id_column_header="Analytics Variable",
             components=prop_components,
-            get_id=lambda d: d.id,
+            get_id=lambda d: _normalize_id(d.id),
             column_map=column_map,
         )
 
     def _fill_metrics(self, wb, doc: SdrDocument) -> None:
-        custom_events = [m for m in doc.metrics if m.id.lower().startswith("event")]
+        # AA 2.0 returns ids like `metrics/event1`; match on the stripped id.
+        custom_events = [m for m in doc.metrics if _normalize_id(m.id).lower().startswith("event")]
         column_map: dict[str, Callable[[Any], Any]] = {
-            "Event": lambda m: m.id,
+            "Event": lambda m: _normalize_id(m.id),
             "Event Name": lambda m: m.name,
             "Event Description": lambda m: m.description,
         }
@@ -214,7 +238,7 @@ class ExcelTemplateWriter:
             anchor=ANCHORS["events"],
             id_column_header="Event",
             components=custom_events,
-            get_id=lambda m: m.id,
+            get_id=lambda m: _normalize_id(m.id),
             column_map=column_map,
         )
 
