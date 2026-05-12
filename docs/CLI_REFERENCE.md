@@ -107,6 +107,18 @@ aa_auto_sdr <RSID> --metrics-only --format json --output-dir /tmp/metrics-only
 aa_auto_sdr <RSID> --dry-run --auto-snapshot --profile prod
 ```
 
+### `--template PATH` *(v1.16.0)*
+
+Path to an existing `.xlsx` template. When set, every resolved `excel` format slot is swapped to `excel-template` (the template-fill writer). Adobe's official `aa_en_BRD_SDR_template.xlsx` is the canonical target; any `.xlsx` with the same anchor layout (sheet names, `B4` section titles, `ID` header markers in rows 5–10) also works.
+
+The fill writer is non-destructive: it matches existing skeleton rows by id and overwrites in-place, leaves non-matching skeleton rows untouched, and appends API-only ids past `max_row` (with a `template_overflow` WARNING).
+
+USAGE (2) if the path is missing, a directory, or non-`.xlsx`. USAGE (2) if combined with `--diff` / `--watch` / a `--list-*` action / `--trending-window` / `--compare-with-prev` / `--inventory-summary` / `--describe-reportsuite`. USAGE (2) if `--format` resolves to a set without `excel` / `excel-template`.
+
+### `--template-organization NAME` *(v1.16.0)*
+
+Organization string written to `Glossary!C2` — the source-of-truth cell every other sheet's `C2` formula reads. Defaults to the report suite name. Requires `--template`.
+
 ## Discovery and inspection
 
 ### `aa_auto_sdr --list-reportsuites` / `--list-virtual-reportsuites`

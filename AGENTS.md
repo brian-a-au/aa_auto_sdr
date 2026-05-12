@@ -309,6 +309,19 @@ SIGINT / SIGTERM → exit 0. `--format`, `--quality-policy`, and
 `--interval` or non-default `--watch-threshold` without `--watch` are also
 rejected (exit `USAGE` 2).
 
+### Template-fill Excel writer (v1.16.0)
+
+| Flag | Semantics |
+|------|-----------|
+| `--template PATH` | Path to an existing `.xlsx` template. Switches the Excel writer to fill-mode for the run. Required readable `.xlsx`; missing/dir/non-`.xlsx` → USAGE (2). Routes resolved `excel` formats to `excel-template`. Composes with `--batch`. Rejected with `--watch`, `--diff`, list/inspect actions, and naturally rejected by `--agent-mode` (no `excel` in agent-mode's forced format set). |
+| `--template-organization NAME` | Organization string written to `Glossary!C2`. Defaults to report suite name. Requires `--template`. |
+
+**Dropped flags (v1.16.0 roadmap):**
+
+- `--template-overwrite-reserved` — dropped from the v1.16.0 roadmap. Per the
+  spec: match-by-id is the uniform rule, customer-edited descriptions should
+  be re-applied after generation. argparse-rejected if passed.
+
 ### Git integration (v1.15.0)
 
 Commit each snapshot to a git-versioned audit trail under the snapshot

@@ -37,6 +37,9 @@ def run_single(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    # v1.16.0 — template-fill writer config
+    template_path: Path | None = None,
+    template_organization: str | None = None,
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -48,6 +51,12 @@ def run_single(
     the returned `quality_verdict` so callers can decide on ExitCode.QUALITY.
     """
     registry.bootstrap()
+    if template_path is not None:
+        # v1.16.0 — instance-attribute config. The 'excel-template' writer is
+        # registered as a singleton; set the per-run attributes before write().
+        tw = registry.get_writer("excel-template")
+        tw.template_path = template_path
+        tw.organization = template_organization
     with timings.Timer(f"build:{rsid}"):
         doc = build_sdr(
             client,

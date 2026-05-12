@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.16.0] — 2026-05-12
+
+Template-fill Excel writer. Pointing `--template /path/to/aa_en_BRD_SDR_template.xlsx` at an existing Adobe BRD/SDR `.xlsx` switches the Excel writer to fill mode: each data sheet is located by name + section anchor, the header row is detected by content, and API-derived component data is filled into the rows below — preserving styles, cross-sheet formulas, defined names, column widths, page setup, and every cell the writer doesn't explicitly touch.
+
+### Added
+- `--template PATH` modifier flag. Required readable `.xlsx`. When set, every
+  resolved `excel` format slot is swapped to `excel-template` (the new format
+  key). Aliases (`all` / `reports`) keep producing `excel`; the swap happens
+  after alias resolution.
+- `--template-organization NAME` modifier flag. String written to
+  `Glossary!C2` (the cell every other sheet's `C2` formula references for the
+  brand banner). Defaults to the report suite name. Requires `--template`.
+- New writer module `output/writers/excel_template.py` (`ExcelTemplateWriter`)
+  self-registers under the `excel-template` format key.
+- New pure helper module `output/_template_anchors.py` for header detection.
+- 5 new logging events: `template_load`, `template_sheet_filled`,
+  `template_sheet_skipped`, `template_overflow`, `template_sheet_clipped`.
+  The clip event fires when more API components remain than the soft cap
+  (max_row + 50) can hold; drops are logged with the count, never silent.
+
+### Dropped (from the v1.16.0 roadmap)
+- `--template-overwrite-reserved` — argparse-rejected. The spike listed this
+  as a hedge for customer-edited reserved-component rows (`pageName`,
+  `linkName`, `campaign`). The cleaner uniform rule is match-by-id, always
+  overwrite when the API has data for that id. Customers who hand-edit
+  descriptions should edit after generation; the API is the source of truth
+  for this writer. Compression posture: 2/3.
+
+### Behavior
+- Default behavior unchanged: `--format excel` without `--template` produces
+  output byte-equivalent to v1.15.1 (writer-from-scratch path).
+- Read-only AA 2.0 invariant preserved: `openpyxl` writes target local
+  `.xlsx` files only, never the Adobe Analytics API.
+- No new exit codes. Template-validation failures use USAGE (2). openpyxl
+  runtime errors bubble as GENERIC (1).
+- No snapshot envelope schema bump (still `aa-sdr-snapshot/v4`).
+- Watch mode rejects `--template` (NDJSON change-stream posture, not
+  file-output workflow). Agent mode naturally rejects via its forced
+  `--format json --output -` preset.
+
+### Dependencies
+- `openpyxl >= 3.1.0` promoted from dev-deps to runtime deps.
+
 ## [1.15.1] — 2026-05-12
 
 Patch release closing three deliberately-deferred items from v1.15.0.

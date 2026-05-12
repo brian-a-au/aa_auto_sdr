@@ -158,6 +158,76 @@ def _validate_git_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _validate_template_modifiers(ns: argparse.Namespace) -> int:
+    """Reject template flags that don't compose. Returns ExitCode.OK or USAGE.
+
+    Per spec §3.9. Lives here (not in cli/commands/generate.py) for the same
+    reason _validate_watch_modifiers does: validation must run before dispatch
+    so non-generating actions also reject --template cleanly.
+    """
+    template = getattr(ns, "template", None)
+    organization = getattr(ns, "template_organization", None)
+
+    if organization is not None and template is None:
+        print("error: --template-organization requires --template", file=sys.stderr)
+        return int(ExitCode.USAGE)
+
+    if template is None:
+        return int(ExitCode.OK)
+
+    if not template.exists():
+        print(f"error: Template not found: {template}", file=sys.stderr)
+        return int(ExitCode.USAGE)
+    if not template.is_file():
+        print(f"error: Template path is not a file: {template}", file=sys.stderr)
+        return int(ExitCode.USAGE)
+    if template.suffix.lower() != ".xlsx":
+        print(f"error: Template must be a .xlsx file: {template}", file=sys.stderr)
+        return int(ExitCode.USAGE)
+
+    non_generating = (
+        getattr(ns, "diff", None) is not None
+        or bool(getattr(ns, "stats", False))
+        or bool(getattr(ns, "list_reportsuites", False))
+        or bool(getattr(ns, "list_virtual_reportsuites", False))
+        or bool(getattr(ns, "describe_reportsuite", False))
+        or getattr(ns, "list_metrics", None) is not None
+        or getattr(ns, "list_dimensions", None) is not None
+        or getattr(ns, "list_segments", None) is not None
+        or getattr(ns, "list_calculated_metrics", None) is not None
+        or getattr(ns, "list_classification_datasets", None) is not None
+        or getattr(ns, "trending_window", None) is not None
+        or bool(getattr(ns, "compare_with_prev", False))
+        or bool(getattr(ns, "inventory_summary", False))
+        or bool(getattr(ns, "watch", False))
+    )
+    if non_generating:
+        print(
+            "error: --template requires an SDR-generating action (single or --batch)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
+    # Resolve the user's --format to the concrete format set and ensure it
+    # contains 'excel'. We use the registry's alias map for this; if --format
+    # is unset, the default is 'excel' so the check passes naturally.
+    from aa_auto_sdr.output import registry as _registry
+
+    try:
+        resolved = _registry.resolve_formats(getattr(ns, "format", None) or "excel")
+    except KeyError:
+        # Unknown format — generate path will surface its own error. Don't
+        # double-report here.
+        return int(ExitCode.OK)
+    if "excel" not in resolved and "excel-template" not in resolved:
+        print(
+            "error: --template requires --format excel (or an alias that includes excel)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -272,6 +342,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         return rc
 
     rc = _validate_git_modifiers(ns)
+    if rc != int(ExitCode.OK):
+        return rc
+
+    rc = _validate_template_modifiers(ns)
     if rc != int(ExitCode.OK):
         return rc
 
@@ -752,6 +826,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             git_commit=getattr(ns, "git_commit", False),
             git_push=getattr(ns, "git_push", False),
             git_message=getattr(ns, "git_message", None),
+            template_path=getattr(ns, "template", None),
+            template_organization=getattr(ns, "template_organization", None),
             snapshot_dir=resolve_snapshot_dir(ns),
         )
 
@@ -789,6 +865,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         git_commit=getattr(ns, "git_commit", False),
         git_push=getattr(ns, "git_push", False),
         git_message=getattr(ns, "git_message", None),
+        template_path=getattr(ns, "template", None),
+        template_organization=getattr(ns, "template_organization", None),
         snapshot_dir=resolve_snapshot_dir(ns),
     )
 

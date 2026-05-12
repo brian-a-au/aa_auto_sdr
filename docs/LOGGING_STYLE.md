@@ -25,7 +25,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `count` | int | Any record reporting a quantity (items fetched, files written, RSIDs in batch, components saved, files pruned). |
 | `duration_ms` | int | Any record reporting an operation's elapsed time. |
 | `output_path` | str | Records that announce a file written (final results, snapshot saves). |
-| `format` | str — `excel`/`csv`/`json`/`html`/`markdown` | Output-write records emitted from `output/writers/*`. |
+| `format` | str — `excel`/`excel-template`/`csv`/`json`/`html`/`markdown` | Output-write records emitted from `output/writers/*`. |
 | `snapshot_id` | str | Snapshot save/load/diff records. |
 | `batch_id` | str | All batch-mode records. |
 | `error_class` | str (exception class name) | Every `ERROR` and `CRITICAL` record. |
@@ -155,6 +155,14 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 | `git_commit_complete`  | After a successful commit (and optional push)         | `rsid`, `commit_sha`, `pushed`, `duration_ms`        |
 | `git_op_failed`        | On any git op failure (init / commit / push)          | `rsid`, `op` (init\|commit\|push), `error_class`, `duration_ms` |
 
+### v1.16.0 additions — template-fill writer
+
+- `template_load path=<path> sheets=<n>` — INFO. Fired once per `ExcelTemplateWriter.write()` after `load_workbook` succeeds. Extras: `path`, `sheets`.
+- `template_sheet_filled sheet=<name> rows_matched=<n> rows_appended=<n>` — INFO. Fired once per resolved data sheet after the fill loop. Extras: `sheet`, `rows_matched`, `rows_appended`.
+- `template_sheet_skipped sheet=<name> reason=<missing_or_unanchored|no_id_column>` — WARNING. Fired when a data sheet can't be resolved (missing or anchor check failed). Extras: `sheet`, `reason`.
+- `template_overflow sheet=<name> overflow_rows=<n>` — WARNING. Fired when any rows were appended past `max_row` (default-styled). Extras: `sheet`, `overflow_rows`.
+- `template_sheet_clipped sheet=<name> rows_dropped=<n> soft_cap=<n>` — WARNING. Fired when the soft cap (`max_row + 50`) drops API entries. Extras: `sheet`, `rows_dropped`, `soft_cap`.
+
 ## De-dup rule
 
 `run_start` and `run_complete` fire **once per invocation**, from `cli/main.run` (the top frame). Sub-frames (e.g. `pipeline/batch.run_batch`) emit only their own scope-specific events (`rsid_start`, `rsid_complete`, `rsid_failure`) and never re-emit lifecycle events.
@@ -255,3 +263,4 @@ Most maintainers will not need this table. It exists because the vocabulary meta
 | Drift / trending: `trending_window_resolved`, `trending_compute_complete`; vocabulary: `duration`, `start_at`, `end_at`, `snapshot_count`, `total_changes`, `volatility_score` | v1.13.0 |
 | Watch / scheduled: `watch_loop_start`, `watch_cycle_complete`, `watch_loop_stop`; vocabulary: `cycle`, `interval`, `watch_threshold`, `change_count`, `emitted`, `cycles_completed`, `rsids` | v1.14.0 |
 | Git integration: `git_init_repo`, `git_commit_complete`, `git_op_failed`; vocabulary: `commit_sha`, `pushed`, `op`, `initial_commit` | v1.15.0 |
+| Template-fill writer: `template_load`, `template_sheet_filled`, `template_sheet_skipped`, `template_overflow`, `template_sheet_clipped`; vocabulary: `sheet`, `sheets`, `rows_matched`, `rows_appended`, `rows_dropped`, `soft_cap`, `overflow_rows` | v1.16.0 |

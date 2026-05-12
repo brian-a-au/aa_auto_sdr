@@ -126,6 +126,9 @@ def test_documented_long_flags_exist_in_parser():
         "--initial-branch",
         "--local",
         "--list-",
+        # v1.16.0 — documented as DROPPED in the AGENTS.md "Dropped flags"
+        # callout, never as a live invocation.
+        "--template-overwrite-reserved",
     }
 
     missing = documented - real_flags - allowlist

@@ -123,6 +123,8 @@ def run(
     git_commit: bool = False,  # v1.15.0
     git_push: bool = False,  # v1.15.0
     git_message: str | None = None,  # v1.15.0
+    template_path: Path | None = None,  # v1.16.0
+    template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
@@ -158,6 +160,8 @@ def run(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
             snapshot_dir=snapshot_dir,
         )
         return exit_code
@@ -202,6 +206,8 @@ def _run_impl(
     git_commit: bool = False,  # v1.15.0
     git_push: bool = False,  # v1.15.0
     git_message: str | None = None,  # v1.15.0
+    template_path: Path | None = None,  # v1.16.0
+    template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
 ) -> int:
     started_at = datetime.now(UTC)
@@ -261,6 +267,11 @@ def _run_impl(
     except KeyError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.GENERIC.value)
         return ExitCode.GENERIC.value
+
+    if template_path is not None:
+        from aa_auto_sdr.output.registry import swap_excel_for_template
+
+        formats = swap_excel_for_template(formats)
 
     if is_pipe and (len(formats) != 1 or formats[0] != "json"):
         msg = f"error: format {format_name!r} cannot be piped to stdout; use --output-dir <DIR> instead"
@@ -521,6 +532,8 @@ def _run_impl(
                 git_commit=git_commit,
                 git_push=git_push,
                 git_message=git_message,
+                template_path=template_path,
+                template_organization=template_organization,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

@@ -95,6 +95,9 @@ def run_batch(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    # v1.16.0 — template-fill writer config
+    template_path: Path | None = None,
+    template_organization: str | None = None,
 ) -> BatchResult:
     """Sequential or parallel per-RSID SDR generation. Continue on error.
 
@@ -165,6 +168,8 @@ def run_batch(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
         )
     else:
         inner = run_parallel(
@@ -188,6 +193,8 @@ def run_batch(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
         )
 
     # v1.12.0 — collect per-RSID quality verdicts.
@@ -228,6 +235,9 @@ def _run_sequential(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    # v1.16.0 — template-fill writer config
+    template_path: Path | None = None,
+    template_organization: str | None = None,
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -279,6 +289,8 @@ def _run_sequential(
                 git_commit=git_commit,
                 git_push=git_push,
                 git_message=git_message,
+                template_path=template_path,
+                template_organization=template_organization,
             )
         except AaAutoSdrError as exc:
             message = str(exc)
