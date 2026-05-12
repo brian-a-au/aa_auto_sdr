@@ -7,22 +7,18 @@ All notable changes to this project will be documented in this file. Format foll
 Patch release closing three deliberately-deferred items from v1.15.0.
 
 ### Added
-- `--snapshot-dir <path>` now works for single + batch dispatch (was
-  silently ignored — only watch + trending consumed it in v1.15.0).
-  Closes the v1.15.0 deferral surfaced by Codex P3: the snapshot
-  directory (and therefore the git repo `--git-commit` operates on)
-  can now live anywhere, independent of profile resolution.
-- Auto-generated watch commit messages now include a `(watch cycle <n>)`
-  footer. The wiring became trivial after Codex P2b moved the git-commit
-  step into `_maybe_commit`. User-supplied `--git-message <text>` remains
-  verbatim — no footer appended.
+- `--snapshot-dir <path>` now works for single + batch dispatch
+  (was silently ignored — only watch + trending consumed it
+  previously). The snapshot directory (and therefore the git repo
+  `--git-commit` operates on) can now live anywhere, independent
+  of profile resolution.
+- Auto-generated watch commit messages now include a
+  `(watch cycle <n>)` footer. User-supplied `--git-message <text>`
+  remains verbatim — no footer appended.
 
 ### Documentation
-- CHANGELOG + AGENTS.md updated to reflect the as-shipped batch
-  exit-code escalation behavior. Codex P2a on PR #42 overrode the
-  original v1.15.0 spec §3.10 decision (which said batch git failures
-  would not alter the exit code); the as-shipped behavior escalates to
-  `PARTIAL_SUCCESS` (14), and the docs now match.
+- Documented the v1.15.0 batch git exit-code escalation behavior
+  in the v1.15.0 entry and in AGENTS.md.
 
 ### Internal
 - Extracted `resolve_snapshot_dir(ns)` from `cli/commands/watch.py` to
