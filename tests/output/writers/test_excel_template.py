@@ -294,3 +294,68 @@ def test_metrics_exclude_built_in_visitors(
     seen = {ws.cell(row=r, column=3).value for r in range(7, ws.max_row + 1)}
     assert "event1" in seen
     assert "visitors" not in seen
+
+
+def _calc(id_: str, name: str, precision: int = 0, type_: str = "decimal") -> models.CalculatedMetric:
+    return models.CalculatedMetric(
+        id=id_,
+        name=name,
+        description=f"Calc metric {name}",
+        rsid="test_rs",
+        owner_id=None,
+        polarity="positive",
+        precision=precision,
+        type=type_,
+        definition={},
+    )
+
+
+def _seg(id_: str, name: str) -> models.Segment:
+    return models.Segment(
+        id=id_,
+        name=name,
+        description=f"Segment {name}",
+        rsid="test_rs",
+        owner_id=None,
+        definition={},
+    )
+
+
+def test_metrics_segments_appends_calc_metrics_with_type_column(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    writer.write(
+        _doc(
+            calculated_metrics=[_calc("cm_1", "Conversion Rate", type_="percent")],
+            segments=[_seg("seg_1", "US Visitors")],
+        ),
+        out,
+    )
+    wb = load_workbook(out)
+    ws = wb["metrics-segments"]
+    # No pre-seeded rows; both entries appear in the append range.
+    rows: list[tuple[str | None, str | None, str | None, str | None]] = [
+        (
+            ws.cell(row=r, column=3).value,  # Type
+            ws.cell(row=r, column=4).value,  # Name
+            ws.cell(row=r, column=5).value,  # Description
+            ws.cell(row=r, column=6).value,  # Format
+        )
+        for r in range(7, ws.max_row + 1)
+    ]
+    names = [n for (_t, n, _d, _f) in rows if n]
+    assert "Conversion Rate" in names
+    assert "US Visitors" in names
+    # Type column populated:
+    types = {t for (t, n, _d, _f) in rows if n}
+    assert "Calculated Metric" in types
+    assert "Segment" in types
+    # Format column only populated for the calc metric (percent), blank for segment.
+    cm_row = next(r for r in rows if r[1] == "Conversion Rate")
+    seg_row = next(r for r in rows if r[1] == "US Visitors")
+    assert cm_row[3] == "Percent"
+    assert seg_row[3] in (None, "")

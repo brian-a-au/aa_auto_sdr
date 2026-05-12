@@ -29,6 +29,26 @@ from aa_auto_sdr.sdr.document import SdrDocument
 logger = logging.getLogger(__name__)
 
 
+def _calc_format_label(cm: Any) -> str | None:
+    """Map (precision, type) → 'Percent' / 'Decimal' / 'Time' / 'Currency'.
+
+    Returns None when the mapping is uncertain — under-fill is safer than
+    wrong-fill (§8). Spec spike confirms 'percent' / 'currency' / 'time'
+    are the API's documented `type` values for calc metrics; 'decimal' is
+    the default for numeric precision > 0.
+    """
+    t = (cm.type or "").lower()
+    if t == "percent":
+        return "Percent"
+    if t == "currency":
+        return "Currency"
+    if t == "time":
+        return "Time"
+    if t == "decimal" or cm.precision > 0:
+        return "Decimal"
+    return None
+
+
 class ExcelTemplateWriter:
     extension = ".xlsx"
 
@@ -188,6 +208,96 @@ class ExcelTemplateWriter:
             column_map=column_map,
         )
 
+    def _fill_metrics_segments(self, wb, doc: SdrDocument) -> None:
+        """Combined sheet: calc metrics + segments. Match by id; Type literal
+        derived from source list; Format derived from calc-metric type/precision."""
+        anchor = ANCHORS["metrics_segments"]
+        resolved = resolve_sheet(wb, anchor)
+        if resolved is None:
+            logger.warning(
+                "template_sheet_skipped sheet=%s reason=missing_or_unanchored",
+                anchor.sheet_name,
+                extra={
+                    "sheet": anchor.sheet_name,
+                    "reason": "missing_or_unanchored",
+                },
+            )
+            return
+
+        ws = wb[anchor.sheet_name]
+        # Build a heterogeneous component list with a synthesized type label.
+        entries: list[tuple[str, Any, dict[str, Callable[[Any], Any]]]] = [
+            (
+                cm.id,
+                cm,
+                {
+                    "Type": lambda _c: "Calculated Metric",
+                    "Name": lambda c: c.name,
+                    "Description": lambda c: c.description,
+                    "Format": _calc_format_label,
+                },
+            )
+            for cm in doc.calculated_metrics
+        ]
+        entries.extend(
+            (
+                seg.id,
+                seg,
+                {
+                    "Type": lambda _s: "Segment",
+                    "Name": lambda s: s.name,
+                    "Description": lambda s: s.description,
+                    # No Format column for segments.
+                },
+            )
+            for seg in doc.segments
+        )
+        if not entries:
+            return
+
+        # No id column to match on for this sheet (calc metric ids and
+        # segment ids are opaque GUIDs that the template wouldn't pre-seed).
+        # Always append; soft-cap at max_row + 50.
+        append_row = ws.max_row + 1
+        soft_cap = ws.max_row + 50
+        rows_appended = 0
+        for _id, comp, column_map in entries:
+            if append_row > soft_cap:
+                break
+            _write_row(
+                ws,
+                row=append_row,
+                columns=resolved.columns,
+                column_map=column_map,
+                comp=comp,
+            )
+            append_row += 1
+            rows_appended += 1
+        rows_dropped = len(entries) - rows_appended
+        logger.info(
+            "template_sheet_filled sheet=%s rows_matched=%d rows_appended=%d",
+            anchor.sheet_name,
+            0,
+            rows_appended,
+            extra={
+                "sheet": anchor.sheet_name,
+                "rows_matched": 0,
+                "rows_appended": rows_appended,
+            },
+        )
+        if rows_dropped > 0:
+            logger.warning(
+                "template_sheet_clipped sheet=%s rows_dropped=%d soft_cap=%d",
+                anchor.sheet_name,
+                rows_dropped,
+                soft_cap,
+                extra={
+                    "sheet": anchor.sheet_name,
+                    "rows_dropped": rows_dropped,
+                    "soft_cap": soft_cap,
+                },
+            )
+
     def _fill_glossary_org(self, wb, doc: SdrDocument) -> None:
         """Write the org name to Glossary!C2 — the source-of-truth cell
         every other sheet's C2 formula references. Skips if 'Glossary' is
@@ -218,8 +328,7 @@ class ExcelTemplateWriter:
         self._fill_glossary_org(wb, doc)
         self._fill_dimensions(wb, doc)
         self._fill_metrics(wb, doc)
-
-        # Subsequent tasks add: _fill_metrics_segments.
+        self._fill_metrics_segments(wb, doc)
 
         target.parent.mkdir(parents=True, exist_ok=True)
         wb.save(target)
