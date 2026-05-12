@@ -37,7 +37,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | Category | Feature |
 |----------|---------|
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
-| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. Download the canonical template from [Adobe Experience League](https://experienceleague.adobe.com/) — the repo does not bundle it. |
+| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. Download the canonical template from [Adobe Experience League](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr) — the repo does not bundle it. |
 | | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported |
 | | RSIDs and names may be mixed freely in one invocation |
 | | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types |
@@ -285,7 +285,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | All five formats | `aa_auto_sdr <RSID> --format all` |
 | Pipe JSON to jq | `aa_auto_sdr <RSID> --format json --output - \| jq '.report_suite'` |
 | Aliases (excel + markdown) | `aa_auto_sdr <RSID> --format reports` |
-| Template-fill Excel (download template from [Experience League](https://experienceleague.adobe.com/)) | `aa_auto_sdr <RSID> --template ~/aa_en_BRD_SDR_template.xlsx` |
+| Template-fill Excel (download template from [Experience League](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr)) | `aa_auto_sdr <RSID> --template ~/aa_en_BRD_SDR_template.xlsx` |
 | **Discovery & Inspection** | |
 | List metrics for one RS | `aa_auto_sdr --list-metrics <RSID>` |
 | Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |
