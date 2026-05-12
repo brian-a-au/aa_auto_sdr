@@ -7,6 +7,7 @@
 | Format | Extension | File layout | Use case |
 |--------|-----------|-------------|----------|
 | `excel` | `.xlsx` | Single workbook with one sheet per component type | Human review; default format |
+| `excel-template` | `.xlsx` | Auto-selected when `--template PATH` is passed. Opens an existing Adobe BRD/SDR `.xlsx`, fills component data into anchored sheets, preserves styles and formulas. | Customer-facing SDRs that must match the official template's look. |
 | `csv` | `.csv` | Multi-file: one CSV per tabular component type plus a summary (7 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary). Report-suite metadata is rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
 | `json` | `.json` | Single self-contained JSON file with the full SdrDocument | Automation; jq pipelines; downstream tooling |
 | `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript | Sharing as a static report; PR/email attachments |
@@ -20,6 +21,19 @@
 uv run aa_auto_sdr <RSID>                    # produces <RSID>.xlsx
 uv run aa_auto_sdr <RSID> --format json      # produces <RSID>.json
 ```
+
+## Template-fill mode (`excel-template`)
+
+`aa_auto_sdr <RSID> --template aa_en_BRD_SDR_template.xlsx` swaps the Excel writer from "from scratch" to "fill an existing workbook":
+
+```bash
+uv run aa_auto_sdr <RSID> --template ~/templates/aa_en_BRD_SDR_template.xlsx
+uv run aa_auto_sdr <RSID> --template ~/templates/aa_en_BRD_SDR_template.xlsx --template-organization "Acme Corp"
+```
+
+The fill writer preserves every cell, style, formula, and defined name not explicitly written. Coverage is API-bounded (~50–70% of template columns); admin-only fields the AA 2.0 API doesn't expose (eVar Allocation, Expiration, Merchandising; List Prop Delimiter; Event Type; etc.) are left blank.
+
+Aliases (`all`, `reports`) keep producing `excel`; the `--template` swap rewrites the resolved format list after alias resolution, so `--format all --template foo.xlsx` produces 5 files including a template-filled `.xlsx`. The bare format key `excel-template` is not user-invokable directly (it would error with USAGE because no `--template` path is set).
 
 ## Format aliases
 

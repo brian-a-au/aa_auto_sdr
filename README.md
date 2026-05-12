@@ -37,6 +37,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | Category | Feature |
 |----------|---------|
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
+| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. |
 | | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported |
 | | RSIDs and names may be mixed freely in one invocation |
 | | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types |

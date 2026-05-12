@@ -25,7 +25,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `count` | int | Any record reporting a quantity (items fetched, files written, RSIDs in batch, components saved, files pruned). |
 | `duration_ms` | int | Any record reporting an operation's elapsed time. |
 | `output_path` | str | Records that announce a file written (final results, snapshot saves). |
-| `format` | str — `excel`/`csv`/`json`/`html`/`markdown` | Output-write records emitted from `output/writers/*`. |
+| `format` | str — `excel`/`excel-template`/`csv`/`json`/`html`/`markdown` | Output-write records emitted from `output/writers/*`. |
 | `snapshot_id` | str | Snapshot save/load/diff records. |
 | `batch_id` | str | All batch-mode records. |
 | `error_class` | str (exception class name) | Every `ERROR` and `CRITICAL` record. |
