@@ -7,6 +7,7 @@ name = "aa-auto-sdr"
 source = { editable = "." }
 dependencies = [
     { name = "aanalytics2" },
+    { name = "openpyxl" },
     { name = "pandas" },
     { name = "requests" },
     { name = "xlsxwriter" },
@@ -22,7 +23,6 @@ env = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "openpyxl" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -32,6 +32,7 @@ dev = [
 requires-dist = [
     { name = "aanalytics2", specifier = ">=0.4.0" },
     { name = "argcomplete", marker = "extra == 'completion'", specifier = ">=3.0.0" },
+    { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "pandas", specifier = ">=2.3.3,<3" },
     { name = "python-dotenv", marker = "extra == 'env'", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.0" },
@@ -41,7 +42,6 @@ provides-extras = ["completion", "env"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "ruff", specifier = ">=0.9.0" },
