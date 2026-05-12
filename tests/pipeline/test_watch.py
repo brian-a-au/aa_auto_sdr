@@ -691,7 +691,7 @@ class TestRunOneCycleGit:
         base_cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
         assert base_cycle.git_op is None  # not yet populated
 
-        committed_cycle = watch_mod._maybe_commit(ctx, base_cycle)
+        committed_cycle = watch_mod._maybe_commit(ctx, base_cycle, cycle_n=0)
         assert committed_cycle.git_op is canned_result
 
     def test_maybe_commit_skips_git_when_git_commit_false(self, monkeypatch) -> None:
@@ -707,7 +707,7 @@ class TestRunOneCycleGit:
         )
 
         base_cycle = watch_mod.run_one_cycle(rsid="rs_a", ctx=ctx)
-        result = watch_mod._maybe_commit(ctx, base_cycle)
+        result = watch_mod._maybe_commit(ctx, base_cycle, cycle_n=0)
         assert result.git_op is None
         assert called == []
 
@@ -754,3 +754,115 @@ class TestEventPayloadGit:
         )
         p = _event_payload(r, cycle_n=3)
         assert "git" not in p
+
+
+class TestWatchCycleFooter:
+    """Pin that watch-mode commits carry a `(watch cycle <n>)` footer in the
+    auto-generated message, and that user-supplied `git_message` is verbatim.
+
+    Closes the v1.15.0 explicit defer: generate_commit_message accepts
+    watch_cycle, but the production caller didn't pass it through.
+    """
+
+    def _ctx(self, *, git_message, snapshot_dir):
+        from aa_auto_sdr.pipeline.watch import WatchContext
+
+        # Minimal collaborators — _maybe_commit only reads
+        # git_commit / git_push / git_message / snapshot_dir.
+        class _Stub:
+            def utcnow(self):
+                from datetime import UTC, datetime
+
+                return datetime.now(UTC)
+
+            def sleep(self, seconds): ...
+
+            def emit(self, payload): ...
+
+            def latest(self, rsid):
+                return None
+
+            def save(self, rsid, doc): ...
+
+            def fetch_snapshot(self, rsid): ...
+
+        stub = _Stub()
+        return WatchContext(
+            fetcher=stub,
+            snapshot_store=stub,
+            clock=stub,
+            sleeper=stub,
+            emitter=stub,
+            git_commit=True,
+            git_push=False,
+            git_message=git_message,
+            snapshot_dir=snapshot_dir,
+        )
+
+    def test_auto_message_includes_watch_cycle_footer(self, monkeypatch, tmp_path) -> None:
+        from datetime import UTC, datetime
+
+        from aa_auto_sdr.pipeline import watch as watch_mod
+        from aa_auto_sdr.pipeline.watch import CycleResult
+        from aa_auto_sdr.snapshot.git import GitOpResult
+
+        captured: dict[str, str | None] = {}
+
+        def _fake_commit(snapshot_dir, *, rsid, message, push):
+            captured["message"] = message
+            return GitOpResult(
+                ok=True,
+                committed=True,
+                commit_sha="abc123",
+                pushed=False,
+                error_kind=None,
+                error_message=None,
+            )
+
+        monkeypatch.setattr(watch_mod, "git_commit_snapshot", _fake_commit)
+        ctx = self._ctx(git_message=None, snapshot_dir=tmp_path)
+        base = CycleResult.baseline(
+            rsid="rs_a",
+            snapshot_path=tmp_path / "rs_a" / "snap.json",
+            started_at=datetime(2026, 5, 11, 14, 0, 0, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 11, 14, 0, 1, tzinfo=UTC),
+        )
+
+        watch_mod._maybe_commit(ctx, base, cycle_n=7)
+
+        assert captured["message"] is not None
+        assert captured["message"].rstrip().endswith("(watch cycle 7)")
+
+    def test_user_supplied_git_message_is_verbatim(self, monkeypatch, tmp_path) -> None:
+        """--git-message replaces the entire message — no footer appended."""
+        from datetime import UTC, datetime
+
+        from aa_auto_sdr.pipeline import watch as watch_mod
+        from aa_auto_sdr.pipeline.watch import CycleResult
+        from aa_auto_sdr.snapshot.git import GitOpResult
+
+        captured: dict[str, str | None] = {}
+
+        def _fake_commit(snapshot_dir, *, rsid, message, push):
+            captured["message"] = message
+            return GitOpResult(
+                ok=True,
+                committed=True,
+                commit_sha="abc123",
+                pushed=False,
+                error_kind=None,
+                error_message=None,
+            )
+
+        monkeypatch.setattr(watch_mod, "git_commit_snapshot", _fake_commit)
+        ctx = self._ctx(git_message="release v2.3", snapshot_dir=tmp_path)
+        base = CycleResult.baseline(
+            rsid="rs_a",
+            snapshot_path=tmp_path / "rs_a" / "snap.json",
+            started_at=datetime(2026, 5, 11, 14, 0, 0, tzinfo=UTC),
+            ended_at=datetime(2026, 5, 11, 14, 0, 1, tzinfo=UTC),
+        )
+
+        watch_mod._maybe_commit(ctx, base, cycle_n=7)
+
+        assert captured["message"] == "release v2.3"

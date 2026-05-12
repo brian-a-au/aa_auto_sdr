@@ -363,13 +363,17 @@ def _emit_cycle(ctx: WatchContext, result: CycleResult, *, cycle_n: int) -> None
         )
 
 
-def _maybe_commit(ctx: WatchContext, result: CycleResult) -> CycleResult:
+def _maybe_commit(ctx: WatchContext, result: CycleResult, *, cycle_n: int) -> CycleResult:
     """If --git-commit is set and the cycle has a snapshot to commit, run
     git_commit_snapshot and return a new CycleResult with git_op populated.
     Returns the original result unchanged otherwise.
 
     Called AFTER _should_emit returns True so threshold-suppressed cycles
     don't generate commits the user can't see in the event stream.
+
+    `cycle_n` is threaded into the auto-generated commit footer as
+    `(watch cycle <n>)`; a user-supplied `ctx.git_message` is taken verbatim
+    (no footer appended) so external automation can pin exact wording.
     """
     if not ctx.git_commit or ctx.snapshot_dir is None:
         return result
@@ -382,6 +386,7 @@ def _maybe_commit(ctx: WatchContext, result: CycleResult) -> CycleResult:
         rsid=result.rsid,
         captured_at=_iso_z(result.started_at),
         change_summary=summary,
+        watch_cycle=cycle_n,
     )
     git_op = git_commit_snapshot(
         ctx.snapshot_dir,
@@ -454,7 +459,7 @@ def run_watch_loop(
                 break
             result = run_one_cycle(rsid=rsid, ctx=ctx)
             if _should_emit(result, threshold=threshold):
-                result = _maybe_commit(ctx, result)
+                result = _maybe_commit(ctx, result, cycle_n=cycle_n)
                 _emit_cycle(ctx, result, cycle_n=cycle_n)
         cycle_n += 1
         if max_cycles is not None and cycle_n >= max_cycles:
