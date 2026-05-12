@@ -34,7 +34,99 @@ Adobe maintains the canonical template on Experience League. The repo does **not
 - **Direct download:** [`aa_en_BRD_SDR_template.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx)
 - **Background reading:** [Experience League — Creating and maintaining an SDR](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr)
 
-Customizations are fine — if you've added rows, renamed sheets, or extended columns, point `--template` at your modified copy. The writer anchors by sheet name (`eVars`, `props`, `custom events (metrics)`, `metrics-segments`, `Glossary`) and by section title at cell `B4`. Additive column changes are safe; sheet renames break anchor resolution and surface as `template_sheet_skipped` warnings.
+Customizations are fine. The writer doesn't care whether the template came from Adobe or your own design team — it cares about the **anchor contract** described in the next section. If your template keeps the contract, the writer fills it.
+
+## Custom (non-Adobe) templates
+
+The writer is a content-shaped fit, not a file-identity match. Any `.xlsx` that satisfies the anchor contract works — whether it's Adobe's verbatim template, a brand-overlay variant your design team built, a pre-filled handoff workbook a consultancy ships to clients, or a compliance-tracked spreadsheet your team maintains internally.
+
+### The anchor contract
+
+**Required:**
+
+| Sheet name (case-sensitive) | `B4` value (case-insensitive match) | What the writer touches |
+|---|---|---|
+| `Glossary` | — (no section anchor) | Single-cell write at `C2` (org / report-suite name) |
+| `eVars` | `eVars` | Rows under the header — needs column `Analytics Variable` as match key |
+| `props` | `Props` | Rows under the header — needs column `Analytics Variable` as match key |
+| `custom events (metrics)` | `Custom Events (Metrics)` | Rows under the header — needs column `Event` as match key |
+| `metrics-segments` | `Metrics - Segments` | Rows under the header — always-append, no match key needed |
+
+On each data sheet, the writer scans **rows 5–10 at column B** for a cell whose value is exactly `ID`. That row is treated as the header. The header is where the writer learns which column to fill from which API field.
+
+**Recognized header keywords** (case-sensitive, must match exactly):
+
+- `eVars` / `props`: `Analytics Variable` (the ID match key), `Variable Name`, `Variable Description`.
+- `custom events (metrics)`: `Event` (the ID match key), `Event Name`, `Event Description`.
+- `metrics-segments`: `Type`, `Name`, `Description`, `Format`.
+
+Headers the writer doesn't recognize are silently skipped — your template can carry as many extra columns as you want (eVar Allocation, Implementation Status, Owner, Approval Date, JIRA Ticket, etc.) and they'll pass through untouched.
+
+### What you can freely customize
+
+The writer never touches these — change them however you like:
+
+- **Branding.** The `C1` brand banner on every sheet. Replace `Adobe Analytics` with your logo, your customer's name, anything — we never write to `C1` on data sheets.
+- **Cross-sheet formulas.** The `=Glossary!C2` formula on `C2` of every data sheet is preserved. If you've added other cross-sheet refs (e.g. `=Glossary!C5` for a "Project Code"), they survive.
+- **Extra columns.** Add `Owner`, `JIRA Ticket`, `Approval Date`, `Sign-off`, anything. The writer skips columns it doesn't recognize.
+- **Extra rows.** The writer walks all data rows and matches by ID. Rows whose IDs aren't in the API response are left untouched — useful for pre-seeded "intent" rows the implementation team plans to fill manually.
+- **Extra sheets.** A `requirements` tab, a `reserved reporting` tab, a `change log` tab — anything not in the anchor list is ignored entirely.
+- **Cell styles.** Borders, fonts, alignment, number formats, conditional formatting — all preserved on existing rows. The writer's non-empty rule means it won't blank-overwrite a styled cell with `None`.
+- **Defined names, page setup, column widths, freeze panes, print areas, image embeds.** Preserved by openpyxl on save.
+
+### What breaks the contract
+
+These failures surface as `template_sheet_skipped` WARNINGs in the log. The writer doesn't crash — it just produces a file where the affected sheet has no API fill applied.
+
+- **Renaming a data sheet.** `eVars` → `Conversion Variables` will fail anchor resolution → `reason=missing_or_unanchored`.
+- **Removing or relocating the `B4` section title.** If `B4` doesn't case-insensitively match the table above, the sheet is skipped.
+- **Missing the `ID` marker.** If column B in rows 5–10 doesn't contain a cell with exactly `ID`, the writer can't find the header row → `reason=missing_or_unanchored`.
+- **Renaming the match-key column.** If you rename `Analytics Variable` to `Variable Slot` on `eVars`, the writer can't match by ID → `reason=no_id_column`.
+
+Additive changes are always safe. Subtractive or renaming changes are what break the contract.
+
+### Verify a custom template before a real run
+
+The CLI doesn't have a dedicated `--check-template` flag (yet), but you can dry-run anchor resolution against any `.xlsx` in a few seconds without paying for an API round-trip:
+
+```bash
+uv run python - <<'PY' /path/to/your_custom_template.xlsx
+import sys
+from openpyxl import load_workbook
+from aa_auto_sdr.output._template_anchors import ANCHORS, resolve_sheet
+
+wb = load_workbook(sys.argv[1])
+print(f"Sheets present: {wb.sheetnames}")
+print()
+for key, anchor in ANCHORS.items():
+    rs = resolve_sheet(wb, anchor)
+    if rs is None:
+        print(f"  ❌ {key}: anchor resolution FAILED (sheet={anchor.sheet_name!r}, expected B4={anchor.section_title!r})")
+    else:
+        recognised = [c for c in rs.columns if c in {"Analytics Variable", "Variable Name", "Variable Description", "Event", "Event Name", "Event Description", "Type", "Name", "Description", "Format"}]
+        print(f"  ✅ {key}: header_row={rs.header_row}, fill columns: {recognised}")
+PY
+```
+
+Output you want to see — 4 ✅ lines, one per data sheet, each listing the fill columns the writer found. If any line is ❌, fix the sheet name / `B4` value / `ID` marker before running for real.
+
+### Practical patterns
+
+**Brand-overlay template.** Design team takes Adobe's `aa_en_BRD_SDR_template.xlsx`, replaces the `C1` banner with the customer's logo, restyles colors, leaves everything else identical. Works out of the box.
+
+**Pre-filled handoff template.** Consultancy starts from Adobe's template, manually pre-seeds rows for the eVar / prop / event slots they know their client uses (`eVar1` = "Customer ID", `eVar7` = "Cart Status"), ships the workbook to the client. Client runs `aa_auto_sdr <THEIR_RSID> --template handoff.xlsx` and the writer fills in the descriptions from the live API, preserving the consultant's pre-seeded names where the API didn't supply one (non-empty rule).
+
+**Compliance overlay.** Internal team adds `Data Governance Reviewed By`, `Review Date`, and `Sign-off Status` columns to each data sheet. Writer ignores those columns; humans fill them after generation. Workbook becomes a self-contained audit artifact.
+
+**Multi-tenant template.** Agency maintains a per-market template (`apac.xlsx`, `emea.xlsx`, `americas.xlsx`), each with the appropriate market name pre-baked into `Glossary!C2` defaults via formula. Use `--template apac.xlsx --template-organization "Acme APAC"` to fill while keeping the regional styling.
+
+### What's NOT supported in v1.16
+
+- **Renaming the canonical data sheets.** Anchors are hardcoded. A `--template-anchors path/to/anchors.json` flag for arbitrary mapping is plausible for a future release but isn't shipped.
+- **Templates with the data on a different cell grid.** The writer expects `B4` for the section title and rows 5–10 for the `ID` header. If your template puts the section title at `A1` and the header at row 20, the writer can't find them.
+- **Cross-format templates** (e.g. `.xlsm` with macros). Untested; openpyxl handles `.xlsm` but the writer's `.xlsx`-extension validator rejects them at the CLI layer. Workaround: rename to `.xlsx`, accept that macros may behave unexpectedly after the openpyxl round-trip.
+
+If any of the above is a real blocker, open an issue with a sample template — the anchor contract is small enough that loosening it is feasible if there's demand.
 
 ## Your first run
 
