@@ -369,6 +369,14 @@ On git failure, the original baseline/change event emits first (with no
 The watch loop never dies on git failure — per-cycle errors continue
 the loop (same posture as fetch errors from v1.14.0).
 
+**Batch composition.** Each RSID's snapshot commits as a separate commit
+(pathspec-scoped to `<rsid>/`). Workers are serialized for git operations
+regardless of `--workers` setting. Per-RSID git failures surface in
+`RunResult.git_op` and on stderr; if any RSID's git operation fails but
+every SDR succeeded, the batch exits `PARTIAL_SUCCESS` (14) instead of
+`OK` (0). The batch-precedence rule still holds: `PARTIAL_SUCCESS` outranks
+`QUALITY`, and an all-failed batch surfaces the last failure's exit code.
+
 **Dropped flags (for parity with cja):**
 - `--git-init` — replaced by lazy auto-init on first `--git-commit`.
 - `--git-push-on-change` — reduces to `--git-push` (commit already

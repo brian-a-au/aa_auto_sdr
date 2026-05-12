@@ -229,6 +229,7 @@ class TestGitCommitImpliesAutoSnapshot:
                 git_commit=True,
                 git_push=False,
                 git_message=None,
+                snapshot_dir=tmp_path / "orgs" / "default" / "snapshots",
             )
         # Must NOT be CONFIG (10)
         assert rc == ExitCode.OK.value
@@ -279,6 +280,7 @@ class TestGitCommitImpliesAutoSnapshot:
                 git_commit=True,
                 git_push=False,
                 git_message=None,
+                snapshot_dir=tmp_path / "orgs" / "testprofile" / "snapshots",
             )
 
         assert rc == ExitCode.OK.value

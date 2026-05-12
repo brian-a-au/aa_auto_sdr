@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.cli.commands._shared import resolve_snapshot_dir
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.watch_event import StdoutEmitter
 from aa_auto_sdr.pipeline.watch import (
@@ -162,7 +163,7 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         max_cycles = _injected.max_cycles
     else:
         fetcher = _build_real_fetcher(ns)
-        snapshot_dir = _resolve_snapshot_dir(ns)
+        snapshot_dir = resolve_snapshot_dir(ns)
         store = _SnapshotStoreAdapter(snapshot_dir=snapshot_dir)
         clock = _WallClock()
         sleeper = _RealSleeper()
@@ -273,14 +274,3 @@ def _build_real_fetcher(ns: argparse.Namespace) -> _BuildSdrFetcher:
     creds = credentials.resolve(profile=profile)
     client = AaClient.from_credentials(creds)
     return _BuildSdrFetcher(client=client, tool_version=version.__version__)
-
-
-def _resolve_snapshot_dir(ns: argparse.Namespace) -> Path:
-    """Pick the snapshot directory: --snapshot-dir > active profile."""
-    explicit = getattr(ns, "snapshot_dir", None)
-    if explicit:
-        return Path(explicit)
-    from aa_auto_sdr.core.profiles import default_base
-
-    profile = getattr(ns, "profile", None) or "default"
-    return default_base() / "orgs" / profile / "snapshots"
