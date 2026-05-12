@@ -24,6 +24,8 @@ uv run aa_auto_sdr <RSID> --format json      # produces <RSID>.json
 
 ## Template-fill mode (`excel-template`)
 
+> **Hands-on guide:** [`docs/TEMPLATE_WORKFLOW.md`](TEMPLATE_WORKFLOW.md) — first run, batch, organization override, snapshot/git composition, coverage map, troubleshooting. This section is the reference summary; the guide is the cookbook.
+
 `aa_auto_sdr <RSID> --template aa_en_BRD_SDR_template.xlsx` swaps the Excel writer from "from scratch" to "fill an existing workbook":
 
 ```bash

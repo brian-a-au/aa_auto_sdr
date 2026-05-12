@@ -37,7 +37,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | Category | Feature |
 |----------|---------|
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
-| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. Direct download: [`aa_en_BRD_SDR_template.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx). Background and usage guidance: [Experience League — Creating and maintaining an SDR](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr). The repo does not bundle the template. |
+| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. See the [Template-Fill Workflow guide](docs/TEMPLATE_WORKFLOW.md) for first-run + batch + troubleshooting walkthroughs. Direct download: [`aa_en_BRD_SDR_template.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx). |
 | | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported |
 | | RSIDs and names may be mixed freely in one invocation |
 | | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types |
@@ -404,6 +404,7 @@ when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
 | [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, diagnostics, troubleshooting |
 | [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, trending, watch, common workflows |
 | [Output Formats](docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
+| [Template-Fill Workflow](docs/TEMPLATE_WORKFLOW.md) | Hands-on guide for `--template` — getting Adobe's template, first run, batch, composition with snapshot/git, coverage map, troubleshooting |
 | [Logging](docs/LOGGING.md) | Log flags, file naming, redaction, canonical events |
 | [Logging Style Guide](docs/LOGGING_STYLE.md) | Internal logger-call contract — canonical vocabulary, required extras (binds `tests/core/test_logging_vocabulary.py`) |
 | [Sample Outputs](sample_outputs/) | Browse representative outputs without installing |
