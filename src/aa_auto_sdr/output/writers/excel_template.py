@@ -142,7 +142,6 @@ class ExcelTemplateWriter:
                     "soft_cap": soft_cap,
                 },
             )
-        # Overflow warning emitted in Task 8 (when we add soft-cap reasoning).
 
     # ---- dimensions ---------------------------------------------------------
 
