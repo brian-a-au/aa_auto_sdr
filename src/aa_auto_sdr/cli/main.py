@@ -826,6 +826,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             git_commit=getattr(ns, "git_commit", False),
             git_push=getattr(ns, "git_push", False),
             git_message=getattr(ns, "git_message", None),
+            template_path=getattr(ns, "template", None),
+            template_organization=getattr(ns, "template_organization", None),
             snapshot_dir=resolve_snapshot_dir(ns),
         )
 
@@ -863,6 +865,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         git_commit=getattr(ns, "git_commit", False),
         git_push=getattr(ns, "git_push", False),
         git_message=getattr(ns, "git_message", None),
+        template_path=getattr(ns, "template", None),
+        template_organization=getattr(ns, "template_organization", None),
         snapshot_dir=resolve_snapshot_dir(ns),
     )
 

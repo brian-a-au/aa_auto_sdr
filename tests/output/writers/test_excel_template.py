@@ -397,3 +397,22 @@ def test_dimension_append_path_extends_past_max_row(
     rec = overflow_records[0]
     assert getattr(rec, "sheet", None) == "eVars"
     assert getattr(rec, "overflow_rows", 0) >= 1
+
+
+def test_pipeline_writer_instance_is_configured_via_attribute(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    """Pipeline boundary: setting `template_path` + `organization` on the
+    registered instance (no protocol change) is the supported config path."""
+    registry.bootstrap()
+    writer = registry.get_writer("excel-template")
+    writer.template_path = synthetic_template_path
+    writer.organization = "Pipeline Test Org"
+    try:
+        paths = writer.write(_doc(), tmp_path / "piped.xlsx")
+        wb = load_workbook(paths[0])
+        assert wb["Glossary"]["C2"].value == "Pipeline Test Org"
+    finally:
+        writer.template_path = None
+        writer.organization = None

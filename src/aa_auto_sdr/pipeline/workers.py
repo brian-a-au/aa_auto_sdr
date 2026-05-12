@@ -108,6 +108,9 @@ def _run_single_for_batch(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    # v1.16.0 — template-fill writer config
+    template_path: Path | None = None,
+    template_organization: str | None = None,
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
@@ -142,6 +145,8 @@ def _run_single_for_batch(
         git_commit=git_commit,
         git_push=git_push,
         git_message=git_message,
+        template_path=template_path,
+        template_organization=template_organization,
     )
 
 
@@ -165,6 +170,9 @@ def _run_with_worker_id(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    # v1.16.0 — template-fill writer config
+    template_path: Path | None = None,
+    template_organization: str | None = None,
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -191,6 +199,8 @@ def _run_with_worker_id(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -223,6 +233,9 @@ def run_parallel(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    # v1.16.0 — template-fill writer config
+    template_path: Path | None = None,
+    template_organization: str | None = None,
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -281,6 +294,8 @@ def run_parallel(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future

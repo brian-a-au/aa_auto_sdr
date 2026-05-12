@@ -132,6 +132,8 @@ def run(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    template_path: Path | None = None,  # v1.16.0
+    template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
@@ -176,6 +178,8 @@ def run(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
             snapshot_dir=snapshot_dir,
         )
         return exit_code
@@ -230,6 +234,8 @@ def _run_impl(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    template_path: Path | None = None,  # v1.16.0
+    template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
@@ -280,6 +286,11 @@ def _run_impl(
     except KeyError as e:
         print(f"error: {e}", flush=True)
         return ExitCode.GENERIC.value
+
+    if template_path is not None:
+        from aa_auto_sdr.output.registry import swap_excel_for_template
+
+        formats = swap_excel_for_template(formats)
 
     registry.bootstrap()
     for fmt in formats:
@@ -465,6 +476,8 @@ def _run_impl(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            template_path=template_path,
+            template_organization=template_organization,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

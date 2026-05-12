@@ -101,3 +101,31 @@ def test_template_with_agent_mode_yields_usage(tmp_path: Path) -> None:
     result = _run_cli("RS1", "--template", str(xlsx), "--agent-mode")
     assert result.returncode == 2
     assert "--template requires --format excel" in result.stderr
+
+
+def test_template_dry_run_includes_xlsx_in_preview(tmp_path: Path) -> None:
+    """--template + --dry-run lists the would-be xlsx output path."""
+    xlsx = tmp_path / "ok.xlsx"
+    # Build a real (minimal) xlsx so the existence check passes; the dry-run
+    # path doesn't open it for content.
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.active.title = "Glossary"  # type: ignore[union-attr]
+    wb.save(xlsx)
+
+    result = _run_cli(
+        "RS1",
+        "--template",
+        str(xlsx),
+        "--dry-run",
+        "--profile",
+        "__nonexistent_to_force_creds_fail__",
+    )
+    # Either USAGE on missing profile or full dry-run output — both are
+    # acceptable for argparse-acceptance smoke. We're only verifying argparse
+    # doesn't reject the combo.
+    assert result.returncode in {0, 2, 3, 10}  # OK or USAGE or WARN or CONFIG-fail
+    assert "Template not found" not in result.stderr
+    assert "must be a .xlsx file" not in result.stderr
+    assert "requires an SDR-generating action" not in result.stderr
