@@ -343,6 +343,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FMT",
         help=(
             "Generate: excel|csv|json|html|markdown|all|reports|data|ci. "
+            "(--template auto-routes 'excel' to 'excel-template'.) "
             "List/inspect: json|csv (default = fixed-width table to stdout). "
             "Diff: console|json|markdown|pr-comment."
         ),
@@ -449,6 +450,29 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="TEXT",
         help="Override the auto-generated commit message. Requires --git-commit. (v1.15.0)",
+    )
+
+    # v1.16.0 — template-fill modifiers (NOT in any mutex group)
+    p.add_argument(
+        "--template",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to an existing .xlsx template (e.g. Adobe's BRD/SDR template). "
+            "Switches the Excel writer to fill mode, preserving styles, formulas, "
+            "and untouched cells. (v1.16.0)"
+        ),
+    )
+    p.add_argument(
+        "--template-organization",
+        type=str,
+        default=None,
+        metavar="NAME",
+        help=(
+            "Organization name written to Glossary!C2. Defaults to the report suite "
+            "name. Requires --template. (v1.16.0)"
+        ),
     )
 
     p.add_argument(

@@ -170,3 +170,16 @@ def test_help_lists_git_flags() -> None:
     assert "--git-message" in out
     assert "--git-init" not in out
     assert "--git-push-on-change" not in out
+
+
+def test_help_lists_template_flags() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    out = result.stdout
+    assert "--template" in out
+    assert "--template-organization" in out
+    assert "--template-overwrite-reserved" not in out
