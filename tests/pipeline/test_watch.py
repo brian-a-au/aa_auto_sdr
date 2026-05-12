@@ -866,3 +866,81 @@ class TestWatchCycleFooter:
         watch_mod._maybe_commit(ctx, base, cycle_n=7)
 
         assert captured["message"] == "release v2.3"
+
+    def test_run_watch_loop_threads_cycle_into_commit_message(self, monkeypatch, tmp_path) -> None:
+        """End-to-end: run_watch_loop drives 2 cycles; captured commit messages
+        carry the cycle 0 and cycle 1 footers."""
+        from datetime import UTC, datetime, timedelta
+
+        from aa_auto_sdr.pipeline import watch as watch_mod
+        from aa_auto_sdr.pipeline.watch import StopToken, run_watch_loop
+        from aa_auto_sdr.snapshot.git import GitOpResult
+
+        messages: list[str] = []
+
+        def _fake_commit(snapshot_dir, *, rsid, message, push):
+            messages.append(message)
+            return GitOpResult(
+                ok=True,
+                committed=True,
+                commit_sha=f"sha-{len(messages)}",
+                pushed=False,
+                error_kind=None,
+                error_message=None,
+            )
+
+        monkeypatch.setattr(watch_mod, "git_commit_snapshot", _fake_commit)
+
+        class _Clock:
+            def __init__(self):
+                self._t = datetime(2026, 5, 11, 14, 0, 0, tzinfo=UTC)
+
+            def utcnow(self):
+                t = self._t
+                self._t += timedelta(seconds=1)
+                return t
+
+        class _Store:
+            def latest(self, rsid):
+                return None
+
+            def save(self, rsid, doc):
+                p = tmp_path / rsid / "snap.json"
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text("{}")
+                return p, {"schema": "aa-sdr-snapshot/v4", "components": []}
+
+        class _Fetcher:
+            def fetch_snapshot(self, rsid):
+                return object()
+
+        class _Sleeper:
+            def sleep(self, seconds): ...
+
+        class _Emitter:
+            def emit(self, payload): ...
+
+        ctx = watch_mod.WatchContext(
+            fetcher=_Fetcher(),
+            snapshot_store=_Store(),
+            clock=_Clock(),
+            sleeper=_Sleeper(),
+            emitter=_Emitter(),
+            git_commit=True,
+            git_push=False,
+            git_message=None,
+            snapshot_dir=tmp_path,
+        )
+        _rc, cycles = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a"],
+            interval=timedelta(seconds=60),
+            threshold=0,
+            stop=StopToken(),
+            max_cycles=2,
+        )
+
+        assert cycles == 2
+        assert len(messages) == 2
+        assert messages[0].rstrip().endswith("(watch cycle 0)")
+        assert messages[1].rstrip().endswith("(watch cycle 1)")
