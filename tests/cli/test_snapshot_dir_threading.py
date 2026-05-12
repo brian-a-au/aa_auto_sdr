@@ -143,3 +143,40 @@ class TestGenerateCliBoundaryThreadsSnapshotDir:
         )
         assert rc == 0
         assert captured["snapshot_dir"] == explicit
+
+
+class TestBatchHonorsSnapshotDir:
+    def test_batch_passes_explicit_snapshot_dir_to_runner(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.api import fetch as fetch_mod
+        from aa_auto_sdr.api.client import AaClient
+        from aa_auto_sdr.cli.commands import batch
+        from aa_auto_sdr.core import credentials
+        from aa_auto_sdr.pipeline import batch as batch_runner
+        from aa_auto_sdr.pipeline.models import BatchResult
+
+        captured: dict[str, object] = {}
+
+        def _fake_run_batch(**kwargs):
+            captured["snapshot_dir"] = kwargs.get("snapshot_dir")
+            return BatchResult(successes=[], failures=[])
+
+        monkeypatch.setattr(batch_runner, "run_batch", _fake_run_batch)
+        monkeypatch.setattr(credentials, "resolve", lambda profile=None: object())  # noqa: ARG005
+        monkeypatch.setattr(
+            AaClient,
+            "from_credentials",
+            classmethod(lambda cls, *a, **kw: object()),  # noqa: ARG005
+        )
+        monkeypatch.setattr(fetch_mod, "resolve_rsid", lambda *a, **kw: (["rs_a"], False))  # noqa: ARG005
+
+        explicit = tmp_path / "explicit"
+        rc = batch.run(
+            rsids=["rs_a", "rs_b"],
+            output_dir=tmp_path / "out",
+            format_name="excel",
+            profile=None,
+            git_commit=True,
+            snapshot_dir=explicit,
+        )
+        assert rc == 0
+        assert captured["snapshot_dir"] == explicit

@@ -752,6 +752,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             git_commit=getattr(ns, "git_commit", False),
             git_push=getattr(ns, "git_push", False),
             git_message=getattr(ns, "git_message", None),
+            snapshot_dir=resolve_snapshot_dir(ns),
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.

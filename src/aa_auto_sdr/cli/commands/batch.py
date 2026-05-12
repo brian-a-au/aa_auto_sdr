@@ -132,6 +132,7 @@ def run(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    snapshot_dir: Path | None = None,  # v1.15.1 — resolved by CLI boundary
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -175,6 +176,7 @@ def run(
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
+            snapshot_dir=snapshot_dir,
         )
         return exit_code
     finally:
@@ -228,6 +230,7 @@ def _run_impl(
     git_commit: bool = False,
     git_push: bool = False,
     git_message: str | None = None,
+    snapshot_dir: Path | None = None,  # v1.15.1 — resolved by CLI boundary
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -268,17 +271,9 @@ def _run_impl(
         print(f"error: {e}", flush=True)
         return ExitCode.CONFIG.value
 
-    snapshot_dir: Path | None = None
     save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
-    if save_required:
-        from aa_auto_sdr.core.profiles import default_base
-
-        # v1.15.0 — mirror watch.py fallback: when no --profile is given,
-        # resolve to the "default" profile dir rather than erroring.
-        # This makes `aa_auto_sdr --batch RS1 RS2 --git-commit` work without
-        # an explicit --profile flag.
-        resolved_profile = profile or "default"
-        snapshot_dir = default_base() / "orgs" / resolved_profile / "snapshots"
+    if not save_required:
+        snapshot_dir = None
 
     try:
         formats = registry.resolve_formats(format_name or "excel")

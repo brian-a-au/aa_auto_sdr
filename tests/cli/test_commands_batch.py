@@ -274,6 +274,7 @@ def test_batch_snapshot_writes_one_per_success(
         format_name="json",
         profile="prod",
         snapshot=True,
+        snapshot_dir=fake_home / ".aa" / "orgs" / "prod" / "snapshots",
     )
     assert rc == 0
     snap_root = fake_home / ".aa" / "orgs" / "prod" / "snapshots"
@@ -341,6 +342,7 @@ class TestBatchAutoSnapshot:
             format_name="json",
             profile="prod",
             auto_snapshot=True,
+            snapshot_dir=tmp_path / ".aa" / "orgs" / "prod" / "snapshots",
         )
         assert rc in (0, 14)  # OK or PARTIAL_SUCCESS
         snap_root = tmp_path / ".aa" / "orgs" / "prod" / "snapshots"
@@ -409,6 +411,7 @@ class TestBatchAutoSnapshot:
             auto_snapshot=True,
             auto_prune=True,
             keep_last=1,
+            snapshot_dir=tmp_path / ".aa" / "orgs" / "prod" / "snapshots",
         )
         assert rc in (0, 14)
         # demo.prod: 3 pre-seeded + 1 new = 4 → keep-last 1 leaves 1
