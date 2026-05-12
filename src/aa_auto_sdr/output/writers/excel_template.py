@@ -150,6 +150,16 @@ class ExcelTemplateWriter:
                 "rows_appended": rows_appended,
             },
         )
+        if rows_appended > 0:
+            logger.warning(
+                "template_overflow sheet=%s overflow_rows=%d",
+                anchor.sheet_name,
+                rows_appended,
+                extra={
+                    "sheet": anchor.sheet_name,
+                    "overflow_rows": rows_appended,
+                },
+            )
         if rows_dropped > 0:
             logger.warning(
                 "template_sheet_clipped sheet=%s rows_dropped=%d soft_cap=%d",
@@ -285,6 +295,16 @@ class ExcelTemplateWriter:
                 "rows_appended": rows_appended,
             },
         )
+        if rows_appended > 0:
+            logger.warning(
+                "template_overflow sheet=%s overflow_rows=%d",
+                anchor.sheet_name,
+                rows_appended,
+                extra={
+                    "sheet": anchor.sheet_name,
+                    "overflow_rows": rows_appended,
+                },
+            )
         if rows_dropped > 0:
             logger.warning(
                 "template_sheet_clipped sheet=%s rows_dropped=%d soft_cap=%d",

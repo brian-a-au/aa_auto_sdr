@@ -359,3 +359,41 @@ def test_metrics_segments_appends_calc_metrics_with_type_column(
     seg_row = next(r for r in rows if r[1] == "US Visitors")
     assert cm_row[3] == "Percent"
     assert seg_row[3] in (None, "")
+
+
+def test_dimension_append_path_extends_past_max_row(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An API-only id with no template skeleton row should append a new row."""
+    import logging as _logging
+
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    caplog.set_level(_logging.WARNING, logger="aa_auto_sdr.output.writers.excel_template")
+    writer.write(
+        _doc(
+            dimensions=[
+                _dim("evar1", "Customer ID"),  # match path
+                _dim("evar99", "API-only eVar"),  # append path
+            ],
+        ),
+        out,
+    )
+    wb = load_workbook(out)
+    ws = wb["eVars"]
+    # Walk rows looking for evar99 (must exist past the original max_row).
+    found_evar99 = False
+    for r in range(7, ws.max_row + 1):
+        if ws.cell(row=r, column=3).value == "evar99":
+            assert ws.cell(row=r, column=4).value == "API-only eVar"
+            found_evar99 = True
+    assert found_evar99
+    # Overflow warning emitted (any rows_appended > 0 emits it per §3.7).
+    overflow_records = [r for r in caplog.records if r.message.startswith("template_overflow")]
+    assert overflow_records, "expected template_overflow WARNING"
+    rec = overflow_records[0]
+    assert getattr(rec, "sheet", None) == "eVars"
+    assert getattr(rec, "overflow_rows", 0) >= 1
