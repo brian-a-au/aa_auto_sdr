@@ -202,6 +202,7 @@ def test_vrs_endpoint_shape_error_is_apierror_not_transient() -> None:
     It MUST be an ApiError (so `except ApiError` in fetchers catches it)
     but MUST NOT be a TransientApiError (so `is_retryable` skips it)."""
     from aa_auto_sdr.core.exceptions import ApiError, TransientApiError, VrsEndpointShapeError
+
     err = VrsEndpointShapeError("simulated")
     assert isinstance(err, ApiError)
     assert not isinstance(err, TransientApiError)
@@ -241,4 +242,5 @@ class TestClassifyPermanentVrsShapeError:
 
     def test_happy_path_returns_value(self) -> None:
         from aa_auto_sdr.api.resilience import classify_permanent_vrs_shape_error
+
         assert classify_permanent_vrs_shape_error(lambda: 42) == 42

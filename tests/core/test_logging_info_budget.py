@@ -215,7 +215,7 @@ def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
         handle = analytics.return_value
         handle.getVirtualReportSuites.side_effect = [
             KeyError("content"),  # full rung — permanent, fast-fail
-            [],                   # minimal rung — success (empty list)
+            [],  # minimal rung — success (empty list)
         ]
 
         caplog.set_level(logging.DEBUG)

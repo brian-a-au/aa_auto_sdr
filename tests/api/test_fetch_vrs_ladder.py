@@ -125,6 +125,7 @@ def test_keyerror_content_fast_fails_both_rungs(mock_client, caplog):
     (The additive `vrs_unavailable` WARNING is tested separately in Task 4
     so each task's commit lands with a fully green test suite.)"""
     import logging
+
     mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     with caplog.at_level(logging.WARNING):
         result = fetch_virtual_report_suites(mock_client, "rs1")
@@ -145,7 +146,7 @@ def test_non_content_keyerror_still_retries(mock_client):
     mock_client.handle.getVirtualReportSuites.side_effect = [
         KeyError("totalElements"),  # full attempt 1 — promoted to TransientApiError
         KeyError("totalElements"),  # full attempt 2 — retry exhausts the rung
-        _vrs_records(),              # minimal attempt 1 — succeeds
+        _vrs_records(),  # minimal attempt 1 — succeeds
     ]
     result = fetch_virtual_report_suites(mock_client, "rs1")
     assert result.status == "partial"
@@ -158,6 +159,7 @@ def test_vrs_unavailable_warning_fires_on_shape_error_exhaust(mock_client, caplo
     `vrs_unavailable` WARNING fires alongside the existing
     `expansion_level=exhausted` line, pointing operators at the real cause."""
     import logging
+
     mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     with caplog.at_level(logging.WARNING):
         result = fetch_virtual_report_suites(mock_client, "rs1")
