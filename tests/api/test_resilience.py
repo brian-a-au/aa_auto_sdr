@@ -194,3 +194,14 @@ class TestWithRetries:
             upper = min(backoff + 1.0, 8.0)  # jitter is uniform(0, base_delay)
             lower = min(backoff, 8.0)
             assert lower <= delay <= upper, f"retry {n}: {delay} not in [{lower}, {upper}]"
+
+
+def test_vrs_endpoint_shape_error_is_apierror_not_transient() -> None:
+    """VrsEndpointShapeError represents a permanent VRS endpoint shape
+    failure (empty-tenant or malformed envelope from aanalytics2 0.5.1).
+    It MUST be an ApiError (so `except ApiError` in fetchers catches it)
+    but MUST NOT be a TransientApiError (so `is_retryable` skips it)."""
+    from aa_auto_sdr.core.exceptions import ApiError, TransientApiError, VrsEndpointShapeError
+    err = VrsEndpointShapeError("simulated")
+    assert isinstance(err, ApiError)
+    assert not isinstance(err, TransientApiError)

@@ -38,6 +38,18 @@ class TransientApiError(ApiError):
     """
 
 
+class VrsEndpointShapeError(ApiError):
+    """Adobe Analytics VRS-list endpoint returned a malformed/empty envelope.
+
+    Permanent failure mode (for the duration of the run) where the SDK
+    indexes `vrsid['content']` on a response that lacks that key — the
+    pattern documented in
+    `docs/superpowers/spikes/2026-05-12-vrs-probe-script.md` and observed
+    in the field on tenants with zero VRS. Distinct from
+    `TransientApiError` so the resilience layer's retry policy skips it.
+    """
+
+
 class ReportSuiteNotFoundError(AaAutoSdrError):
     """The requested RSID does not exist in this org."""
 
