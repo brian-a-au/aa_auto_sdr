@@ -32,6 +32,7 @@ from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import (
     RetryPolicy,
+    classify_permanent_vrs_shape_error,
     classify_transient_sdk_call,
     log_retry_attempt,
     with_retries,
@@ -654,7 +655,9 @@ def fetch_virtual_report_suites(
             raws = _records(
                 with_retries(
                     lambda: classify_transient_sdk_call(
-                        lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        lambda: classify_permanent_vrs_shape_error(
+                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        ),
                         component_type="virtual_report_suite",
                     ),
                     policy=client.retry_policy,
@@ -684,7 +687,9 @@ def fetch_virtual_report_suites(
         raws = _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
-                    lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    lambda: classify_permanent_vrs_shape_error(
+                        lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    ),
                     component_type="virtual_report_suite",
                 ),
                 policy=client.retry_policy,
@@ -696,7 +701,9 @@ def fetch_virtual_report_suites(
             raws = _records(
                 with_retries(
                     lambda: classify_transient_sdk_call(
-                        lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        lambda: classify_permanent_vrs_shape_error(
+                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        ),
                         component_type="virtual_report_suite",
                     ),
                     policy=client.retry_policy,
