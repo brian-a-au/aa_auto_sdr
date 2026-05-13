@@ -24,6 +24,12 @@ each consuming the full --max-retries budget — so VRS worst case is
 --max-retries 6. Document this so operators tuning --max-retries
 aren't surprised by minute-long stalls.
 
+Exception (v1.16.1): ``KeyError('content')`` on the VRS path is
+classified permanent by ``classify_permanent_vrs_shape_error`` and
+fast-fails in exactly 1 SDK call per rung (2 total) regardless of
+``--max-retries``. The full retry budget above applies only to
+genuinely transient errors on the VRS endpoint.
+
 The helpers ``_classify_transient_sdk_call`` and ``_log_retry_attempt``
 live here (not in ``api/fetch.py``) so ``api/client.py`` can use them
 for the auth bootstrap retry without creating a circular import
@@ -41,7 +47,7 @@ from typing import Any
 
 import requests
 
-from aa_auto_sdr.core.exceptions import TransientApiError
+from aa_auto_sdr.core.exceptions import TransientApiError, VrsEndpointShapeError
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +157,36 @@ def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str |
     except (KeyError, ValueError) as e:
         ctx = f"{component_type} " if component_type else ""
         raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
+
+
+def classify_permanent_vrs_shape_error[T](fn: Callable[[], T]) -> T:
+    """Run ``fn``; re-raise ``KeyError('content')`` as ``VrsEndpointShapeError``.
+
+    Wraps ``client.handle.getVirtualReportSuites`` calls inside
+    ``fetch_virtual_report_suites`` (count-only, full, and minimal rungs)
+    so the empty-tenant / malformed-envelope failure mode raises a
+    non-transient ``ApiError`` subclass *before* the outer
+    ``classify_transient_sdk_call`` promotes it to ``TransientApiError``.
+    Result: the resilience layer's retry policy (``is_retryable``) skips
+    the rung and the existing ``except Exception:`` falls through to the
+    next rung (or to graceful-degrade), cutting ~90 s of pointless
+    retries on zero-VRS tenants down to ≤ 3 s.
+
+    See ``docs/superpowers/specs/2026-05-12-aa-auto-sdr-v1.16.1-design.md``.
+
+    Every other exception (including other ``KeyError`` shapes and any
+    ``ValueError``) bubbles unchanged so the outer classifier still gets
+    the chance to promote real transients to ``TransientApiError``.
+    """
+    try:
+        return fn()
+    except KeyError as e:
+        if e.args == ("content",):
+            raise VrsEndpointShapeError(
+                "VRS endpoint returned a malformed envelope (missing 'content' key); "
+                "common on tenants with zero VRS or during Adobe-side 5xx."
+            ) from e
+        raise
 
 
 def log_retry_attempt(

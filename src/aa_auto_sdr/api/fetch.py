@@ -32,6 +32,7 @@ from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import (
     RetryPolicy,
+    classify_permanent_vrs_shape_error,
     classify_transient_sdk_call,
     log_retry_attempt,
     with_retries,
@@ -40,6 +41,7 @@ from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
     ApiError,
     ReportSuiteNotFoundError,
+    VrsEndpointShapeError,
 )
 
 NameMatchStrategy = Literal["exact", "insensitive", "fuzzy"]
@@ -625,7 +627,8 @@ def fetch_virtual_report_suites(
       1. Full expansion — extended_info=True (heavy 16-field expansion).
       2. Minimal expansion — extended_info=False (id/name/parentRsid only).
 
-    Each rung gets the full retry budget. On all-rung exhaustion, returns
+    Each rung gets the full retry budget for transient errors; ``KeyError('content')``
+    is classified permanent (v1.16.1) and fast-fails without retries. On all-rung exhaustion, returns
     FetchOutcome.degraded() (data=[]) (preserves v1.6.1 graceful-degrade after a
     customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS
     endpoint returned HTTP 500 — the SDK unconditionally indexes
@@ -654,7 +657,9 @@ def fetch_virtual_report_suites(
             raws = _records(
                 with_retries(
                     lambda: classify_transient_sdk_call(
-                        lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        lambda: classify_permanent_vrs_shape_error(
+                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        ),
                         component_type="virtual_report_suite",
                     ),
                     policy=client.retry_policy,
@@ -673,6 +678,16 @@ def fetch_virtual_report_suites(
                     "error_class": type(e).__name__,
                 },
             )
+            if isinstance(e, VrsEndpointShapeError):
+                logger.warning(
+                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
+                    parent_rsid,
+                    extra={
+                        "rsid": parent_rsid,
+                        "component_type": "virtual_report_suite",
+                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
+                    },
+                )
             return models.FetchOutcome.degraded()
         out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="minimal")
         return models.FetchOutcome.healthy(out)
@@ -684,7 +699,9 @@ def fetch_virtual_report_suites(
         raws = _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
-                    lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    lambda: classify_permanent_vrs_shape_error(
+                        lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    ),
                     component_type="virtual_report_suite",
                 ),
                 policy=client.retry_policy,
@@ -696,7 +713,9 @@ def fetch_virtual_report_suites(
             raws = _records(
                 with_retries(
                     lambda: classify_transient_sdk_call(
-                        lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        lambda: classify_permanent_vrs_shape_error(
+                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                        ),
                         component_type="virtual_report_suite",
                     ),
                     policy=client.retry_policy,
@@ -727,6 +746,16 @@ def fetch_virtual_report_suites(
                     "error_class": type(e2).__name__,
                 },
             )
+            if isinstance(e2, VrsEndpointShapeError):
+                logger.warning(
+                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
+                    parent_rsid,
+                    extra={
+                        "rsid": parent_rsid,
+                        "component_type": "virtual_report_suite",
+                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
+                    },
+                )
             return models.FetchOutcome.degraded()
     out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level=expansion_level)
     if expansion_level == "minimal":

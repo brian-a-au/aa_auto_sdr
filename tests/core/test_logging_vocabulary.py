@@ -112,6 +112,8 @@ VOCAB = {
     "rows_dropped",
     "soft_cap",
     "overflow_rows",
+    # v1.16.1 additions — VRS exhaust operator hint
+    "likely_cause",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -152,6 +154,8 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "template_sheet_skipped": {"sheet", "reason"},
     "template_overflow": {"sheet", "overflow_rows"},
     "template_sheet_clipped": {"sheet", "rows_dropped", "soft_cap"},
+    # v1.16.1 — VRS exhaust operator hint
+    "vrs_unavailable": {"rsid", "component_type", "likely_cause"},
 }
 
 INSTRUMENTED_MODULES = [

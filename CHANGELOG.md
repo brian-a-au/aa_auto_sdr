@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.16.1] — 2026-05-12
+
+Fast-fail VRS fetch on the empty-tenant / permanent-shape error mode that
+previously burned ~90 s of pointless retries before degrading. The exhaust
+path now collapses to ≤ 3 s, and a new additive `vrs_unavailable` WARNING
+points operators at the real cause instead of leaving them to interpret a
+generic `TransientApiError`.
+
+### Fixed
+- `KeyError('content')` raised by `aanalytics2` 0.5.1 on a VRS-list response
+  that lacks the `content` key (common on tenants with zero VRS or during
+  Adobe-side 5xx) is now classified as permanent on the VRS path only via a
+  new `VrsEndpointShapeError(ApiError)`. The resilience layer's retry policy
+  skips it; all three VRS rungs in `fetch_virtual_report_suites` (count-only
+  fast path, full rung, minimal rung) fail-fast and graceful-degrade. No
+  behavior change for any other fetcher.
+
+### Added
+- `core.exceptions.VrsEndpointShapeError(ApiError)` — typed signal for the
+  permanent VRS-endpoint shape failure.
+- `api.resilience.classify_permanent_vrs_shape_error(fn)` — innermost guard
+  used by the three VRS SDK call sites.
+- `vrs_unavailable rsid=… likely_cause=empty_tenant_or_permanent_endpoint_shape_error`
+  WARNING emitted additively alongside the existing exhausted/count-only WARNING
+  when the cause of exhaust is the permanent shape error. The existing
+  warning's `error_class=` field now reads `VrsEndpointShapeError` rather
+  than `TransientApiError`, which is itself a useful operator signal.
+
 ## [1.16.0] — 2026-05-12
 
 Template-fill Excel writer. Pointing `--template /path/to/aa_en_BRD_SDR_template.xlsx` at an existing Adobe BRD/SDR `.xlsx` switches the Excel writer to fill mode: each data sheet is located by name + section anchor, the header row is detected by content, and API-derived component data is filled into the rows below — preserving styles, cross-sheet formulas, defined names, column widths, page setup, and every cell the writer doesn't explicitly touch.

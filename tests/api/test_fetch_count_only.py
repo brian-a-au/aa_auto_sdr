@@ -144,3 +144,25 @@ def test_classifications_count_only_is_noop_on_failure() -> None:
     outcome = fetch_classification_datasets(client, "rs1", count_only=True)
     assert outcome.status == "degraded"
     assert outcome.data == []
+
+
+def test_count_only_keyerror_content_fast_fails(monkeypatch, caplog) -> None:
+    """v1.16.1: count-only path also fast-fails on KeyError('content')
+    and emits the additive vrs_unavailable warning."""
+    import logging
+
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.resilience import RetryPolicy
+
+    monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
+    handle = MagicMock()
+    handle.getVirtualReportSuites.side_effect = KeyError("content")
+    client = AaClient(handle=handle, company_id="co", retry_policy=RetryPolicy(max_retries=1))
+
+    with caplog.at_level(logging.WARNING):
+        result = fetch_virtual_report_suites(client, "rs1", count_only=True)
+
+    assert result.status == "degraded"
+    # No retries — count-only does a single SDK call when shape-error fires
+    assert handle.getVirtualReportSuites.call_count == 1
+    assert any("vrs_unavailable" in r.message for r in caplog.records)

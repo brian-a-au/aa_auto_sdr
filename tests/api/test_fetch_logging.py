@@ -97,7 +97,11 @@ def test_classifications_failure_emits_warning(caplog):
 def test_virtual_report_suites_failure_emits_warning(caplog):
     """v1.6.1: VRS fetch must emit the same structured WARNING as classifications
     when the SDK call raises (e.g. KeyError('content') from aanalytics2 0.5.1
-    on an HTTP 500 response). rsid carries the parent_rsid for correlation."""
+    on an HTTP 500 response). rsid carries the parent_rsid for correlation.
+
+    v1.16.1: KeyError('content') is now classified as VrsEndpointShapeError
+    (permanent fast-fail). A second additive `vrs_unavailable` WARNING fires
+    alongside the exhausted record — two WARNINGs total."""
     caplog.set_level(logging.WARNING, logger="aa_auto_sdr.api.fetch")
     fake_client = _make_client()
     fake_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
@@ -105,13 +109,16 @@ def test_virtual_report_suites_failure_emits_warning(caplog):
     assert out.status == "degraded"
     assert out.data == []
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-    assert len(warnings) == 1
-    rec = warnings[0]
-    assert rec.rsid == "RS1"
-    assert rec.component_type == "virtual_report_suite"
-    # v1.7.0: KeyError → TransientApiError after retry classification.
-    # The outer warning catch records the post-classification class.
-    assert rec.error_class == "TransientApiError"
+    # Two records: the exhausted record + the additive vrs_unavailable record.
+    assert len(warnings) == 2
+    exhausted = next(r for r in warnings if "expansion_level=exhausted" in r.getMessage())
+    assert exhausted.rsid == "RS1"
+    assert exhausted.component_type == "virtual_report_suite"
+    # v1.16.1: KeyError('content') → VrsEndpointShapeError (permanent).
+    assert exhausted.error_class == "VrsEndpointShapeError"
+    unavailable = next(r for r in warnings if "vrs_unavailable" in r.getMessage())
+    assert unavailable.rsid == "RS1"
+    assert unavailable.likely_cause == "empty_tenant_or_permanent_endpoint_shape_error"
 
 
 def test_virtual_report_suite_summaries_failure_normalizes_to_api_error():
