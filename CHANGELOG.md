@@ -25,7 +25,7 @@ generic `TransientApiError`.
 - `api.resilience.classify_permanent_vrs_shape_error(fn)` — innermost guard
   used by the three VRS SDK call sites.
 - `vrs_unavailable rsid=… likely_cause=empty_tenant_or_permanent_endpoint_shape_error`
-  WARNING emitted alongside the existing `expansion_level=exhausted` line
+  WARNING emitted additively alongside the existing exhausted/count-only WARNING
   when the cause of exhaust is the permanent shape error. The existing
   warning's `error_class=` field now reads `VrsEndpointShapeError` rather
   than `TransientApiError`, which is itself a useful operator signal.
