@@ -41,6 +41,7 @@ from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
     ApiError,
     ReportSuiteNotFoundError,
+    VrsEndpointShapeError,
 )
 
 NameMatchStrategy = Literal["exact", "insensitive", "fuzzy"]
@@ -676,6 +677,16 @@ def fetch_virtual_report_suites(
                     "error_class": type(e).__name__,
                 },
             )
+            if isinstance(e, VrsEndpointShapeError):
+                logger.warning(
+                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
+                    parent_rsid,
+                    extra={
+                        "rsid": parent_rsid,
+                        "component_type": "virtual_report_suite",
+                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
+                    },
+                )
             return models.FetchOutcome.degraded()
         out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="minimal")
         return models.FetchOutcome.healthy(out)
@@ -734,6 +745,16 @@ def fetch_virtual_report_suites(
                     "error_class": type(e2).__name__,
                 },
             )
+            if isinstance(e2, VrsEndpointShapeError):
+                logger.warning(
+                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
+                    parent_rsid,
+                    extra={
+                        "rsid": parent_rsid,
+                        "component_type": "virtual_report_suite",
+                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
+                    },
+                )
             return models.FetchOutcome.degraded()
     out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level=expansion_level)
     if expansion_level == "minimal":

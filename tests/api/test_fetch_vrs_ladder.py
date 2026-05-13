@@ -151,3 +151,15 @@ def test_non_content_keyerror_still_retries(mock_client):
     assert result.status == "partial"
     assert result.expansion_level == "minimal"
     assert mock_client.handle.getVirtualReportSuites.call_count == 3
+
+
+def test_vrs_unavailable_warning_fires_on_shape_error_exhaust(mock_client, caplog):
+    """When the cause of exhaust is the permanent shape error, an additive
+    `vrs_unavailable` WARNING fires alongside the existing
+    `expansion_level=exhausted` line, pointing operators at the real cause."""
+    import logging
+    mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
+    with caplog.at_level(logging.WARNING):
+        result = fetch_virtual_report_suites(mock_client, "rs1")
+    assert result.status == "degraded"
+    assert any("vrs_unavailable" in r.message and "likely_cause" in r.message for r in caplog.records)

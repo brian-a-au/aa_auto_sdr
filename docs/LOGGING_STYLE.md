@@ -79,6 +79,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `emitted` | bool | Whether the watch cycle emitted a `change` event (vs. suppressed by threshold). |
 | `cycles_completed` | int | Watch-loop terminal record — total cycles completed before stop. |
 | `rsids` | int / list[str] | Watch-loop start record — count or list of RSIDs being watched. |
+| `likely_cause` | str | VRS exhaust hint pointing at empty-tenant / permanent-endpoint shape error. Emitted on `vrs_unavailable` WARNING records only. |
 
 For the version each field was introduced, see [Appendix A — Event and field introductions](#appendix-a--event-and-field-introductions).
 
@@ -124,6 +125,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
 - `vrs_expansion_fallback` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires when the full-expansion VRS call (`extended_info=True`) exhausts the retry budget and the minimal-expansion fallback rung (`extended_info=False`) is attempted. Carries `rsid`, `component_type=virtual_report_suite`, `expansion_level=minimal`, and `error_class` (the class name of the full-rung failure that triggered the fallback).
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
+- `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** (alongside the existing `expansion_level=exhausted` WARNING) when both ladder rungs or the count-only path exhaust and the underlying cause is a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. Operators reading logs see two records on this path: the structured `expansion_level=exhausted error_class=VrsEndpointShapeError` for log-aggregation queries, and this human-readable `vrs_unavailable` for root-cause orientation.
 
 ### Batch sampling (1)
 
@@ -264,3 +266,4 @@ Most maintainers will not need this table. It exists because the vocabulary meta
 | Watch / scheduled: `watch_loop_start`, `watch_cycle_complete`, `watch_loop_stop`; vocabulary: `cycle`, `interval`, `watch_threshold`, `change_count`, `emitted`, `cycles_completed`, `rsids` | v1.14.0 |
 | Git integration: `git_init_repo`, `git_commit_complete`, `git_op_failed`; vocabulary: `commit_sha`, `pushed`, `op`, `initial_commit` | v1.15.0 |
 | Template-fill writer: `template_load`, `template_sheet_filled`, `template_sheet_skipped`, `template_overflow`, `template_sheet_clipped`; vocabulary: `sheet`, `sheets`, `rows_matched`, `rows_appended`, `rows_dropped`, `soft_cap`, `overflow_rows` | v1.16.0 |
+| VRS exhaust hint: `vrs_unavailable`; vocabulary: `likely_cause` | v1.16.1 |
