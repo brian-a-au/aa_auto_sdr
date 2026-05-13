@@ -627,7 +627,8 @@ def fetch_virtual_report_suites(
       1. Full expansion — extended_info=True (heavy 16-field expansion).
       2. Minimal expansion — extended_info=False (id/name/parentRsid only).
 
-    Each rung gets the full retry budget. On all-rung exhaustion, returns
+    Each rung gets the full retry budget for transient errors; ``KeyError('content')``
+    is classified permanent (v1.16.1) and fast-fails without retries. On all-rung exhaustion, returns
     FetchOutcome.degraded() (data=[]) (preserves v1.6.1 graceful-degrade after a
     customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS
     endpoint returned HTTP 500 — the SDK unconditionally indexes

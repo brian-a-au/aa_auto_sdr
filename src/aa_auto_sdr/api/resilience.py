@@ -24,6 +24,12 @@ each consuming the full --max-retries budget — so VRS worst case is
 --max-retries 6. Document this so operators tuning --max-retries
 aren't surprised by minute-long stalls.
 
+Exception (v1.16.1): ``KeyError('content')`` on the VRS path is
+classified permanent by ``classify_permanent_vrs_shape_error`` and
+fast-fails in exactly 1 SDK call per rung (2 total) regardless of
+``--max-retries``. The full retry budget above applies only to
+genuinely transient errors on the VRS endpoint.
+
 The helpers ``_classify_transient_sdk_call`` and ``_log_retry_attempt``
 live here (not in ``api/fetch.py``) so ``api/client.py`` can use them
 for the auth bootstrap retry without creating a circular import
