@@ -205,3 +205,40 @@ def test_vrs_endpoint_shape_error_is_apierror_not_transient() -> None:
     err = VrsEndpointShapeError("simulated")
     assert isinstance(err, ApiError)
     assert not isinstance(err, TransientApiError)
+
+
+class TestClassifyPermanentVrsShapeError:
+    def test_keyerror_content_reraises_as_shape_error(self) -> None:
+        from aa_auto_sdr.api.resilience import classify_permanent_vrs_shape_error
+        from aa_auto_sdr.core.exceptions import VrsEndpointShapeError
+
+        def boom():
+            raise KeyError("content")
+
+        with pytest.raises(VrsEndpointShapeError):
+            classify_permanent_vrs_shape_error(boom)
+
+    def test_other_keyerror_bubbles_unchanged(self) -> None:
+        """A KeyError on a different key (e.g. malformed totals envelope) is
+        NOT the shape we've identified as permanent; let the outer transient
+        classifier promote it as before."""
+        from aa_auto_sdr.api.resilience import classify_permanent_vrs_shape_error
+
+        def boom():
+            raise KeyError("totalElements")
+
+        with pytest.raises(KeyError):
+            classify_permanent_vrs_shape_error(boom)
+
+    def test_valueerror_bubbles_unchanged(self) -> None:
+        from aa_auto_sdr.api.resilience import classify_permanent_vrs_shape_error
+
+        def boom():
+            raise ValueError("bad shape")
+
+        with pytest.raises(ValueError):
+            classify_permanent_vrs_shape_error(boom)
+
+    def test_happy_path_returns_value(self) -> None:
+        from aa_auto_sdr.api.resilience import classify_permanent_vrs_shape_error
+        assert classify_permanent_vrs_shape_error(lambda: 42) == 42
