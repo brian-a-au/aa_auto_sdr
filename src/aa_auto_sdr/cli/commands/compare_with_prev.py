@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+from pathlib import Path
 
 from aa_auto_sdr.cli.commands import diff as diff_cmd
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -25,6 +26,7 @@ def run(
     *,
     rsids: list[str],
     profile: str | None,
+    snapshot_dir: Path | None = None,
     format_name: str | None,
     output: str | None,
     side_by_side: bool = False,
@@ -65,6 +67,7 @@ def run(
                 format_name=format_name,
                 output=output,
                 profile=profile,
+                snapshot_dir=snapshot_dir,
                 side_by_side=side_by_side,
                 summary=summary,
                 ignore_fields=ignore_fields,

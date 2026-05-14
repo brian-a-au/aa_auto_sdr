@@ -130,3 +130,39 @@ class TestNoPositional:
             color_theme="default",
         )
         assert rc == ExitCode.USAGE.value
+
+
+class TestSnapshotDirThreading:
+    def test_snapshot_dir_is_forwarded_to_diff_run(self) -> None:
+        """compare_with_prev threads snapshot_dir through to diff_cmd.run."""
+        from pathlib import Path
+
+        captured: dict = {}
+
+        def _capture(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        explicit = Path("/tmp/explicit_snaps")
+        with patch.object(diff_cmd, "run", side_effect=_capture):
+            cmd.run(
+                rsids=["rs1"],
+                profile=None,
+                snapshot_dir=explicit,
+                format_name=None,
+                output=None,
+                side_by_side=False,
+                summary=False,
+                ignore_fields=frozenset(),
+                extended_fields=False,
+                quiet=False,
+                labels=None,
+                reverse=False,
+                changes_only=False,
+                show_only=frozenset(),
+                max_issues=None,
+                warn_threshold=None,
+                color_theme="default",
+            )
+
+        assert captured["snapshot_dir"] == explicit
