@@ -197,12 +197,20 @@ def _normalize_payload(payload: dict) -> dict:
     schema = payload.get("schema")
     if isinstance(schema, str) and schema.startswith("aa-sdr-snapshot/"):
         components = payload.get("components") or {}
+        # Envelopes hoist degraded_components (list) and partial_components
+        # (dict[ctype, expansion_level]) out of fetch_status; reconstitute so
+        # the block builder's fetch-status section renders.
+        fetch_status: dict[str, dict] = {
+            ctype: {"status": "degraded", "expansion_level": None} for ctype in payload.get("degraded_components") or []
+        }
+        for ctype, level in (payload.get("partial_components") or {}).items():
+            fetch_status[ctype] = {"status": "partial", "expansion_level": level}
         return {
             **components,
             "captured_at": payload.get("captured_at"),
             "tool_version": payload.get("tool_version"),
             "quality": payload.get("quality"),
-            "fetch_status": payload.get("fetch_status", {}),
+            "fetch_status": fetch_status,
         }
     if "report_suite" in payload and "captured_at" in payload:
         return payload

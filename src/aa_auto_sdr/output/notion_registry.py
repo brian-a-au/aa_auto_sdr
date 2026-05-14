@@ -19,12 +19,15 @@ def get_registry_path(output_dir: str | Path) -> Path:
     return Path(output_dir) / REGISTRY_FILENAME
 
 
+_LOAD_ERRORS: tuple[type[Exception], ...] = (json.JSONDecodeError, OSError)
+
+
 def load_registry(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError, OSError:
+    except _LOAD_ERRORS:
         return {}
     return data if isinstance(data, dict) else {}
 

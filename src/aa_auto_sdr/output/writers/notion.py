@@ -32,18 +32,25 @@ logger = logging.getLogger(__name__)
 
 
 def _clear_page_blocks(client: Any, page_id: str) -> None:
-    """Delete all child blocks from a Notion page (no bulk-clear API)."""
+    """Delete all child blocks from a Notion page (no bulk-clear API).
+
+    Two-pass: collect every block id by paginating ``blocks.children.list``,
+    then delete. Listing and deleting in the same pass risks invalidating
+    the pagination cursor on archive-style deletes.
+    """
+    ids: list[str] = []
     cursor: str | None = None
     while True:
         kwargs: dict[str, Any] = {"block_id": page_id}
         if cursor:
             kwargs["start_cursor"] = cursor
         response = client.blocks.children.list(**kwargs)
-        for block in response.get("results", []):
-            client.blocks.delete(block_id=block["id"])
+        ids.extend(b["id"] for b in response.get("results", []))
         if not response.get("has_more"):
             break
         cursor = response.get("next_cursor")
+    for block_id in ids:
+        client.blocks.delete(block_id=block_id)
 
 
 def _append_blocks(client: Any, page_id: str, blocks: list[dict], batch_size: int = 100) -> None:

@@ -38,6 +38,20 @@ def test_load_registry_malformed_returns_empty(tmp_path):
     assert load_registry(p) == {}
 
 
+def test_load_registry_os_error_returns_empty(tmp_path, monkeypatch):
+    # Simulate the registry file existing but being unreadable (permissions,
+    # transient FS error). load_registry must swallow OSError and return {}
+    # so the next run cleanly starts a new registry rather than crashing.
+    p = tmp_path / REGISTRY_FILENAME
+    p.write_text("{}")
+
+    def _raise_oserror(self, *args, **kwargs):
+        raise OSError("simulated read failure")
+
+    monkeypatch.setattr("pathlib.Path.read_text", _raise_oserror)
+    assert load_registry(p) == {}
+
+
 def test_save_registry_writes_json_atomically(tmp_path):
     p = tmp_path / REGISTRY_FILENAME
     save_registry(p, {"examplersid2": "page-def"})

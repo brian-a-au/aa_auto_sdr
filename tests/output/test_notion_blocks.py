@@ -222,6 +222,33 @@ def test_normalize_envelope_to_sdr_dict_unwraps_components():
     assert normalized["captured_at"] == envelope["captured_at"]
 
 
+def test_normalize_envelope_synthesizes_fetch_status_from_degraded_and_partial():
+    doc = _make_doc(
+        fetch_status={
+            "virtual_report_suites": FetchOutcomeMeta(status="degraded", expansion_level=None),
+            "classifications": FetchOutcomeMeta(status="partial", expansion_level="ids_only"),
+        },
+    )
+    envelope = document_to_envelope(doc)
+    # The envelope strips fetch_status from the components payload — confirm
+    # so the test guards against the real on-disk shape, not a mock.
+    assert "fetch_status" not in envelope["components"]
+    assert "virtual_report_suites" in envelope["degraded_components"]
+    assert envelope["partial_components"]["classifications"] == "ids_only"
+
+    normalized = nb._normalize_payload(envelope)
+    fetch_status = normalized["fetch_status"]
+    assert fetch_status["virtual_report_suites"]["status"] == "degraded"
+    assert fetch_status["classifications"]["status"] == "partial"
+    assert fetch_status["classifications"]["expansion_level"] == "ids_only"
+
+    blocks = nb.build_blocks_from_dict(envelope)
+    headings = [b for b in blocks if b["type"] == "heading_2"]
+    assert any("Data Quality" in h["heading_2"]["rich_text"][0]["text"]["content"] for h in headings)
+    warn_callouts = [b for b in blocks if b["type"] == "callout" and b["callout"]["icon"]["emoji"] == "⚠️"]
+    assert len(warn_callouts) >= 2
+
+
 def test_normalize_payload_accepts_sdr_dict_as_is():
     doc = _make_doc()
     d = doc.to_dict()
