@@ -509,6 +509,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         return compare_cmd.run(
             rsids=rsids,
             profile=ns.profile,
+            snapshot_dir=resolve_snapshot_dir(ns),
             format_name=ns.format,
             output=ns.output,
             side_by_side=ns.side_by_side,
@@ -558,6 +559,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             profile=ns.profile,
             rsid=rsids[0] if rsids else None,
             format_name=ns.format,
+            snapshot_dir=ns.snapshot_dir,
         )
     if ns.prune_snapshots:
         if len(rsids) > 1:
@@ -575,6 +577,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             keep_since=ns.keep_since,
             dry_run=ns.dry_run,
             assume_yes=ns.yes,
+            snapshot_dir=ns.snapshot_dir,
         )
 
     # v1.1 — profile commands
@@ -731,6 +734,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             format_name=ns.format,
             output=resolved_output,
             profile=ns.profile,
+            snapshot_dir=resolve_snapshot_dir(ns),
             side_by_side=ns.side_by_side,
             summary=ns.summary,
             ignore_fields=ignore,
