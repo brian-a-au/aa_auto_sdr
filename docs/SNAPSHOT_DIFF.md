@@ -70,7 +70,7 @@ The snapshot file is appended to `RunResult.outputs`, so the `wrote: <path>` tra
 ## The `--diff` action
 
 ```text
-aa_auto_sdr --diff <a> <b> [--format console|json|markdown|pr-comment] [--output -|<path>] [--profile <name>]
+aa_auto_sdr --diff <a> <b> [--format console|json|markdown|pr-comment] [--output -|<path>] (--profile <name> | --snapshot-dir <path>)
 ```
 
 Each token is one of five forms:
@@ -78,12 +78,12 @@ Each token is one of five forms:
 | Token form | Example | Resolution |
 |----|----|----|
 | Filesystem path | `./snap-a.json` or `/abs/path.json` | Read JSON, validate schema, return envelope. |
-| `<rsid>@<timestamp>` | `demo.prod@2026-04-26T17-29-01+00-00` | Profile-scoped exact match. |
-| `<rsid>@latest` | `demo.prod@latest` | Most-recent file in profile dir. |
+| `<rsid>@<timestamp>` | `demo.prod@2026-04-26T17-29-01+00-00` | Exact match in the active snapshot dir. |
+| `<rsid>@latest` | `demo.prod@latest` | Most-recent file in the active snapshot dir. |
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file (errors if only one exists). |
 | `git:<ref>:<path>` | `git:HEAD~1:snapshots/demo.prod.json` | `git show <ref>:<path>` from cwd. |
 
-Profile-form tokens (`<rsid>@<spec>`) require `--profile`. Path-only and git-only tokens don't.
+Profile-form tokens (`<rsid>@<spec>`) require `--profile` or `--snapshot-dir`. Path-only and git-only tokens don't. The active snapshot dir is `--snapshot-dir` if set, otherwise `~/.aa/orgs/<profile>/snapshots/`.
 
 ### Examples
 
@@ -251,7 +251,7 @@ uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod --format 
 |----|----|
 | 0 | Diff ran successfully (regardless of whether changes exist) |
 | 3 | `--warn-threshold` exceeded (diff itself ran successfully) |
-| 10 | `--list-snapshots` / `--prune-snapshots` missing `--profile` or policy |
+| 10 | `--list-snapshots` / `--prune-snapshots` missing both `--profile` and `--snapshot-dir`, or missing policy |
 | 15 | Bad `--format`/`--output` combination |
 | 16 | Snapshot resolve / schema / git failure |
 

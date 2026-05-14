@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.17.0] — 2026-05-13
+## [1.17.0] — 2026-05-14
 
 `--snapshot-dir` now composes with all snapshot-aware actions. Previously the flag was honored only by `--snapshot`, `--batch`, `--trending-window`, and `--watch`; four commands ignored it and resolved exclusively from `--profile`. No new flags.
 

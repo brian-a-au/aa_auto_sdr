@@ -125,7 +125,7 @@ def _resolve_rsid_at(
     profile_snapshot_dir: Path | None,
 ) -> tuple[dict[str, Any], Path]:
     if profile_snapshot_dir is None:
-        raise SnapshotResolveError(f"'{token}' requires --profile (snapshots are profile-scoped)")
+        raise SnapshotResolveError(f"'{token}' requires --profile or --snapshot-dir (snapshots are profile-scoped)")
     rsid, _, spec = token.rpartition("@")
     if not rsid or not spec:
         raise SnapshotResolveError(f"could not parse '{token}' as <rsid>@<spec>")

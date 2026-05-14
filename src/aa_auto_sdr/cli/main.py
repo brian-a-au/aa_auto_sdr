@@ -555,6 +555,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import snapshots as snap_cmd
 
+        # Pass raw ns.snapshot_dir (not resolve_snapshot_dir) so the
+        # "requires --profile or --snapshot-dir" guard inside list_run
+        # can fire when the user sets neither.
         return snap_cmd.list_run(
             profile=ns.profile,
             rsid=rsids[0] if rsids else None,
@@ -570,6 +573,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import snapshots as snap_cmd
 
+        # Pass raw ns.snapshot_dir (not resolve_snapshot_dir) so the
+        # "requires --profile or --snapshot-dir" guard inside prune_run
+        # can fire when the user sets neither.
         return snap_cmd.prune_run(
             profile=ns.profile,
             rsid=rsids[0] if rsids else None,
