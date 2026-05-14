@@ -372,3 +372,34 @@ class TestDiffNewKnobs:
         assert rc == ExitCode.OK.value
         out = capsys.readouterr().out
         assert "metrics" in out.lower()
+
+
+class TestDiffHonorsSnapshotDir:
+    def test_diff_resolves_at_tokens_from_explicit_dir(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """--diff with --snapshot-dir resolves <rsid>@latest/<rsid>@previous
+        from the explicit dir, not from a profile path."""
+        snap_dir = tmp_path / "snaps"
+        _write_envelope(
+            snap_dir / "RS1" / "2026-05-12T10-00-00+00-00.json",
+            rsid="RS1",
+            captured_at="2026-05-12T10:00:00+00:00",
+        )
+        _write_envelope(
+            snap_dir / "RS1" / "2026-05-13T10-00-00+00-00.json",
+            rsid="RS1",
+            captured_at="2026-05-13T10:00:00+00:00",
+        )
+        from aa_auto_sdr.cli.commands import diff as diff_mod
+
+        rc = diff_mod.run(
+            a="RS1@previous",
+            b="RS1@latest",
+            format_name="json",
+            output="-",
+            profile=None,
+            snapshot_dir=snap_dir,
+        )
+        assert rc == 0
