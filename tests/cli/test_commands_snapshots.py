@@ -255,3 +255,44 @@ class TestListSnapshotsSnapshotDir:
         out = capsys.readouterr().out
         assert "--profile" in out
         assert "--snapshot-dir" in out
+
+
+class TestPruneSnapshotsSnapshotDir:
+    def test_accepts_explicit_dir_without_profile(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """--snapshot-dir alone (no --profile) is sufficient for --prune-snapshots."""
+        snap_dir = tmp_path / "snaps"
+        rs_dir = snap_dir / "RS1"
+        rs_dir.mkdir(parents=True)
+        _touch(rs_dir / "2026-05-12T10-00-00+00-00.json")
+        _touch(rs_dir / "2026-05-13T10-00-00+00-00.json")
+        rc = cmd.prune_run(
+            profile=None,
+            rsid=None,
+            keep_last=1,
+            keep_since=None,
+            dry_run=True,
+            snapshot_dir=snap_dir,
+        )
+        assert rc == ExitCode.OK.value
+        assert "would delete" in capsys.readouterr().out
+
+    def test_no_profile_no_dir_errors_with_both_flags_in_message(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = cmd.prune_run(
+            profile=None,
+            rsid=None,
+            keep_last=1,
+            keep_since=None,
+            dry_run=True,
+            snapshot_dir=None,
+        )
+        assert rc == ExitCode.CONFIG.value
+        out = capsys.readouterr().out
+        assert "--profile" in out
+        assert "--snapshot-dir" in out
