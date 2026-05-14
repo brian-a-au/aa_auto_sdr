@@ -351,7 +351,7 @@ aa_auto_sdr --trending-window 30d <RSID> --profile prod
 aa_auto_sdr --trending-window 30d <RSID> --profile prod --format json --output - | jq '.summary'
 ```
 
-`--trending-window <DURATION>` reads existing snapshots from the profile snapshot store (no API contact) and emits a rollup of how component counts and quality signals moved across the window. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the profile's snapshot directory for the trending read; other snapshot-aware actions still resolve from `--profile`.
+`--trending-window <DURATION>` reads existing snapshots from the active snapshot store (no API contact) and emits a rollup of how component counts and quality signals moved across the window. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the profile's snapshot directory; honored uniformly by every snapshot-aware action (`--snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, `--watch`).
 
 Trending renderers live under `output/trending_renderers/` (`console`, `json`, `markdown`); select with `--format`.
 

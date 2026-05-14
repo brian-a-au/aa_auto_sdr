@@ -403,3 +403,33 @@ class TestDiffHonorsSnapshotDir:
             snapshot_dir=snap_dir,
         )
         assert rc == 0
+
+    def test_explicit_dir_wins_over_profile(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """When both --profile and --snapshot-dir are set on --diff,
+        snapshot_dir wins (success criterion §6.5). Pass a deliberately
+        nonexistent profile name; the resolution must still succeed."""
+        snap_dir = tmp_path / "snaps"
+        _write_envelope(
+            snap_dir / "RS1" / "2026-05-12T10-00-00+00-00.json",
+            rsid="RS1",
+            captured_at="2026-05-12T10:00:00+00:00",
+        )
+        _write_envelope(
+            snap_dir / "RS1" / "2026-05-13T10-00-00+00-00.json",
+            rsid="RS1",
+            captured_at="2026-05-13T10:00:00+00:00",
+        )
+        from aa_auto_sdr.cli.commands import diff as diff_mod
+
+        rc = diff_mod.run(
+            a="RS1@previous",
+            b="RS1@latest",
+            format_name="json",
+            output="-",
+            profile="nonexistent_garbage_profile",
+            snapshot_dir=snap_dir,
+        )
+        assert rc == 0

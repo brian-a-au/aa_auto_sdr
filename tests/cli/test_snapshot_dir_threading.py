@@ -311,3 +311,44 @@ class TestCompareWithPrevCliBoundaryThreadsSnapshotDir:
         explicit = tmp_path / "explicit"
         main_mod.run(["RS1", "--compare-with-prev", "--snapshot-dir", str(explicit)])
         assert captured.get("snapshot_dir") == explicit
+
+
+class TestListPruneDispatchersPassRawNotResolved:
+    """Pin the §3.5 invariant: list/prune dispatchers must pass raw
+    ns.snapshot_dir (not resolve_snapshot_dir(ns)). resolve_snapshot_dir
+    never returns None, so a future refactor that swaps to it would
+    silently bypass the "requires --profile or --snapshot-dir" guard.
+
+    These tests assert the captured value is exactly None when neither
+    flag is set — the only assertion that distinguishes raw from resolved.
+    """
+
+    def test_list_dispatcher_passes_none_when_no_flags(self, monkeypatch) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(snap_cmd, "list_run", _fake_run)
+        main_mod.run(["--list-snapshots"])
+        # If a future dev swaps to resolve_snapshot_dir(ns), this becomes
+        # ~/.aa/orgs/default/snapshots and the guard never fires.
+        assert captured.get("snapshot_dir") is None
+
+    def test_prune_dispatcher_passes_none_when_no_flags(self, monkeypatch) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(snap_cmd, "prune_run", _fake_run)
+        main_mod.run(["--prune-snapshots", "--keep-last", "5"])
+        assert captured.get("snapshot_dir") is None

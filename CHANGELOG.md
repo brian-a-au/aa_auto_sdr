@@ -16,7 +16,16 @@ All notable changes to this project will be documented in this file. Format foll
   `<rsid>@<timestamp>` tokens. Filesystem paths and `git:` tokens are
   unaffected. `--snapshot-dir` takes precedence over `--profile` (consistent
   with generate/batch/watch behavior since v1.13.0).
-- `--snapshot-dir` help text updated to reflect full command coverage.
+- `--diff` and `--compare-with-prev` invoked with neither `--profile` nor
+  `--snapshot-dir` now fall back to `~/.aa/orgs/default/snapshots` when
+  resolving profile-form tokens, instead of erroring with
+  `requires --profile`. This aligns the no-flags behavior with
+  generate/batch/watch/trending (which have used the same default-profile
+  fallback since v1.13.0). Filesystem paths and `git:` tokens are still
+  resolved without touching the snapshot store.
+- `--snapshot-dir` help text updated to reflect full command coverage. The
+  `--list-snapshots` and `--prune-snapshots` action help strings now name
+  both `--profile` and `--snapshot-dir` as acceptable scopes.
 
 ## [1.16.1] — 2026-05-12
 

@@ -256,6 +256,25 @@ class TestListSnapshotsSnapshotDir:
         assert "--profile" in out
         assert "--snapshot-dir" in out
 
+    def test_explicit_dir_wins_over_profile(
+        self,
+        aa_home: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """When both --profile and --snapshot-dir are set, snapshot_dir wins
+        (success criterion §6.5). aa_home fixture seeds RS1 under the
+        profile dir; explicit dir holds RS_EXPLICIT — output names the latter."""
+        explicit = tmp_path / "explicit"
+        rs_dir = explicit / "RS_EXPLICIT"
+        rs_dir.mkdir(parents=True)
+        _touch(rs_dir / "2026-05-13T10-00-00+00-00.json")
+        rc = cmd.list_run(profile="prod", rsid=None, format_name="table", snapshot_dir=explicit)
+        assert rc == ExitCode.OK.value
+        out = capsys.readouterr().out
+        assert "RS_EXPLICIT" in out
+        assert "RS1" not in out
+
 
 class TestPruneSnapshotsSnapshotDir:
     def test_accepts_explicit_dir_without_profile(
