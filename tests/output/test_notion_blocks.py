@@ -261,6 +261,44 @@ def test_normalize_payload_raises_on_unknown_shape():
         nb._normalize_payload({"hello": "world"})
 
 
+def test_section_with_more_than_99_rows_splits_into_multiple_tables():
+    # Notion caps block children at 100 per request; a single table holds at
+    # most 99 data rows + 1 header. Suites with hundreds of dimensions/metrics
+    # must split into multiple sibling tables under the same heading.
+    metrics = [_make_metric(name=f"m{i}", id_=f"event{i}") for i in range(250)]
+    doc = _make_doc(metrics=metrics)
+    blocks = nb.build_blocks_from_document(doc)
+
+    metrics_heading_idx = next(
+        i
+        for i, b in enumerate(blocks)
+        if b["type"] == "heading_2" and "Metrics" in b["heading_2"]["rich_text"][0]["text"]["content"]
+    )
+    # Walk forward and collect tables until the next non-table sibling.
+    tables_after_heading = []
+    for b in blocks[metrics_heading_idx + 1 :]:
+        if b["type"] != "table":
+            break
+        tables_after_heading.append(b)
+
+    # 250 rows → 99 + 99 + 52, so three tables under one heading.
+    assert len(tables_after_heading) == 3
+    for tbl in tables_after_heading:
+        children = tbl["table"]["children"]
+        assert len(children) <= 100  # Notion's hard cap
+        # Each chunk repeats the header row so rows stay readable.
+        assert children[0]["table_row"]["cells"][0][0]["text"]["content"] == "Name"
+
+
+def test_section_with_exactly_99_rows_stays_single_table():
+    metrics = [_make_metric(name=f"m{i}", id_=f"event{i}") for i in range(99)]
+    doc = _make_doc(metrics=metrics)
+    blocks = nb.build_blocks_from_document(doc)
+    tables = [b for b in blocks if b["type"] == "table"]
+    assert len(tables) == 1
+    assert len(tables[0]["table"]["children"]) == 100  # 99 data + 1 header
+
+
 def test_table_cell_truncated_at_2000_chars():
     doc = _make_doc(metrics=[_make_metric(description="d" * 5000)])
     blocks = nb.build_blocks_from_document(doc)

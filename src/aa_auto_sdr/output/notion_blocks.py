@@ -19,6 +19,11 @@ from typing import Any
 from aa_auto_sdr.sdr.document import SdrDocument
 
 _NOTION_RICH_TEXT_LIMIT = 2000
+# Notion caps a block's `children` array at 100 items per request. A table's
+# rows live inside that array (header + data rows), so a single table can
+# carry at most 99 data rows alongside the column header. We split larger
+# sections into multiple sibling tables under the same section heading.
+_NOTION_MAX_TABLE_DATA_ROWS = 99
 _MISSING = "—"
 
 _SECTION_ORDER: list[tuple[str, str, list[str]]] = [
@@ -105,7 +110,11 @@ def _table_block(rows: list[list[str]], columns: list[str]) -> dict:
 def _section_blocks(heading: str, columns: list[str], rows: list[list[str]]) -> list[dict]:
     if not rows:
         return []
-    return [_heading2_block(heading), _table_block(rows, columns)]
+    blocks: list[dict] = [_heading2_block(heading)]
+    for start in range(0, len(rows), _NOTION_MAX_TABLE_DATA_ROWS):
+        chunk = rows[start : start + _NOTION_MAX_TABLE_DATA_ROWS]
+        blocks.append(_table_block(chunk, columns))
+    return blocks
 
 
 def _val(item: Any, key: str) -> Any:
