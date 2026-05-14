@@ -229,3 +229,29 @@ class TestPruneConfirmation:
         # Files NOT deleted
         rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
         assert len(list(rs_dir.glob("*.json"))) == 2
+
+
+class TestListSnapshotsSnapshotDir:
+    def test_accepts_explicit_dir_without_profile(
+        self,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """--snapshot-dir alone (no --profile) is sufficient for --list-snapshots."""
+        snap_dir = tmp_path / "snaps"
+        rs_dir = snap_dir / "RS1"
+        rs_dir.mkdir(parents=True)
+        _touch(rs_dir / "2026-05-13T10-00-00+00-00.json")
+        rc = cmd.list_run(profile=None, rsid=None, format_name="table", snapshot_dir=snap_dir)
+        assert rc == ExitCode.OK.value
+        assert "RS1" in capsys.readouterr().out
+
+    def test_no_profile_no_dir_errors_with_both_flags_in_message(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        rc = cmd.list_run(profile=None, rsid=None, format_name=None, snapshot_dir=None)
+        assert rc == ExitCode.CONFIG.value
+        out = capsys.readouterr().out
+        assert "--profile" in out
+        assert "--snapshot-dir" in out

@@ -25,20 +25,26 @@ def list_run(
     profile: str | None,
     rsid: str | None,
     format_name: str | None,
+    snapshot_dir: Path | None = None,
 ) -> int:
-    """List snapshots in `~/.aa/orgs/<profile>/snapshots/`.
+    """List snapshots in the active snapshot directory.
 
+    Resolves: --snapshot-dir > ~/.aa/orgs/<profile>/snapshots.
+    Requires at least one of --profile or --snapshot-dir.
     Format: table (default) or json. `rsid` filters to one RSID."""
     started_ms = time.monotonic()
     logger.info("command_start command=list_snapshots", extra={"command": "list_snapshots"})
     exit_code = ExitCode.GENERIC.value
     try:
-        if not profile:
-            print("error: --list-snapshots requires --profile", flush=True)
+        if not profile and not snapshot_dir:
+            print(
+                "error: --list-snapshots requires --profile or --snapshot-dir",
+                flush=True,
+            )
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
-        files = list_snapshots(snapshot_dir, rsid=rsid)
+        snap_dir = snapshot_dir or default_base() / "orgs" / profile / "snapshots"
+        files = list_snapshots(snap_dir, rsid=rsid)
         fmt = format_name or "table"
         if fmt == "json":
             rows = [_to_row(p) for p in files]
