@@ -19,7 +19,7 @@ def get_registry_path(output_dir: str | Path) -> Path:
     return Path(output_dir) / REGISTRY_FILENAME
 
 
-_LOAD_ERRORS: tuple[type[Exception], ...] = (json.JSONDecodeError, OSError)
+_LOAD_ERRORS: tuple[type[Exception], ...] = (json.JSONDecodeError, OSError, UnicodeDecodeError)
 
 
 def load_registry(path: Path) -> dict[str, str]:

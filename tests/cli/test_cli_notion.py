@@ -146,6 +146,16 @@ def test_push_to_notion_with_config_status_rejected(tmp_path, capsys):
     assert "--config-status" in capsys.readouterr().err
 
 
+def test_push_to_notion_with_interactive_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--interactive"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--interactive" in capsys.readouterr().err
+
+
 def test_push_to_notion_with_profile_list_rejected(tmp_path, capsys):
     parser = build_parser()
     p = tmp_path / "sdr.json"

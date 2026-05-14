@@ -250,6 +250,7 @@ _PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("compare_with_prev", "--compare-with-prev"),
     ("inventory_summary", "--inventory-summary"),
     ("stats", "--stats"),
+    ("interactive", "--interactive"),
     # Config / profile top-level modes also dispatched in _dispatch — without
     # this guard, push would silently win and the user's config inspection
     # request would be dropped. (--version, --help, --exit-codes, --completion

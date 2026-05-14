@@ -19,10 +19,10 @@ from typing import Any
 from aa_auto_sdr.sdr.document import SdrDocument
 
 _NOTION_RICH_TEXT_LIMIT = 2000
-# Notion caps a block's `children` array at 100 items per request. A table's
-# rows live inside that array (header + data rows), so a single table can
-# carry at most 99 data rows alongside the column header. We split larger
-# sections into multiple sibling tables under the same section heading.
+# Notion's API rejects any block whose `children` array carries more than 100
+# entries in a single request. A table's header row + data rows all live in
+# that array, so we cap data rows at 99 (= 100 children minus the header) and
+# split larger sections into multiple sibling tables under the same heading.
 _NOTION_MAX_TABLE_DATA_ROWS = 99
 _MISSING = "—"
 

@@ -38,6 +38,16 @@ def test_load_registry_malformed_returns_empty(tmp_path):
     assert load_registry(p) == {}
 
 
+def test_load_registry_non_utf8_returns_empty(tmp_path):
+    # A registry file with non-UTF-8 bytes (e.g. corrupted on disk) raises
+    # UnicodeDecodeError on read_text(encoding="utf-8"). Treat the same as
+    # any other malformed-registry case: return {} so the next run starts
+    # clean rather than crashing the publish.
+    p = tmp_path / REGISTRY_FILENAME
+    p.write_bytes(b"\xff\xfe\xfd not utf-8")
+    assert load_registry(p) == {}
+
+
 def test_load_registry_os_error_returns_empty(tmp_path, monkeypatch):
     # Simulate the registry file existing but being unreadable (permissions,
     # transient FS error). load_registry must swallow OSError and return {}
