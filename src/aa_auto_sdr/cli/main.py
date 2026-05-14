@@ -228,6 +228,36 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
+    """Reject --watch and --workers>1 when --format is 'notion'.
+
+    Returns ExitCode.OK if consistent, ExitCode.USAGE (with stderr message)
+    otherwise. v1.18.0 — concurrent writes to .notion_pages.json would race,
+    and watch+notion would silently rewrite the same page on every interval
+    (not useful in v1).
+    """
+    if getattr(ns, "format", None) != "notion":
+        return int(ExitCode.OK)
+
+    if getattr(ns, "watch", False):
+        print(
+            "error: --watch is not supported with --format notion in v1.18",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
+    if getattr(ns, "batch", None) and getattr(ns, "workers", 1) > 1:
+        print(
+            "error: --workers > 1 is not supported with --format notion "
+            "(concurrent writes to .notion_pages.json would race). "
+            "Run batch serially.",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
+    return int(ExitCode.OK)
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -346,6 +376,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         return rc
 
     rc = _validate_template_modifiers(ns)
+    if rc != int(ExitCode.OK):
+        return rc
+
+    rc = _validate_notion_modifiers(ns)
     if rc != int(ExitCode.OK):
         return rc
 
