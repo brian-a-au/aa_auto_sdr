@@ -108,6 +108,14 @@ def test_create_or_update_page_creates_new_when_not_in_registry(tmp_path):
     # registry now holds the new id
     assert json.loads(registry_path.read_text())["examplersid1"] == "new-page-id"
 
+    # The Notion API expects the title to arrive as a fully-shaped title
+    # property object (not a bare rich-text array). Guard the wire shape
+    # against accidental regression.
+    create_kwargs = client.pages.create.call_args.kwargs
+    title_property = create_kwargs["properties"]["title"]
+    assert "title" in title_property, "title must be wrapped in a title property object"
+    assert title_property["title"][0]["text"]["content"] == "Title"
+
 
 def test_create_or_update_page_updates_existing_when_in_registry(tmp_path):
     registry_path = tmp_path / REGISTRY_FILENAME

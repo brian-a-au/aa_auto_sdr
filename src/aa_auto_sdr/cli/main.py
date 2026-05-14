@@ -250,6 +250,19 @@ _PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("compare_with_prev", "--compare-with-prev"),
     ("inventory_summary", "--inventory-summary"),
     ("stats", "--stats"),
+    # Config / profile top-level modes also dispatched in _dispatch — without
+    # this guard, push would silently win and the user's config inspection
+    # request would be dropped. (--version, --help, --exit-codes, --completion
+    # are fast-path in __main__.py and never reach this validator.)
+    ("show_config", "--show-config"),
+    ("config_status", "--config-status"),
+    ("validate_config", "--validate-config"),
+    ("sample_config", "--sample-config"),
+    ("profile_list", "--profile-list"),
+    ("profile_add", "--profile-add"),
+    ("profile_test", "--profile-test"),
+    ("profile_show", "--profile-show"),
+    ("profile_import", "--profile-import"),
 )
 
 

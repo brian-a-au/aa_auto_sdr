@@ -79,9 +79,15 @@ def _create_or_update_page(
         store_page_id(registry_path, rsid, existing)
         return existing
 
+    # Notion expects the parent-page title to be a fully-shaped `title` property
+    # object — the bare rich-text array form is rejected on `pages.create`.
     page = client.pages.create(
         parent={"page_id": parent_page_id},
-        properties={"title": [{"type": "text", "text": {"content": page_title}}]},
+        properties={
+            "title": {
+                "title": [{"type": "text", "text": {"content": page_title}}],
+            },
+        },
     )
     page_id = page["id"]
     _append_blocks(client, page_id, blocks)

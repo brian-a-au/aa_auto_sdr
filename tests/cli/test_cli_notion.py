@@ -126,6 +126,36 @@ def test_push_to_notion_with_list_reportsuites_rejected(tmp_path, capsys):
     assert "--list-reportsuites" in capsys.readouterr().err
 
 
+def test_push_to_notion_with_validate_config_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--validate-config"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--validate-config" in capsys.readouterr().err
+
+
+def test_push_to_notion_with_config_status_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--config-status"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--config-status" in capsys.readouterr().err
+
+
+def test_push_to_notion_with_profile_list_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--profile-list"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--profile-list" in capsys.readouterr().err
+
+
 def test_watch_notion_rejected_in_dispatch(capsys):
     parser = build_parser()
     ns = parser.parse_args(
