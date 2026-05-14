@@ -408,9 +408,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help=(
-            "Override the active profile's snapshot directory. Used by --trending-window "
-            "in v1.13.0; other snapshot-aware actions resolve from --profile only. "
-            "Useful for CI / governance contexts where snapshots live outside ~/.aa/."
+            "Override the active profile's snapshot directory for all snapshot-aware "
+            "actions (--snapshot, --diff, --list-snapshots, --prune-snapshots, "
+            "--compare-with-prev). Useful for CI / governance contexts where snapshots "
+            "live outside ~/.aa/."
         ),
     )
     p.add_argument(

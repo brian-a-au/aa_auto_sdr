@@ -73,10 +73,7 @@ def run(
         if reverse:
             a, b = b, a
 
-        profile_snapshot_dir = (
-            snapshot_dir
-            or (default_base() / "orgs" / profile / "snapshots" if profile else None)
-        )
+        profile_snapshot_dir = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
         repo_root = Path.cwd()
 
         try:

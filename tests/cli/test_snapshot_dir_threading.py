@@ -287,8 +287,10 @@ class TestPruneSnapshotsCliBoundaryThreadsSnapshotDir:
         main_mod.run(
             [
                 "--prune-snapshots",
-                "--keep-last", "5",
-                "--snapshot-dir", str(explicit),
+                "--keep-last",
+                "5",
+                "--snapshot-dir",
+                str(explicit),
             ]
         )
         assert captured.get("snapshot_dir") == explicit

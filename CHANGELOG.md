@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.17.0] — 2026-05-13
+
+`--snapshot-dir` now composes with all snapshot-aware actions. Previously the flag was honored only by `--snapshot`, `--batch`, `--trending-window`, and `--watch`; four commands ignored it and resolved exclusively from `--profile`. No new flags.
+
+### Changed
+- `--list-snapshots` and `--prune-snapshots` accept `--snapshot-dir` as an
+  alternative to `--profile`. Both previously required `--profile`; now either
+  `--profile` or `--snapshot-dir` is sufficient. Error message updated to name
+  both flags.
+- `--diff` and `--compare-with-prev` use `--snapshot-dir` as the snapshot
+  store when resolving `<rsid>@latest`, `<rsid>@previous`, and
+  `<rsid>@<timestamp>` tokens. Filesystem paths and `git:` tokens are
+  unaffected. `--snapshot-dir` takes precedence over `--profile` (consistent
+  with generate/batch/watch behavior since v1.13.0).
+- `--snapshot-dir` help text updated to reflect full command coverage.
+
 ## [1.16.1] — 2026-05-12
 
 Fast-fail VRS fetch on the empty-tenant / permanent-shape error mode that
