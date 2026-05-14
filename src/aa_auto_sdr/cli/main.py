@@ -246,7 +246,10 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
         )
         return int(ExitCode.USAGE)
 
-    if getattr(ns, "batch", None) and getattr(ns, "workers", 1) > 1:
+    # Treat both `--batch RSID...` and multi-positional `aa_auto_sdr rs1 rs2`
+    # as a batch — `run()` itself uses the same definition (see line 292).
+    is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
+    if is_batch and getattr(ns, "workers", 1) > 1:
         print(
             "error: --workers > 1 is not supported with --format notion "
             "(concurrent writes to .notion_pages.json would race). "

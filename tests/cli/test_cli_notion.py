@@ -63,8 +63,24 @@ def test_validate_notion_modifiers_rejects_watch():
 
 
 def test_validate_notion_modifiers_rejects_workers_gt_1():
-    ns = Namespace(format="notion", watch=False, batch=["r1", "r2"], workers=4)
+    ns = Namespace(format="notion", watch=False, batch=["r1", "r2"], workers=4, rsids=[])
     assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_notion_modifiers_rejects_positional_batch_workers_gt_1():
+    # Multi-positional shorthand is also a batch (see cli/main.py:run is_batch).
+    ns = Namespace(format="notion", watch=False, batch=None, workers=4, rsids=["r1", "r2"])
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_positional_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
+    parser = build_parser()
+    ns = parser.parse_args(["rsid1", "rsid2", "--format", "notion", "--workers", "4"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    err = capsys.readouterr().err.lower()
+    assert "workers" in err
+    assert "notion" in err
 
 
 def test_watch_notion_rejected_in_dispatch(capsys):
