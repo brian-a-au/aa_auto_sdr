@@ -383,6 +383,23 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if rc != int(ExitCode.OK):
         return rc
 
+    # v1.18.0 — --push-to-notion is a top-level mode. Dispatch before any
+    # generate/discovery branch so it short-circuits cleanly. Registry path
+    # falls back to the input file's parent dir when --output-dir is left at
+    # its default of CWD; explicit --output-dir wins.
+    if getattr(ns, "push_to_notion", None):
+        from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
+
+        output_dir = getattr(ns, "output_dir", None)
+        explicit_output_dir = (
+            str(output_dir) if output_dir is not None and Path(output_dir) != Path(".") else None
+        )
+        return run_push_to_notion(
+            ns.push_to_notion,
+            output_dir=explicit_output_dir,
+            force_new=getattr(ns, "notion_force_new", False),
+        )
+
     from aa_auto_sdr.core import colors
 
     colors.set_theme(getattr(ns, "color_theme", "default"))
