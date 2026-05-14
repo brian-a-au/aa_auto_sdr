@@ -83,6 +83,49 @@ def test_positional_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
     assert "notion" in err
 
 
+# --- --push-to-notion co-presence rejection ---
+
+
+def test_push_to_notion_with_diff_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--diff", "a.json", "b.json"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--diff" in capsys.readouterr().err
+
+
+def test_push_to_notion_with_batch_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--batch", "rsid1", "rsid2"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--batch" in capsys.readouterr().err
+
+
+def test_push_to_notion_with_positional_rsid_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["rsid1", "--push-to-notion", str(p)])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "positional rsid" in capsys.readouterr().err.lower()
+
+
+def test_push_to_notion_with_list_reportsuites_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--list-reportsuites"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--list-reportsuites" in capsys.readouterr().err
+
+
 def test_watch_notion_rejected_in_dispatch(capsys):
     parser = build_parser()
     ns = parser.parse_args(

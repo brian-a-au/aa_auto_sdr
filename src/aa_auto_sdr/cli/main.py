@@ -228,6 +228,54 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+# Actions that conflict with --push-to-notion: presence of any one means the
+# user asked for a different mode alongside push, which would silently win or
+# silently lose. Reject loudly. The tuple lists (attr, expected-truthy-check,
+# flag-name) so the message can name the offending flag.
+_PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
+    ("diff", "--diff"),
+    ("batch", "--batch"),
+    ("watch", "--watch"),
+    ("list_reportsuites", "--list-reportsuites"),
+    ("list_virtual_reportsuites", "--list-virtual-reportsuites"),
+    ("describe_reportsuite", "--describe-reportsuite"),
+    ("list_metrics", "--list-metrics"),
+    ("list_dimensions", "--list-dimensions"),
+    ("list_segments", "--list-segments"),
+    ("list_calculated_metrics", "--list-calculated-metrics"),
+    ("list_classification_datasets", "--list-classification-datasets"),
+    ("list_snapshots", "--list-snapshots"),
+    ("prune_snapshots", "--prune-snapshots"),
+    ("trending_window", "--trending-window"),
+    ("compare_with_prev", "--compare-with-prev"),
+    ("inventory_summary", "--inventory-summary"),
+    ("stats", "--stats"),
+)
+
+
+def _reject_push_to_notion_conflicts(ns: argparse.Namespace) -> int:
+    """Reject co-presence of --push-to-notion with another top-level mode.
+
+    Without this guard, dispatch order would silently pick push and discard
+    the user's other requested action (e.g. ``--push-to-notion file --diff a b``
+    would push and ignore the diff). v1.18.0.
+    """
+    for attr, flag in _PUSH_TO_NOTION_CONFLICTS:
+        if getattr(ns, attr, None):
+            print(
+                f"error: --push-to-notion cannot be combined with {flag}",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
+    if getattr(ns, "rsids", None):
+        print(
+            "error: --push-to-notion does not accept positional RSIDs (it republishes the given JSON file)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
 def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     """Reject --watch and --workers>1 when --format is 'notion'.
 
@@ -391,6 +439,10 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     # falls back to the input file's parent dir when --output-dir is left at
     # its default of CWD; explicit --output-dir wins.
     if getattr(ns, "push_to_notion", None):
+        rc = _reject_push_to_notion_conflicts(ns)
+        if rc != int(ExitCode.OK):
+            return rc
+
         from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
 
         output_dir = getattr(ns, "output_dir", None)
