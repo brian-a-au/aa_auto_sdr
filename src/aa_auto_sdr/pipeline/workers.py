@@ -111,6 +111,8 @@ def _run_single_for_batch(
     # v1.16.0 — template-fill writer config
     template_path: Path | None = None,
     template_organization: str | None = None,
+    # v1.18.0 — Notion writer per-run config
+    notion_force_new: bool = False,
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
@@ -147,6 +149,7 @@ def _run_single_for_batch(
         git_message=git_message,
         template_path=template_path,
         template_organization=template_organization,
+        notion_force_new=notion_force_new,
     )
 
 
@@ -173,6 +176,8 @@ def _run_with_worker_id(
     # v1.16.0 — template-fill writer config
     template_path: Path | None = None,
     template_organization: str | None = None,
+    # v1.18.0 — Notion writer per-run config
+    notion_force_new: bool = False,
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -201,6 +206,7 @@ def _run_with_worker_id(
             git_message=git_message,
             template_path=template_path,
             template_organization=template_organization,
+            notion_force_new=notion_force_new,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -236,6 +242,8 @@ def run_parallel(
     # v1.16.0 — template-fill writer config
     template_path: Path | None = None,
     template_organization: str | None = None,
+    # v1.18.0 — Notion writer per-run config
+    notion_force_new: bool = False,
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -296,6 +304,7 @@ def run_parallel(
             git_message=git_message,
             template_path=template_path,
             template_organization=template_organization,
+            notion_force_new=notion_force_new,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future
