@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -12,10 +12,14 @@ from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
 from aa_auto_sdr.snapshot.schema import document_to_envelope
 
 
-def _rs(rsid="examplersid1", name="Example RS", currency="USD",
-        timezone_="America/Los_Angeles", parent_rsid=None) -> models.ReportSuite:
+def _rs(
+    rsid="examplersid1", name="Example RS", currency="USD", timezone_="America/Los_Angeles", parent_rsid=None
+) -> models.ReportSuite:
     return models.ReportSuite(
-        rsid=rsid, name=name, timezone=timezone_, currency=currency,
+        rsid=rsid,
+        name=name,
+        timezone=timezone_,
+        currency=currency,
         parent_rsid=parent_rsid,
     )
 
@@ -39,29 +43,44 @@ def _make_doc(
         calculated_metrics=calculated_metrics or [],
         virtual_report_suites=virtual_report_suites or [],
         classifications=classifications or [],
-        captured_at=datetime(2026, 5, 14, 10, 0, 0, tzinfo=timezone.utc),
+        captured_at=datetime(2026, 5, 14, 10, 0, 0, tzinfo=UTC),
         tool_version="1.18.0",
         fetch_status=fetch_status or {},
         quality=None,
     )
 
 
-def _make_metric(name="Page Views", id_="event1", type_="counter",
-                 description="Total page views") -> models.Metric:
+def _make_metric(name="Page Views", id_="event1", type_="counter", description="Total page views") -> models.Metric:
     return models.Metric(
-        id=id_, name=name, type=type_, category=None, precision=0,
-        segmentable=True, description=description, tags=[], data_group=None, extra={},
+        id=id_,
+        name=name,
+        type=type_,
+        category=None,
+        precision=0,
+        segmentable=True,
+        description=description,
+        tags=[],
+        data_group=None,
+        extra={},
     )
 
 
 def _make_dimension(name="First eVar", id_="evar1", type_="string") -> models.Dimension:
     return models.Dimension(
-        id=id_, name=name, type=type_, category=None, parent="evars",
-        pathable=False, description=None, tags=[], extra={},
+        id=id_,
+        name=name,
+        type=type_,
+        category=None,
+        parent="evars",
+        pathable=False,
+        description=None,
+        tags=[],
+        extra={},
     )
 
 
 # --- low-level block helpers ---------------------------------------------
+
 
 def test_rich_text_returns_text_object():
     out = nb._rich_text("hello")
@@ -115,6 +134,7 @@ def test_section_blocks_omitted_for_empty_component_list():
 
 # --- top-level block builder --------------------------------------------
 
+
 def test_section_blocks_present_when_rows_nonempty():
     out = nb._section_blocks("Metrics", ["Name"], [["m1"]])
     assert len(out) == 2
@@ -150,9 +170,11 @@ def test_fetch_status_callouts_show_severity_icon():
     blocks = nb.build_blocks_from_document(doc)
     # Find the data-quality heading and following callouts
     headings = [b for b in blocks if b["type"] == "heading_2"]
-    assert any("Data Quality" in h["heading_2"]["rich_text"][0]["text"]["content"]
-               or "Fetch Status" in h["heading_2"]["rich_text"][0]["text"]["content"]
-               for h in headings)
+    assert any(
+        "Data Quality" in h["heading_2"]["rich_text"][0]["text"]["content"]
+        or "Fetch Status" in h["heading_2"]["rich_text"][0]["text"]["content"]
+        for h in headings
+    )
     # at least one callout with the degraded emoji
     callouts = [b for b in blocks if b["type"] == "callout"]
     assert any(c["callout"]["icon"]["emoji"] == "⚠️" for c in callouts)
@@ -186,8 +208,9 @@ def test_build_sdr_blocks_from_dict_matches_from_document():
     # Heading content equality
     h2_doc = [b for b in from_doc if b["type"] == "heading_2"]
     h2_dict = [b for b in from_dict if b["type"] == "heading_2"]
-    assert [h["heading_2"]["rich_text"][0]["text"]["content"] for h in h2_doc] == \
-           [h["heading_2"]["rich_text"][0]["text"]["content"] for h in h2_dict]
+    assert [h["heading_2"]["rich_text"][0]["text"]["content"] for h in h2_doc] == [
+        h["heading_2"]["rich_text"][0]["text"]["content"] for h in h2_dict
+    ]
 
 
 def test_normalize_envelope_to_sdr_dict_unwraps_components():

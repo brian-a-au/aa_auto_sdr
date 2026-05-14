@@ -111,6 +111,7 @@ ignore = [
 "src/aa_auto_sdr/cli/list_output.py"   = ["T201"]
 "src/aa_auto_sdr/output/diff_renderers/console.py" = ["T201"]
 "src/aa_auto_sdr/api/fetch.py"         = ["T201"]   # warning: stderr print for classifications fallback
+"src/aa_auto_sdr/output/notion_client_guard.py" = ["T201"]   # user-facing stderr prints for missing-extra / missing-env errors
 "tests/**/*.py"                        = ["S101", "S105", "S106", "S108", "ARG001", "ARG002", "PLR2004", "T201", "PT004", "PT011", "A002"]
 "scripts/*.py"                         = ["T201"]
 "benchmarks/*.py"                      = ["T201", "INP001"]

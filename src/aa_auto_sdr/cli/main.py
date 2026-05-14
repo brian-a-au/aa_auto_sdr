@@ -391,9 +391,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
 
         output_dir = getattr(ns, "output_dir", None)
-        explicit_output_dir = (
-            str(output_dir) if output_dir is not None and Path(output_dir) != Path(".") else None
-        )
+        explicit_output_dir = str(output_dir) if output_dir is not None and Path(output_dir) != Path(".") else None
         return run_push_to_notion(
             ns.push_to_notion,
             output_dir=explicit_output_dir,

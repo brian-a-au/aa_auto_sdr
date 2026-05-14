@@ -76,7 +76,9 @@ def test_push_to_notion_from_sdr_json(tmp_path, monkeypatch):
     Client_factory = MagicMock(return_value=mock_client)
     with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
         exit_code = pt_mod.run_push_to_notion(
-            str(json_path), output_dir=str(tmp_path), force_new=False,
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
         )
 
     assert exit_code == 0
@@ -97,7 +99,9 @@ def test_push_to_notion_from_snapshot_envelope(tmp_path, monkeypatch):
     Client_factory = MagicMock(return_value=mock_client)
     with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
         exit_code = pt_mod.run_push_to_notion(
-            str(snap_path), output_dir=str(tmp_path), force_new=False,
+            str(snap_path),
+            output_dir=str(tmp_path),
+            force_new=False,
         )
 
     assert exit_code == 0
@@ -108,7 +112,9 @@ def test_push_to_notion_file_not_found_exits_1(tmp_path, capsys):
     from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
 
     code = run_push_to_notion(
-        str(tmp_path / "nope.json"), output_dir=str(tmp_path), force_new=False,
+        str(tmp_path / "nope.json"),
+        output_dir=str(tmp_path),
+        force_new=False,
     )
     assert code == 1
     assert "file not found" in capsys.readouterr().err.lower()
@@ -120,7 +126,9 @@ def test_push_to_notion_invalid_json_exits_1(tmp_path, capsys):
     from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
 
     code = run_push_to_notion(
-        str(bad), output_dir=str(tmp_path), force_new=False,
+        str(bad),
+        output_dir=str(tmp_path),
+        force_new=False,
     )
     assert code == 1
     assert "invalid json" in capsys.readouterr().err.lower()
@@ -132,7 +140,9 @@ def test_push_to_notion_unknown_shape_exits_1(tmp_path, capsys):
     from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
 
     code = run_push_to_notion(
-        str(weird), output_dir=str(tmp_path), force_new=False,
+        str(weird),
+        output_dir=str(tmp_path),
+        force_new=False,
     )
     assert code == 1
     assert "unrecognized" in capsys.readouterr().err.lower()
@@ -153,7 +163,9 @@ def test_push_to_notion_force_new_creates_fresh_page(tmp_path, monkeypatch):
 
     with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
         exit_code = pt_mod.run_push_to_notion(
-            str(json_path), output_dir=str(tmp_path), force_new=True,
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=True,
         )
 
     assert exit_code == 0

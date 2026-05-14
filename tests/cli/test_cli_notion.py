@@ -69,9 +69,16 @@ def test_validate_notion_modifiers_rejects_workers_gt_1():
 
 def test_watch_notion_rejected_in_dispatch(capsys):
     parser = build_parser()
-    ns = parser.parse_args([
-        "examplersid1", "--watch", "--interval", "1m", "--format", "notion",
-    ])
+    ns = parser.parse_args(
+        [
+            "examplersid1",
+            "--watch",
+            "--interval",
+            "1m",
+            "--format",
+            "notion",
+        ]
+    )
     rc = _dispatch(ns, parser, [])
     assert rc == int(ExitCode.USAGE)
     assert "notion" in capsys.readouterr().err.lower()
@@ -79,10 +86,19 @@ def test_watch_notion_rejected_in_dispatch(capsys):
 
 def test_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
     parser = build_parser()
-    ns = parser.parse_args([
-        "--batch", "rsid1", "rsid2", "--format", "notion", "--workers", "4",
-    ])
+    ns = parser.parse_args(
+        [
+            "--batch",
+            "rsid1",
+            "rsid2",
+            "--format",
+            "notion",
+            "--workers",
+            "4",
+        ]
+    )
     rc = _dispatch(ns, parser, [])
     assert rc == int(ExitCode.USAGE)
     err = capsys.readouterr().err.lower()
-    assert "workers" in err and "notion" in err
+    assert "workers" in err
+    assert "notion" in err

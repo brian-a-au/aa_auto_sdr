@@ -24,7 +24,7 @@ def load_registry(path: Path) -> dict[str, str]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError, OSError:
         return {}
     return data if isinstance(data, dict) else {}
 

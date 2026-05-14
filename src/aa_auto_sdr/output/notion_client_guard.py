@@ -20,8 +20,7 @@ def _require_notion_client() -> Any:
         return Client
     except ImportError:
         print(
-            "Error: Notion output requires the notion extra.\n"
-            "Install it with: uv pip install 'aa-auto-sdr[notion]'",
+            "Error: Notion output requires the notion extra.\nInstall it with: uv pip install 'aa-auto-sdr[notion]'",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -43,8 +42,7 @@ def resolve_notion_credentials() -> tuple[str, str]:
     token = os.environ.get("NOTION_TOKEN")
     if not token:
         print(
-            "Error: NOTION_TOKEN is not set. "
-            "Set it as an environment variable or add it to a .env file.",
+            "Error: NOTION_TOKEN is not set. Set it as an environment variable or add it to a .env file.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -52,8 +50,7 @@ def resolve_notion_credentials() -> tuple[str, str]:
     parent_page_id = os.environ.get("NOTION_PARENT_PAGE_ID")
     if not parent_page_id:
         print(
-            "Error: NOTION_PARENT_PAGE_ID is not set. "
-            "Set it as an environment variable or add it to a .env file.",
+            "Error: NOTION_PARENT_PAGE_ID is not set. Set it as an environment variable or add it to a .env file.",
             file=sys.stderr,
         )
         sys.exit(1)

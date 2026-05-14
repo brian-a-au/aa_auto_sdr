@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,7 +18,10 @@ from aa_auto_sdr.sdr.document import SdrDocument
 
 def _make_doc() -> SdrDocument:
     rs = models.ReportSuite(
-        rsid="examplersid1", name="Example RS", timezone="UTC", currency="USD",
+        rsid="examplersid1",
+        name="Example RS",
+        timezone="UTC",
+        currency="USD",
         parent_rsid=None,
     )
     return SdrDocument(
@@ -30,7 +32,7 @@ def _make_doc() -> SdrDocument:
         calculated_metrics=[],
         virtual_report_suites=[],
         classifications=[],
-        captured_at=datetime(2026, 5, 14, 10, 0, 0, tzinfo=timezone.utc),
+        captured_at=datetime(2026, 5, 14, 10, 0, 0, tzinfo=UTC),
         tool_version="1.18.0",
     )
 
@@ -93,8 +95,13 @@ def test_create_or_update_page_creates_new_when_not_in_registry(tmp_path):
     registry_path = tmp_path / REGISTRY_FILENAME
 
     page_id = notion_writer_mod._create_or_update_page(
-        client, "parent-id", "Title", "examplersid1", [{"type": "paragraph"}],
-        registry_path, force_new=False,
+        client,
+        "parent-id",
+        "Title",
+        "examplersid1",
+        [{"type": "paragraph"}],
+        registry_path,
+        force_new=False,
     )
     assert page_id == "new-page-id"
     client.pages.create.assert_called_once()
@@ -113,8 +120,13 @@ def test_create_or_update_page_updates_existing_when_in_registry(tmp_path):
     }
 
     page_id = notion_writer_mod._create_or_update_page(
-        client, "parent-id", "Title", "examplersid1", [{"type": "paragraph"}],
-        registry_path, force_new=False,
+        client,
+        "parent-id",
+        "Title",
+        "examplersid1",
+        [{"type": "paragraph"}],
+        registry_path,
+        force_new=False,
     )
     assert page_id == "existing-page"
     client.pages.create.assert_not_called()
@@ -130,8 +142,13 @@ def test_create_or_update_page_force_new_ignores_registry(tmp_path):
     client.pages.create.return_value = {"id": "brand-new-page"}
 
     page_id = notion_writer_mod._create_or_update_page(
-        client, "parent-id", "Title", "examplersid1", [{"type": "paragraph"}],
-        registry_path, force_new=True,
+        client,
+        "parent-id",
+        "Title",
+        "examplersid1",
+        [{"type": "paragraph"}],
+        registry_path,
+        force_new=True,
     )
     assert page_id == "brand-new-page"
     client.pages.create.assert_called_once()
@@ -158,8 +175,7 @@ def test_notion_writer_write_returns_registry_path(tmp_path, monkeypatch):
     mock_client.pages.create.return_value = {"id": "page-xyz"}
 
     Client_factory = MagicMock(return_value=mock_client)
-    with patch.object(notion_writer_mod, "_require_notion_client",
-                       return_value=Client_factory):
+    with patch.object(notion_writer_mod, "_require_notion_client", return_value=Client_factory):
         writer = notion_writer_mod.NotionWriter()
         writer.force_new = False
         result = writer.write(doc, output_path)
@@ -180,8 +196,7 @@ def test_notion_writer_force_new_creates_fresh_page(tmp_path, monkeypatch):
     mock_client.pages.create.return_value = {"id": "fresh-page"}
     Client_factory = MagicMock(return_value=mock_client)
 
-    with patch.object(notion_writer_mod, "_require_notion_client",
-                       return_value=Client_factory):
+    with patch.object(notion_writer_mod, "_require_notion_client", return_value=Client_factory):
         writer = notion_writer_mod.NotionWriter()
         writer.force_new = True
         writer.write(doc, output_path)
@@ -200,9 +215,10 @@ def test_notion_writer_emits_structured_log(tmp_path, monkeypatch, caplog):
     mock_client.pages.create.return_value = {"id": "page-xyz"}
     Client_factory = MagicMock(return_value=mock_client)
 
-    with patch.object(notion_writer_mod, "_require_notion_client",
-                       return_value=Client_factory), \
-         caplog.at_level("INFO", logger=notion_writer_mod.logger.name):
+    with (
+        patch.object(notion_writer_mod, "_require_notion_client", return_value=Client_factory),
+        caplog.at_level("INFO", logger=notion_writer_mod.logger.name),
+    ):
         writer = notion_writer_mod.NotionWriter()
         writer.write(doc, output_path)
 

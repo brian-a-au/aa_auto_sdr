@@ -21,7 +21,6 @@ from aa_auto_sdr.sdr.document import SdrDocument
 _NOTION_RICH_TEXT_LIMIT = 2000
 _MISSING = "—"
 
-# (component_key, heading, columns, row-extractor)
 _SECTION_ORDER: list[tuple[str, str, list[str]]] = [
     ("metrics", "📐 Metrics", ["Name", "ID", "Type", "Description"]),
     ("dimensions", "📏 Dimensions", ["Name", "ID", "Type", "Category"]),
@@ -85,16 +84,12 @@ def _table_row_block(cells: list[str]) -> dict:
     return {
         "object": "block",
         "type": "table_row",
-        "table_row": {
-            "cells": [[{"type": "text", "text": {"content": _truncate(str(c))}}] for c in cells]
-        },
+        "table_row": {"cells": [[{"type": "text", "text": {"content": _truncate(str(c))}}] for c in cells]},
     }
 
 
 def _table_block(rows: list[list[str]], columns: list[str]) -> dict:
-    table_rows = [_table_row_block(columns)]
-    for row in rows:
-        table_rows.append(_table_row_block(row))
+    table_rows = [_table_row_block(columns), *(_table_row_block(row) for row in rows)]
     return {
         "object": "block",
         "type": "table",
@@ -131,38 +126,28 @@ def _rows_for(component_key: str, items: list[Any]) -> list[list[str]]:
         return []
     if component_key == "metrics":
         return [
-            [_cell(_val(m, "name")), _cell(_val(m, "id")), _cell(_val(m, "type")),
-             _cell(_val(m, "description"))]
+            [_cell(_val(m, "name")), _cell(_val(m, "id")), _cell(_val(m, "type")), _cell(_val(m, "description"))]
             for m in items
         ]
     if component_key == "dimensions":
         return [
-            [_cell(_val(d, "name")), _cell(_val(d, "id")), _cell(_val(d, "type")),
-             _cell(_val(d, "category"))]
+            [_cell(_val(d, "name")), _cell(_val(d, "id")), _cell(_val(d, "type")), _cell(_val(d, "category"))]
             for d in items
         ]
     if component_key == "segments":
-        return [
-            [_cell(_val(s, "name")), _cell(_val(s, "id")), _cell(_val(s, "description"))]
-            for s in items
-        ]
+        return [[_cell(_val(s, "name")), _cell(_val(s, "id")), _cell(_val(s, "description"))] for s in items]
     if component_key == "calculated_metrics":
         return [
-            [_cell(_val(c, "name")), _cell(_val(c, "id")), _cell(_val(c, "polarity")),
-             _cell(_val(c, "description"))]
+            [_cell(_val(c, "name")), _cell(_val(c, "id")), _cell(_val(c, "polarity")), _cell(_val(c, "description"))]
             for c in items
         ]
     if component_key == "virtual_report_suites":
         return [
-            [_cell(_val(v, "name")), _cell(_val(v, "id")), _cell(_val(v, "parent_rsid")),
-             _cell(_val(v, "description"))]
+            [_cell(_val(v, "name")), _cell(_val(v, "id")), _cell(_val(v, "parent_rsid")), _cell(_val(v, "description"))]
             for v in items
         ]
     if component_key == "classifications":
-        return [
-            [_cell(_val(c, "name")), _cell(_val(c, "id")), _cell(_val(c, "rsid"))]
-            for c in items
-        ]
+        return [[_cell(_val(c, "name")), _cell(_val(c, "id")), _cell(_val(c, "rsid"))] for c in items]
     return []
 
 
@@ -191,10 +176,7 @@ def _fetch_status_blocks(fetch_status: dict[str, Any]) -> list[dict]:
         status = meta.get("status") if isinstance(meta, dict) else getattr(meta, "status", None)
         if not status or status == "healthy":
             continue
-        expansion = (
-            meta.get("expansion_level") if isinstance(meta, dict)
-            else getattr(meta, "expansion_level", None)
-        )
+        expansion = meta.get("expansion_level") if isinstance(meta, dict) else getattr(meta, "expansion_level", None)
         emoji = _FETCH_STATUS_ICONS.get(str(status), "⚠️")
         msg = f"{ctype}: {status}"
         if expansion:
@@ -224,9 +206,7 @@ def _normalize_payload(payload: dict) -> dict:
         }
     if "report_suite" in payload and "captured_at" in payload:
         return payload
-    raise ValueError(
-        f"Unrecognized Notion push payload shape; top-level keys: {sorted(payload.keys())}"
-    )
+    raise ValueError(f"Unrecognized Notion push payload shape; top-level keys: {sorted(payload.keys())}")
 
 
 def _tool_version_footer(tool_version: str) -> dict:

@@ -46,8 +46,7 @@ def _clear_page_blocks(client: Any, page_id: str) -> None:
         cursor = response.get("next_cursor")
 
 
-def _append_blocks(client: Any, page_id: str, blocks: list[dict],
-                   batch_size: int = 100) -> None:
+def _append_blocks(client: Any, page_id: str, blocks: list[dict], batch_size: int = 100) -> None:
     for i in range(0, len(blocks), batch_size):
         client.blocks.children.append(
             block_id=page_id,
@@ -111,10 +110,8 @@ class NotionWriter:
         page_title = f"{name} ({rsid}) — SDR"
         blocks = build_blocks_from_document(doc)
 
-        # pipeline/single.py passes a synthetic file path:
-        #   output_dir / f"{rsid}{extension}"
-        # The .notion suffix is nominal — we never create that file. The
-        # registry lives in the parent dir (i.e. the requested --output-dir).
+        # output_path is a synthetic <rsid>.notion path; we never create it
+        # on disk. The registry lives in its parent dir (i.e. --output-dir).
         registry_path = get_registry_path(output_path.parent)
 
         client = Client(auth=token)
