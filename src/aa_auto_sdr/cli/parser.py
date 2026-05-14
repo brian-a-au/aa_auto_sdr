@@ -203,14 +203,14 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--list-snapshots",
         action="store_true",
-        help="List snapshots in ~/.aa/orgs/<profile>/snapshots/ (requires --profile; pass <RSID> positional to filter)",
+        help="List snapshots in the active snapshot dir (requires --profile or --snapshot-dir; pass <RSID> positional to filter)",
     )
     actions.add_argument(
         "--prune-snapshots",
         action="store_true",
         help=(
-            "Apply retention policy and delete snapshots (requires --profile + "
-            "--keep-last|--keep-since; pass <RSID> positional to scope to one; "
+            "Apply retention policy and delete snapshots (requires --profile or --snapshot-dir, "
+            "plus --keep-last|--keep-since; pass <RSID> positional to scope to one; "
             "pass --yes for non-interactive use, otherwise refuses with exit 2)"
         ),
     )
@@ -408,9 +408,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help=(
-            "Override the active profile's snapshot directory. Used by --trending-window "
-            "in v1.13.0; other snapshot-aware actions resolve from --profile only. "
-            "Useful for CI / governance contexts where snapshots live outside ~/.aa/."
+            "Override the active profile's snapshot directory for all snapshot-aware "
+            "actions (--snapshot, --diff, --list-snapshots, --prune-snapshots, "
+            "--compare-with-prev). Useful for CI / governance contexts where snapshots "
+            "live outside ~/.aa/."
         ),
     )
     p.add_argument(

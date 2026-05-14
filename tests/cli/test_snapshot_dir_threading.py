@@ -235,3 +235,120 @@ class TestExplicitSnapshotDirReachesPipeline:
         )
         assert rc == 0
         assert seen["snapshot_dir"] == explicit
+
+
+class TestDiffCliBoundaryThreadsSnapshotDir:
+    def test_main_passes_snapshot_dir_to_diff_run(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(diff_cmd, "run", _fake_run)
+        explicit = tmp_path / "explicit"
+        main_mod.run(["--diff", "a.json", "b.json", "--snapshot-dir", str(explicit)])
+        assert captured.get("snapshot_dir") == explicit
+
+
+class TestListSnapshotsCliBoundaryThreadsSnapshotDir:
+    def test_main_passes_snapshot_dir_to_list_run(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(snap_cmd, "list_run", _fake_run)
+        explicit = tmp_path / "explicit"
+        main_mod.run(["--list-snapshots", "--snapshot-dir", str(explicit)])
+        assert captured.get("snapshot_dir") == explicit
+
+
+class TestPruneSnapshotsCliBoundaryThreadsSnapshotDir:
+    def test_main_passes_snapshot_dir_to_prune_run(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(snap_cmd, "prune_run", _fake_run)
+        explicit = tmp_path / "explicit"
+        main_mod.run(
+            [
+                "--prune-snapshots",
+                "--keep-last",
+                "5",
+                "--snapshot-dir",
+                str(explicit),
+            ]
+        )
+        assert captured.get("snapshot_dir") == explicit
+
+
+class TestCompareWithPrevCliBoundaryThreadsSnapshotDir:
+    def test_main_passes_snapshot_dir_to_compare_run(self, monkeypatch, tmp_path: Path) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import compare_with_prev as compare_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(compare_cmd, "run", _fake_run)
+        explicit = tmp_path / "explicit"
+        main_mod.run(["RS1", "--compare-with-prev", "--snapshot-dir", str(explicit)])
+        assert captured.get("snapshot_dir") == explicit
+
+
+class TestListPruneDispatchersPassRawNotResolved:
+    """Pin the §3.5 invariant: list/prune dispatchers must pass raw
+    ns.snapshot_dir (not resolve_snapshot_dir(ns)). resolve_snapshot_dir
+    never returns None, so a future refactor that swaps to it would
+    silently bypass the "requires --profile or --snapshot-dir" guard.
+
+    These tests assert the captured value is exactly None when neither
+    flag is set — the only assertion that distinguishes raw from resolved.
+    """
+
+    def test_list_dispatcher_passes_none_when_no_flags(self, monkeypatch) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(snap_cmd, "list_run", _fake_run)
+        main_mod.run(["--list-snapshots"])
+        # If a future dev swaps to resolve_snapshot_dir(ns), this becomes
+        # ~/.aa/orgs/default/snapshots and the guard never fires.
+        assert captured.get("snapshot_dir") is None
+
+    def test_prune_dispatcher_passes_none_when_no_flags(self, monkeypatch) -> None:
+        from aa_auto_sdr.cli import main as main_mod
+        from aa_auto_sdr.cli.commands import snapshots as snap_cmd
+
+        captured: dict = {}
+
+        def _fake_run(**kwargs: object) -> int:
+            captured.update(kwargs)
+            return 0
+
+        monkeypatch.setattr(snap_cmd, "prune_run", _fake_run)
+        main_mod.run(["--prune-snapshots", "--keep-last", "5"])
+        assert captured.get("snapshot_dir") is None

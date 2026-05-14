@@ -509,6 +509,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         return compare_cmd.run(
             rsids=rsids,
             profile=ns.profile,
+            snapshot_dir=resolve_snapshot_dir(ns),
             format_name=ns.format,
             output=ns.output,
             side_by_side=ns.side_by_side,
@@ -554,10 +555,14 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import snapshots as snap_cmd
 
+        # Pass raw ns.snapshot_dir (not resolve_snapshot_dir) so the
+        # "requires --profile or --snapshot-dir" guard inside list_run
+        # can fire when the user sets neither.
         return snap_cmd.list_run(
             profile=ns.profile,
             rsid=rsids[0] if rsids else None,
             format_name=ns.format,
+            snapshot_dir=ns.snapshot_dir,
         )
     if ns.prune_snapshots:
         if len(rsids) > 1:
@@ -568,6 +573,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import snapshots as snap_cmd
 
+        # Pass raw ns.snapshot_dir (not resolve_snapshot_dir) so the
+        # "requires --profile or --snapshot-dir" guard inside prune_run
+        # can fire when the user sets neither.
         return snap_cmd.prune_run(
             profile=ns.profile,
             rsid=rsids[0] if rsids else None,
@@ -575,6 +583,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             keep_since=ns.keep_since,
             dry_run=ns.dry_run,
             assume_yes=ns.yes,
+            snapshot_dir=ns.snapshot_dir,
         )
 
     # v1.1 — profile commands
@@ -731,6 +740,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             format_name=ns.format,
             output=resolved_output,
             profile=ns.profile,
+            snapshot_dir=resolve_snapshot_dir(ns),
             side_by_side=ns.side_by_side,
             summary=ns.summary,
             ignore_fields=ignore,

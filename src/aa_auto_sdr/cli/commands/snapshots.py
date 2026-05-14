@@ -25,20 +25,26 @@ def list_run(
     profile: str | None,
     rsid: str | None,
     format_name: str | None,
+    snapshot_dir: Path | None = None,
 ) -> int:
-    """List snapshots in `~/.aa/orgs/<profile>/snapshots/`.
+    """List snapshots in the active snapshot directory.
 
+    Resolves: --snapshot-dir > ~/.aa/orgs/<profile>/snapshots.
+    Requires at least one of --profile or --snapshot-dir.
     Format: table (default) or json. `rsid` filters to one RSID."""
     started_ms = time.monotonic()
     logger.info("command_start command=list_snapshots", extra={"command": "list_snapshots"})
     exit_code = ExitCode.GENERIC.value
     try:
-        if not profile:
-            print("error: --list-snapshots requires --profile", flush=True)
+        if not profile and not snapshot_dir:
+            print(
+                "error: --list-snapshots requires --profile or --snapshot-dir",
+                flush=True,
+            )
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
-        files = list_snapshots(snapshot_dir, rsid=rsid)
+        snap_dir = snapshot_dir or default_base() / "orgs" / profile / "snapshots"
+        files = list_snapshots(snap_dir, rsid=rsid)
         fmt = format_name or "table"
         if fmt == "json":
             rows = [_to_row(p) for p in files]
@@ -82,19 +88,24 @@ def prune_run(
     keep_since: str | None,
     dry_run: bool,
     assume_yes: bool = False,
+    snapshot_dir: Path | None = None,
 ) -> int:
-    """Apply retention policy under `~/.aa/orgs/<profile>/snapshots/`.
+    """Apply retention policy under the active snapshot directory.
 
-    Requires `--profile` and at least one of `keep_last` / `keep_since`.
-    `rsid` filters to one RSID. `dry_run` reports what would be deleted
-    without unlinking. `assume_yes` skips the confirmation prompt for
-    non-dry-run deletes (v1.2 destructive-action gate)."""
+    Resolves: --snapshot-dir > ~/.aa/orgs/<profile>/snapshots.
+    Requires at least one of --profile or --snapshot-dir, plus a policy flag
+    (`keep_last` / `keep_since`). `rsid` filters to one RSID. `dry_run` reports
+    what would be deleted without unlinking. `assume_yes` skips the
+    confirmation prompt for non-dry-run deletes."""
     started_ms = time.monotonic()
     logger.info("command_start command=prune_snapshots", extra={"command": "prune_snapshots"})
     exit_code = ExitCode.GENERIC.value
     try:
-        if not profile:
-            print("error: --prune-snapshots requires --profile", flush=True)
+        if not profile and not snapshot_dir:
+            print(
+                "error: --prune-snapshots requires --profile or --snapshot-dir",
+                flush=True,
+            )
             exit_code = ExitCode.CONFIG.value
             return exit_code
         try:
@@ -110,14 +121,14 @@ def prune_run(
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        snapshot_dir = default_base() / "orgs" / profile / "snapshots"
+        snap_dir = snapshot_dir or default_base() / "orgs" / profile / "snapshots"
 
         if not dry_run:
             from aa_auto_sdr.core._confirm import confirm
 
             # Probe with dry-run first so we can show the user how many files
             # would be deleted before they confirm.
-            would_delete = prune_snapshots(snapshot_dir, policy, rsid=rsid, dry_run=True)
+            would_delete = prune_snapshots(snap_dir, policy, rsid=rsid, dry_run=True)
             if would_delete and not confirm(
                 f"about to delete {len(would_delete)} snapshots; continue?",
                 assume_yes=assume_yes,
@@ -129,7 +140,7 @@ def prune_run(
                 exit_code = ExitCode.USAGE.value
                 return exit_code
 
-        deleted = prune_snapshots(snapshot_dir, policy, rsid=rsid, dry_run=dry_run)
+        deleted = prune_snapshots(snap_dir, policy, rsid=rsid, dry_run=dry_run)
         label = "would delete" if dry_run else "deleted"
         if not deleted:
             print(f"{label}: 0 snapshots")

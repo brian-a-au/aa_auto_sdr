@@ -33,6 +33,7 @@ def run(
     format_name: str | None,
     output: str | None,
     profile: str | None,
+    snapshot_dir: Path | None = None,
     side_by_side: bool = False,
     summary: bool = False,
     ignore_fields: frozenset[str] = frozenset(),
@@ -72,7 +73,7 @@ def run(
         if reverse:
             a, b = b, a
 
-        profile_snapshot_dir = default_base() / "orgs" / profile / "snapshots" if profile else None
+        profile_snapshot_dir = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
         repo_root = Path.cwd()
 
         try:

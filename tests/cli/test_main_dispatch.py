@@ -175,7 +175,7 @@ class TestV11Dispatch:
     ) -> None:
         called: dict[str, object] = {}
 
-        def _stub(*, profile, rsid, format_name):
+        def _stub(*, profile, rsid, format_name, **_extra):
             called["profile"] = profile
             called["rsid"] = rsid
             called["format_name"] = format_name
@@ -397,7 +397,7 @@ class TestV12Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, rsids, profile, format_name, **_v17):
+        def _stub(*, rsids, profile, format_name, **_extra):
             captured["rsids"] = rsids
             captured["profile"] = profile
             captured["format_name"] = format_name
@@ -414,7 +414,7 @@ class TestV12Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, profile, **_v17):
+        def _stub(*, profile, **_extra):
             captured["profile"] = profile
             return 0
 
@@ -474,6 +474,7 @@ class TestV12Dispatch:
             max_issues,
             warn_threshold,
             color_theme="default",
+            **_extra,
         ):
             captured.update(
                 {

@@ -182,14 +182,14 @@ uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot --auto-prune --keep-las
 uv run aa_auto_sdr --batch RS1 RS2 --profile prod --auto-snapshot --auto-prune --keep-since 30d
 ```
 
-### `aa_auto_sdr --list-snapshots [<RSID>] --profile <name>`
+### `aa_auto_sdr --list-snapshots [<RSID>] (--profile <name> | --snapshot-dir <path>)`
 
-List snapshots in the profile's snapshot dir. Optional positional `<RSID>` narrows to one suite.
+List snapshots in the active snapshot dir (`--snapshot-dir` if set, otherwise the profile's snapshot dir). Optional positional `<RSID>` narrows to one suite.
 
 - `--format table` (default): fixed-width columns `RSID`, `CAPTURED_AT`, `PATH`.
 - `--format json`: `[{"rsid", "captured_at", "path"}, ...]`. `captured_at` is canonical ISO-8601 (with colons).
 
-### `aa_auto_sdr --prune-snapshots [<RSID>] --keep-last N | --keep-since DURATION --profile <name>`
+### `aa_auto_sdr --prune-snapshots [<RSID>] --keep-last N | --keep-since DURATION (--profile <name> | --snapshot-dir <path>)`
 
 Apply the retention policy and delete snapshots that fail the keep test. Per-RSID. `--dry-run` previews deletions without unlinking.
 
@@ -209,12 +209,12 @@ Compute a structured diff between two snapshot envelopes. Each token is one of:
 | Token form | Example | Resolution |
 |----|----|----|
 | File path | `./snap-a.json` | Read JSON, validate schema, compare. |
-| `<rsid>@<timestamp>` | `demo.prod@2026-04-26T17-29-01+00-00` | Look in `~/.aa/orgs/<profile>/snapshots/<rsid>/`. |
+| `<rsid>@<timestamp>` | `demo.prod@2026-04-26T17-29-01+00-00` | Look in the active snapshot dir under `<rsid>/`. |
 | `<rsid>@latest` | `demo.prod@latest` | Most-recent file in that dir. |
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file. |
 | `git:<ref>:<path>` | `git:HEAD~1:snapshots/x.json` | `git show <ref>:<path>` from cwd. |
 
-Profile-form tokens (`<rsid>@<spec>`) require `--profile`.
+Profile-form tokens (`<rsid>@<spec>`) require `--profile` or `--snapshot-dir`. The active snapshot dir is `--snapshot-dir` if set, otherwise `~/.aa/orgs/<profile>/snapshots/`.
 
 `--format console|json|markdown|pr-comment` (default `console`). `--output -` for json/markdown/pr-comment pipes; rejected for console (use `--format json|markdown` for pipes).
 
@@ -259,8 +259,8 @@ For deeper coverage see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md).
 | Flag | Behavior |
 |----|----|
 | `--trending-window DURATION` | Rollup across snapshots in a profile-scoped window (`Nh\|Nd\|Nw`). Reads existing snapshots; no API contact. |
-| `--compare-with-prev` | Sugar for `--diff <RSID>@previous <RSID>@latest --profile <name>`. |
-| `--snapshot-dir PATH` | Override the active profile's snapshot directory for the trending read. |
+| `--compare-with-prev` | Sugar for `--diff <RSID>@previous <RSID>@latest`, scoped by `--profile` or `--snapshot-dir`. |
+| `--snapshot-dir PATH` | Override the active profile's snapshot directory. Honored by `--snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, `--watch`. |
 
 ```bash
 aa_auto_sdr <RSID> --trending-window 30d --profile prod
