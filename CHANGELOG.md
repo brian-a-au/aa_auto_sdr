@@ -23,6 +23,9 @@ Notion is now a first-class output destination. `--format notion` publishes the 
 - Pure block builder in `output/notion_blocks.py` — accepts an `SdrDocument` or a normalized dict so the push path can reuse it without reconstructing a document.
 - `output/notion_client_guard.py` isolates the `notion-client` import behind `_require_notion_client` so tests can patch a single guard regardless of whether the extra is installed.
 
+### Forward-compat (v1.19 preview)
+- v1.19 is planned to introduce an **SDR Registry database** in Notion: one database row per report suite, with metadata as properties (last updated, component counts) and a relation to the detail page. The v1.18.0 page structure and `.notion_pages.json` registry file are forward-compatible with that design — no breaking changes to the v1.18.0 envelope.
+
 ## [1.17.0] — 2026-05-14
 
 `--snapshot-dir` now composes with all snapshot-aware actions. Previously the flag was honored only by `--snapshot`, `--batch`, `--trending-window`, and `--watch`; four commands ignored it and resolved exclusively from `--profile`. No new flags.
