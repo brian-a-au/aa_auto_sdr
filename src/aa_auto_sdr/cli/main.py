@@ -282,7 +282,12 @@ def _reject_push_to_notion_conflicts(ns: argparse.Namespace) -> int:
     would push and ignore the diff). v1.18.0.
     """
     for attr, flag in _PUSH_TO_NOTION_CONFLICTS:
-        if getattr(ns, attr, None):
+        val = getattr(ns, attr, None)
+        # `--explain-exit-code 0` is a legitimate user request (ExitCode.OK is
+        # in EXPLANATIONS) but int(0) is falsy — fall back to an explicit
+        # None check for that attr so the literal 0 still trips the guard.
+        triggered = (val is not None) if attr == "explain_exit_code" else bool(val)
+        if triggered:
             print(
                 f"error: --push-to-notion cannot be combined with {flag}",
                 file=sys.stderr,

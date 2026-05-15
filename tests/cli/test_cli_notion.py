@@ -189,6 +189,20 @@ def test_push_to_notion_with_explain_exit_code_rejected(tmp_path, capsys):
     assert "--explain-exit-code" in capsys.readouterr().err
 
 
+def test_push_to_notion_with_explain_exit_code_zero_rejected(tmp_path, capsys):
+    # ExitCode.OK == 0 is a legitimate --explain-exit-code argument; int(0) is
+    # falsy, so a naive truthiness check on the conflict list would let push
+    # silently win for this one value. Verify the guard uses an explicit
+    # None check for this attr.
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--explain-exit-code", "0"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--explain-exit-code" in capsys.readouterr().err
+
+
 def test_push_to_notion_with_completion_rejected(tmp_path, capsys):
     parser = build_parser()
     p = tmp_path / "sdr.json"
