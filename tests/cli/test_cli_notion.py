@@ -166,6 +166,102 @@ def test_push_to_notion_with_profile_list_rejected(tmp_path, capsys):
     assert "--profile-list" in capsys.readouterr().err
 
 
+def test_push_to_notion_with_exit_codes_rejected(tmp_path, capsys):
+    # --exit-codes only fast-paths when argv[0]; when it appears after
+    # --push-to-notion, dispatch must reject the combination rather than let
+    # push silently win.
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--exit-codes"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--exit-codes" in capsys.readouterr().err
+
+
+def test_push_to_notion_with_explain_exit_code_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--explain-exit-code", "17"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--explain-exit-code" in capsys.readouterr().err
+
+
+def test_push_to_notion_with_completion_rejected(tmp_path, capsys):
+    parser = build_parser()
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    ns = parser.parse_args(["--push-to-notion", str(p), "--completion", "bash"])
+    rc = _dispatch(ns, parser, [])
+    assert rc == int(ExitCode.USAGE)
+    assert "--completion" in capsys.readouterr().err
+
+
+# --- explicit --output-dir wins (argv-based detection) ---
+
+
+def _run_dispatch_capturing_output_dir(argv):
+    """Helper: parse argv and dispatch, capturing the output_dir kw passed
+    to run_push_to_notion. Returns (rc, captured_output_dir)."""
+    import aa_auto_sdr.cli.commands.push_to_notion as pt_mod
+
+    parser = build_parser()
+    ns = parser.parse_args(argv)
+    captured = {}
+
+    def fake_run(json_path, output_dir=None, force_new=False):
+        captured["output_dir"] = output_dir
+        return 0
+
+    orig = pt_mod.run_push_to_notion
+    pt_mod.run_push_to_notion = fake_run
+    try:
+        rc = _dispatch(ns, parser, argv)
+    finally:
+        pt_mod.run_push_to_notion = orig
+    return rc, captured.get("output_dir")
+
+
+def test_push_to_notion_default_output_dir_is_implicit(tmp_path):
+    # No --output-dir on argv → caller receives None so the command falls
+    # back to the input file's parent dir.
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p)])
+    assert rc == 0
+    assert captured is None
+
+
+def test_push_to_notion_explicit_output_dir_dot_is_honored(tmp_path):
+    # `--output-dir .` matches the parser default by value, but the user
+    # explicitly asked for cwd. Detection must be argv-based, not value-based,
+    # so the explicit "." is forwarded.
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir", "."])
+    assert rc == 0
+    assert captured == "."
+
+
+def test_push_to_notion_explicit_output_dir_equals_form_is_honored(tmp_path):
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir=./out"])
+    assert rc == 0
+    assert captured == "out"
+
+
+def test_push_to_notion_explicit_output_dir_non_default_value(tmp_path):
+    p = tmp_path / "sdr.json"
+    p.write_text("{}")
+    target = tmp_path / "elsewhere"
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir", str(target)])
+    assert rc == 0
+    assert captured == str(target)
+
+
 def test_watch_notion_rejected_in_dispatch(capsys):
     parser = build_parser()
     ns = parser.parse_args(

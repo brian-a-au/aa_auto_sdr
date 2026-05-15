@@ -253,8 +253,8 @@ _PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("interactive", "--interactive"),
     # Config / profile top-level modes also dispatched in _dispatch — without
     # this guard, push would silently win and the user's config inspection
-    # request would be dropped. (--version, --help, --exit-codes, --completion
-    # are fast-path in __main__.py and never reach this validator.)
+    # request would be dropped. (--version and --help are intercepted by
+    # argparse before _dispatch runs, so they never reach this validator.)
     ("show_config", "--show-config"),
     ("config_status", "--config-status"),
     ("validate_config", "--validate-config"),
@@ -264,6 +264,13 @@ _PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("profile_test", "--profile-test"),
     ("profile_show", "--profile-show"),
     ("profile_import", "--profile-import"),
+    # Fast-path action flags only short-circuit in __main__.py when they are
+    # argv[0]; if a user puts them after --push-to-notion (e.g.
+    # ``--push-to-notion sdr.json --exit-codes``) dispatch reaches this
+    # validator and push would silently win. Reject loudly here too.
+    ("exit_codes", "--exit-codes"),
+    ("explain_exit_code", "--explain-exit-code"),
+    ("completion", "--completion"),
 )
 
 
@@ -460,8 +467,14 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
 
         from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
 
+        # Detect explicit --output-dir from argv rather than comparing the
+        # resolved value to Path("."). Otherwise `--output-dir .` would be
+        # indistinguishable from the parser default and the registry would be
+        # written beside the input JSON instead of cwd, contradicting the
+        # "explicit --output-dir wins" contract.
+        output_dir_explicit = any(tok == "--output-dir" or tok.startswith("--output-dir=") for tok in argv)
         output_dir = getattr(ns, "output_dir", None)
-        explicit_output_dir = str(output_dir) if output_dir is not None and Path(output_dir) != Path(".") else None
+        explicit_output_dir = str(output_dir) if output_dir_explicit and output_dir is not None else None
         return run_push_to_notion(
             ns.push_to_notion,
             output_dir=explicit_output_dir,
