@@ -476,8 +476,16 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         # resolved value to Path("."). Otherwise `--output-dir .` would be
         # indistinguishable from the parser default and the registry would be
         # written beside the input JSON instead of cwd, contradicting the
-        # "explicit --output-dir wins" contract.
-        output_dir_explicit = any(tok == "--output-dir" or tok.startswith("--output-dir=") for tok in argv)
+        # "explicit --output-dir wins" contract. Stop scanning at the argparse
+        # end-of-options marker `--` so a literal filename "--output-dir"
+        # after `--` is not mistaken for the flag.
+        output_dir_explicit = False
+        for tok in argv:
+            if tok == "--":
+                break
+            if tok == "--output-dir" or tok.startswith("--output-dir="):
+                output_dir_explicit = True
+                break
         output_dir = getattr(ns, "output_dir", None)
         explicit_output_dir = str(output_dir) if output_dir_explicit and output_dir is not None else None
         return run_push_to_notion(

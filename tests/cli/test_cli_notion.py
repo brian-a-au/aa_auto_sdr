@@ -216,9 +216,13 @@ def test_push_to_notion_with_completion_rejected(tmp_path, capsys):
 # --- explicit --output-dir wins (argv-based detection) ---
 
 
-def _run_dispatch_capturing_output_dir(argv):
+def _run_dispatch_capturing_output_dir(argv, monkeypatch):
     """Helper: parse argv and dispatch, capturing the output_dir kw passed
-    to run_push_to_notion. Returns (rc, captured_output_dir)."""
+    to run_push_to_notion. Returns (rc, captured_output_dir).
+
+    Uses monkeypatch.setattr so teardown is automatic even if the dispatch
+    raises before the original would be restored manually.
+    """
     import aa_auto_sdr.cli.commands.push_to_notion as pt_mod
 
     parser = build_parser()
@@ -229,49 +233,47 @@ def _run_dispatch_capturing_output_dir(argv):
         captured["output_dir"] = output_dir
         return 0
 
-    orig = pt_mod.run_push_to_notion
-    pt_mod.run_push_to_notion = fake_run
-    try:
-        rc = _dispatch(ns, parser, argv)
-    finally:
-        pt_mod.run_push_to_notion = orig
+    monkeypatch.setattr(pt_mod, "run_push_to_notion", fake_run)
+    rc = _dispatch(ns, parser, argv)
     return rc, captured.get("output_dir")
 
 
-def test_push_to_notion_default_output_dir_is_implicit(tmp_path):
+def test_push_to_notion_default_output_dir_is_implicit(tmp_path, monkeypatch):
     # No --output-dir on argv → caller receives None so the command falls
     # back to the input file's parent dir.
     p = tmp_path / "sdr.json"
     p.write_text("{}")
-    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p)])
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p)], monkeypatch)
     assert rc == 0
     assert captured is None
 
 
-def test_push_to_notion_explicit_output_dir_dot_is_honored(tmp_path):
+def test_push_to_notion_explicit_output_dir_dot_is_honored(tmp_path, monkeypatch):
     # `--output-dir .` matches the parser default by value, but the user
     # explicitly asked for cwd. Detection must be argv-based, not value-based,
     # so the explicit "." is forwarded.
     p = tmp_path / "sdr.json"
     p.write_text("{}")
-    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir", "."])
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir", "."], monkeypatch)
     assert rc == 0
     assert captured == "."
 
 
-def test_push_to_notion_explicit_output_dir_equals_form_is_honored(tmp_path):
+def test_push_to_notion_explicit_output_dir_equals_form_is_honored(tmp_path, monkeypatch):
     p = tmp_path / "sdr.json"
     p.write_text("{}")
-    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir=./out"])
+    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir=./out"], monkeypatch)
     assert rc == 0
     assert captured == "out"
 
 
-def test_push_to_notion_explicit_output_dir_non_default_value(tmp_path):
+def test_push_to_notion_explicit_output_dir_non_default_value(tmp_path, monkeypatch):
     p = tmp_path / "sdr.json"
     p.write_text("{}")
     target = tmp_path / "elsewhere"
-    rc, captured = _run_dispatch_capturing_output_dir(["--push-to-notion", str(p), "--output-dir", str(target)])
+    rc, captured = _run_dispatch_capturing_output_dir(
+        ["--push-to-notion", str(p), "--output-dir", str(target)], monkeypatch
+    )
     assert rc == 0
     assert captured == str(target)
 
