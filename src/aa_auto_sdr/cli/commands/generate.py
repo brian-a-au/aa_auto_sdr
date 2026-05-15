@@ -126,6 +126,7 @@ def run(
     template_path: Path | None = None,  # v1.16.0
     template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
+    notion_force_new: bool = False,  # v1.18.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -163,6 +164,7 @@ def run(
             template_path=template_path,
             template_organization=template_organization,
             snapshot_dir=snapshot_dir,
+            notion_force_new=notion_force_new,
         )
         return exit_code
     finally:
@@ -209,6 +211,7 @@ def _run_impl(
     template_path: Path | None = None,  # v1.16.0
     template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
+    notion_force_new: bool = False,  # v1.18.0
 ) -> int:
     started_at = datetime.now(UTC)
     # v1.12.0 — translate string severity to enum once, here.
@@ -534,6 +537,7 @@ def _run_impl(
                 git_message=git_message,
                 template_path=template_path,
                 template_organization=template_organization,
+                notion_force_new=notion_force_new,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

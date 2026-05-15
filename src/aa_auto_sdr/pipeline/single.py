@@ -40,6 +40,8 @@ def run_single(
     # v1.16.0 — template-fill writer config
     template_path: Path | None = None,
     template_organization: str | None = None,
+    # v1.18.0 — Notion writer per-run config
+    notion_force_new: bool = False,
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -57,6 +59,12 @@ def run_single(
         tw = registry.get_writer("excel-template")
         tw.template_path = template_path
         tw.organization = template_organization
+    if "notion" in formats:
+        # v1.18.0 — instance-attribute config for the singleton NotionWriter.
+        # `--notion-force-new` is threaded onto the registered instance so it
+        # applies to every iteration of the format loop below.
+        nw = registry.get_writer("notion")
+        nw.force_new = bool(notion_force_new)
     with timings.Timer(f"build:{rsid}"):
         doc = build_sdr(
             client,

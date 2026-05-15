@@ -198,6 +198,21 @@ Logging is documented in [`LOGGING.md`](LOGGING.md): flags (`--log-level`, `--lo
 
 For full per-code remediation, run `aa_auto_sdr --explain-exit-code <CODE>`.
 
+## Notion Integration (Optional)
+
+Required if using `--format notion` or `--push-to-notion`. Install the extra first:
+
+```bash
+uv pip install 'aa-auto-sdr[notion]'
+```
+
+| Env var | Description |
+|---|---|
+| `NOTION_TOKEN` | Notion internal integration token (Settings & Members → Integrations) |
+| `NOTION_PARENT_PAGE_ID` | The Notion page under which SDR pages are created. The integration must be invited to this page (Share → Add connection). |
+
+Credentials are env vars only — they are **not** stored in profile `config.json`. The `.env` file is honored if `python-dotenv` is installed (already the `[env]` extra). See [`CLI_REFERENCE.md`](CLI_REFERENCE.md#notion-integration) for usage examples.
+
 ## See also
 
 - [`QUICKSTART.md`](QUICKSTART.md) — the 5-step onboarding flow

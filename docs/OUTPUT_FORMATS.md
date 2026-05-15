@@ -12,6 +12,7 @@
 | `json` | `.json` | Single self-contained JSON file with the full SdrDocument | Automation; jq pipelines; downstream tooling |
 | `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript | Sharing as a static report; PR/email attachments |
 | `markdown` | `.md` | Single GFM-flavored Markdown file with one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
+| `notion` | `.notion` (nominal) | Publishes a Notion page; tracks RSID → page-id in `.notion_pages.json`. Requires `[notion]` extra plus `NOTION_TOKEN` / `NOTION_PARENT_PAGE_ID`. | Notion-based wikis; collaborative docs |
 
 ### Default
 
@@ -36,6 +37,18 @@ uv run aa_auto_sdr <RSID> --template ~/templates/aa_en_BRD_SDR_template.xlsx --t
 The fill writer preserves every cell, style, formula, and defined name not explicitly written. Coverage is API-bounded (~50–70% of template columns); admin-only fields the AA 2.0 API doesn't expose (eVar Allocation, Expiration, Merchandising; List Prop Delimiter; Event Type; etc.) are left blank.
 
 Aliases (`all`, `reports`) keep producing `excel`; the `--template` swap rewrites the resolved format list after alias resolution, so `--format all --template foo.xlsx` produces 5 files including a template-filled `.xlsx`. The bare format key `excel-template` is not user-invokable directly (it would error with USAGE because no `--template` path is set).
+
+## Notion format
+
+`--format notion` publishes the SDR directly to a Notion page. Requires `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID` environment variables and the `notion` optional extra (`uv pip install 'aa-auto-sdr[notion]'`).
+
+Each run creates or updates a single page per RSID under the configured parent. Page IDs are tracked in `.notion_pages.json` in the output directory (or CWD) so re-runs update in place rather than accumulating duplicates. `--notion-force-new` skips the registry and always creates a fresh page; the new ID replaces the old entry.
+
+The `notion` format is opt-in only — it is **not** included in the `all`, `reports`, `data`, or `ci` aliases. The companion mode `--push-to-notion FILE` publishes an existing SDR JSON or snapshot envelope to Notion without re-calling the Adobe Analytics API; see [`CLI_REFERENCE.md`](CLI_REFERENCE.md#notion-integration).
+
+**Dry-run note:** `--dry-run --format notion` prints `<output_dir>/<rsid>.notion` as the "would-write" path. The `.notion` suffix is nominal — the writer never creates that file. The actual side effect is a create-or-update against the Notion API plus an atomic write to `.notion_pages.json`.
+
+**Constraints:** `--watch --format notion` and `--batch ... --format notion --workers N>1` are rejected at dispatch — concurrent writes to the registry would race.
 
 ## Format aliases
 

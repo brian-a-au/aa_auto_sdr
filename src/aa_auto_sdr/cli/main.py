@@ -228,6 +228,114 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+# Actions that conflict with --push-to-notion: presence of any one means the
+# user asked for a different mode alongside push, which would silently win or
+# silently lose. Reject loudly. The tuple lists (attr, expected-truthy-check,
+# flag-name) so the message can name the offending flag.
+_PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
+    ("diff", "--diff"),
+    ("batch", "--batch"),
+    ("watch", "--watch"),
+    ("list_reportsuites", "--list-reportsuites"),
+    ("list_virtual_reportsuites", "--list-virtual-reportsuites"),
+    ("describe_reportsuite", "--describe-reportsuite"),
+    ("list_metrics", "--list-metrics"),
+    ("list_dimensions", "--list-dimensions"),
+    ("list_segments", "--list-segments"),
+    ("list_calculated_metrics", "--list-calculated-metrics"),
+    ("list_classification_datasets", "--list-classification-datasets"),
+    ("list_snapshots", "--list-snapshots"),
+    ("prune_snapshots", "--prune-snapshots"),
+    ("trending_window", "--trending-window"),
+    ("compare_with_prev", "--compare-with-prev"),
+    ("inventory_summary", "--inventory-summary"),
+    ("stats", "--stats"),
+    ("interactive", "--interactive"),
+    # Config / profile top-level modes also dispatched in _dispatch — without
+    # this guard, push would silently win and the user's config inspection
+    # request would be dropped. (--version and --help are intercepted by
+    # argparse before _dispatch runs, so they never reach this validator.)
+    ("show_config", "--show-config"),
+    ("config_status", "--config-status"),
+    ("validate_config", "--validate-config"),
+    ("sample_config", "--sample-config"),
+    ("profile_list", "--profile-list"),
+    ("profile_add", "--profile-add"),
+    ("profile_test", "--profile-test"),
+    ("profile_show", "--profile-show"),
+    ("profile_import", "--profile-import"),
+    # Fast-path action flags only short-circuit in __main__.py when they are
+    # argv[0]; if a user puts them after --push-to-notion (e.g.
+    # ``--push-to-notion sdr.json --exit-codes``) dispatch reaches this
+    # validator and push would silently win. Reject loudly here too.
+    ("exit_codes", "--exit-codes"),
+    ("explain_exit_code", "--explain-exit-code"),
+    ("completion", "--completion"),
+)
+
+
+def _reject_push_to_notion_conflicts(ns: argparse.Namespace) -> int:
+    """Reject co-presence of --push-to-notion with another top-level mode.
+
+    Without this guard, dispatch order would silently pick push and discard
+    the user's other requested action (e.g. ``--push-to-notion file --diff a b``
+    would push and ignore the diff). v1.18.0.
+    """
+    for attr, flag in _PUSH_TO_NOTION_CONFLICTS:
+        val = getattr(ns, attr, None)
+        # `--explain-exit-code 0` is a legitimate user request (ExitCode.OK is
+        # in EXPLANATIONS) but int(0) is falsy — fall back to an explicit
+        # None check for that attr so the literal 0 still trips the guard.
+        triggered = (val is not None) if attr == "explain_exit_code" else bool(val)
+        if triggered:
+            print(
+                f"error: --push-to-notion cannot be combined with {flag}",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
+    if getattr(ns, "rsids", None):
+        print(
+            "error: --push-to-notion does not accept positional RSIDs (it republishes the given JSON file)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
+def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
+    """Reject --watch and --workers>1 when --format is 'notion'.
+
+    Returns ExitCode.OK if consistent, ExitCode.USAGE (with stderr message)
+    otherwise. v1.18.0 — concurrent writes to .notion_pages.json would race,
+    and watch+notion would silently rewrite the same page on every interval
+    (not useful in v1).
+    """
+    if getattr(ns, "format", None) != "notion":
+        return int(ExitCode.OK)
+
+    if getattr(ns, "watch", False):
+        print(
+            "error: --watch is not supported with --format notion in v1.18",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
+    # Treat both `--batch RSID...` and multi-positional `aa_auto_sdr rs1 rs2`
+    # as a batch — same definition `run()` uses in its sampling-validation
+    # block when classifying the run.
+    is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
+    if is_batch and getattr(ns, "workers", 1) > 1:
+        print(
+            "error: --workers > 1 is not supported with --format notion "
+            "(concurrent writes to .notion_pages.json would race). "
+            "Run batch serially.",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
+    return int(ExitCode.OK)
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -348,6 +456,43 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     rc = _validate_template_modifiers(ns)
     if rc != int(ExitCode.OK):
         return rc
+
+    rc = _validate_notion_modifiers(ns)
+    if rc != int(ExitCode.OK):
+        return rc
+
+    # v1.18.0 — --push-to-notion is a top-level mode. Dispatch before any
+    # generate/discovery branch so it short-circuits cleanly. Registry path
+    # falls back to the input file's parent dir when --output-dir is left at
+    # its default of CWD; explicit --output-dir wins.
+    if getattr(ns, "push_to_notion", None):
+        rc = _reject_push_to_notion_conflicts(ns)
+        if rc != int(ExitCode.OK):
+            return rc
+
+        from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
+
+        # Detect explicit --output-dir from argv rather than comparing the
+        # resolved value to Path("."). Otherwise `--output-dir .` would be
+        # indistinguishable from the parser default and the registry would be
+        # written beside the input JSON instead of cwd, contradicting the
+        # "explicit --output-dir wins" contract. Stop scanning at the argparse
+        # end-of-options marker `--` so a literal filename "--output-dir"
+        # after `--` is not mistaken for the flag.
+        output_dir_explicit = False
+        for tok in argv:
+            if tok == "--":
+                break
+            if tok == "--output-dir" or tok.startswith("--output-dir="):
+                output_dir_explicit = True
+                break
+        output_dir = getattr(ns, "output_dir", None)
+        explicit_output_dir = str(output_dir) if output_dir_explicit and output_dir is not None else None
+        return run_push_to_notion(
+            ns.push_to_notion,
+            output_dir=explicit_output_dir,
+            force_new=getattr(ns, "notion_force_new", False),
+        )
 
     from aa_auto_sdr.core import colors
 
@@ -839,6 +984,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             template_path=getattr(ns, "template", None),
             template_organization=getattr(ns, "template_organization", None),
             snapshot_dir=resolve_snapshot_dir(ns),
+            notion_force_new=getattr(ns, "notion_force_new", False),
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -878,6 +1024,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         template_path=getattr(ns, "template", None),
         template_organization=getattr(ns, "template_organization", None),
         snapshot_dir=resolve_snapshot_dir(ns),
+        notion_force_new=getattr(ns, "notion_force_new", False),
     )
 
 

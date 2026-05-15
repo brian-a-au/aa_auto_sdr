@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.18.0] — 2026-05-14
+
+Notion is now a first-class output destination. `--format notion` publishes the SDR directly to a Notion page; `--push-to-notion <file>` republishes an existing JSON artifact or snapshot envelope without re-calling the Adobe Analytics API. Idempotent by RSID — re-runs update the existing page in place.
+
+### Added
+- `--format notion` — publish SDR directly to a Notion page in a single command.
+- `--push-to-notion <file>` — push an existing SDR JSON or snapshot envelope (`aa-sdr-snapshot/v[1-4]`) to Notion without contacting the AA API.
+- `--notion-force-new` — force a brand-new Notion page even if one already exists for the RSID; the new ID replaces the old entry in `.notion_pages.json`.
+- Idempotent page registry (`.notion_pages.json`) keyed by RSID — atomic JSON via `core.json_io.write_json`. Registry path: `--output-dir` if set, else input file's parent (push) or CWD (generate).
+- `notion` optional extra: `uv pip install 'aa-auto-sdr[notion]'` (bundles `notion-client>=2.0.0`).
+
+### Constraints
+- `--watch --format notion` rejected by `_validate_notion_modifiers` in `cli/main.py._dispatch()` (returns `ExitCode.USAGE`) — silent loops over the same page aren't useful in v1.
+- `--batch --format notion --workers N>1` rejected similarly — concurrent writes to `.notion_pages.json` would race; run batch serially.
+- AA read-only and API 2.0-only invariants preserved — the Notion writer never imports `aanalytics2`; meta-tests under `tests/meta/` are untouched.
+
+### Internals
+- New writer module `output/writers/notion.py` implementing the existing `Writer` protocol; self-registers in `output.registry.bootstrap()`. Per-run `force_new` set as an instance attribute by `pipeline/single.py` (same singleton-mutation pattern `excel-template` uses for `template_path`).
+- Pure block builder in `output/notion_blocks.py` — accepts an `SdrDocument` or a normalized dict so the push path can reuse it without reconstructing a document.
+- `output/notion_client_guard.py` isolates the `notion-client` import behind `_require_notion_client` so tests can patch a single guard regardless of whether the extra is installed.
+
+### Forward-compat (v1.19 preview)
+- v1.19 is planned to introduce an **SDR Registry database** in Notion: one database row per report suite, with metadata as properties (last updated, component counts) and a relation to the detail page. The v1.18.0 page structure and `.notion_pages.json` registry file are forward-compatible with that design — no breaking changes to the v1.18.0 envelope.
+
 ## [1.17.0] — 2026-05-14
 
 `--snapshot-dir` now composes with all snapshot-aware actions. Previously the flag was honored only by `--snapshot`, `--batch`, `--trending-window`, and `--watch`; four commands ignored it and resolved exclusively from `--profile`. No new flags.

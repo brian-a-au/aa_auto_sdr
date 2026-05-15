@@ -390,6 +390,47 @@ uv run aa_auto_sdr <RSID> --log-format json --quiet
 uv run aa_auto_sdr --batch demo.prod demo.staging --run-summary-json runs/$(date -u +%Y%m%dT%H%M%SZ).json
 ```
 
+## Notion Integration
+
+Publishes SDR reports to Notion as structured pages. Requires the optional extra and two env vars:
+
+```bash
+uv pip install 'aa-auto-sdr[notion]'
+export NOTION_TOKEN=secret_...
+export NOTION_PARENT_PAGE_ID=<page-id-of-parent>
+```
+
+The integration must be invited to the parent page (Notion: Share → Add connection). See [`CONFIGURATION.md`](CONFIGURATION.md#notion-integration-optional) for credential setup.
+
+```bash
+# Publish SDR directly to Notion
+aa_auto_sdr examplersid1 --format notion
+
+# Publish with custom output directory (registry stored there too)
+aa_auto_sdr examplersid1 --format notion --output-dir ./reports
+
+# Push existing JSON artifact to Notion (no AA API call)
+aa_auto_sdr --push-to-notion ./reports/examplersid1.json
+
+# Push an archived snapshot envelope
+aa_auto_sdr --push-to-notion ~/.aa/orgs/acme/snapshots/examplersid1/2026-05-14T10-00-00Z.json
+
+# Force a new Notion page even if one already exists for this RSID
+aa_auto_sdr examplersid1 --format notion --notion-force-new
+aa_auto_sdr --push-to-notion ./reports/examplersid1.json --notion-force-new
+
+# Batch with Notion — serial only; --workers N>1 rejected with --format notion
+aa_auto_sdr --batch examplersid1 examplersid2 --format notion
+```
+
+| Flag | Description |
+|------|-------------|
+| `--format notion` | Publish SDR to a Notion page as part of generation |
+| `--push-to-notion FILE` | Push existing JSON/snapshot artifact to Notion (standalone mode) |
+| `--notion-force-new` | Always create a new page, ignoring `.notion_pages.json` |
+
+Re-runs update the existing Notion page in place. Page IDs are tracked in `.notion_pages.json` in the output directory (or the input file's parent for `--push-to-notion`). `--watch --format notion` and `--batch ... --format notion --workers N>1` are rejected at dispatch with `ExitCode.USAGE` — concurrent writes to the registry would race.
+
 ## Machine-readable errors
 
 When `--output -` (generate JSON pipe) or `--format json|markdown --output -` (diff pipe) is in effect and an error occurs, a one-line JSON envelope writes to stderr:
