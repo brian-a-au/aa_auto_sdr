@@ -309,7 +309,8 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
         return int(ExitCode.USAGE)
 
     # Treat both `--batch RSID...` and multi-positional `aa_auto_sdr rs1 rs2`
-    # as a batch — `run()` itself uses the same definition (see line 292).
+    # as a batch — same definition `run()` uses in its sampling-validation
+    # block when classifying the run.
     is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
     if is_batch and getattr(ns, "workers", 1) > 1:
         print(

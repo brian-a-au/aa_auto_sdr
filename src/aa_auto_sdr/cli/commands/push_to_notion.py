@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.notion_blocks import build_blocks_from_dict
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
@@ -54,29 +55,29 @@ def run_push_to_notion(
     path = Path(json_file)
     if not path.exists():
         print(
-            f"Error: --push-to-notion: file not found: {json_file}",
+            f"error: --push-to-notion: file not found: {json_file}",
             file=sys.stderr,
         )
-        return 1
+        return int(ExitCode.GENERIC)
 
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         print(
-            f"Error: --push-to-notion: invalid JSON in {json_file}: {exc}",
+            f"error: --push-to-notion: invalid JSON in {json_file}: {exc}",
             file=sys.stderr,
         )
-        return 1
+        return int(ExitCode.GENERIC)
 
     try:
         blocks = build_blocks_from_dict(payload)
         rsid, page_title = _extract_rsid_and_title(payload)
     except (ValueError, KeyError) as exc:
         print(
-            f"Error: --push-to-notion: unrecognized payload shape in {json_file}: {exc}",
+            f"error: --push-to-notion: unrecognized payload shape in {json_file}: {exc}",
             file=sys.stderr,
         )
-        return 1
+        return int(ExitCode.GENERIC)
 
     Client = _require_notion_client()
     token, parent_page_id = resolve_notion_credentials()
@@ -109,4 +110,4 @@ def run_push_to_notion(
         },
     )
     print(f"notion://pages/{page_id}")
-    return 0
+    return int(ExitCode.OK)
