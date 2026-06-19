@@ -14,7 +14,7 @@ _ALIASES: dict[str, list[str]] = {
     "ci": ["json", "markdown"],
 }
 
-_CONCRETE = {"excel", "csv", "json", "html", "markdown", "excel-template"}
+_CONCRETE = {"excel", "csv", "json", "html", "markdown", "excel-template", "notion"}
 
 _WRITERS: dict[str, Writer] = {}
 
@@ -65,3 +65,4 @@ def bootstrap() -> None:
     from aa_auto_sdr.output.writers import html as _html  # noqa: F401
     from aa_auto_sdr.output.writers import json as _json  # noqa: F401
     from aa_auto_sdr.output.writers import markdown as _markdown  # noqa: F401
+    from aa_auto_sdr.output.writers import notion as _notion  # noqa: F401

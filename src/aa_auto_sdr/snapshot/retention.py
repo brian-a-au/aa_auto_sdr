@@ -15,7 +15,7 @@ from aa_auto_sdr.core.exceptions import ConfigError
 from aa_auto_sdr.snapshot._duration import parse_duration
 
 _TS_RE = re.compile(
-    r"^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(Z|[+-]\d{2}-\d{2})$",
+    r"^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})(\.\d+)?(Z|[+-]\d{2}-\d{2})$",
 )
 
 
@@ -75,10 +75,14 @@ def select_for_deletion(
 
 
 def restore_iso(stem: str) -> datetime:
-    """`2026-04-26T17-29-01+00-00` or `2026-04-26T17-29-01Z` → datetime.
+    """`2026-04-26T17-29-01.123456+00-00` or `2026-04-26T17-29-01Z` → datetime.
 
     Public since v1.13.0 — also used by `snapshot/trending.py::_path_in_window`
     to filter snapshot files into a trending window without parsing JSON.
+    The fractional-seconds portion is optional: real snapshot filenames carry
+    microseconds (from `datetime.now().isoformat()`), so the parser must keep
+    them or every real snapshot is read as `datetime.max` and falls out of
+    every window.
 
     Returns datetime.max(UTC) for unparseable stems so they sort latest
     (never older than any cutoff — a fail-closed default that prevents
@@ -87,12 +91,13 @@ def restore_iso(stem: str) -> datetime:
     m = _TS_RE.match(stem)
     if not m:
         return datetime.max.replace(tzinfo=UTC)
-    suffix = m.group(5)
+    frac = m.group(5) or ""  # optional ".ffffff" fractional seconds, kept verbatim
+    suffix = m.group(6)
     if suffix == "Z":
-        iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}+00:00"
+        iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}{frac}+00:00"
     else:
         # suffix is +HH-MM or -HH-MM; replace the hyphen with a colon
         sign_and_hours = suffix[:3]  # +HH or -HH
         minutes = suffix[4:]  # MM (after the hyphen)
-        iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}{sign_and_hours}:{minutes}"
+        iso = f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}{frac}{sign_and_hours}:{minutes}"
     return datetime.fromisoformat(iso)

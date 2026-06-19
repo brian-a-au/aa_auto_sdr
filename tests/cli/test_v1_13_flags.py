@@ -146,12 +146,14 @@ class TestTrendingHandlerExitCodes:
     def test_some_rsids_empty_returns_partial_success(self, tmp_path: Path) -> None:
         """One RSID has snapshots; another doesn't → PARTIAL_SUCCESS (14)."""
         import json as _json
-        from datetime import UTC, datetime
+        from datetime import UTC, datetime, timedelta
 
-        # Seed a single snapshot for rs_with_data.
+        # Seed a single snapshot for rs_with_data. Timestamp is relative to now
+        # so it always lands inside the rolling --trending-window; a hardcoded
+        # date eventually falls out of the window and flips the exit code to 13.
         rs_dir = tmp_path / "rs_with_data"
         rs_dir.mkdir()
-        ts = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+        ts = datetime.now(UTC) - timedelta(days=1)
         stem = ts.isoformat().replace(":", "-")
         envelope = {
             "schema": "aa-sdr-snapshot/v4",

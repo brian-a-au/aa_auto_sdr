@@ -286,6 +286,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Pipe JSON to jq | `aa_auto_sdr <RSID> --format json --output - \| jq '.report_suite'` |
 | Aliases (excel + markdown) | `aa_auto_sdr <RSID> --format reports` |
 | Template-fill Excel ([download `.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx) · [tutorial](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr)) | `aa_auto_sdr <RSID> --template ~/aa_en_BRD_SDR_template.xlsx` |
+| Notion publishing ([setup](docs/CLI_REFERENCE.md#notion-integration)) | `aa_auto_sdr <RSID> --format notion` |
 | **Discovery & Inspection** | |
 | List metrics for one RS | `aa_auto_sdr --list-metrics <RSID>` |
 | Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |

@@ -770,4 +770,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Exit with code 17 if any issue at or above this severity exists (v1.12.0).",
     )
 
+    notion_group = p.add_argument_group("Notion Integration (v1.18.0+)")
+    notion_group.add_argument(
+        "--push-to-notion",
+        type=str,
+        default=None,
+        metavar="JSON_FILE",
+        dest="push_to_notion",
+        help=(
+            "Push an existing SDR JSON artifact (or snapshot envelope) to Notion "
+            "without re-calling the Adobe Analytics API. Requires NOTION_TOKEN "
+            "and NOTION_PARENT_PAGE_ID env vars."
+        ),
+    )
+    notion_group.add_argument(
+        "--notion-force-new",
+        action="store_true",
+        default=False,
+        dest="notion_force_new",
+        help=(
+            "Force creation of a new Notion page even if one already exists for "
+            "this RSID. The new page ID replaces the old entry in "
+            ".notion_pages.json."
+        ),
+    )
+
     return p
