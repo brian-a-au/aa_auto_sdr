@@ -34,8 +34,8 @@ htmlcov/
 .DS_Store
 
 # Project secrets — never commit
-.env
-.env.local
+.env*
+!.env.example
 config.json
 
 # Build artifacts
