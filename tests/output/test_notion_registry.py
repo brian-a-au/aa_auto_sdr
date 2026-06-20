@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 from pathlib import Path
 
@@ -162,3 +163,19 @@ def test_collect_and_drop_superseded(tmp_path: Path):
     assert sorted(orphans) == [("rs1", "page_a"), ("rs2", "page_c")]
     reg.drop_superseded(p, "rs1", "page_a")
     assert reg.load_registry(p)["rs1"]["superseded"] == []
+
+
+def test_concurrent_store_page_id_no_lost_writes(tmp_path: Path):
+    p = tmp_path / reg.REGISTRY_FILENAME
+    rsids = [f"rs{i}" for i in range(50)]
+
+    def worker(rsid: str) -> None:
+        reg.store_page_id(p, rsid, f"page_{rsid}")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+        list(ex.map(worker, rsids))
+
+    loaded = reg.load_registry(p)
+    assert set(loaded.keys()) == set(rsids)
+    for rsid in rsids:
+        assert loaded[rsid]["current"] == f"page_{rsid}"
