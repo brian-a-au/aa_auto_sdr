@@ -585,9 +585,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         from aa_auto_sdr.cli.commands.notion_repair import run_notion_repair_database
         from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
 
-        db_id = resolve_notion_database_id(
-            cli_override=getattr(ns, "notion_registry_database", None), disabled=False
-        )
+        db_id = resolve_notion_database_id(cli_override=getattr(ns, "notion_registry_database", None), disabled=False)
         return run_notion_repair_database(db_id, dry_run=not getattr(ns, "yes", False))
 
     from aa_auto_sdr.core import colors

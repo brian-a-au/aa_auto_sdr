@@ -46,17 +46,33 @@ Each run creates or updates a single page per RSID under the configured parent. 
 
 The `notion` format is opt-in only — it is **not** included in the `all`, `reports`, `data`, or `ci` aliases. The companion mode `--push-to-notion FILE` publishes an existing SDR JSON or snapshot envelope to Notion without re-calling the Adobe Analytics API; see [`CLI_REFERENCE.md`](CLI_REFERENCE.md#notion-integration).
 
-**Dry-run note:** `--dry-run --format notion` prints `<output_dir>/<rsid>.notion` as the "would-write" path. The `.notion` suffix is nominal — the writer never creates that file. The actual side effect is a create-or-update against the Notion API plus an atomic write to `.notion_pages.json`.
+**Dry-run note:** `--dry-run --format notion` prints the `.notion_pages.json` path as the "would-write" artifact (instead of a phantom `<rsid>.notion` file). The actual side effect is a create-or-update against the Notion API plus an atomic write to `.notion_pages.json`.
 
-**Constraints:** `--watch --format notion` and `--batch ... --format notion --workers N>1` are rejected at dispatch — concurrent writes to the registry would race.
+**Parallel batch:** `--batch --format notion --workers N>1` is supported. A process-level lock serializes all `.notion_pages.json` writes so concurrent workers do not race. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically.
+
+**Watch:** `--watch --format notion` is supported. Notion publishes on the baseline cycle and on cycles where `total_changes >= --watch-threshold`. Zero-change cycles and fetch-error cycles never publish. If Notion raises during a cycle, a `notion_watch_publish_failed` WARNING fires and the loop continues.
 
 ### Registry database (opt-in)
 
-Setting `NOTION_REGISTRY_DATABASE_ID` (or `--notion-registry-database`) enables a queryable database index alongside the detail pages: one row per RSID, with a `Page` url linking to the detail page. The `.notion_pages.json` registry file shape is unchanged, and leaving the variable unset keeps behavior identical to the page-only flow.
+Setting `NOTION_REGISTRY_DATABASE_ID` (or `--notion-registry-database`) enables a queryable database index alongside the detail pages: one row per RSID, with a `Page` url linking to the detail page. Leaving the variable unset keeps behavior identical to the page-only flow.
 
-Run `aa_auto_sdr --notion-print-database-schema` for the canonical property list to create in Notion. Required properties: `Name` (title), `RSID` (rich_text, the idempotency key), `Last Updated` (date), `Tool Version` (rich_text), and one `number` each for `Dimensions`, `Metrics`, `Segments`, `Calculated Metrics`, `Virtual Report Suites`, `Classifications`. Optional properties are created when present: `Page` (url), `Currency`, `Timezone`, `Parent RSID`, `Quality Verdict` (select), `Degraded Components` (multi_select).
+Run `aa_auto_sdr --notion-print-database-schema` for the canonical property list to create in Notion. Required properties: `Name` (title), `RSID` (rich_text, the idempotency key), `Last Updated` (date), `Tool Version` (rich_text), and one `number` each for `Dimensions`, `Metrics`, `Segments`, `Calculated Metrics`, `Virtual Report Suites`, `Classifications`. Optional properties are created when present: `Page` (url), `Currency`, `Timezone`, `Parent RSID`, `Quality Verdict` (select), `Degraded Components` (multi_select). There is also an optional `Company` (rich_text) property; when the database has a `Company` column and `--notion-company` (or `NOTION_REGISTRY_COMPANY`) is set, the row key becomes `(Company, RSID)` instead of RSID alone — allowing one database to hold multiple Adobe Analytics organizations.
 
-The detail page remains the primary artifact: if the database upsert fails (integration not invited, missing required property, 5xx), a `notion_registry_unavailable` WARN fires and the run continues. RSIDs are unique within a company but not across companies — point one database at one company, or RSID collisions will overwrite.
+The detail page remains the primary artifact: if the database upsert fails (integration not invited, missing required property, 5xx), a `notion_registry_unavailable` WARN fires and the run continues.
+
+### Registry file shape
+
+`.notion_pages.json` stores a per-RSID object: `{"current": "<page_id>", "superseded": ["<old_id>", ...]}`. The `superseded` list grows each time `--notion-force-new` repoints an RSID to a new page. The previous flat shape (`{rsid: page_id}`) still loads without migration.
+
+### Orphan pruning
+
+`--notion-prune-orphans` reads `.notion_pages.json` and archives (Notion trash, recoverable) every page in the `superseded` list, then removes the tombstones. Preview by default; `--yes` applies. A failed archive attempt leaves the tombstone in place and logs a `notion_page_archive_failed` WARNING — the remaining orphans can be retried on the next run.
+
+Note a narrow gap: if a `--notion-force-new` create call fails after Notion creates the page but before the id is recorded locally, no tombstone is written and the unreferenced page is invisible to `--notion-prune-orphans`. Such pages can be found and deleted manually in Notion.
+
+### Database schema repair
+
+`--notion-repair-database` compares the live registry database against the canonical schema and additively creates any missing properties. It never changes existing property types (type conflicts are printed and left untouched) and never deletes existing properties. Preview by default; `--yes` applies. Use this after adding `Company` support to an existing database: run `--notion-repair-database --yes` to add the `Company` column without touching the rest of the schema.
 
 ## Format aliases
 

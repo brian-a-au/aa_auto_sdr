@@ -266,7 +266,6 @@ def test_push_threads_company_to_upsert_row(tmp_path, monkeypatch):
     from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
 
     captured: dict = {}
-    original_upsert = None
 
     def fake_upsert_from_dict(client, **kwargs):
         captured.update(kwargs)

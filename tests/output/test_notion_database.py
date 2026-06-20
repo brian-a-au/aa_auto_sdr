@@ -23,8 +23,8 @@ def test_company_is_optional_property():
 def test_required_optional_derived_from_schema():
     derived_required = tuple(n for n, s in db.PROPERTY_SCHEMA.items() if s["required"])
     derived_optional = tuple(n for n, s in db.PROPERTY_SCHEMA.items() if not s["required"])
-    assert db.REQUIRED_PROPERTIES == derived_required
-    assert db.OPTIONAL_PROPERTIES == derived_optional
+    assert derived_required == db.REQUIRED_PROPERTIES
+    assert derived_optional == db.OPTIONAL_PROPERTIES
 
 
 def test_cheatsheet_mentions_company():
@@ -484,10 +484,7 @@ def test_filter_logs_dropped_optional(caplog):
     with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.output.notion_database"):
         out = db.filter_payload_to_schema(payload, db_props)
     assert "Company" not in out
-    assert any(
-        "notion_registry_property_missing" in r.message and "Company" in r.message
-        for r in caplog.records
-    )
+    assert any("notion_registry_property_missing" in r.message and "Company" in r.message for r in caplog.records)
 
 
 # --- company-aware _query_and_upsert filter tests ---

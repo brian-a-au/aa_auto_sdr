@@ -1,7 +1,5 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from aa_auto_sdr.cli.commands.notion_prune import run_notion_prune_orphans
 from aa_auto_sdr.output import notion_registry as reg

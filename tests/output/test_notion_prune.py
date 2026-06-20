@@ -52,7 +52,10 @@ def test_not_found_drops_tombstone(tmp_path):
     p = _seed(tmp_path)
     client = _ArchiveClient(not_found={"a"})
     result = prune.archive_orphans(
-        client, p, prune.collect_orphans(reg.load_registry(p)), dry_run=False,
+        client,
+        p,
+        prune.collect_orphans(reg.load_registry(p)),
+        dry_run=False,
         not_found_types=(_NotFound,),
     )
     assert reg.load_registry(p)["rs1"]["superseded"] == []
@@ -78,7 +81,10 @@ def test_generic_exception_records_failure_preserves_tombstone(tmp_path):
     p = _seed(tmp_path)
     client = _ErrorClient(RuntimeError("boom"))
     result = prune.archive_orphans(
-        client, p, prune.collect_orphans(reg.load_registry(p)), dry_run=False,
+        client,
+        p,
+        prune.collect_orphans(reg.load_registry(p)),
+        dry_run=False,
         not_found_types=(_NotFound,),
     )
     # page lands in failed with (rsid, page_id, exc_type_name)

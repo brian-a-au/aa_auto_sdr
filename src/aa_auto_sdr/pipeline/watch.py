@@ -216,7 +216,7 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
 
     try:
         current_doc = ctx.fetcher.fetch_snapshot(rsid)
-    except (KeyboardInterrupt, SystemExit):
+    except KeyboardInterrupt, SystemExit:
         raise
     except Exception as e:  # cycle errors are non-fatal to the loop
         return CycleResult.fetch_error(

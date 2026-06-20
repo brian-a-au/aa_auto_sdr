@@ -369,7 +369,9 @@ def _run_impl(
                 elif fmt == "notion":
                     from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME
 
-                    print(f"  {output_dir / REGISTRY_FILENAME} (Notion page registry; pages are written to Notion, not disk)")
+                    print(
+                        f"  {output_dir / REGISTRY_FILENAME} (Notion page registry; pages are written to Notion, not disk)"
+                    )
                 else:
                     ext = ext_map.get(fmt, fmt)
                     print(f"  {output_dir / f'{canonical_rsid}.{ext}'}")

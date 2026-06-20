@@ -471,7 +471,7 @@ def test_writer_threads_company_to_upsert(monkeypatch, tmp_path):
     monkeypatch.setattr("aa_auto_sdr.output.writers.notion.upsert_row", fake_upsert)
     monkeypatch.setattr(
         "aa_auto_sdr.output.writers.notion.resolve_notion_database_id",
-        lambda **kwargs: "db1",
+        lambda **_kwargs: "db1",
     )
     monkeypatch.setenv("NOTION_TOKEN", "tok")
     monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")

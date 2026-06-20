@@ -2,10 +2,26 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.20.0] — Unreleased
+## [1.20.0] — 2026-06-20
+
+The Notion integration gains three new standalone modes and two lifted constraints. `--notion-prune-orphans` archives pages that were orphaned by `--notion-force-new`. `--notion-repair-database` additively fixes a registry database whose schema has drifted from the canonical layout. `--notion-company` (and `NOTION_REGISTRY_COMPANY`) adds an optional `Company` column to the registry so one database can index multiple Adobe Analytics organizations. `--watch --format notion` is now supported, publishing to Notion on the baseline cycle and on cycles where changes meet `--watch-threshold`. `--batch --format notion --workers N>1` is now supported; a process-level lock guards `.notion_pages.json` against races.
 
 ### Added
-- (Details to be filled in)
+- `--notion-prune-orphans` — standalone mode; reads `.notion_pages.json` and archives (Notion trash, recoverable) every page recorded under a per-RSID `superseded` list. Preview by default; `--yes` sends the archive requests.
+- `--notion-repair-database` — standalone mode; compares the live registry database schema against the canonical property list and additively creates any missing properties. Never changes existing property types; type conflicts are reported and left untouched. Preview by default; `--yes` applies. Requires a database id (`NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`).
+- `--notion-company NAME` — optional `Company` column for the registry database row; when set, the registry row key becomes `(Company, RSID)` instead of RSID alone, allowing one database to hold multiple organizations without RSID collisions. Env-var equivalent: `NOTION_REGISTRY_COMPANY`. Precedence: flag → env → Adobe global company id on the generate path; push path uses flag/env only.
+- `--yes` / `-y` — confirms the two Notion destructive actions (`--notion-prune-orphans`, `--notion-repair-database`) when called without `--dry-run`.
+- New debug events now emitted: `notion_registry_property_missing` (DEBUG, fired when an optional registry property is absent from the live database), `notion_registry_skipped` (DEBUG, fired when no database id resolves and the registry step is skipped).
+
+### Changed
+- `--watch --format notion` is now supported. Notion publishes on the baseline cycle and on every `change` event (cycles where `total_changes >= --watch-threshold`). Zero-change cycles and fetch-error cycles never publish.
+- `--batch --format notion --workers N>1` (parallel batch with Notion output) is now supported. A process-level lock serializes writes to `.notion_pages.json` so concurrent workers do not race. Note: Notion's API rate limit is approximately 3 requests/s; the client retries HTTP 429 responses automatically.
+- `.notion_pages.json` per-RSID value is now `{"current": "<page_id>", "superseded": ["<old_id>", ...]}`. The previous flat shape (`{rsid: page_id}`) still loads without migration.
+
+### Internals
+- `output/notion_registry.py`: `collect_superseded` / `drop_superseded` helpers for the `superseded` list; `_REGISTRY_LOCK` (`threading.Lock`) guards all atomic registry writes so parallel workers are safe.
+- `output/notion_database.py`: `PROPERTY_SCHEMA` dict is now the single canonical source of truth for the registry database schema. `repair_database()` uses it to compute the diff. The `Company` `rich_text` property is part of the schema and is created by `--notion-repair-database --yes` when absent.
+- New event: `notion_property_created` (INFO, emitted by `--notion-repair-database --yes` for each property added), `notion_repair_type_conflict` (WARNING, reported when a property's existing type differs from the canonical type), `notion_repair_complete` (INFO), `notion_prune_planned` (INFO), `notion_page_archived` (INFO), `notion_page_archive_failed` (WARNING), `notion_prune_complete` (INFO), `notion_watch_publish_failed` (WARNING, emitted when Notion publish raises during a watch cycle — the cycle continues).
 
 ## [1.19.0] — 2026-06-19
 

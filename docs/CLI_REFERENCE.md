@@ -419,8 +419,9 @@ aa_auto_sdr --push-to-notion ~/.aa/orgs/acme/snapshots/examplersid1/2026-05-14T1
 aa_auto_sdr examplersid1 --format notion --notion-force-new
 aa_auto_sdr --push-to-notion ./reports/examplersid1.json --notion-force-new
 
-# Batch with Notion — serial only; --workers N>1 rejected with --format notion
+# Batch with Notion — serial or parallel (a process-level lock protects .notion_pages.json)
 aa_auto_sdr --batch examplersid1 examplersid2 --format notion
+aa_auto_sdr --batch examplersid1 examplersid2 --format notion --workers 4
 ```
 
 ### Registry database
@@ -430,6 +431,7 @@ Set `NOTION_REGISTRY_DATABASE_ID` to also upsert one row per RSID into a Notion 
 - `--notion-registry-database <DATABASE_ID>` — override `NOTION_REGISTRY_DATABASE_ID` for this run. Requires `--format notion` or `--push-to-notion`.
 - `--no-notion-registry` — skip the registry-database upsert even when the env var is set. The detail page is still written. Requires `--format notion` or `--push-to-notion`.
 - `--notion-print-database-schema` — print the canonical property names and types for the registry database and exit. Fast-path: no AA or Notion API calls.
+- `--notion-company NAME` — write `NAME` to the `Company` column of each registry row. When set, the registry row key becomes `(Company, RSID)` instead of RSID alone, which lets one database index multiple Adobe Analytics organizations without RSID collisions. Env-var equivalent: `NOTION_REGISTRY_COMPANY`. Precedence: flag → env → resolved Adobe global company id (generate path); push path uses flag or env only.
 
 ```bash
 # Print the schema to create in Notion, then enable the registry
@@ -439,6 +441,40 @@ aa_auto_sdr examplersid1 --format notion          # writes detail page + upserts
 
 # Disable the registry for one run
 aa_auto_sdr examplersid1 --format notion --no-notion-registry
+
+# Tag rows with a company name (multi-org registry)
+aa_auto_sdr examplersid1 --format notion --notion-company "Acme Corp"
+```
+
+### Notion maintenance modes
+
+Two standalone modes maintain the Notion integration without generating SDRs. Both default to **preview** (no changes) and require `--yes` to apply.
+
+```bash
+# Preview which orphaned pages would be archived
+aa_auto_sdr --notion-prune-orphans
+
+# Archive them (moves to Notion trash, recoverable)
+aa_auto_sdr --notion-prune-orphans --yes
+
+# Preview which registry-database properties are missing
+aa_auto_sdr --notion-repair-database
+
+# Add the missing properties
+aa_auto_sdr --notion-repair-database --yes
+```
+
+- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared.
+- `--notion-repair-database` — compares the live registry database schema against the canonical layout (`--notion-print-database-schema`) and additively creates any missing properties. Never changes existing property types or deletes existing properties; type conflicts are reported and left untouched. Requires a database id (`NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`).
+- `--yes` / `-y` — confirms the two destructive actions above. Required for non-tty stdin; refuses with `USAGE` (2) otherwise.
+
+### Watch with Notion
+
+`--watch --format notion` is supported. Notion publishes on the baseline cycle and on every cycle where `total_changes >= --watch-threshold`. Zero-change cycles and fetch-error cycles never publish. A `notion_watch_publish_failed` WARNING fires if a Notion call raises during a cycle; the watch loop continues.
+
+```bash
+# Publish to Notion whenever the report suite changes
+aa_auto_sdr examplersid1 --watch --interval 1h --format notion
 ```
 
 | Flag | Description |
@@ -446,8 +482,11 @@ aa_auto_sdr examplersid1 --format notion --no-notion-registry
 | `--format notion` | Publish SDR to a Notion page as part of generation |
 | `--push-to-notion FILE` | Push existing JSON/snapshot artifact to Notion (standalone mode) |
 | `--notion-force-new` | Always create a new page, ignoring `.notion_pages.json` |
+| `--notion-prune-orphans` | Archive pages in the `superseded` list (preview; `--yes` to apply) |
+| `--notion-repair-database` | Add missing registry database properties (preview; `--yes` to apply) |
+| `--notion-company NAME` | Tag registry rows with a company name; enables multi-org keying |
 
-Re-runs update the existing Notion page in place. Page IDs are tracked in `.notion_pages.json` in the output directory (or the input file's parent for `--push-to-notion`). `--watch --format notion` and `--batch ... --format notion --workers N>1` are rejected at dispatch with `ExitCode.USAGE` — concurrent writes to the registry would race.
+Re-runs update the existing Notion page in place. Page IDs are tracked in `.notion_pages.json` in the output directory (or the input file's parent for `--push-to-notion`). Parallel batch (`--workers N>1`) is supported; a process-level lock serializes registry writes. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically.
 
 ## Machine-readable errors
 
