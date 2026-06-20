@@ -8,7 +8,29 @@ from unittest.mock import MagicMock
 import pytest
 
 from aa_auto_sdr.api import models
+from aa_auto_sdr.output import notion_database as db
 from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
+
+
+def test_company_is_optional_property():
+    assert "Company" in db.PROPERTY_SCHEMA
+    assert db.PROPERTY_SCHEMA["Company"]["required"] is False
+    assert db.PROPERTY_SCHEMA["Company"]["type"] == "rich_text"
+    assert "Company" in db.OPTIONAL_PROPERTIES
+    assert "Company" not in db.REQUIRED_PROPERTIES
+
+
+def test_required_optional_derived_from_schema():
+    derived_required = tuple(n for n, s in db.PROPERTY_SCHEMA.items() if s["required"])
+    derived_optional = tuple(n for n, s in db.PROPERTY_SCHEMA.items() if not s["required"])
+    assert db.REQUIRED_PROPERTIES == derived_required
+    assert db.OPTIONAL_PROPERTIES == derived_optional
+
+
+def test_cheatsheet_mentions_company():
+    text = db.schema_cheatsheet()
+    assert "Company" in text
+    assert "RSID" in text
 
 
 def _make_doc(

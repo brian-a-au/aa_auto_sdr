@@ -20,27 +20,31 @@ from aa_auto_sdr.sdr.document import SdrDocument
 logger = logging.getLogger(__name__)
 
 
-REQUIRED_PROPERTIES: tuple[str, ...] = (
-    "Name",
-    "RSID",
-    "Last Updated",
-    "Tool Version",
-    "Dimensions",
-    "Metrics",
-    "Segments",
-    "Calculated Metrics",
-    "Virtual Report Suites",
-    "Classifications",
-)
+# Single source of truth for the registry database schema. The upsert payload,
+# the repair command (--notion-repair-database), and the cheatsheet
+# (--notion-print-database-schema) all derive from this table.
+PROPERTY_SCHEMA: dict[str, dict] = {
+    "Name": {"type": "title", "required": True, "definition": {"title": {}}},
+    "RSID": {"type": "rich_text", "required": True, "definition": {"rich_text": {}}},
+    "Last Updated": {"type": "date", "required": True, "definition": {"date": {}}},
+    "Tool Version": {"type": "rich_text", "required": True, "definition": {"rich_text": {}}},
+    "Dimensions": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Metrics": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Segments": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Calculated Metrics": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Virtual Report Suites": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Classifications": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Page": {"type": "url", "required": False, "definition": {"url": {}}},
+    "Company": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Currency": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Timezone": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Parent RSID": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Quality Verdict": {"type": "select", "required": False, "definition": {"select": {}}},
+    "Degraded Components": {"type": "multi_select", "required": False, "definition": {"multi_select": {}}},
+}
 
-OPTIONAL_PROPERTIES: tuple[str, ...] = (
-    "Page",
-    "Currency",
-    "Timezone",
-    "Parent RSID",
-    "Quality Verdict",
-    "Degraded Components",
-)
+REQUIRED_PROPERTIES: tuple[str, ...] = tuple(n for n, s in PROPERTY_SCHEMA.items() if s["required"])
+OPTIONAL_PROPERTIES: tuple[str, ...] = tuple(n for n, s in PROPERTY_SCHEMA.items() if not s["required"])
 
 
 class NotionRegistryError(Exception):
@@ -292,37 +296,21 @@ def upsert_row_from_dict(
     return _query_and_upsert(client, data_source_id, rsid, payload)
 
 
-_SCHEMA_CHEATSHEET = """\
-Notion SDR Registry Database — required schema for aa_auto_sdr v1.19.0
-======================================================================
-
-Required properties:
-  Name                    title
-  RSID                    rich_text
-  Last Updated            date
-  Tool Version            rich_text
-  Dimensions              number
-  Metrics                 number
-  Segments                number
-  Calculated Metrics      number
-  Virtual Report Suites   number
-  Classifications         number
-
-Optional properties (created when present on the database):
-  Page                    url             -> link to the SDR detail page
-  Currency                rich_text
-  Timezone                rich_text
-  Parent RSID             rich_text
-  Quality Verdict         select          (suggested options: pass, warn, fail, n/a)
-  Degraded Components     multi_select
-
-To enable the registry, set:
-  NOTION_REGISTRY_DATABASE_ID=<your-database-id>
-"""
-
-
 def schema_cheatsheet() -> str:
-    """Return the canonical schema cheatsheet text printed by
-    ``--notion-print-database-schema``.
+    """Return the canonical schema cheatsheet printed by
+    ``--notion-print-database-schema``, derived from PROPERTY_SCHEMA.
     """
-    return _SCHEMA_CHEATSHEET
+    req = "\n".join(f"  {name:<23} {PROPERTY_SCHEMA[name]['type']}" for name in REQUIRED_PROPERTIES)
+    opt = "\n".join(f"  {name:<23} {PROPERTY_SCHEMA[name]['type']}" for name in OPTIONAL_PROPERTIES)
+    return (
+        "Notion SDR Registry Database — required schema for aa_auto_sdr\n"
+        "==============================================================\n\n"
+        "Required properties:\n"
+        f"{req}\n\n"
+        "Optional properties (created when present on the database):\n"
+        f"{opt}\n\n"
+        "Company enables multi-company databases: when set, rows are keyed by\n"
+        "(Company, RSID) instead of RSID alone.\n\n"
+        "To enable the registry, set:\n"
+        "  NOTION_REGISTRY_DATABASE_ID=<your-database-id>\n"
+    )
