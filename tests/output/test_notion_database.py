@@ -65,12 +65,15 @@ def test_build_row_properties_name_falls_back_to_rsid():
     assert props["Name"]["title"][0]["text"]["content"] == "examplersid1"
 
 
-def test_build_row_properties_relation_to_detail_page():
+def test_build_row_properties_links_to_detail_page():
     from aa_auto_sdr.output.notion_database import build_row_properties
 
     doc = _make_doc()
     props = build_row_properties(doc, detail_page_id="page-abc")
-    assert props["Page"]["relation"] == [{"id": "page-abc"}]
+    # Page is a url property, not a relation: detail pages live under a parent
+    # page, not as rows in the relation's target database, so a relation value
+    # would be rejected by Notion. See notion_database._detail_page_url.
+    assert props["Page"]["url"] == "https://www.notion.so/pageabc"
 
 
 def test_build_row_properties_optional_fields_present():

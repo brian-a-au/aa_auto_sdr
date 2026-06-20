@@ -2,7 +2,7 @@
 
 The registry database (opt-in via ``NOTION_REGISTRY_DATABASE_ID``) sits
 alongside the v1.18.0 detail pages: one row per RSID, keyed by the
-``RSID`` rich-text property, with a ``Page`` relation pointing at the
+``RSID`` rich-text property, with a ``Page`` url linking to the
 detail page. This module is pure where possible — :func:`build_row_properties`
 takes data in and returns Notion property dicts; :func:`upsert_row` performs
 the three SDK calls (``databases.retrieve``, ``databases.query``, then
@@ -59,13 +59,23 @@ def _title(content: str) -> dict[str, Any]:
     return {"title": [{"type": "text", "text": {"content": content}}]}
 
 
+def _detail_page_url(page_id: str) -> str:
+    """Notion URL for a detail page id, used by the registry row's ``Page``
+    link property. A ``relation`` cannot be used here: detail pages live under
+    a parent page, not as rows in the relation's target database, so Notion
+    rejects a relation value pointing at them. A ``url`` property links to the
+    page from the registry row without that constraint.
+    """
+    return f"https://www.notion.so/{page_id.replace('-', '')}"
+
+
 def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[str, Any]:
     """Build the full property payload for a database row.
 
     Caller filters the result against the database's actual property list
     via :func:`filter_payload_to_schema` before sending. ``detail_page_id``
     may be ``None`` if the detail-page write was skipped; the ``Page``
-    relation is omitted in that case (filter still drops it).
+    link is omitted in that case (filter still drops it).
     """
     rs = doc.report_suite
     name = rs.name or rs.rsid
@@ -100,7 +110,7 @@ def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[s
         },
     }
     if detail_page_id is not None:
-        props["Page"] = {"relation": [{"id": detail_page_id}]}
+        props["Page"] = {"url": _detail_page_url(detail_page_id)}
     return props
 
 
@@ -166,7 +176,7 @@ def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) ->
         },
     }
     if detail_page_id is not None:
-        props["Page"] = {"relation": [{"id": detail_page_id}]}
+        props["Page"] = {"url": _detail_page_url(detail_page_id)}
     return props
 
 
@@ -289,7 +299,7 @@ Required properties:
   Classifications         number
 
 Optional properties (created when present on the database):
-  Page                    relation        -> set to the SDR detail page parent
+  Page                    url             -> link to the SDR detail page
   Currency                rich_text
   Timezone                rich_text
   Parent RSID             rich_text
