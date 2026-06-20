@@ -313,3 +313,26 @@ def test_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
     err = capsys.readouterr().err.lower()
     assert "workers" in err
     assert "notion" in err
+
+
+# --- v1.19.0: registry-database flags ---
+
+
+def test_parser_accepts_notion_registry_database():
+    ns = build_parser().parse_args(
+        ["examplersid1", "--format", "notion", "--notion-registry-database", "db-id"]
+    )
+    assert ns.notion_registry_database == "db-id"
+
+
+def test_parser_accepts_no_notion_registry():
+    ns = build_parser().parse_args(
+        ["examplersid1", "--format", "notion", "--no-notion-registry"]
+    )
+    assert ns.no_notion_registry is True
+
+
+def test_parser_defaults_for_new_flags():
+    ns = build_parser().parse_args(["examplersid1"])
+    assert ns.notion_registry_database is None
+    assert ns.no_notion_registry is False

@@ -794,5 +794,29 @@ def build_parser() -> argparse.ArgumentParser:
             ".notion_pages.json."
         ),
     )
+    notion_group.add_argument(
+        "--notion-registry-database",
+        type=str,
+        default=None,
+        metavar="DATABASE_ID",
+        dest="notion_registry_database",
+        help=(
+            "Override NOTION_REGISTRY_DATABASE_ID for this run. When set "
+            "(via flag or env var), --format notion / --push-to-notion runs "
+            "also upsert a row into the named Notion SDR Registry database. "
+            "(v1.19.0)"
+        ),
+    )
+    notion_group.add_argument(
+        "--no-notion-registry",
+        action="store_true",
+        default=False,
+        dest="no_notion_registry",
+        help=(
+            "Skip the registry database upsert for this run even when "
+            "NOTION_REGISTRY_DATABASE_ID is set. The detail page is still "
+            "written. (v1.19.0)"
+        ),
+    )
 
     return p
