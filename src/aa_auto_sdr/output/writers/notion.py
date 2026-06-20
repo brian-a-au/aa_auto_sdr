@@ -111,7 +111,8 @@ class NotionWriter:
     ``force_new`` is a per-run instance attribute mutated by
     :mod:`aa_auto_sdr.pipeline.single` before ``write()`` is called —
     mirrors how ``excel-template`` threads ``template_path`` /
-    ``template_organization`` (see ``pipeline/single.py:54-59``).
+    ``template_organization`` (see the ``"notion" in formats`` block in
+    ``pipeline/single.py``).
     Defaulted to False on the registered singleton.
     """
 

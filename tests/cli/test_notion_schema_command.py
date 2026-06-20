@@ -36,3 +36,13 @@ def test_fastpath_dispatch_in_main_skips_heavy_imports():
     forbidden = {"pandas", "aanalytics2", "notion_client", "xlsxwriter"}
     leaked = newly_imported & forbidden
     assert not leaked, f"Fast-path leaked heavy imports: {leaked}"
+
+
+def test_print_schema_combined_with_args_exits_usage(capsys):
+    """Print-and-exit must be used alone; combining it with work is USAGE."""
+    from aa_auto_sdr.__main__ import main as entry
+
+    rc = entry(["--notion-print-database-schema", "examplersid1"])
+    out = capsys.readouterr().out
+    assert rc == 2
+    assert "cannot be combined" in out

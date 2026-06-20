@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## [1.19.0] — 2026-06-19
 
-Notion gains an opt-in **SDR Registry database**: one database row per RSID, keyed by an `RSID` rich-text property, with a relation to the v1.18.0 detail page. The local `.notion_pages.json` registry shape is unchanged.
+Notion gains an opt-in **SDR Registry database**: one database row per RSID, keyed by an `RSID` rich-text property, with a `url` link to the v1.18.0 detail page. The local `.notion_pages.json` registry shape is unchanged.
 
 ### Added
 - `NOTION_REGISTRY_DATABASE_ID` env var — when set, `--format notion` and `--push-to-notion` runs also upsert a row into the named Notion database after writing the detail page.
@@ -13,7 +13,7 @@ Notion gains an opt-in **SDR Registry database**: one database row per RSID, key
 - `--notion-print-database-schema` — fast-path command that prints the canonical property names and types so manual database setup is mechanical.
 
 ### Forward-compat
-- `.notion_pages.json` shape is unchanged. v1.18.0 registries load on v1.19.0 with no migration. Database row IDs are not persisted locally; they are recovered each run via `databases.query` keyed by the `RSID` property.
+- `.notion_pages.json` shape is unchanged. v1.18.0 registries load on v1.19.0 with no migration. Database row IDs are not persisted locally; they are recovered each run via `data_sources.query` keyed by the `RSID` property.
 
 ### Constraints
 - `--watch --format notion` and `--batch --format notion --workers N>1` remain rejected (v1.18.0 rationale unchanged).
