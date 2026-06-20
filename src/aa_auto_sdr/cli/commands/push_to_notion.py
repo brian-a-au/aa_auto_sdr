@@ -53,50 +53,35 @@ def _extract_rsid_and_title(payload: dict) -> tuple[str, str]:
     return rsid, f"{name} ({rsid}) — SDR"
 
 
-def run_push_to_notion(
-    json_file: str,
-    output_dir: str | None,
-    force_new: bool,
+def publish_payload_to_notion(
+    client: object,
+    payload: dict,
     *,
-    notion_registry_database: str | None = None,
-    no_notion_registry: bool = False,
-    notion_company: str | None = None,
-) -> int:
-    path = Path(json_file)
-    if not path.exists():
-        print(
-            f"error: --push-to-notion: file not found: {json_file}",
-            file=sys.stderr,
-        )
-        return int(ExitCode.GENERIC)
+    parent_page_id: str,
+    registry_path: Path,
+    force_new: bool,
+    database_id: str | None,
+    disable_registry: bool,
+    company: str | None,
+) -> str:
+    """Publish an SDR payload dict to Notion and return the page id.
 
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        print(
-            f"error: --push-to-notion: invalid JSON in {json_file}: {exc}",
-            file=sys.stderr,
-        )
-        return int(ExitCode.GENERIC)
+    This helper contains the core publish logic shared between
+    ``run_push_to_notion`` and the watch-mode Notion publisher. It does NOT
+    print anything — callers decide what to do with the returned page id.
 
-    try:
-        blocks = build_blocks_from_dict(payload)
-        rsid, page_title = _extract_rsid_and_title(payload)
-    except (ValueError, KeyError) as exc:
-        print(
-            f"error: --push-to-notion: unrecognized payload shape in {json_file}: {exc}",
-            file=sys.stderr,
-        )
-        return int(ExitCode.GENERIC)
+    Steps:
+      1. Build Notion blocks from the payload.
+      2. Create or update the detail page via ``_create_or_update_page``.
+      3. Resolve the registry database id and (if not None) upsert a row.
+         Database errors WARN and continue — the detail page is primary.
 
-    Client = _require_notion_client()
-    token, parent_page_id = resolve_notion_credentials()
-
-    effective_output_dir = Path(output_dir) if output_dir else path.parent
-    registry_path = get_registry_path(effective_output_dir)
+    Raises ``ValueError`` / ``KeyError`` if the payload shape is unrecognized.
+    """
+    blocks = build_blocks_from_dict(payload)
+    rsid, page_title = _extract_rsid_and_title(payload)
 
     started = time.monotonic()
-    client = Client(auth=token)
     page_id = _create_or_update_page(
         client,
         parent_page_id,
@@ -119,21 +104,19 @@ def run_push_to_notion(
             "rsid": rsid,
         },
     )
-    print(f"notion://pages/{page_id}")
 
-    # v1.19.0 — opt-in registry database upsert. Same partial-failure rule as
-    # the writer path: detail page is primary; DB errors WARN and continue.
-    database_id = resolve_notion_database_id(
-        cli_override=notion_registry_database,
-        disabled=no_notion_registry,
+    # Opt-in registry database upsert. Same partial-failure rule as the writer
+    # path: detail page is primary; DB errors WARN and continue.
+    resolved_database_id = resolve_notion_database_id(
+        cli_override=database_id,
+        disabled=disable_registry,
     )
-    company = resolve_notion_company(cli_override=notion_company, aa_company_id=None)
-    if database_id is not None:
+    if resolved_database_id is not None:
         db_started = time.monotonic()
         try:
             row_id = upsert_row_from_dict(
                 client,
-                database_id=database_id,
+                database_id=resolved_database_id,
                 rsid=rsid,
                 detail_page_id=page_id,
                 payload_dict=payload,
@@ -161,4 +144,71 @@ def run_push_to_notion(
                 exc,
             )
 
+    return page_id
+
+
+def run_push_to_notion(
+    json_file: str,
+    output_dir: str | None,
+    force_new: bool,
+    *,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
+    notion_company: str | None = None,
+) -> int:
+    path = Path(json_file)
+    if not path.exists():
+        print(
+            f"error: --push-to-notion: file not found: {json_file}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.GENERIC)
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        print(
+            f"error: --push-to-notion: invalid JSON in {json_file}: {exc}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.GENERIC)
+
+    try:
+        _extract_rsid_and_title(payload)  # validate shape early for a clear error
+    except (ValueError, KeyError) as exc:
+        print(
+            f"error: --push-to-notion: unrecognized payload shape in {json_file}: {exc}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.GENERIC)
+
+    Client = _require_notion_client()
+    token, parent_page_id = resolve_notion_credentials()
+
+    effective_output_dir = Path(output_dir) if output_dir else path.parent
+    registry_path = get_registry_path(effective_output_dir)
+
+    client = Client(auth=token)
+    company = resolve_notion_company(cli_override=notion_company, aa_company_id=None)
+
+    try:
+        page_id = publish_payload_to_notion(
+            client,
+            payload,
+            parent_page_id=parent_page_id,
+            registry_path=registry_path,
+            force_new=force_new,
+            database_id=notion_registry_database,
+            disable_registry=no_notion_registry,
+            company=company,
+        )
+    except (ValueError, KeyError) as exc:
+        # Should not happen — we validated above, but guard anyway.
+        print(
+            f"error: --push-to-notion: unrecognized payload shape in {json_file}: {exc}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.GENERIC)
+
+    print(f"notion://pages/{page_id}")
     return int(ExitCode.OK)

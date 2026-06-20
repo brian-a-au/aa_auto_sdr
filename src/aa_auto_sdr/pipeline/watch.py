@@ -14,6 +14,7 @@ in `cli/commands/watch.py`. This module is fully unit-testable with fakes.
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -22,6 +23,8 @@ from typing import Any, Literal, Protocol
 
 from aa_auto_sdr.snapshot.git import GitOpResult, generate_commit_message, git_commit_snapshot
 from aa_auto_sdr.snapshot.models import DiffReport
+
+logger = logging.getLogger(__name__)
 
 # --- Stop token ------------------------------------------------------------
 
@@ -75,6 +78,17 @@ class Emitter(Protocol):
     def emit(self, payload: dict[str, Any]) -> None: ...
 
 
+class NotionPublisher(Protocol):
+    """Publishes an SDR snapshot to Notion. Called by the watch loop after a
+    baseline or real-change cycle when ``--format notion`` is active.
+
+    Implementations must not raise; they should log and swallow errors so that
+    a transient Notion failure never kills the watch loop.
+    """
+
+    def publish(self, *, snapshot_path: Path, rsid: str) -> None: ...
+
+
 # --- Context ---------------------------------------------------------------
 
 
@@ -95,6 +109,9 @@ class WatchContext:
     git_push: bool = False
     git_message: str | None = None
     snapshot_dir: Path | None = None
+    # v1.20.0 — optional Notion publisher. When set and --format notion is active,
+    # the loop publishes the snapshot after baseline and real-change cycles.
+    notion_publisher: NotionPublisher | None = None
 
 
 # --- Cycle result ----------------------------------------------------------
@@ -199,7 +216,7 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
 
     try:
         current_doc = ctx.fetcher.fetch_snapshot(rsid)
-    except KeyboardInterrupt, SystemExit:
+    except (KeyboardInterrupt, SystemExit):
         raise
     except Exception as e:  # cycle errors are non-fatal to the loop
         return CycleResult.fetch_error(
@@ -261,6 +278,24 @@ def _should_emit(result: CycleResult, *, threshold: int) -> bool:
     if threshold == 0:
         return True
     return _total_changes(result.diff) >= threshold
+
+
+def _should_publish(result: CycleResult, *, threshold: int) -> bool:
+    """Decide whether to publish this cycle's snapshot to Notion.
+
+    Rules:
+      * baseline → always publish (establishes the initial page).
+      * fetch_error → never publish (no snapshot available).
+      * diffed → publish when total_changes >= max(threshold, 1).
+                 Zero-change cycles are never published regardless of threshold
+                 because publishing an unchanged SDR is noise.
+    """
+    if result.kind == "baseline":
+        return True
+    if result.kind == "fetch_error":
+        return False
+    assert result.diff is not None  # type guard — kind == "diffed"
+    return _total_changes(result.diff) >= max(threshold, 1)
 
 
 def _iso_z(ts: datetime) -> str:
@@ -461,6 +496,22 @@ def run_watch_loop(
             if _should_emit(result, threshold=threshold):
                 result = _maybe_commit(ctx, result, cycle_n=cycle_n)
                 _emit_cycle(ctx, result, cycle_n=cycle_n)
+            if (
+                ctx.notion_publisher is not None
+                and result.snapshot_path is not None
+                and _should_publish(result, threshold=threshold)
+            ):
+                try:
+                    ctx.notion_publisher.publish(
+                        snapshot_path=result.snapshot_path,
+                        rsid=rsid,
+                    )
+                except Exception:
+                    logger.warning(
+                        "notion_watch_publish_failed rsid=%s",
+                        rsid,
+                        exc_info=True,
+                    )
         cycle_n += 1
         if max_cycles is not None and cycle_n >= max_cycles:
             return ExitCode.OK, cycle_n
