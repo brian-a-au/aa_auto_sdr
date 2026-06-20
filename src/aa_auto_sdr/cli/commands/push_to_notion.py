@@ -17,6 +17,11 @@ from aa_auto_sdr.output.notion_blocks import build_blocks_from_dict
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
     resolve_notion_credentials,
+    resolve_notion_database_id,
+)
+from aa_auto_sdr.output.notion_database import (
+    NotionRegistryError,
+    upsert_row_from_dict,
 )
 from aa_auto_sdr.output.notion_registry import get_registry_path
 from aa_auto_sdr.output.writers.notion import _create_or_update_page
@@ -51,6 +56,9 @@ def run_push_to_notion(
     json_file: str,
     output_dir: str | None,
     force_new: bool,
+    *,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> int:
     path = Path(json_file)
     if not path.exists():
@@ -110,4 +118,43 @@ def run_push_to_notion(
         },
     )
     print(f"notion://pages/{page_id}")
+
+    # v1.19.0 — opt-in registry database upsert. Same partial-failure rule as
+    # the writer path: detail page is primary; DB errors WARN and continue.
+    database_id = resolve_notion_database_id(
+        cli_override=notion_registry_database,
+        disabled=no_notion_registry,
+    )
+    if database_id is not None:
+        db_started = time.monotonic()
+        try:
+            row_id = upsert_row_from_dict(
+                client,
+                database_id=database_id,
+                rsid=rsid,
+                detail_page_id=page_id,
+                payload_dict=payload,
+            )
+            db_duration_ms = int((time.monotonic() - db_started) * 1000)
+            logger.info(
+                "notion_registry_upserted rsid=%s row=%s duration_ms=%s",
+                rsid,
+                row_id,
+                db_duration_ms,
+                extra={"rsid": rsid, "notion_row_id": row_id, "duration_ms": db_duration_ms},
+            )
+        except NotionRegistryError as exc:
+            logger.warning(
+                "notion_registry_unavailable rsid=%s reason=schema_mismatch detail=%s",
+                rsid,
+                exc,
+            )
+        except Exception as exc:  # DB failure must not sink the push
+            logger.warning(
+                "notion_registry_unavailable rsid=%s reason=%s detail=%s",
+                rsid,
+                type(exc).__name__,
+                exc,
+            )
+
     return int(ExitCode.OK)

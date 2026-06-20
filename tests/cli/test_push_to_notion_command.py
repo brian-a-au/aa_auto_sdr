@@ -172,3 +172,67 @@ def test_push_to_notion_force_new_creates_fresh_page(tmp_path, monkeypatch):
     mock_client.pages.create.assert_called_once()
     reg = json.loads((tmp_path / ".notion_pages.json").read_text())
     assert reg["examplersid1"] == "fresh-page"
+
+
+# --- v1.19.0: registry-database threading on the push path ---
+
+
+def test_push_threads_database_upsert_when_configured(tmp_path, monkeypatch):
+    """Push path upserts a registry row when the database is configured (env)."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "db-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    mock_client = MagicMock()
+    mock_client.pages.create.side_effect = [{"id": "page-1"}, {"id": "row-1"}]
+    mock_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    mock_client.databases.retrieve.return_value = {
+        "properties": {p: {"type": "x"} for p in (
+            "Name", "RSID", "Last Updated", "Tool Version",
+            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
+            "Virtual Report Suites", "Classifications",
+        )},
+    }
+    mock_client.databases.query.return_value = {"results": []}
+    Client_factory = MagicMock(return_value=mock_client)
+
+    with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
+        exit_code = pt_mod.run_push_to_notion(
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
+            notion_registry_database=None,  # use env
+            no_notion_registry=False,
+        )
+
+    assert exit_code == 0
+    mock_client.databases.retrieve.assert_called_once_with(database_id="db-id")
+
+
+def test_push_skips_database_when_disabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "db-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    mock_client = MagicMock()
+    mock_client.pages.create.return_value = {"id": "page-1"}
+    mock_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    Client_factory = MagicMock(return_value=mock_client)
+
+    with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
+        exit_code = pt_mod.run_push_to_notion(
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
+            notion_registry_database=None,
+            no_notion_registry=True,
+        )
+
+    assert exit_code == 0
+    mock_client.databases.retrieve.assert_not_called()

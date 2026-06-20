@@ -525,6 +525,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             ns.push_to_notion,
             output_dir=explicit_output_dir,
             force_new=getattr(ns, "notion_force_new", False),
+            notion_registry_database=getattr(ns, "notion_registry_database", None),
+            no_notion_registry=getattr(ns, "no_notion_registry", False),
         )
 
     from aa_auto_sdr.core import colors
