@@ -56,3 +56,30 @@ def resolve_notion_credentials() -> tuple[str, str]:
         sys.exit(1)
 
     return token, parent_page_id
+
+
+def resolve_notion_database_id(
+    *,
+    cli_override: str | None,
+    disabled: bool,
+) -> str | None:
+    """Return the configured Notion registry database ID or ``None``.
+
+    Resolution order:
+
+    1. ``disabled=True`` short-circuits to ``None`` regardless of env / flag.
+    2. ``cli_override`` (from ``--notion-registry-database``) wins over env.
+    3. ``NOTION_REGISTRY_DATABASE_ID`` env var (or ``.env`` file).
+    4. ``None`` — caller skips database upsert (v1.18.0 behavior).
+    """
+    if disabled:
+        return None
+    if cli_override:
+        return cli_override
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+    return os.environ.get("NOTION_REGISTRY_DATABASE_ID") or None

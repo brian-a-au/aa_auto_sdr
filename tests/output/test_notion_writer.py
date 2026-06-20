@@ -231,3 +231,34 @@ def test_notion_writer_emits_structured_log(tmp_path, monkeypatch, caplog):
         writer.write(doc, output_path)
 
     assert any("format=notion" in r.message for r in caplog.records)
+
+
+# --- v1.19.0: registry database-ID resolver ---
+
+
+def test_resolve_notion_database_id_returns_none_when_unset(monkeypatch):
+    from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    assert resolve_notion_database_id(cli_override=None, disabled=False) is None
+
+
+def test_resolve_notion_database_id_uses_env(monkeypatch):
+    from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "env-db-id")
+    assert resolve_notion_database_id(cli_override=None, disabled=False) == "env-db-id"
+
+
+def test_resolve_notion_database_id_cli_override_wins(monkeypatch):
+    from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "env-db-id")
+    assert resolve_notion_database_id(cli_override="flag-db-id", disabled=False) == "flag-db-id"
+
+
+def test_resolve_notion_database_id_disabled_short_circuits(monkeypatch):
+    from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "env-db-id")
+    assert resolve_notion_database_id(cli_override="flag-db-id", disabled=True) is None
