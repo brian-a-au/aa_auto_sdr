@@ -336,3 +336,50 @@ def test_parser_defaults_for_new_flags():
     ns = build_parser().parse_args(["examplersid1"])
     assert ns.notion_registry_database is None
     assert ns.no_notion_registry is False
+
+
+# --- v1.19.0: cross-flag rejections ---
+#
+# These call `_dispatch` directly (like the sibling dispatch tests above)
+# rather than `run()`. `run()` initializes global logging handlers bound to
+# the active stream; under capsys that stream is torn down after the test,
+# and a later test's log emit then errors and corrupts its stderr capture.
+# `_dispatch` exercises the same validator (cli/main.py line ~460) without
+# that global side effect.
+
+
+def test_dispatch_rejects_database_and_no_registry_together(capsys):
+    parser = build_parser()
+    ns = parser.parse_args([
+        "examplersid1", "--format", "notion",
+        "--notion-registry-database", "db-id", "--no-notion-registry",
+    ])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "--no-notion-registry" in err
+    assert "--notion-registry-database" in err
+
+
+def test_dispatch_rejects_database_flag_without_notion_mode(capsys):
+    parser = build_parser()
+    ns = parser.parse_args([
+        "examplersid1", "--format", "json",
+        "--notion-registry-database", "db-id",
+    ])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "--notion-registry-database" in err
+
+
+def test_dispatch_rejects_no_registry_without_notion_mode(capsys):
+    parser = build_parser()
+    ns = parser.parse_args([
+        "examplersid1", "--format", "json",
+        "--no-notion-registry",
+    ])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "--no-notion-registry" in err
