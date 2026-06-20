@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.20.0] — Unreleased
+
+### Added
+- (Details to be filled in)
+
 ## [1.19.0] — 2026-06-19
 
 Notion gains an opt-in **SDR Registry database**: one database row per RSID, keyed by an `RSID` rich-text property, with a `url` link to the v1.18.0 detail page. The local `.notion_pages.json` registry shape is unchanged.
