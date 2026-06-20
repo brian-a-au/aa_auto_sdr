@@ -113,6 +113,8 @@ def _run_single_for_batch(
     template_organization: str | None = None,
     # v1.18.0 — Notion writer per-run config
     notion_force_new: bool = False,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
@@ -150,6 +152,8 @@ def _run_single_for_batch(
         template_path=template_path,
         template_organization=template_organization,
         notion_force_new=notion_force_new,
+        notion_registry_database=notion_registry_database,
+        no_notion_registry=no_notion_registry,
     )
 
 
@@ -178,6 +182,8 @@ def _run_with_worker_id(
     template_organization: str | None = None,
     # v1.18.0 — Notion writer per-run config
     notion_force_new: bool = False,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -207,6 +213,8 @@ def _run_with_worker_id(
             template_path=template_path,
             template_organization=template_organization,
             notion_force_new=notion_force_new,
+            notion_registry_database=notion_registry_database,
+            no_notion_registry=no_notion_registry,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -244,6 +252,8 @@ def run_parallel(
     template_organization: str | None = None,
     # v1.18.0 — Notion writer per-run config
     notion_force_new: bool = False,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -305,6 +315,8 @@ def run_parallel(
             template_path=template_path,
             template_organization=template_organization,
             notion_force_new=notion_force_new,
+            notion_registry_database=notion_registry_database,
+            no_notion_registry=no_notion_registry,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future

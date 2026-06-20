@@ -112,6 +112,11 @@ class NotionWriter:
 
     extension = ".notion"  # nominal; the file is never created on disk
     force_new: bool = False  # set per-run by pipeline/single.py
+    # v1.19.0 — registry database threading (set per-run by pipeline/single.py,
+    # same singleton-mutation pattern as force_new). Resolved in write() via
+    # resolve_notion_database_id().
+    database_id: str | None = None
+    disable_registry: bool = False
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         started = time.monotonic()

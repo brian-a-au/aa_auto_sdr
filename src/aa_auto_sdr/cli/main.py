@@ -1018,6 +1018,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             template_organization=getattr(ns, "template_organization", None),
             snapshot_dir=resolve_snapshot_dir(ns),
             notion_force_new=getattr(ns, "notion_force_new", False),
+            notion_registry_database=getattr(ns, "notion_registry_database", None),
+            no_notion_registry=getattr(ns, "no_notion_registry", False),
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -1058,6 +1060,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         template_organization=getattr(ns, "template_organization", None),
         snapshot_dir=resolve_snapshot_dir(ns),
         notion_force_new=getattr(ns, "notion_force_new", False),
+        notion_registry_database=getattr(ns, "notion_registry_database", None),
+        no_notion_registry=getattr(ns, "no_notion_registry", False),
     )
 
 

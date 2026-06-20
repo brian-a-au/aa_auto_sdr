@@ -42,6 +42,9 @@ def run_single(
     template_organization: str | None = None,
     # v1.18.0 — Notion writer per-run config
     notion_force_new: bool = False,
+    # v1.19.0 — Notion registry database per-run config
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -65,6 +68,9 @@ def run_single(
         # applies to every iteration of the format loop below.
         nw = registry.get_writer("notion")
         nw.force_new = bool(notion_force_new)
+        # v1.19.0 — registry-database config threaded onto the same singleton.
+        nw.database_id = notion_registry_database
+        nw.disable_registry = bool(no_notion_registry)
     with timings.Timer(f"build:{rsid}"):
         doc = build_sdr(
             client,

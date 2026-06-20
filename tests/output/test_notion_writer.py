@@ -262,3 +262,30 @@ def test_resolve_notion_database_id_disabled_short_circuits(monkeypatch):
 
     monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "env-db-id")
     assert resolve_notion_database_id(cli_override="flag-db-id", disabled=True) is None
+
+
+def test_notion_writer_has_database_id_and_disable_registry_attrs():
+    """NotionWriter exposes the per-run knobs pipeline/single.py mutates.
+
+    Mirrors the v1.18.0 force_new pattern: pipeline reaches the registered
+    singleton via `registry.get_writer("notion")` and sets the attributes
+    before `write()` runs.
+    """
+    from aa_auto_sdr.output import registry as out_registry
+
+    out_registry.bootstrap()
+    nw = out_registry.get_writer("notion")
+
+    assert nw.database_id is None
+    assert nw.disable_registry is False
+
+    nw.database_id = "db-from-pipeline"
+    nw.disable_registry = True
+
+    assert out_registry.get_writer("notion") is nw  # singleton identity
+    assert nw.database_id == "db-from-pipeline"
+    assert nw.disable_registry is True
+
+    # Restore for downstream tests
+    nw.database_id = None
+    nw.disable_registry = False

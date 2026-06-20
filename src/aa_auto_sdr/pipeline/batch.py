@@ -100,6 +100,8 @@ def run_batch(
     template_organization: str | None = None,
     # v1.18.0 — Notion writer per-run config
     notion_force_new: bool = False,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> BatchResult:
     """Sequential or parallel per-RSID SDR generation. Continue on error.
 
@@ -173,6 +175,8 @@ def run_batch(
             template_path=template_path,
             template_organization=template_organization,
             notion_force_new=notion_force_new,
+            notion_registry_database=notion_registry_database,
+            no_notion_registry=no_notion_registry,
         )
     else:
         inner = run_parallel(
@@ -199,6 +203,8 @@ def run_batch(
             template_path=template_path,
             template_organization=template_organization,
             notion_force_new=notion_force_new,
+            notion_registry_database=notion_registry_database,
+            no_notion_registry=no_notion_registry,
         )
 
     # v1.12.0 — collect per-RSID quality verdicts.
@@ -244,6 +250,8 @@ def _run_sequential(
     template_organization: str | None = None,
     # v1.18.0 — Notion writer per-run config
     notion_force_new: bool = False,
+    notion_registry_database: str | None = None,
+    no_notion_registry: bool = False,
 ) -> BatchResult:
     """Sequential per-RSID SDR generation. Continue on error.
 
@@ -298,6 +306,8 @@ def _run_sequential(
                 template_path=template_path,
                 template_organization=template_organization,
                 notion_force_new=notion_force_new,
+                notion_registry_database=notion_registry_database,
+                no_notion_registry=no_notion_registry,
             )
         except AaAutoSdrError as exc:
             message = str(exc)
