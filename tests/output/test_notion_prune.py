@@ -57,3 +57,33 @@ def test_not_found_drops_tombstone(tmp_path):
     )
     assert reg.load_registry(p)["rs1"]["superseded"] == []
     assert result.failed == []  # not-found is treated as success
+    assert result.archived == [("rs1", "a")]  # not-found page is recorded as archived
+
+
+class _ErrorClient:
+    """Fake client whose pages.update always raises the given exception."""
+
+    def __init__(self, exc):
+        outer = self
+
+        class _Pages:
+            def update(self, *, page_id, archived):
+                raise outer._exc
+
+        self._exc = exc
+        self.pages = _Pages()
+
+
+def test_generic_exception_records_failure_preserves_tombstone(tmp_path):
+    p = _seed(tmp_path)
+    client = _ErrorClient(RuntimeError("boom"))
+    result = prune.archive_orphans(
+        client, p, prune.collect_orphans(reg.load_registry(p)), dry_run=False,
+        not_found_types=(_NotFound,),
+    )
+    # page lands in failed with (rsid, page_id, exc_type_name)
+    assert result.failed == [("rs1", "a", "RuntimeError")]
+    # tombstone is preserved — drop_superseded was NOT called
+    assert reg.load_registry(p)["rs1"]["superseded"] == ["a"]
+    # page is NOT counted as archived
+    assert result.archived == []
