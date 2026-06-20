@@ -317,9 +317,7 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
       - --notion-registry-database X without a notion mode (flag meaningless)
       - --no-notion-registry without a notion mode         (flag meaningless)
     """
-    in_notion_mode = getattr(ns, "format", None) == "notion" or bool(
-        getattr(ns, "push_to_notion", None)
-    )
+    in_notion_mode = getattr(ns, "format", None) == "notion" or bool(getattr(ns, "push_to_notion", None))
 
     # v1.19.0 — mutual rejection of the two new flags.
     if getattr(ns, "notion_registry_database", None) and getattr(ns, "no_notion_registry", False):

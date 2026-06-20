@@ -229,7 +229,7 @@ def _run_dispatch_capturing_output_dir(argv, monkeypatch):
     ns = parser.parse_args(argv)
     captured = {}
 
-    def fake_run(json_path, output_dir=None, force_new=False):
+    def fake_run(json_path, output_dir=None, force_new=False, **kwargs):
         captured["output_dir"] = output_dir
         return 0
 
@@ -319,16 +319,12 @@ def test_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
 
 
 def test_parser_accepts_notion_registry_database():
-    ns = build_parser().parse_args(
-        ["examplersid1", "--format", "notion", "--notion-registry-database", "db-id"]
-    )
+    ns = build_parser().parse_args(["examplersid1", "--format", "notion", "--notion-registry-database", "db-id"])
     assert ns.notion_registry_database == "db-id"
 
 
 def test_parser_accepts_no_notion_registry():
-    ns = build_parser().parse_args(
-        ["examplersid1", "--format", "notion", "--no-notion-registry"]
-    )
+    ns = build_parser().parse_args(["examplersid1", "--format", "notion", "--no-notion-registry"])
     assert ns.no_notion_registry is True
 
 
@@ -350,10 +346,16 @@ def test_parser_defaults_for_new_flags():
 
 def test_dispatch_rejects_database_and_no_registry_together(capsys):
     parser = build_parser()
-    ns = parser.parse_args([
-        "examplersid1", "--format", "notion",
-        "--notion-registry-database", "db-id", "--no-notion-registry",
-    ])
+    ns = parser.parse_args(
+        [
+            "examplersid1",
+            "--format",
+            "notion",
+            "--notion-registry-database",
+            "db-id",
+            "--no-notion-registry",
+        ]
+    )
     rc = _dispatch(ns, parser, [])
     err = capsys.readouterr().err
     assert rc == int(ExitCode.USAGE)
@@ -363,10 +365,15 @@ def test_dispatch_rejects_database_and_no_registry_together(capsys):
 
 def test_dispatch_rejects_database_flag_without_notion_mode(capsys):
     parser = build_parser()
-    ns = parser.parse_args([
-        "examplersid1", "--format", "json",
-        "--notion-registry-database", "db-id",
-    ])
+    ns = parser.parse_args(
+        [
+            "examplersid1",
+            "--format",
+            "json",
+            "--notion-registry-database",
+            "db-id",
+        ]
+    )
     rc = _dispatch(ns, parser, [])
     err = capsys.readouterr().err
     assert rc == int(ExitCode.USAGE)
@@ -375,10 +382,14 @@ def test_dispatch_rejects_database_flag_without_notion_mode(capsys):
 
 def test_dispatch_rejects_no_registry_without_notion_mode(capsys):
     parser = build_parser()
-    ns = parser.parse_args([
-        "examplersid1", "--format", "json",
-        "--no-notion-registry",
-    ])
+    ns = parser.parse_args(
+        [
+            "examplersid1",
+            "--format",
+            "json",
+            "--no-notion-registry",
+        ]
+    )
     rc = _dispatch(ns, parser, [])
     err = capsys.readouterr().err
     assert rc == int(ExitCode.USAGE)

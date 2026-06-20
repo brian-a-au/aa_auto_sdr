@@ -78,9 +78,7 @@ def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[s
         if isinstance(v, str) and v:
             verdict = v
 
-    degraded_names = sorted(
-        ctype for ctype, meta in doc.fetch_status.items() if meta.status == "degraded"
-    )
+    degraded_names = sorted(ctype for ctype, meta in doc.fetch_status.items() if meta.status == "degraded")
 
     props: dict[str, Any] = {
         "Name": _title(name),
@@ -128,9 +126,7 @@ def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) ->
         quality = payload.get("quality")
         fetch_status = payload.get("fetch_status") or {}
         degraded = sorted(
-            ctype
-            for ctype, meta in fetch_status.items()
-            if isinstance(meta, dict) and meta.get("status") == "degraded"
+            ctype for ctype, meta in fetch_status.items() if isinstance(meta, dict) and meta.get("status") == "degraded"
         )
         counts_src = payload
 

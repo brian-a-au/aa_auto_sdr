@@ -169,11 +169,22 @@ def test_upsert_row_creates_when_no_match():
 
     client = MagicMock()
     client.databases.retrieve.return_value = {
-        "properties": {p: {"type": "x"} for p in (
-            "Name", "RSID", "Last Updated", "Tool Version",
-            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
-            "Virtual Report Suites", "Classifications", "Page",
-        )},
+        "properties": {
+            p: {"type": "x"}
+            for p in (
+                "Name",
+                "RSID",
+                "Last Updated",
+                "Tool Version",
+                "Dimensions",
+                "Metrics",
+                "Segments",
+                "Calculated Metrics",
+                "Virtual Report Suites",
+                "Classifications",
+                "Page",
+            )
+        },
     }
     client.databases.query.return_value = {"results": []}
     client.pages.create.return_value = {"id": "new-row-id"}
@@ -199,11 +210,21 @@ def test_upsert_row_updates_existing_match():
 
     client = MagicMock()
     client.databases.retrieve.return_value = {
-        "properties": {p: {"type": "x"} for p in (
-            "Name", "RSID", "Last Updated", "Tool Version",
-            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
-            "Virtual Report Suites", "Classifications",
-        )},
+        "properties": {
+            p: {"type": "x"}
+            for p in (
+                "Name",
+                "RSID",
+                "Last Updated",
+                "Tool Version",
+                "Dimensions",
+                "Metrics",
+                "Segments",
+                "Calculated Metrics",
+                "Virtual Report Suites",
+                "Classifications",
+            )
+        },
     }
     client.databases.query.return_value = {"results": [{"id": "existing-row"}]}
 
@@ -230,15 +251,23 @@ def test_upsert_row_duplicate_match_logs_warn_and_picks_first(caplog):
 
     client = MagicMock()
     client.databases.retrieve.return_value = {
-        "properties": {p: {"type": "x"} for p in (
-            "Name", "RSID", "Last Updated", "Tool Version",
-            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
-            "Virtual Report Suites", "Classifications",
-        )},
+        "properties": {
+            p: {"type": "x"}
+            for p in (
+                "Name",
+                "RSID",
+                "Last Updated",
+                "Tool Version",
+                "Dimensions",
+                "Metrics",
+                "Segments",
+                "Calculated Metrics",
+                "Virtual Report Suites",
+                "Classifications",
+            )
+        },
     }
-    client.databases.query.return_value = {
-        "results": [{"id": "first"}, {"id": "second"}]
-    }
+    client.databases.query.return_value = {"results": [{"id": "first"}, {"id": "second"}]}
 
     with caplog.at_level(logging.WARNING, logger="aa_auto_sdr.output.notion_database"):
         row_id = upsert_row(
@@ -258,11 +287,21 @@ def test_upsert_row_query_filter_uses_rsid_property():
 
     client = MagicMock()
     client.databases.retrieve.return_value = {
-        "properties": {p: {"type": "x"} for p in (
-            "Name", "RSID", "Last Updated", "Tool Version",
-            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
-            "Virtual Report Suites", "Classifications",
-        )},
+        "properties": {
+            p: {"type": "x"}
+            for p in (
+                "Name",
+                "RSID",
+                "Last Updated",
+                "Tool Version",
+                "Dimensions",
+                "Metrics",
+                "Segments",
+                "Calculated Metrics",
+                "Virtual Report Suites",
+                "Classifications",
+            )
+        },
     }
     client.databases.query.return_value = {"results": []}
     client.pages.create.return_value = {"id": "new-row"}

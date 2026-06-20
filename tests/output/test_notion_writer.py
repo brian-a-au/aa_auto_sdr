@@ -353,11 +353,21 @@ def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
     fake_client = MagicMock()
     fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
     fake_client.databases.retrieve.return_value = {
-        "properties": {p: {"type": "x"} for p in (
-            "Name", "RSID", "Last Updated", "Tool Version",
-            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
-            "Virtual Report Suites", "Classifications",
-        )},
+        "properties": {
+            p: {"type": "x"}
+            for p in (
+                "Name",
+                "RSID",
+                "Last Updated",
+                "Tool Version",
+                "Dimensions",
+                "Metrics",
+                "Segments",
+                "Calculated Metrics",
+                "Virtual Report Suites",
+                "Classifications",
+            )
+        },
     }
     fake_client.databases.query.return_value = {"results": []}
     fake_client.pages.create.side_effect = [

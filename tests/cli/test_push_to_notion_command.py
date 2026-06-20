@@ -190,11 +190,21 @@ def test_push_threads_database_upsert_when_configured(tmp_path, monkeypatch):
     mock_client.pages.create.side_effect = [{"id": "page-1"}, {"id": "row-1"}]
     mock_client.blocks.children.list.return_value = {"results": [], "has_more": False}
     mock_client.databases.retrieve.return_value = {
-        "properties": {p: {"type": "x"} for p in (
-            "Name", "RSID", "Last Updated", "Tool Version",
-            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
-            "Virtual Report Suites", "Classifications",
-        )},
+        "properties": {
+            p: {"type": "x"}
+            for p in (
+                "Name",
+                "RSID",
+                "Last Updated",
+                "Tool Version",
+                "Dimensions",
+                "Metrics",
+                "Segments",
+                "Calculated Metrics",
+                "Virtual Report Suites",
+                "Classifications",
+            )
+        },
     }
     mock_client.databases.query.return_value = {"results": []}
     Client_factory = MagicMock(return_value=mock_client)
