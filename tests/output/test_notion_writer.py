@@ -37,6 +37,23 @@ def _make_doc() -> SdrDocument:
     )
 
 
+@pytest.fixture(autouse=True)
+def _reset_notion_singleton():
+    """Reset the NotionWriter singleton's per-run attrs after each test.
+
+    Tests that set force_new / database_id / disable_registry on the
+    registered singleton must not leak that state to later tests (here or in
+    other files). pipeline/single.py sets these per-run in production, so a
+    clean default after each test matches real behavior.
+    """
+    yield
+    registry.bootstrap()
+    nw = registry.get_writer("notion")
+    nw.force_new = False
+    nw.database_id = None
+    nw.disable_registry = False
+
+
 def test_resolve_notion_credentials_reads_env(monkeypatch):
     monkeypatch.setenv("NOTION_TOKEN", "secret-token")
     monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-page-id")
@@ -289,3 +306,103 @@ def test_notion_writer_has_database_id_and_disable_registry_attrs():
     # Restore for downstream tests
     nw.database_id = None
     nw.disable_registry = False
+
+
+# --- v1.19.0: writer wires the database upsert ---
+
+
+def test_writer_skips_database_when_id_is_none(monkeypatch, tmp_path):
+    """Behavior is byte-identical to v1.18.0 when database_id is None."""
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = None
+    writer.disable_registry = False
+    writer.force_new = False
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+
+    fake_client = MagicMock()
+    fake_client.pages.create.return_value = {"id": "page-1"}
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    paths = writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    assert paths == [tmp_path / REGISTRY_FILENAME]
+    fake_client.databases.retrieve.assert_not_called()
+    fake_client.databases.query.assert_not_called()
+
+
+def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = "db-id"
+    writer.disable_registry = False
+    writer.force_new = False
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+
+    fake_client = MagicMock()
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    fake_client.databases.retrieve.return_value = {
+        "properties": {p: {"type": "x"} for p in (
+            "Name", "RSID", "Last Updated", "Tool Version",
+            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
+            "Virtual Report Suites", "Classifications",
+        )},
+    }
+    fake_client.databases.query.return_value = {"results": []}
+    fake_client.pages.create.side_effect = [
+        {"id": "page-1"},  # detail page
+        {"id": "row-1"},  # database row
+    ]
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    fake_client.databases.retrieve.assert_called_once_with(database_id="db-id")
+    fake_client.databases.query.assert_called_once()
+
+
+def test_writer_continues_when_database_upsert_fails(monkeypatch, tmp_path, caplog):
+    """Detail page is the primary artifact — DB errors WARN and continue."""
+    import logging
+
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = "db-id"
+    writer.disable_registry = False
+    writer.force_new = False
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+
+    fake_client = MagicMock()
+    fake_client.pages.create.return_value = {"id": "page-1"}
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    fake_client.databases.retrieve.side_effect = Exception("simulated 401")
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="aa_auto_sdr.output.writers.notion"):
+        paths = writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    assert paths == [tmp_path / REGISTRY_FILENAME]
+    assert any("notion_registry_unavailable" in r.message for r in caplog.records)
