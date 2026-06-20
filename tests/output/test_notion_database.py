@@ -488,3 +488,57 @@ def test_filter_logs_dropped_optional(caplog):
         "notion_registry_property_missing" in r.message and "Company" in r.message
         for r in caplog.records
     )
+
+
+# --- company-aware _query_and_upsert filter tests ---
+
+
+class _FakeClient:
+    def __init__(self, existing_rows=None, db_props=None):
+        self.queries = []
+        self.created = []
+        self.updated = []
+        self._rows = existing_rows or []
+        self._db_props = db_props if db_props is not None else {k: {} for k in db.PROPERTY_SCHEMA}
+
+        outer = self
+
+        class _DS:
+            def query(self, **kw):
+                outer.queries.append(kw)
+                return {"results": outer._rows}
+
+            def retrieve(self, **kw):
+                return {"properties": outer._db_props}
+
+        class _DBs:
+            def retrieve(self, **kw):
+                return {"data_sources": [{"id": "ds1"}]}
+
+        class _Pages:
+            def create(self, **kw):
+                outer.created.append(kw)
+                return {"id": "new_row"}
+
+            def update(self, **kw):
+                outer.updated.append(kw)
+
+        self.data_sources = _DS()
+        self.databases = _DBs()
+        self.pages = _Pages()
+
+
+def test_query_filter_uses_company_when_present():
+    client = _FakeClient()
+    db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}, "Company": {}}, company="acme")
+    flt = client.queries[0]["filter"]
+    assert "and" in flt
+    props = {clause["property"] for clause in flt["and"]}
+    assert props == {"RSID", "Company"}
+
+
+def test_query_filter_rsid_only_without_company():
+    client = _FakeClient()
+    db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}}, company="")
+    flt = client.queries[0]["filter"]
+    assert flt == {"property": "RSID", "rich_text": {"equals": "rs1"}}

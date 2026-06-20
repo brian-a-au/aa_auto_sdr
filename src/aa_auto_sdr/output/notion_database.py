@@ -74,7 +74,7 @@ def _detail_page_url(page_id: str) -> str:
     return f"https://www.notion.so/{page_id.replace('-', '')}"
 
 
-def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[str, Any]:
+def build_row_properties(doc: SdrDocument, detail_page_id: str | None, company: str = "") -> dict[str, Any]:
     """Build the full property payload for a database row.
 
     Caller filters the result against the database's actual property list
@@ -114,12 +114,14 @@ def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[s
             "multi_select": [{"name": n} for n in degraded_names],
         },
     }
+    if company:
+        props["Company"] = _rich_text(company)
     if detail_page_id is not None:
         props["Page"] = {"url": _detail_page_url(detail_page_id)}
     return props
 
 
-def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) -> dict[str, Any]:
+def build_row_properties_from_dict(payload: dict, detail_page_id: str | None, company: str = "") -> dict[str, Any]:
     """Same as :func:`build_row_properties` but reads the SDR-JSON or
     snapshot-envelope dict shape directly (push-to-notion path).
     """
@@ -180,6 +182,8 @@ def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) ->
             "multi_select": [{"name": n} for n in sorted(degraded)],
         },
     }
+    if company:
+        props["Company"] = _rich_text(company)
     if detail_page_id is not None:
         props["Page"] = {"url": _detail_page_url(detail_page_id)}
     return props
@@ -237,20 +241,21 @@ def _resolve_data_source(client: Any, database_id: str) -> tuple[str, dict[str, 
     return data_source_id, db_properties
 
 
-def _query_and_upsert(client: Any, data_source_id: str, rsid: str, payload: dict[str, Any]) -> str:
-    """Find the row for ``rsid`` in the data source and update it, else create it."""
-    response = client.data_sources.query(
-        data_source_id=data_source_id,
-        filter={"property": "RSID", "rich_text": {"equals": rsid}},
-        page_size=2,
-    )
+def _query_and_upsert(client: Any, data_source_id: str, rsid: str, payload: dict[str, Any], company: str = "") -> str:
+    """Find the row for ``rsid`` (and ``company`` when present) and update it, else create it."""
+    if company and "Company" in payload:
+        flt = {
+            "and": [
+                {"property": "RSID", "rich_text": {"equals": rsid}},
+                {"property": "Company", "rich_text": {"equals": company}},
+            ]
+        }
+    else:
+        flt = {"property": "RSID", "rich_text": {"equals": rsid}}
+    response = client.data_sources.query(data_source_id=data_source_id, filter=flt, page_size=2)
     results = response.get("results") or []
     if len(results) > 1:
-        logger.warning(
-            "notion_registry_duplicate_rows rsid=%s count=%d (updating first)",
-            rsid,
-            len(results),
-        )
+        logger.warning("notion_registry_duplicate_rows rsid=%s count=%d (updating first)", rsid, len(results))
     if results:
         row_id = results[0]["id"]
         client.pages.update(page_id=row_id, properties=payload)
@@ -269,17 +274,18 @@ def upsert_row(
     rsid: str,
     detail_page_id: str | None,
     doc: SdrDocument,
+    company: str = "",
 ) -> str:
-    """Idempotent upsert by RSID. Returns the database row's page ID.
+    """Idempotent upsert by RSID (and Company when provided). Returns the database row's page ID.
 
     Raises :class:`NotionRegistryError` if the database has no data source or
     its data source is missing a required property. SDK errors (401/403/5xx)
     propagate to the caller, which logs ``notion_registry_unavailable``.
     """
     data_source_id, db_properties = _resolve_data_source(client, database_id)
-    payload = build_row_properties(doc, detail_page_id)
+    payload = build_row_properties(doc, detail_page_id, company=company)
     payload = filter_payload_to_schema(payload, db_properties)
-    return _query_and_upsert(client, data_source_id, rsid, payload)
+    return _query_and_upsert(client, data_source_id, rsid, payload, company=company)
 
 
 def upsert_row_from_dict(
@@ -289,14 +295,15 @@ def upsert_row_from_dict(
     rsid: str,
     detail_page_id: str | None,
     payload_dict: dict,
+    company: str = "",
 ) -> str:
     """Same as :func:`upsert_row` but builds from a JSON-shaped dict
     (push-to-notion path).
     """
     data_source_id, db_properties = _resolve_data_source(client, database_id)
-    payload = build_row_properties_from_dict(payload_dict, detail_page_id)
+    payload = build_row_properties_from_dict(payload_dict, detail_page_id, company=company)
     payload = filter_payload_to_schema(payload, db_properties)
-    return _query_and_upsert(client, data_source_id, rsid, payload)
+    return _query_and_upsert(client, data_source_id, rsid, payload, company=company)
 
 
 def schema_cheatsheet() -> str:

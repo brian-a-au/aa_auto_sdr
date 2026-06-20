@@ -83,3 +83,24 @@ def resolve_notion_database_id(
     except ImportError:
         pass
     return os.environ.get("NOTION_REGISTRY_DATABASE_ID") or None
+
+
+def resolve_notion_company(cli_override: str | None, aa_company_id: str | None) -> str:
+    """Return the Company value for the registry row.
+
+    Precedence: ``--notion-company`` flag, then ``NOTION_REGISTRY_COMPANY``
+    env (or .env), then the Adobe global company id (generate path only),
+    else empty string.
+    """
+    if cli_override:
+        return cli_override
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+    env = os.environ.get("NOTION_REGISTRY_COMPANY")
+    if env:
+        return env
+    return aa_company_id or ""
