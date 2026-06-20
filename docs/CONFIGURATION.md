@@ -210,6 +210,7 @@ uv pip install 'aa-auto-sdr[notion]'
 |---|---|
 | `NOTION_TOKEN` | Notion internal integration token (Settings & Members → Integrations) |
 | `NOTION_PARENT_PAGE_ID` | The Notion page under which SDR pages are created. The integration must be invited to this page (Share → Add connection). |
+| `NOTION_REGISTRY_DATABASE_ID` | Optional. Database ID for the SDR Registry. When set, `--format notion` and `--push-to-notion` runs also upsert one row per RSID into the named Notion database after writing the detail page. Unset = byte-identical page-only behavior. The integration must also be invited to the database. |
 
 Credentials are env vars only — they are **not** stored in profile `config.json`. The `.env` file is honored if `python-dotenv` is installed (already the `[env]` extra). A single `.env` file can hold both the Adobe keys and the Notion keys, because the variable names do not overlap. See [`CLI_REFERENCE.md`](CLI_REFERENCE.md#notion-integration) for usage examples.
 

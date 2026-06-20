@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.19.0] — 2026-06-19
+
+Notion gains an opt-in **SDR Registry database**: one database row per RSID, keyed by an `RSID` rich-text property, with a `url` link to the v1.18.0 detail page. The local `.notion_pages.json` registry shape is unchanged.
+
+### Added
+- `NOTION_REGISTRY_DATABASE_ID` env var — when set, `--format notion` and `--push-to-notion` runs also upsert a row into the named Notion database after writing the detail page.
+- `--notion-registry-database <id>` — CLI override for the env var.
+- `--no-notion-registry` — opt out of the database upsert for one run even when the env var is set.
+- `--notion-print-database-schema` — fast-path command that prints the canonical property names and types so manual database setup is mechanical.
+
+### Forward-compat
+- `.notion_pages.json` shape is unchanged. v1.18.0 registries load on v1.19.0 with no migration. Database row IDs are not persisted locally; they are recovered each run via `data_sources.query` keyed by the `RSID` property.
+
+### Constraints
+- `--watch --format notion` and `--batch --format notion --workers N>1` remain rejected (v1.18.0 rationale unchanged).
+- Naming `--notion-registry-database` and `--no-notion-registry` together, or naming either of them without `--format notion` / `--push-to-notion`, exits `ExitCode.USAGE`.
+- AA invariants (read-only, 2.0-only) untouched — the Notion writer never imports `aanalytics2`; meta-tests under `tests/meta/` are unaffected.
+
+### Internals
+- New module `output/notion_database.py` — row property builder and upsert. `output/notion_client_guard.py` extended to resolve the optional database ID alongside the existing token + parent page ID. Per-run `database_id` / `disable_registry` set as instance attributes on the `NotionWriter` singleton in `pipeline/single.py`, same pattern v1.18.0 uses for `force_new`.
+
 ## [1.18.0] — 2026-05-14
 
 Notion is now a first-class output destination. `--format notion` publishes the SDR directly to a Notion page; `--push-to-notion <file>` republishes an existing JSON artifact or snapshot envelope without re-calling the Adobe Analytics API. Idempotent by RSID — re-runs update the existing page in place.

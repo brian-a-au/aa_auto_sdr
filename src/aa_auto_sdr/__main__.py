@@ -138,6 +138,18 @@ def main(argv: list[str] | None = None) -> int:
             print("error: --completion requires a SHELL argument (bash, zsh, or fish)", flush=True)
             return 2
         return run_completion(args[1])
+    if args and args[0] == "--notion-print-database-schema":
+        # Print-and-exit: must be used alone. Combining it with generation
+        # work (RSIDs, --batch, etc.) is operator confusion → USAGE.
+        if len(args) > 1:
+            print(
+                "error: --notion-print-database-schema cannot be combined with other arguments",
+                flush=True,
+            )
+            return 2
+        from aa_auto_sdr.cli.commands.notion_schema import run_notion_print_schema
+
+        return run_notion_print_schema()
     from aa_auto_sdr.cli.main import run
 
     return run(args)

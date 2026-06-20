@@ -303,19 +303,50 @@ def _reject_push_to_notion_conflicts(ns: argparse.Namespace) -> int:
 
 
 def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
-    """Reject --watch and --workers>1 when --format is 'notion'.
+    """Reject mutually-incompatible Notion flag combinations.
 
-    Returns ExitCode.OK if consistent, ExitCode.USAGE (with stderr message)
-    otherwise. v1.18.0 — concurrent writes to .notion_pages.json would race,
-    and watch+notion would silently rewrite the same page on every interval
-    (not useful in v1).
+    Returns ExitCode.OK if consistent, ExitCode.USAGE (with stderr
+    message) otherwise.
+
+    v1.18.0 rules:
+      - --watch --format notion        (silent looped page rewrites)
+      - --workers > 1 --format notion  (concurrent .notion_pages.json writes)
+
+    v1.19.0 rules:
+      - --notion-registry-database X --no-notion-registry  (operator confusion)
+      - --notion-registry-database X without a notion mode (flag meaningless)
+      - --no-notion-registry without a notion mode         (flag meaningless)
     """
+    in_notion_mode = getattr(ns, "format", None) == "notion" or bool(getattr(ns, "push_to_notion", None))
+
+    # v1.19.0 — mutual rejection of the two new flags.
+    if getattr(ns, "notion_registry_database", None) and getattr(ns, "no_notion_registry", False):
+        print(
+            "error: --notion-registry-database and --no-notion-registry cannot be combined",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
+    # v1.19.0 — registry flags require a notion mode.
+    if getattr(ns, "notion_registry_database", None) and not in_notion_mode:
+        print(
+            "error: --notion-registry-database requires --format notion or --push-to-notion",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    if getattr(ns, "no_notion_registry", False) and not in_notion_mode:
+        print(
+            "error: --no-notion-registry requires --format notion or --push-to-notion",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+
     if getattr(ns, "format", None) != "notion":
         return int(ExitCode.OK)
 
     if getattr(ns, "watch", False):
         print(
-            "error: --watch is not supported with --format notion in v1.18",
+            "error: --watch is not supported with --format notion",
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
@@ -492,6 +523,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             ns.push_to_notion,
             output_dir=explicit_output_dir,
             force_new=getattr(ns, "notion_force_new", False),
+            notion_registry_database=getattr(ns, "notion_registry_database", None),
+            no_notion_registry=getattr(ns, "no_notion_registry", False),
         )
 
     from aa_auto_sdr.core import colors
@@ -985,6 +1018,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             template_organization=getattr(ns, "template_organization", None),
             snapshot_dir=resolve_snapshot_dir(ns),
             notion_force_new=getattr(ns, "notion_force_new", False),
+            notion_registry_database=getattr(ns, "notion_registry_database", None),
+            no_notion_registry=getattr(ns, "no_notion_registry", False),
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -1025,6 +1060,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         template_organization=getattr(ns, "template_organization", None),
         snapshot_dir=resolve_snapshot_dir(ns),
         notion_force_new=getattr(ns, "notion_force_new", False),
+        notion_registry_database=getattr(ns, "notion_registry_database", None),
+        no_notion_registry=getattr(ns, "no_notion_registry", False),
     )
 
 

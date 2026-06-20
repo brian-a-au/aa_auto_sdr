@@ -240,6 +240,14 @@ Five writers in `output/writers/*` each emit one `output_write` INFO record on a
 
 Required extras on every `output_write` INFO record: `format`, `output_path`, `count`, `duration_ms`, `rsid`. For writers whose `write()` returns a list of N paths, `output_path` is `str(paths[0])` — abstracted so a future internal change to a writer's file shape doesn't break the contract.
 
+### Notion registry database events
+
+When the SDR Registry database is configured (`NOTION_REGISTRY_DATABASE_ID`), the Notion writer and the `--push-to-notion` path emit additional records after the page write. They are additive — the `output_write format=notion` record is unchanged.
+
+- `notion_registry_upserted` (INFO) — a database row was created or updated. Extras: `rsid`, `notion_row_id`, `duration_ms`.
+- `notion_registry_unavailable` (WARN) — the database upsert failed (auth, missing required property, 5xx). The detail page still wrote and the run continues.
+- `notion_registry_duplicate_rows` (WARN) — more than one row matched the `RSID` filter; the first is updated.
+
 ## Validation cache events
 
 `cache_event` is emitted at DEBUG level on `ValidationCache.get` / `ValidationCache.put` operations. Allowed values: `hit` / `miss` / `evict` / `expire`. The quality severity engine is the production caller; cache keys include the severity-table version so mapping changes invalidate.

@@ -136,6 +136,8 @@ def run(
     template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
     notion_force_new: bool = False,  # v1.18.0
+    notion_registry_database: str | None = None,  # v1.19.0
+    no_notion_registry: bool = False,  # v1.19.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -183,6 +185,8 @@ def run(
             template_organization=template_organization,
             snapshot_dir=snapshot_dir,
             notion_force_new=notion_force_new,
+            notion_registry_database=notion_registry_database,
+            no_notion_registry=no_notion_registry,
         )
         return exit_code
     finally:
@@ -240,6 +244,8 @@ def _run_impl(
     template_organization: str | None = None,  # v1.16.0
     snapshot_dir: Path | None = None,  # resolved by CLI boundary
     notion_force_new: bool = False,  # v1.18.0
+    notion_registry_database: str | None = None,  # v1.19.0
+    no_notion_registry: bool = False,  # v1.19.0
 ) -> int:
     """Entry point body for `--batch RSID1 RSID2 ...`.
 
@@ -482,6 +488,8 @@ def _run_impl(
             template_path=template_path,
             template_organization=template_organization,
             notion_force_new=notion_force_new,
+            notion_registry_database=notion_registry_database,
+            no_notion_registry=no_notion_registry,
         )
     else:
         # All identifiers failed to resolve — make an empty BatchResult so the

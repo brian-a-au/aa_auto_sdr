@@ -19,6 +19,11 @@ from aa_auto_sdr.output.notion_blocks import build_blocks_from_document
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
     resolve_notion_credentials,
+    resolve_notion_database_id,
+)
+from aa_auto_sdr.output.notion_database import (
+    NotionRegistryError,
+    upsert_row,
 )
 from aa_auto_sdr.output.notion_registry import (
     get_registry_path,
@@ -106,12 +111,18 @@ class NotionWriter:
     ``force_new`` is a per-run instance attribute mutated by
     :mod:`aa_auto_sdr.pipeline.single` before ``write()`` is called —
     mirrors how ``excel-template`` threads ``template_path`` /
-    ``template_organization`` (see ``pipeline/single.py:54-59``).
+    ``template_organization`` (see the ``"notion" in formats`` block in
+    ``pipeline/single.py``).
     Defaulted to False on the registered singleton.
     """
 
     extension = ".notion"  # nominal; the file is never created on disk
     force_new: bool = False  # set per-run by pipeline/single.py
+    # v1.19.0 — registry database threading (set per-run by pipeline/single.py,
+    # same singleton-mutation pattern as force_new). Resolved in write() via
+    # resolve_notion_database_id().
+    database_id: str | None = None
+    disable_registry: bool = False
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         started = time.monotonic()
@@ -152,6 +163,50 @@ class NotionWriter:
                 "rsid": rsid,
             },
         )
+
+        # v1.19.0 — opt-in registry database upsert. The detail page is the
+        # primary artifact; any database failure logs a WARN and is swallowed
+        # so the run does not fail.
+        database_id = resolve_notion_database_id(
+            cli_override=self.database_id,
+            disabled=self.disable_registry,
+        )
+        if database_id is not None:
+            db_started = time.monotonic()
+            try:
+                row_id = upsert_row(
+                    client,
+                    database_id=database_id,
+                    rsid=rsid,
+                    detail_page_id=page_id,
+                    doc=doc,
+                )
+                db_duration_ms = int((time.monotonic() - db_started) * 1000)
+                logger.info(
+                    "notion_registry_upserted rsid=%s row=%s duration_ms=%s",
+                    rsid,
+                    row_id,
+                    db_duration_ms,
+                    extra={
+                        "rsid": rsid,
+                        "notion_row_id": row_id,
+                        "duration_ms": db_duration_ms,
+                    },
+                )
+            except NotionRegistryError as exc:
+                logger.warning(
+                    "notion_registry_unavailable rsid=%s reason=schema_mismatch detail=%s",
+                    rsid,
+                    exc,
+                )
+            except Exception as exc:  # DB failure must not sink the detail page
+                logger.warning(
+                    "notion_registry_unavailable rsid=%s reason=%s detail=%s",
+                    rsid,
+                    type(exc).__name__,
+                    exc,
+                )
+
         return [registry_path]
 
 
