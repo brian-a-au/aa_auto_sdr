@@ -172,3 +172,24 @@ def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) ->
     if detail_page_id is not None:
         props["Page"] = {"relation": [{"id": detail_page_id}]}
     return props
+
+
+def filter_payload_to_schema(
+    payload: dict[str, Any],
+    db_properties: dict[str, Any],
+) -> dict[str, Any]:
+    """Drop payload keys absent on the database; raise if required keys missing.
+
+    Optional properties absent on the database are silently filtered out
+    (logged at DEBUG by the caller via the ``notion_registry_property_missing``
+    event). Required properties absent raise :class:`NotionRegistryError`;
+    the caller logs ``notion_registry_unavailable`` and continues without
+    failing the detail-page write.
+    """
+    missing_required = [k for k in REQUIRED_PROPERTIES if k not in db_properties]
+    if missing_required:
+        raise NotionRegistryError(
+            f"Notion registry database is missing required properties: {missing_required}. "
+            "Run `aa_auto_sdr --notion-print-database-schema` for the canonical list."
+        )
+    return {k: v for k, v in payload.items() if k in db_properties}

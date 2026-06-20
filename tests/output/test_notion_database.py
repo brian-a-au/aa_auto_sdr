@@ -112,3 +112,53 @@ def test_build_row_properties_degraded_components_multi_select():
     props = build_row_properties(doc, detail_page_id="page-abc")
     names = [o["name"] for o in props["Degraded Components"]["multi_select"]]
     assert names == ["metrics", "virtual_report_suites"]  # sorted, partial excluded
+
+
+def test_filter_payload_to_schema_drops_absent_optional():
+    from aa_auto_sdr.output.notion_database import (
+        build_row_properties,
+        filter_payload_to_schema,
+    )
+
+    doc = _make_doc()
+    payload = build_row_properties(doc, detail_page_id="page-abc")
+    db_properties = {
+        # required only — no Page, no Currency, no Timezone, etc.
+        "Name": {"type": "title"},
+        "RSID": {"type": "rich_text"},
+        "Last Updated": {"type": "date"},
+        "Tool Version": {"type": "rich_text"},
+        "Dimensions": {"type": "number"},
+        "Metrics": {"type": "number"},
+        "Segments": {"type": "number"},
+        "Calculated Metrics": {"type": "number"},
+        "Virtual Report Suites": {"type": "number"},
+        "Classifications": {"type": "number"},
+    }
+    filtered = filter_payload_to_schema(payload, db_properties)
+    assert set(filtered) == set(db_properties)
+
+
+def test_filter_payload_to_schema_raises_when_required_missing():
+    from aa_auto_sdr.output.notion_database import (
+        NotionRegistryError,
+        build_row_properties,
+        filter_payload_to_schema,
+    )
+
+    doc = _make_doc()
+    payload = build_row_properties(doc, detail_page_id="page-abc")
+    db_properties_missing_rsid = {
+        "Name": {"type": "title"},
+        # RSID absent
+        "Last Updated": {"type": "date"},
+        "Tool Version": {"type": "rich_text"},
+        "Dimensions": {"type": "number"},
+        "Metrics": {"type": "number"},
+        "Segments": {"type": "number"},
+        "Calculated Metrics": {"type": "number"},
+        "Virtual Report Suites": {"type": "number"},
+        "Classifications": {"type": "number"},
+    }
+    with pytest.raises(NotionRegistryError, match="RSID"):
+        filter_payload_to_schema(payload, db_properties_missing_rsid)
