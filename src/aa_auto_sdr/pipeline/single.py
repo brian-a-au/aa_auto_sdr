@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.core import timings
 from aa_auto_sdr.output import registry
+from aa_auto_sdr.output.notion_client_guard import resolve_notion_company
 from aa_auto_sdr.pipeline.models import RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter, build_sdr
 from aa_auto_sdr.sdr.quality import SeverityLevel
@@ -45,6 +46,8 @@ def run_single(
     # v1.19.0 — Notion registry database per-run config
     notion_registry_database: str | None = None,
     no_notion_registry: bool = False,
+    # v1.20.0 — Notion registry company threading
+    notion_company: str | None = None,
 ) -> RunResult:
     """Generate an SDR for `rsid` and write it in every requested `format`.
 
@@ -71,6 +74,11 @@ def run_single(
         # v1.19.0 — registry-database config threaded onto the same singleton.
         nw.database_id = notion_registry_database
         nw.disable_registry = bool(no_notion_registry)
+        # v1.20.0 — resolve and thread company onto the singleton.
+        nw.company = resolve_notion_company(
+            cli_override=notion_company,
+            aa_company_id=getattr(client, "company_id", None),
+        )
     with timings.Timer(f"build:{rsid}"):
         doc = build_sdr(
             client,

@@ -52,6 +52,7 @@ def _reset_notion_singleton():
     nw.force_new = False
     nw.database_id = None
     nw.disable_registry = False
+    nw.company = ""
 
 
 def test_resolve_notion_credentials_reads_env(monkeypatch):
@@ -454,3 +455,53 @@ def test_writer_continues_when_database_upsert_fails(monkeypatch, tmp_path, capl
 
     assert paths == [tmp_path / REGISTRY_FILENAME]
     assert any("notion_registry_unavailable" in r.message for r in caplog.records)
+
+
+# --- v1.20.0: company threading through the writer ---
+
+
+def test_writer_threads_company_to_upsert(monkeypatch, tmp_path):
+    """writer.company is forwarded as company= kwarg to upsert_row."""
+    captured: dict = {}
+
+    def fake_upsert(client, **kwargs):
+        captured.update(kwargs)
+        return "row1"
+
+    monkeypatch.setattr("aa_auto_sdr.output.writers.notion.upsert_row", fake_upsert)
+    monkeypatch.setattr(
+        "aa_auto_sdr.output.writers.notion.resolve_notion_database_id",
+        lambda **kwargs: "db1",
+    )
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+
+    fake_client = MagicMock()
+    fake_client.pages.create.return_value = {"id": "page-1"}
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = "db1"
+    writer.disable_registry = False
+    writer.force_new = False
+    writer.company = "acme"
+
+    writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    assert captured.get("company") == "acme"
+
+
+def test_writer_company_attr_defaults_to_empty_string():
+    """NotionWriter exposes company as a class attribute defaulting to empty string."""
+    from aa_auto_sdr.output import registry as out_registry
+
+    out_registry.bootstrap()
+    nw = out_registry.get_writer("notion")
+    assert nw.company == ""

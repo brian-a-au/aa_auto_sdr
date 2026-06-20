@@ -123,6 +123,7 @@ class NotionWriter:
     # resolve_notion_database_id().
     database_id: str | None = None
     disable_registry: bool = False
+    company: str = ""  # v1.20.0 — set per-run by pipeline/single.py and push handler
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         started = time.monotonic()
@@ -180,6 +181,7 @@ class NotionWriter:
                     rsid=rsid,
                     detail_page_id=page_id,
                     doc=doc,
+                    company=self.company,
                 )
                 db_duration_ms = int((time.monotonic() - db_started) * 1000)
                 logger.info(

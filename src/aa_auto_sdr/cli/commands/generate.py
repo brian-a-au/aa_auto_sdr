@@ -129,6 +129,7 @@ def run(
     notion_force_new: bool = False,  # v1.18.0
     notion_registry_database: str | None = None,  # v1.19.0
     no_notion_registry: bool = False,  # v1.19.0
+    notion_company: str | None = None,  # v1.20.0
 ) -> int:
     """Pattern 9B.1 wrapper: emit command_start/command_complete around the
     real body in ``_run_impl`` so all the existing early returns flow
@@ -169,6 +170,7 @@ def run(
             notion_force_new=notion_force_new,
             notion_registry_database=notion_registry_database,
             no_notion_registry=no_notion_registry,
+            notion_company=notion_company,
         )
         return exit_code
     finally:
@@ -218,6 +220,7 @@ def _run_impl(
     notion_force_new: bool = False,  # v1.18.0
     notion_registry_database: str | None = None,  # v1.19.0
     no_notion_registry: bool = False,  # v1.19.0
+    notion_company: str | None = None,  # v1.20.0
 ) -> int:
     started_at = datetime.now(UTC)
     # v1.12.0 — translate string severity to enum once, here.
@@ -546,6 +549,7 @@ def _run_impl(
                 notion_force_new=notion_force_new,
                 notion_registry_database=notion_registry_database,
                 no_notion_registry=no_notion_registry,
+                notion_company=notion_company,
             )
         except ReportSuiteNotFoundError as e:
             print(f"error: {e}", flush=True)

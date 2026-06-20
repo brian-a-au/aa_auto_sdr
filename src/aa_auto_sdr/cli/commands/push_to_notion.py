@@ -16,6 +16,7 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.notion_blocks import build_blocks_from_dict
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
+    resolve_notion_company,
     resolve_notion_credentials,
     resolve_notion_database_id,
 )
@@ -59,6 +60,7 @@ def run_push_to_notion(
     *,
     notion_registry_database: str | None = None,
     no_notion_registry: bool = False,
+    notion_company: str | None = None,
 ) -> int:
     path = Path(json_file)
     if not path.exists():
@@ -125,6 +127,7 @@ def run_push_to_notion(
         cli_override=notion_registry_database,
         disabled=no_notion_registry,
     )
+    company = resolve_notion_company(cli_override=notion_company, aa_company_id=None)
     if database_id is not None:
         db_started = time.monotonic()
         try:
@@ -134,6 +137,7 @@ def run_push_to_notion(
                 rsid=rsid,
                 detail_page_id=page_id,
                 payload_dict=payload,
+                company=company,
             )
             db_duration_ms = int((time.monotonic() - db_started) * 1000)
             logger.info(

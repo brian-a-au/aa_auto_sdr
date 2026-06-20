@@ -250,3 +250,45 @@ def test_push_skips_database_when_disabled(tmp_path, monkeypatch):
 
     assert exit_code == 0
     mock_client.databases.retrieve.assert_not_called()
+
+
+# --- v1.20.0: company threading on the push path ---
+
+
+def test_push_threads_company_to_upsert_row(tmp_path, monkeypatch):
+    """notion_company is resolved and forwarded as company= to upsert_row_from_dict."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "db-id")
+    monkeypatch.delenv("NOTION_REGISTRY_COMPANY", raising=False)
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    captured: dict = {}
+    original_upsert = None
+
+    def fake_upsert_from_dict(client, **kwargs):
+        captured.update(kwargs)
+        return "row-1"
+
+    mock_client = MagicMock()
+    mock_client.pages.create.side_effect = [{"id": "page-1"}, {"id": "row-1"}]
+    mock_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    Client_factory = MagicMock(return_value=mock_client)
+
+    with (
+        patch.object(pt_mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(pt_mod, "upsert_row_from_dict", fake_upsert_from_dict),
+    ):
+        exit_code = pt_mod.run_push_to_notion(
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
+            notion_registry_database="db-id",
+            no_notion_registry=False,
+            notion_company="acme",
+        )
+
+    assert exit_code == 0
+    assert captured.get("company") == "acme"
