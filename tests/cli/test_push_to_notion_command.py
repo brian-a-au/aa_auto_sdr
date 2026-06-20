@@ -171,7 +171,10 @@ def test_push_to_notion_force_new_creates_fresh_page(tmp_path, monkeypatch):
     assert exit_code == 0
     mock_client.pages.create.assert_called_once()
     reg = json.loads((tmp_path / ".notion_pages.json").read_text())
-    assert reg["examplersid1"] == "fresh-page"
+    # old page id moved to superseded; current points to fresh page
+    entry = reg["examplersid1"]
+    assert entry["current"] == "fresh-page"
+    assert entry["superseded"] == ["old"]
 
 
 # --- v1.19.0: registry-database threading on the push path ---

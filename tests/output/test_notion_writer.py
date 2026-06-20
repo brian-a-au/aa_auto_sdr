@@ -122,8 +122,10 @@ def test_create_or_update_page_creates_new_when_not_in_registry(tmp_path):
     )
     assert page_id == "new-page-id"
     client.pages.create.assert_called_once()
-    # registry now holds the new id
-    assert json.loads(registry_path.read_text())["examplersid1"] == "new-page-id"
+    # registry now holds the new id in object shape
+    entry = json.loads(registry_path.read_text())["examplersid1"]
+    assert entry["current"] == "new-page-id"
+    assert entry["superseded"] == []
 
     # The Notion API expects the title to arrive as a fully-shaped title
     # property object (not a bare rich-text array). Guard the wire shape
@@ -177,8 +179,10 @@ def test_create_or_update_page_force_new_ignores_registry(tmp_path):
     )
     assert page_id == "brand-new-page"
     client.pages.create.assert_called_once()
-    # registry entry replaced
-    assert json.loads(registry_path.read_text())["examplersid1"] == "brand-new-page"
+    # registry entry replaced; old id tombstoned in superseded
+    entry = json.loads(registry_path.read_text())["examplersid1"]
+    assert entry["current"] == "brand-new-page"
+    assert entry["superseded"] == ["existing-page"]
 
 
 # --- NotionWriter end-to-end ---
@@ -227,7 +231,10 @@ def test_notion_writer_force_new_creates_fresh_page(tmp_path, monkeypatch):
         writer.write(doc, output_path)
 
     mock_client.pages.create.assert_called_once()
-    assert json.loads((tmp_path / REGISTRY_FILENAME).read_text())["examplersid1"] == "fresh-page"
+    # old page id moved to superseded; current points to fresh page
+    entry = json.loads((tmp_path / REGISTRY_FILENAME).read_text())["examplersid1"]
+    assert entry["current"] == "fresh-page"
+    assert entry["superseded"] == ["old-page"]
 
 
 def test_notion_writer_emits_structured_log(tmp_path, monkeypatch, caplog):
