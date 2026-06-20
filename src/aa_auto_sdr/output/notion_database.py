@@ -5,7 +5,8 @@ alongside the v1.18.0 detail pages: one row per RSID, keyed by the
 ``RSID`` rich-text property, with a ``Page`` url linking to the
 detail page. This module is pure where possible — :func:`build_row_properties`
 takes data in and returns Notion property dicts; :func:`upsert_row` performs
-the three SDK calls (``databases.retrieve``, ``databases.query``, then
+the data-source SDK calls (``databases.retrieve`` to resolve the data source,
+``data_sources.retrieve`` for its schema, ``data_sources.query``, then
 ``pages.create`` / ``pages.update``).
 """
 
@@ -201,27 +202,38 @@ def filter_payload_to_schema(
     return {k: v for k, v in payload.items() if k in db_properties}
 
 
-def upsert_row(
-    client: Any,
-    *,
-    database_id: str,
-    rsid: str,
-    detail_page_id: str | None,
-    doc: SdrDocument,
-) -> str:
-    """Idempotent upsert by RSID. Returns the database row's page ID.
+def _resolve_data_source(client: Any, database_id: str) -> tuple[str, dict[str, Any]]:
+    """Resolve a database id to ``(data_source_id, properties)``.
 
-    Raises :class:`NotionRegistryError` if the database is missing a
-    required property. SDK errors (401/403/5xx) propagate to the caller,
-    which is responsible for logging ``notion_registry_unavailable``.
+    Notion's data-sources API (2025-09) moved a database's schema and rows
+    onto one or more data sources. ``databases.retrieve`` returns only the
+    ``data_sources`` list, not ``properties``; the schema and the queryable
+    rows live on the data source. The registry database is single-source, so
+    we resolve the first data source and read the property schema from it.
     """
     db = client.databases.retrieve(database_id=database_id)
-    db_properties = db.get("properties") or {}
-    payload = build_row_properties(doc, detail_page_id)
-    payload = filter_payload_to_schema(payload, db_properties)
+    sources = db.get("data_sources") or []
+    if not sources:
+        raise NotionRegistryError(
+            f"Notion database {database_id} has no data sources. "
+            "Run `aa_auto_sdr --notion-print-database-schema` for the canonical schema."
+        )
+    if len(sources) > 1:
+        logger.warning(
+            "notion_registry_multi_source database_id=%s count=%d (using first)",
+            database_id,
+            len(sources),
+        )
+    data_source_id = sources[0]["id"]
+    ds = client.data_sources.retrieve(data_source_id=data_source_id)
+    db_properties = ds.get("properties") or {}
+    return data_source_id, db_properties
 
-    response = client.databases.query(
-        database_id=database_id,
+
+def _query_and_upsert(client: Any, data_source_id: str, rsid: str, payload: dict[str, Any]) -> str:
+    """Find the row for ``rsid`` in the data source and update it, else create it."""
+    response = client.data_sources.query(
+        data_source_id=data_source_id,
         filter={"property": "RSID", "rich_text": {"equals": rsid}},
         page_size=2,
     )
@@ -237,10 +249,30 @@ def upsert_row(
         client.pages.update(page_id=row_id, properties=payload)
         return row_id
     created = client.pages.create(
-        parent={"database_id": database_id},
+        parent={"type": "data_source_id", "data_source_id": data_source_id},
         properties=payload,
     )
     return created["id"]
+
+
+def upsert_row(
+    client: Any,
+    *,
+    database_id: str,
+    rsid: str,
+    detail_page_id: str | None,
+    doc: SdrDocument,
+) -> str:
+    """Idempotent upsert by RSID. Returns the database row's page ID.
+
+    Raises :class:`NotionRegistryError` if the database has no data source or
+    its data source is missing a required property. SDK errors (401/403/5xx)
+    propagate to the caller, which logs ``notion_registry_unavailable``.
+    """
+    data_source_id, db_properties = _resolve_data_source(client, database_id)
+    payload = build_row_properties(doc, detail_page_id)
+    payload = filter_payload_to_schema(payload, db_properties)
+    return _query_and_upsert(client, data_source_id, rsid, payload)
 
 
 def upsert_row_from_dict(
@@ -254,32 +286,10 @@ def upsert_row_from_dict(
     """Same as :func:`upsert_row` but builds from a JSON-shaped dict
     (push-to-notion path).
     """
-    db = client.databases.retrieve(database_id=database_id)
-    db_properties = db.get("properties") or {}
+    data_source_id, db_properties = _resolve_data_source(client, database_id)
     payload = build_row_properties_from_dict(payload_dict, detail_page_id)
     payload = filter_payload_to_schema(payload, db_properties)
-
-    response = client.databases.query(
-        database_id=database_id,
-        filter={"property": "RSID", "rich_text": {"equals": rsid}},
-        page_size=2,
-    )
-    results = response.get("results") or []
-    if len(results) > 1:
-        logger.warning(
-            "notion_registry_duplicate_rows rsid=%s count=%d (updating first)",
-            rsid,
-            len(results),
-        )
-    if results:
-        row_id = results[0]["id"]
-        client.pages.update(page_id=row_id, properties=payload)
-        return row_id
-    created = client.pages.create(
-        parent={"database_id": database_id},
-        properties=payload,
-    )
-    return created["id"]
+    return _query_and_upsert(client, data_source_id, rsid, payload)
 
 
 _SCHEMA_CHEATSHEET = """\

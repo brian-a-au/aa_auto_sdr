@@ -171,7 +171,8 @@ def test_upsert_row_creates_when_no_match():
     from aa_auto_sdr.output.notion_database import upsert_row
 
     client = MagicMock()
-    client.databases.retrieve.return_value = {
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-1", "name": "ds"}]}
+    client.data_sources.retrieve.return_value = {
         "properties": {
             p: {"type": "x"}
             for p in (
@@ -189,7 +190,7 @@ def test_upsert_row_creates_when_no_match():
             )
         },
     }
-    client.databases.query.return_value = {"results": []}
+    client.data_sources.query.return_value = {"results": []}
     client.pages.create.return_value = {"id": "new-row-id"}
 
     row_id = upsert_row(
@@ -204,7 +205,7 @@ def test_upsert_row_creates_when_no_match():
     client.pages.create.assert_called_once()
     client.pages.update.assert_not_called()
     call_kwargs = client.pages.create.call_args.kwargs
-    assert call_kwargs["parent"] == {"database_id": "db-id"}
+    assert call_kwargs["parent"] == {"type": "data_source_id", "data_source_id": "ds-1"}
     assert "RSID" in call_kwargs["properties"]
 
 
@@ -212,7 +213,8 @@ def test_upsert_row_updates_existing_match():
     from aa_auto_sdr.output.notion_database import upsert_row
 
     client = MagicMock()
-    client.databases.retrieve.return_value = {
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-1", "name": "ds"}]}
+    client.data_sources.retrieve.return_value = {
         "properties": {
             p: {"type": "x"}
             for p in (
@@ -229,7 +231,7 @@ def test_upsert_row_updates_existing_match():
             )
         },
     }
-    client.databases.query.return_value = {"results": [{"id": "existing-row"}]}
+    client.data_sources.query.return_value = {"results": [{"id": "existing-row"}]}
 
     row_id = upsert_row(
         client,
@@ -253,7 +255,8 @@ def test_upsert_row_duplicate_match_logs_warn_and_picks_first(caplog):
     from aa_auto_sdr.output.notion_database import upsert_row
 
     client = MagicMock()
-    client.databases.retrieve.return_value = {
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-1", "name": "ds"}]}
+    client.data_sources.retrieve.return_value = {
         "properties": {
             p: {"type": "x"}
             for p in (
@@ -270,7 +273,7 @@ def test_upsert_row_duplicate_match_logs_warn_and_picks_first(caplog):
             )
         },
     }
-    client.databases.query.return_value = {"results": [{"id": "first"}, {"id": "second"}]}
+    client.data_sources.query.return_value = {"results": [{"id": "first"}, {"id": "second"}]}
 
     with caplog.at_level(logging.WARNING, logger="aa_auto_sdr.output.notion_database"):
         row_id = upsert_row(
@@ -289,7 +292,8 @@ def test_upsert_row_query_filter_uses_rsid_property():
     from aa_auto_sdr.output.notion_database import upsert_row
 
     client = MagicMock()
-    client.databases.retrieve.return_value = {
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-1", "name": "ds"}]}
+    client.data_sources.retrieve.return_value = {
         "properties": {
             p: {"type": "x"}
             for p in (
@@ -306,7 +310,7 @@ def test_upsert_row_query_filter_uses_rsid_property():
             )
         },
     }
-    client.databases.query.return_value = {"results": []}
+    client.data_sources.query.return_value = {"results": []}
     client.pages.create.return_value = {"id": "new-row"}
 
     upsert_row(
@@ -317,8 +321,8 @@ def test_upsert_row_query_filter_uses_rsid_property():
         doc=_make_doc(),
     )
 
-    query_call = client.databases.query.call_args
-    assert query_call.kwargs["database_id"] == "db-id"
+    query_call = client.data_sources.query.call_args
+    assert query_call.kwargs["data_source_id"] == "ds-1"
     assert query_call.kwargs["filter"] == {
         "property": "RSID",
         "rich_text": {"equals": "examplersid1"},

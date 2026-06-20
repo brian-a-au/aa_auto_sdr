@@ -337,7 +337,7 @@ def test_writer_skips_database_when_id_is_none(monkeypatch, tmp_path):
 
     assert paths == [tmp_path / REGISTRY_FILENAME]
     fake_client.databases.retrieve.assert_not_called()
-    fake_client.databases.query.assert_not_called()
+    fake_client.data_sources.query.assert_not_called()
 
 
 def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
@@ -352,7 +352,8 @@ def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
 
     fake_client = MagicMock()
     fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
-    fake_client.databases.retrieve.return_value = {
+    fake_client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-1", "name": "ds"}]}
+    fake_client.data_sources.retrieve.return_value = {
         "properties": {
             p: {"type": "x"}
             for p in (
@@ -369,7 +370,7 @@ def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
             )
         },
     }
-    fake_client.databases.query.return_value = {"results": []}
+    fake_client.data_sources.query.return_value = {"results": []}
     fake_client.pages.create.side_effect = [
         {"id": "page-1"},  # detail page
         {"id": "row-1"},  # database row
@@ -384,7 +385,7 @@ def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
     writer.write(_make_doc(), tmp_path / "examplersid1.notion")
 
     fake_client.databases.retrieve.assert_called_once_with(database_id="db-id")
-    fake_client.databases.query.assert_called_once()
+    fake_client.data_sources.query.assert_called_once()
 
 
 def test_writer_continues_when_database_upsert_fails(monkeypatch, tmp_path, caplog):

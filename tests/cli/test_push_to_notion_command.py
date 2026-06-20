@@ -189,7 +189,8 @@ def test_push_threads_database_upsert_when_configured(tmp_path, monkeypatch):
     mock_client = MagicMock()
     mock_client.pages.create.side_effect = [{"id": "page-1"}, {"id": "row-1"}]
     mock_client.blocks.children.list.return_value = {"results": [], "has_more": False}
-    mock_client.databases.retrieve.return_value = {
+    mock_client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-1", "name": "ds"}]}
+    mock_client.data_sources.retrieve.return_value = {
         "properties": {
             p: {"type": "x"}
             for p in (
@@ -206,7 +207,7 @@ def test_push_threads_database_upsert_when_configured(tmp_path, monkeypatch):
             )
         },
     }
-    mock_client.databases.query.return_value = {"results": []}
+    mock_client.data_sources.query.return_value = {"results": []}
     Client_factory = MagicMock(return_value=mock_client)
 
     with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
