@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 
-from aa_auto_sdr.cli.main import _dispatch, _validate_notion_modifiers, run
+from aa_auto_sdr.cli.main import _dispatch, _resolve_retry_policy, _validate_notion_modifiers
 from aa_auto_sdr.cli.parser import build_parser
 from aa_auto_sdr.core.exit_codes import ExitCode
 
@@ -126,7 +126,11 @@ def test_positional_batch_notion_workers_gt_1_now_allowed_in_dispatch(capsys, mo
     import aa_auto_sdr.cli.commands.batch as batch_mod
 
     monkeypatch.setattr(batch_mod, "run", lambda **_kw: 0)
-    rc = run(["rsid1", "rsid2", "--format", "notion", "--workers", "4"])
+    argv = ["rsid1", "rsid2", "--format", "notion", "--workers", "4"]
+    parser = build_parser()
+    ns = parser.parse_args(argv)
+    ns.retry_policy = _resolve_retry_policy(ns)
+    _dispatch(ns, parser, argv)
     err = capsys.readouterr().err
     # Must not contain the old rejection message
     assert "is not supported with --format notion" not in err
@@ -331,8 +335,12 @@ def test_watch_notion_no_longer_rejected_in_dispatch(capsys, monkeypatch):
     # v1.20.0: --watch --format notion passes the validator; watch command handles it.
     import aa_auto_sdr.cli.commands.watch as watch_mod
 
-    monkeypatch.setattr(watch_mod, "run", lambda ns: 0)
-    rc = run(["examplersid1", "--watch", "--interval", "1m", "--format", "notion"])
+    monkeypatch.setattr(watch_mod, "run", lambda _ns: 0)
+    argv = ["examplersid1", "--watch", "--interval", "1m", "--format", "notion"]
+    parser = build_parser()
+    ns = parser.parse_args(argv)
+    ns.retry_policy = _resolve_retry_policy(ns)
+    _dispatch(ns, parser, argv)
     err = capsys.readouterr().err
     assert "not supported with --format notion" not in err
 
@@ -342,7 +350,11 @@ def test_batch_notion_workers_gt_1_no_longer_rejected_in_dispatch(capsys, monkey
     import aa_auto_sdr.cli.commands.batch as batch_mod
 
     monkeypatch.setattr(batch_mod, "run", lambda **_kw: 0)
-    rc = run(["--batch", "rsid1", "rsid2", "--format", "notion", "--workers", "4"])
+    argv = ["--batch", "rsid1", "rsid2", "--format", "notion", "--workers", "4"]
+    parser = build_parser()
+    ns = parser.parse_args(argv)
+    ns.retry_policy = _resolve_retry_policy(ns)
+    _dispatch(ns, parser, argv)
     err = capsys.readouterr().err.lower()
     assert "is not supported with --format notion" not in err
 
@@ -544,7 +556,7 @@ def test_prune_and_repair_combined_rejected(capsys):
     parser = build_parser()
     ns = parser.parse_args(["--notion-prune-orphans", "--notion-repair-database"])
     rc = _dispatch(ns, parser, [])
-    err = capsys.readouterr().err
+    capsys.readouterr()
     assert rc == int(ExitCode.USAGE)
 
 
