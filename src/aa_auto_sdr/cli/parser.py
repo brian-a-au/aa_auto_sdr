@@ -818,5 +818,27 @@ def build_parser() -> argparse.ArgumentParser:
             "written. (v1.19.0)"
         ),
     )
+    notion_group.add_argument(
+        "--notion-prune-orphans",
+        action="store_true",
+        default=False,
+        dest="notion_prune_orphans",
+        help="Archive Notion pages abandoned by --notion-force-new. Preview by default; --yes archives.",
+    )
+    notion_group.add_argument(
+        "--notion-repair-database",
+        action="store_true",
+        default=False,
+        dest="notion_repair_database",
+        help="Additively add missing registry-database properties. Preview by default; --yes applies.",
+    )
+    notion_group.add_argument(
+        "--notion-company",
+        type=str,
+        default=None,
+        metavar="NAME",
+        dest="notion_company",
+        help="Company value for the registry row; makes the row key (Company, RSID). Overrides NOTION_REGISTRY_COMPANY.",
+    )
 
     return p
