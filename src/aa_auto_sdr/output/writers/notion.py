@@ -206,6 +206,8 @@ class NotionWriter:
                     type(exc).__name__,
                     exc,
                 )
+        else:
+            logger.debug("notion_registry_skipped rsid=%s reason=no_database_id", rsid)
 
         return [registry_path]
 

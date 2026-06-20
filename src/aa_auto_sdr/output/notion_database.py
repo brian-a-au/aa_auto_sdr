@@ -203,6 +203,9 @@ def filter_payload_to_schema(
             f"Notion registry database is missing required properties: {missing_required}. "
             "Run `aa_auto_sdr --notion-print-database-schema` for the canonical list."
         )
+    dropped = [k for k in payload if k not in db_properties]
+    for name in dropped:
+        logger.debug("notion_registry_property_missing name=%s", name)
     return {k: v for k, v in payload.items() if k in db_properties}
 
 

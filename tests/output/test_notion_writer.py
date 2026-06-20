@@ -388,6 +388,36 @@ def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
     fake_client.data_sources.query.assert_called_once()
 
 
+def test_writer_logs_registry_skipped_when_no_db(monkeypatch, tmp_path, caplog):
+    """notion_registry_skipped is emitted at DEBUG when database_id resolves to None."""
+    import logging
+
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = None
+    writer.disable_registry = False
+    writer.force_new = False
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+
+    fake_client = MagicMock()
+    fake_client.pages.create.return_value = {"id": "page-1"}
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.output.writers.notion"):
+        writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    assert any("notion_registry_skipped" in r.message for r in caplog.records)
+
+
 def test_writer_continues_when_database_upsert_fails(monkeypatch, tmp_path, caplog):
     """Detail page is the primary artifact — DB errors WARN and continue."""
     import logging

@@ -462,3 +462,29 @@ def test_resolve_data_source_warns_on_multiple(caplog):
     assert data_source_id == "ds-1"  # first source wins
     assert "Name" in db_properties
     assert any("notion_registry_multi_source" in r.message for r in caplog.records)
+
+
+def test_filter_logs_dropped_optional(caplog):
+    import logging
+
+    payload = {
+        "Name": {},
+        "RSID": {},
+        "Last Updated": {},
+        "Tool Version": {},
+        "Dimensions": {},
+        "Metrics": {},
+        "Segments": {},
+        "Calculated Metrics": {},
+        "Virtual Report Suites": {},
+        "Classifications": {},
+        "Company": {},
+    }
+    db_props = {k: {} for k in db.REQUIRED_PROPERTIES}  # Company absent on DB
+    with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.output.notion_database"):
+        out = db.filter_payload_to_schema(payload, db_props)
+    assert "Company" not in out
+    assert any(
+        "notion_registry_property_missing" in r.message and "Company" in r.message
+        for r in caplog.records
+    )
