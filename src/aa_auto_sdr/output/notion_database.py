@@ -193,3 +193,84 @@ def filter_payload_to_schema(
             "Run `aa_auto_sdr --notion-print-database-schema` for the canonical list."
         )
     return {k: v for k, v in payload.items() if k in db_properties}
+
+
+def upsert_row(
+    client: Any,
+    *,
+    database_id: str,
+    rsid: str,
+    detail_page_id: str | None,
+    doc: SdrDocument,
+) -> str:
+    """Idempotent upsert by RSID. Returns the database row's page ID.
+
+    Raises :class:`NotionRegistryError` if the database is missing a
+    required property. SDK errors (401/403/5xx) propagate to the caller,
+    which is responsible for logging ``notion_registry_unavailable``.
+    """
+    db = client.databases.retrieve(database_id=database_id)
+    db_properties = db.get("properties") or {}
+    payload = build_row_properties(doc, detail_page_id)
+    payload = filter_payload_to_schema(payload, db_properties)
+
+    response = client.databases.query(
+        database_id=database_id,
+        filter={"property": "RSID", "rich_text": {"equals": rsid}},
+        page_size=2,
+    )
+    results = response.get("results") or []
+    if len(results) > 1:
+        logger.warning(
+            "notion_registry_duplicate_rows rsid=%s count=%d (updating first)",
+            rsid,
+            len(results),
+        )
+    if results:
+        row_id = results[0]["id"]
+        client.pages.update(page_id=row_id, properties=payload)
+        return row_id
+    created = client.pages.create(
+        parent={"database_id": database_id},
+        properties=payload,
+    )
+    return created["id"]
+
+
+def upsert_row_from_dict(
+    client: Any,
+    *,
+    database_id: str,
+    rsid: str,
+    detail_page_id: str | None,
+    payload_dict: dict,
+) -> str:
+    """Same as :func:`upsert_row` but builds from a JSON-shaped dict
+    (push-to-notion path).
+    """
+    db = client.databases.retrieve(database_id=database_id)
+    db_properties = db.get("properties") or {}
+    payload = build_row_properties_from_dict(payload_dict, detail_page_id)
+    payload = filter_payload_to_schema(payload, db_properties)
+
+    response = client.databases.query(
+        database_id=database_id,
+        filter={"property": "RSID", "rich_text": {"equals": rsid}},
+        page_size=2,
+    )
+    results = response.get("results") or []
+    if len(results) > 1:
+        logger.warning(
+            "notion_registry_duplicate_rows rsid=%s count=%d (updating first)",
+            rsid,
+            len(results),
+        )
+    if results:
+        row_id = results[0]["id"]
+        client.pages.update(page_id=row_id, properties=payload)
+        return row_id
+    created = client.pages.create(
+        parent={"database_id": database_id},
+        properties=payload,
+    )
+    return created["id"]

@@ -162,3 +162,122 @@ def test_filter_payload_to_schema_raises_when_required_missing():
     }
     with pytest.raises(NotionRegistryError, match="RSID"):
         filter_payload_to_schema(payload, db_properties_missing_rsid)
+
+
+def test_upsert_row_creates_when_no_match():
+    from aa_auto_sdr.output.notion_database import upsert_row
+
+    client = MagicMock()
+    client.databases.retrieve.return_value = {
+        "properties": {p: {"type": "x"} for p in (
+            "Name", "RSID", "Last Updated", "Tool Version",
+            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
+            "Virtual Report Suites", "Classifications", "Page",
+        )},
+    }
+    client.databases.query.return_value = {"results": []}
+    client.pages.create.return_value = {"id": "new-row-id"}
+
+    row_id = upsert_row(
+        client,
+        database_id="db-id",
+        rsid="examplersid1",
+        detail_page_id="page-abc",
+        doc=_make_doc(),
+    )
+
+    assert row_id == "new-row-id"
+    client.pages.create.assert_called_once()
+    client.pages.update.assert_not_called()
+    call_kwargs = client.pages.create.call_args.kwargs
+    assert call_kwargs["parent"] == {"database_id": "db-id"}
+    assert "RSID" in call_kwargs["properties"]
+
+
+def test_upsert_row_updates_existing_match():
+    from aa_auto_sdr.output.notion_database import upsert_row
+
+    client = MagicMock()
+    client.databases.retrieve.return_value = {
+        "properties": {p: {"type": "x"} for p in (
+            "Name", "RSID", "Last Updated", "Tool Version",
+            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
+            "Virtual Report Suites", "Classifications",
+        )},
+    }
+    client.databases.query.return_value = {"results": [{"id": "existing-row"}]}
+
+    row_id = upsert_row(
+        client,
+        database_id="db-id",
+        rsid="examplersid1",
+        detail_page_id="page-abc",
+        doc=_make_doc(),
+    )
+
+    assert row_id == "existing-row"
+    client.pages.update.assert_called_once_with(
+        page_id="existing-row",
+        properties=client.pages.update.call_args.kwargs["properties"],
+    )
+    client.pages.create.assert_not_called()
+
+
+def test_upsert_row_duplicate_match_logs_warn_and_picks_first(caplog):
+    import logging
+
+    from aa_auto_sdr.output.notion_database import upsert_row
+
+    client = MagicMock()
+    client.databases.retrieve.return_value = {
+        "properties": {p: {"type": "x"} for p in (
+            "Name", "RSID", "Last Updated", "Tool Version",
+            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
+            "Virtual Report Suites", "Classifications",
+        )},
+    }
+    client.databases.query.return_value = {
+        "results": [{"id": "first"}, {"id": "second"}]
+    }
+
+    with caplog.at_level(logging.WARNING, logger="aa_auto_sdr.output.notion_database"):
+        row_id = upsert_row(
+            client,
+            database_id="db-id",
+            rsid="examplersid1",
+            detail_page_id="page-abc",
+            doc=_make_doc(),
+        )
+
+    assert row_id == "first"
+    assert any("notion_registry_duplicate_rows" in r.message for r in caplog.records)
+
+
+def test_upsert_row_query_filter_uses_rsid_property():
+    from aa_auto_sdr.output.notion_database import upsert_row
+
+    client = MagicMock()
+    client.databases.retrieve.return_value = {
+        "properties": {p: {"type": "x"} for p in (
+            "Name", "RSID", "Last Updated", "Tool Version",
+            "Dimensions", "Metrics", "Segments", "Calculated Metrics",
+            "Virtual Report Suites", "Classifications",
+        )},
+    }
+    client.databases.query.return_value = {"results": []}
+    client.pages.create.return_value = {"id": "new-row"}
+
+    upsert_row(
+        client,
+        database_id="db-id",
+        rsid="examplersid1",
+        detail_page_id="page-abc",
+        doc=_make_doc(),
+    )
+
+    query_call = client.databases.query.call_args
+    assert query_call.kwargs["database_id"] == "db-id"
+    assert query_call.kwargs["filter"] == {
+        "property": "RSID",
+        "rich_text": {"equals": "examplersid1"},
+    }
