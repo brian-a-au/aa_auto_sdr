@@ -13,6 +13,7 @@ the data-source SDK calls (``databases.retrieve`` to resolve the data source,
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -304,6 +305,60 @@ def upsert_row_from_dict(
     payload = build_row_properties_from_dict(payload_dict, detail_page_id, company=company)
     payload = filter_payload_to_schema(payload, db_properties)
     return _query_and_upsert(client, data_source_id, rsid, payload, company=company)
+
+
+@dataclass
+class RepairResult:
+    """Result of :func:`repair_database`.
+
+    ``to_add`` — property names that were missing and will be (or were) added.
+    ``conflicts`` — ``(name, want_type, have_type)`` tuples for properties that
+        exist on the database but have the wrong type; these are skipped.
+    ``applied`` — ``True`` if the update was actually sent (``dry_run=False``
+        and at least one property was missing).
+    """
+
+    to_add: list[str] = field(default_factory=list)
+    conflicts: list[tuple[str, str, str]] = field(default_factory=list)
+    applied: bool = False
+
+
+def repair_database(
+    client: Any,
+    *,
+    database_id: str,
+    dry_run: bool = True,
+) -> RepairResult:
+    """Repair a Notion registry database to match :data:`PROPERTY_SCHEMA`.
+
+    Compares the database's current property set against the canonical
+    ``PROPERTY_SCHEMA``.  Missing properties are collected into ``to_add``
+    and — when ``dry_run=False`` — added via a single ``data_sources.update``
+    call.  Properties present but with the wrong type are recorded as
+    ``conflicts`` and never touched.
+
+    Returns a :class:`RepairResult` describing what was (or would be) changed.
+    Raises :class:`NotionRegistryError` if the database has no data source.
+    """
+    data_source_id, db_properties = _resolve_data_source(client, database_id)
+
+    to_add: list[str] = []
+    conflicts: list[tuple[str, str, str]] = []
+    payload: dict[str, Any] = {}
+
+    for name, schema_entry in PROPERTY_SCHEMA.items():
+        if name not in db_properties:
+            to_add.append(name)
+            payload[name] = schema_entry["definition"]
+        elif db_properties[name].get("type") != schema_entry["type"]:
+            conflicts.append((name, schema_entry["type"], db_properties[name].get("type", "unknown")))
+
+    applied = False
+    if to_add and not dry_run:
+        client.data_sources.update(data_source_id, properties=payload)
+        applied = True
+
+    return RepairResult(to_add=to_add, conflicts=conflicts, applied=applied)
 
 
 def schema_cheatsheet() -> str:

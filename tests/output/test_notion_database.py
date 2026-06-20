@@ -542,3 +542,112 @@ def test_query_filter_rsid_only_without_company():
     db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}}, company="")
     flt = client.queries[0]["filter"]
     assert flt == {"property": "RSID", "rich_text": {"equals": "rs1"}}
+
+
+# --- repair_database tests ---
+
+
+class _RepairClient:
+    """Fake client for repair_database tests; spies on data_sources.update."""
+
+    def __init__(self, existing_props: dict | None = None):
+        self.update_calls: list[dict] = []
+        # Properties already on the DB — defaults to all PROPERTY_SCHEMA entries with correct types
+        if existing_props is None:
+            existing_props = {name: {"type": schema["type"]} for name, schema in db.PROPERTY_SCHEMA.items()}
+        self._existing_props = existing_props
+
+        outer = self
+
+        class _DS:
+            def retrieve(self, **kw):
+                return {"properties": outer._existing_props}
+
+            def update(self, data_source_id, **kw):
+                outer.update_calls.append({"data_source_id": data_source_id, **kw})
+
+        class _DBs:
+            def retrieve(self, **kw):
+                return {"data_sources": [{"id": "ds-repair"}]}
+
+        self.data_sources = _DS()
+        self.databases = _DBs()
+
+
+def test_repair_all_missing():
+    """All PROPERTY_SCHEMA entries absent → to_add = all names, conflicts = [], applied = False."""
+    from aa_auto_sdr.output.notion_database import repair_database
+
+    client = _RepairClient(existing_props={})
+    result = repair_database(client, database_id="db-id")  # dry_run=True by default
+
+    assert set(result.to_add) == set(db.PROPERTY_SCHEMA.keys())
+    assert result.conflicts == []
+    assert result.applied is False
+    assert client.update_calls == []  # dry run — no update sent
+
+
+def test_repair_nothing_to_add():
+    """All properties present with correct types → to_add = [], conflicts = []."""
+    from aa_auto_sdr.output.notion_database import repair_database
+
+    # Default _RepairClient has all properties with correct types
+    client = _RepairClient()
+    result = repair_database(client, database_id="db-id")
+
+    assert result.to_add == []
+    assert result.conflicts == []
+    assert result.applied is False
+
+
+def test_repair_type_conflict():
+    """One property present with wrong type → appears in conflicts, NOT in to_add."""
+    from aa_auto_sdr.output.notion_database import repair_database
+
+    # RSID should be rich_text but we give it number
+    correct_props = {name: {"type": schema["type"]} for name, schema in db.PROPERTY_SCHEMA.items()}
+    correct_props["RSID"] = {"type": "number"}  # type mismatch
+    client = _RepairClient(existing_props=correct_props)
+
+    result = repair_database(client, database_id="db-id")
+
+    assert "RSID" not in result.to_add
+    conflict_names = [c[0] for c in result.conflicts]
+    assert "RSID" in conflict_names
+    # Check the tuple shape: (name, want_type, have_type)
+    rsid_conflict = next(c for c in result.conflicts if c[0] == "RSID")
+    assert rsid_conflict == ("RSID", "rich_text", "number")
+
+
+def test_repair_apply_calls_update():
+    """dry_run=False with at least one missing property → data_sources.update called once; applied = True."""
+    from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA, repair_database
+
+    # Remove one property from the DB
+    existing = {name: {"type": schema["type"]} for name, schema in PROPERTY_SCHEMA.items()}
+    del existing["Company"]  # Company is missing
+    client = _RepairClient(existing_props=existing)
+
+    result = repair_database(client, database_id="db-id", dry_run=False)
+
+    assert "Company" in result.to_add
+    assert result.applied is True
+    assert len(client.update_calls) == 1
+    # The update payload should contain Company's definition
+    call_props = client.update_calls[0]["properties"]
+    assert "Company" in call_props
+
+
+def test_repair_dry_run_no_update():
+    """dry_run=True with missing properties → data_sources.update NOT called; applied = False."""
+    from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA, repair_database
+
+    existing = {name: {"type": schema["type"]} for name, schema in PROPERTY_SCHEMA.items()}
+    del existing["Timezone"]  # Timezone is missing
+    client = _RepairClient(existing_props=existing)
+
+    result = repair_database(client, database_id="db-id", dry_run=True)
+
+    assert "Timezone" in result.to_add
+    assert result.applied is False
+    assert client.update_calls == []
