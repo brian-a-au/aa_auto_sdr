@@ -184,3 +184,29 @@ class TestDryRun:
         assert not handle.getDimensions.called
         assert not handle.getMetrics.called
         assert not handle.getSegments.called
+
+    @patch("aa_auto_sdr.cli.commands.generate.AaClient")
+    def test_dry_run_notion_shows_registry_file(
+        self,
+        mock_client_cls,
+        env_creds,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Dry-run with --format notion should list the registry file, not a phantom <rsid>.notion."""
+        raw = json.loads(FIXTURE.read_text())
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=_build_handle(raw),
+            company_id="testco",
+        )
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="notion",
+            profile=None,
+            dry_run=True,
+        )
+        assert rc == ExitCode.OK.value
+        out = capsys.readouterr().out
+        assert ".notion_pages.json" in out
+        assert "demo.prod.notion\n" not in out
