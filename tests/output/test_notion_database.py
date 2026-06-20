@@ -281,3 +281,17 @@ def test_upsert_row_query_filter_uses_rsid_property():
         "property": "RSID",
         "rich_text": {"equals": "examplersid1"},
     }
+
+
+def test_schema_cheatsheet_lists_all_required_properties():
+    from aa_auto_sdr.output.notion_database import REQUIRED_PROPERTIES, schema_cheatsheet
+
+    text = schema_cheatsheet()
+    for prop in REQUIRED_PROPERTIES:
+        assert prop in text
+
+
+def test_schema_cheatsheet_mentions_env_var_name():
+    from aa_auto_sdr.output.notion_database import schema_cheatsheet
+
+    assert "NOTION_REGISTRY_DATABASE_ID" in schema_cheatsheet()

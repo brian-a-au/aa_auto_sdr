@@ -274,3 +274,39 @@ def upsert_row_from_dict(
         properties=payload,
     )
     return created["id"]
+
+
+_SCHEMA_CHEATSHEET = """\
+Notion SDR Registry Database — required schema for aa_auto_sdr v1.19.0
+======================================================================
+
+Required properties:
+  Name                    title
+  RSID                    rich_text
+  Last Updated            date
+  Tool Version            rich_text
+  Dimensions              number
+  Metrics                 number
+  Segments                number
+  Calculated Metrics      number
+  Virtual Report Suites   number
+  Classifications         number
+
+Optional properties (created when present on the database):
+  Page                    relation        -> set to the SDR detail page parent
+  Currency                rich_text
+  Timezone                rich_text
+  Parent RSID             rich_text
+  Quality Verdict         select          (suggested options: pass, warn, fail, n/a)
+  Degraded Components     multi_select
+
+To enable the registry, set:
+  NOTION_REGISTRY_DATABASE_ID=<your-database-id>
+"""
+
+
+def schema_cheatsheet() -> str:
+    """Return the canonical schema cheatsheet text printed by
+    ``--notion-print-database-schema``.
+    """
+    return _SCHEMA_CHEATSHEET
