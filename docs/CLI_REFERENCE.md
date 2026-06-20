@@ -423,6 +423,24 @@ aa_auto_sdr --push-to-notion ./reports/examplersid1.json --notion-force-new
 aa_auto_sdr --batch examplersid1 examplersid2 --format notion
 ```
 
+### Registry database
+
+Set `NOTION_REGISTRY_DATABASE_ID` to also upsert one row per RSID into a Notion database — an opt-in queryable index over the detail pages. Additional flags:
+
+- `--notion-registry-database <DATABASE_ID>` — override `NOTION_REGISTRY_DATABASE_ID` for this run. Requires `--format notion` or `--push-to-notion`.
+- `--no-notion-registry` — skip the registry-database upsert even when the env var is set. The detail page is still written. Requires `--format notion` or `--push-to-notion`.
+- `--notion-print-database-schema` — print the canonical property names and types for the registry database and exit. Fast-path: no AA or Notion API calls.
+
+```bash
+# Print the schema to create in Notion, then enable the registry
+aa_auto_sdr --notion-print-database-schema
+export NOTION_REGISTRY_DATABASE_ID=<database-id>
+aa_auto_sdr examplersid1 --format notion          # writes detail page + upserts a row
+
+# Disable the registry for one run
+aa_auto_sdr examplersid1 --format notion --no-notion-registry
+```
+
 | Flag | Description |
 |------|-------------|
 | `--format notion` | Publish SDR to a Notion page as part of generation |

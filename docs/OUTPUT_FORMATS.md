@@ -50,6 +50,14 @@ The `notion` format is opt-in only — it is **not** included in the `all`, `rep
 
 **Constraints:** `--watch --format notion` and `--batch ... --format notion --workers N>1` are rejected at dispatch — concurrent writes to the registry would race.
 
+### Registry database (opt-in)
+
+Setting `NOTION_REGISTRY_DATABASE_ID` (or `--notion-registry-database`) enables a queryable database index alongside the detail pages: one row per RSID, with a `Page` relation to the detail page. The `.notion_pages.json` registry file shape is unchanged, and leaving the variable unset keeps behavior identical to the page-only flow.
+
+Run `aa_auto_sdr --notion-print-database-schema` for the canonical property list to create in Notion. Required properties: `Name` (title), `RSID` (rich_text, the idempotency key), `Last Updated` (date), `Tool Version` (rich_text), and one `number` each for `Dimensions`, `Metrics`, `Segments`, `Calculated Metrics`, `Virtual Report Suites`, `Classifications`. Optional properties are created when present: `Page` (relation), `Currency`, `Timezone`, `Parent RSID`, `Quality Verdict` (select), `Degraded Components` (multi_select).
+
+The detail page remains the primary artifact: if the database upsert fails (integration not invited, missing required property, 5xx), a `notion_registry_unavailable` WARN fires and the run continues. RSIDs are unique within a company but not across companies — point one database at one company, or RSID collisions will overwrite.
+
 ## Format aliases
 
 Generate multiple formats at once:
