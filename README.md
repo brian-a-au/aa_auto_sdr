@@ -80,6 +80,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | **Output** | `--output -` stdout pipe for json (single-RSID generation) and json/markdown (diff) |
 | | Machine-readable JSON error envelope on stderr for pipe-path failures |
 | | Atomic file writes (temp + rename) for every output format |
+| | One-command registry setup: `--notion-create-database` builds the SDR Registry database with the full schema under your Notion parent page. |
 | **Reliability** | **Read-only against Adobe Analytics, forever** — CI-enforced via meta-test scanning `src/aa_auto_sdr/api/` for any write-shape SDK call |
 | | **API 2.0 only, no 1.4 paths** — CI-enforced via meta-test |
 | | 90% coverage gate on the unit slice |

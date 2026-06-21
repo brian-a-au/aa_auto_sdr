@@ -318,18 +318,25 @@ Two maintenance modes operate without generating SDRs. Both default to **preview
 |------|-----------------|--------------|
 | `--notion-prune-orphans` | `OK` (0) | Preview: print orphaned page ids. With `--yes`: archive each page in `.notion_pages.json`'s `superseded` list (Notion trash, recoverable). |
 | `--notion-repair-database` | `OK` (0) | Preview: print missing and conflicting properties. With `--yes`: additively create missing properties in the registry database. Requires `NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`. |
+| `--notion-create-database` | `OK` (0) | Preview: print the planned title and parent page. With `--yes`: create the SDR Registry database with the full canonical schema under `NOTION_PARENT_PAGE_ID` and print the new database id. Requires `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID`. Standalone mode: exits `USAGE` (2) if combined with generation, `--batch`, `--push-to-notion`, `--diff`, `--watch`, `--notion-prune-orphans`, or `--notion-repair-database`. |
+| `--notion-database-title NAME` | — | Override the title of the database created by `--notion-create-database` (default: `AA SDR Registry`). Exits `USAGE` (2) without `--notion-create-database`. |
 
 ```bash
 # Dry-run preview
 uv run aa_auto_sdr --notion-prune-orphans
 uv run aa_auto_sdr --notion-repair-database
+uv run aa_auto_sdr --notion-create-database
 
 # Apply
 uv run aa_auto_sdr --notion-prune-orphans --yes
 uv run aa_auto_sdr --notion-repair-database --yes
+uv run aa_auto_sdr --notion-create-database --yes
+
+# Create with a custom title
+uv run aa_auto_sdr --notion-create-database --notion-database-title "Acme SDR Registry" --yes
 ```
 
-Without `--yes`, both modes only preview and make no changes (including on non-tty stdin); pass `--yes` to apply. Both modes require the `[notion]` extra and `NOTION_TOKEN`. `--notion-repair-database` additionally requires a database id.
+Without `--yes`, all three modes only preview and make no changes (including on non-tty stdin); pass `--yes` to apply. All modes require the `[notion]` extra and `NOTION_TOKEN`. `--notion-repair-database` additionally requires a database id. `--notion-create-database` additionally requires `NOTION_PARENT_PAGE_ID`.
 
 ### Template-fill Excel writer (v1.16.0)
 

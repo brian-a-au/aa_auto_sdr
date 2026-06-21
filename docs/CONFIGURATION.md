@@ -209,7 +209,7 @@ uv pip install 'aa-auto-sdr[notion]'
 | Env var | Description |
 |---|---|
 | `NOTION_TOKEN` | Notion internal integration token (Settings & Members → Integrations) |
-| `NOTION_PARENT_PAGE_ID` | The Notion page under which SDR pages are created. The integration must be invited to this page (Share → Add connection). |
+| `NOTION_PARENT_PAGE_ID` | The Notion page under which SDR pages are created. The integration must be invited to this page (Share → Add connection). `NOTION_PARENT_PAGE_ID` is also the create target for `--notion-create-database`: the registry database is created as a child of this page (and inherits the integration's access to it). |
 | `NOTION_REGISTRY_DATABASE_ID` | Optional. Database ID for the SDR Registry. When set, `--format notion` and `--push-to-notion` runs also upsert one row per RSID into the named Notion database after writing the detail page. Unset = byte-identical page-only behavior. The integration must also be invited to the database. The database should have a single data source; if more than one is found, the tool uses the first and logs a `notion_registry_multi_source` warning. |
 | `NOTION_REGISTRY_COMPANY` | Optional. Company name written to the `Company` column of the registry row. When set, the registry row key becomes `(Company, RSID)` instead of RSID alone — required when one registry database holds multiple Adobe Analytics organizations. Precedence: `--notion-company` flag → this env var → the resolved Adobe global company id (generate path only); the push path uses the flag or this env var only. Unset leaves the `Company` property blank and keeps RSID-only keying. |
 

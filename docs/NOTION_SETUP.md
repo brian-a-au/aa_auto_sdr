@@ -72,29 +72,35 @@ export NOTION_PARENT_PAGE_ID=abc123def456abc123def456abc123de
 
 The SDR Registry is a Notion database that holds one row per report suite you have published. It gives you a queryable overview of every RSID, its component counts, the last time it was updated, and a direct link to its detail page. If you do not need this, skip to step 5.
 
-### Create the database
+### Create the SDR Registry database (one command)
 
-1. In Notion, create a new full-page database (not an inline one). Give it a name like "AA SDR Registry".
-2. Keep it as a standard single-data-source database.
-3. Share it with your integration the same way you shared the parent page: **Share**, then **Add connection**, then pick your integration.
-
-### Add the required properties
-
-Run the following command to see the exact property names and types that the tool expects:
+If you have `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID` set, create the registry
+database with the full schema in one command:
 
 ```bash
-aa_auto_sdr --notion-print-database-schema
+# Preview what will be created (no changes):
+aa_auto_sdr --notion-create-database
+
+# Create it:
+aa_auto_sdr --notion-create-database --yes
 ```
 
-The output lists required properties and optional properties. Create each required property in your database using the exact name and type shown. For example, `RSID` must be a **Text** (rich_text) property and `Last Updated` must be a **Date** property.
-
-The tool can also add missing properties for you. After creating the database with at least the `Name` (title) property, run:
+The database is created under `NOTION_PARENT_PAGE_ID`. Because that page is
+already shared with your integration, the new database inherits that access —
+there is **no separate "Share with integration" step**. The command prints the
+new database id; set it so future runs upsert rows into it:
 
 ```bash
-aa_auto_sdr --notion-repair-database --yes
+export NOTION_REGISTRY_DATABASE_ID=<printed-id>
 ```
 
-This compares the live database against the canonical schema and adds any missing properties. It never changes existing property types or removes properties you have added.
+Use `--notion-database-title "Name"` to override the default title
+(`AA SDR Registry`), e.g. when you keep one registry per company.
+
+**Fallback (manual / drifted databases):** to set up the database by hand, run
+`aa_auto_sdr --notion-print-database-schema` for the canonical property list. To
+backfill a database whose schema has drifted, use
+`aa_auto_sdr --notion-repair-database --yes`.
 
 ### Get the database ID
 

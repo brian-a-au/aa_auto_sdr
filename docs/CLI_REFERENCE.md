@@ -486,6 +486,8 @@ aa_auto_sdr examplersid1 --watch --interval 1h --format notion
 | `--notion-force-new` | Always create a new page, ignoring `.notion_pages.json` |
 | `--notion-prune-orphans` | Archive pages in the `superseded` list (preview; `--yes` to apply) |
 | `--notion-repair-database` | Add missing registry database properties (preview; `--yes` to apply) |
+| `--notion-create-database` | Create the SDR Registry database with the full schema under `NOTION_PARENT_PAGE_ID`. Standalone mode; preview by default, `--yes` creates. Prints the new database id. |
+| `--notion-database-title NAME` | Title for the database created by `--notion-create-database` (default: `AA SDR Registry`). |
 | `--notion-company NAME` | Tag registry rows with a company name; enables multi-org keying |
 
 Re-runs update the existing Notion page in place. Page IDs are tracked in `.notion_pages.json` in the output directory (or the input file's parent for `--push-to-notion`). Parallel batch (`--workers N>1`) is supported; a process-level lock serializes registry writes. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically.

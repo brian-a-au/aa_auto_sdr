@@ -269,6 +269,15 @@ Emitted by `--notion-repair-database` via `cli/commands/notion_repair.py`.
 - `notion_repair_type_conflict` (WARNING) — a property exists but its type differs from the canonical schema; it is left untouched. Extras: `notion_property_name`, `want_type`, `have_type`.
 - `notion_repair_complete` (INFO) — repair run finished; reports how many properties were added. Extra: `properties_added`.
 
+### Notion create-database events
+
+Emitted by `--notion-create-database` via `cli/commands/notion_create_database.py`.
+
+- `notion_create_planned` (INFO) — dry-run preview for `--notion-create-database`; reports the planned title and parent page.
+- `notion_database_created` (INFO) — `--notion-create-database --yes` succeeded; carries the new `database_id`.
+- `notion_create_existing_registry` (WARNING) — `--notion-create-database` ran while a registry id is already configured; an additional database will be created.
+- `notion_create_failed` (WARNING) — the `databases.create` call raised; the command returns `GENERIC`.
+
 ### Notion watch event
 
 - `notion_watch_publish_failed` (WARNING) — a Notion publish call raised during a watch cycle. The cycle continues. Emitted from `pipeline/watch.py`. Extra: `rsid` in the message.
@@ -302,3 +311,4 @@ Most maintainers will not need this table. It exists because the vocabulary meta
 | VRS exhaust hint: `vrs_unavailable`; vocabulary: `likely_cause` | v1.16.1 |
 | Notion registry debug: `notion_registry_property_missing`, `notion_registry_skipped`; Notion prune: `notion_prune_planned`, `notion_page_archived`, `notion_page_archive_failed`, `notion_prune_complete`; Notion repair: `notion_property_created`, `notion_repair_type_conflict`, `notion_repair_complete`; Notion watch: `notion_watch_publish_failed`; vocabulary: `notion_property_name`, `want_type`, `have_type`, `properties_added` | v1.20.0 |
 | `notion_registry_multi_source` (WARNING); `notion_repair_planned` (INFO); vocabulary: `add`, `conflicts` | v1.20.1 |
+| Notion create-database: `notion_create_planned` (INFO), `notion_database_created` (INFO), `notion_create_existing_registry` (WARNING), `notion_create_failed` (WARNING) | v1.21.0 |
