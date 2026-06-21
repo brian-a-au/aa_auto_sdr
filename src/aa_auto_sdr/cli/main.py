@@ -397,7 +397,8 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
             return int(ExitCode.USAGE)
 
     # v1.21.0 — --notion-create-database is a standalone mode: cannot combine
-    # with generation, batch, push, diff, watch, prune, or repair.
+    # with generation, batch, push, diff, watch, prune, repair, or any
+    # discovery/inspection/rollup action.
     if create:
         conflicting = (
             bool(getattr(ns, "rsids", []) or [])
@@ -407,6 +408,18 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
             or bool(getattr(ns, "watch", False))
             or prune
             or repair
+            or bool(getattr(ns, "list_reportsuites", False))
+            or bool(getattr(ns, "list_virtual_reportsuites", False))
+            or bool(getattr(ns, "describe_reportsuite", False))
+            or getattr(ns, "list_metrics", None) is not None
+            or getattr(ns, "list_dimensions", None) is not None
+            or getattr(ns, "list_segments", None) is not None
+            or getattr(ns, "list_calculated_metrics", None) is not None
+            or getattr(ns, "list_classification_datasets", None) is not None
+            or getattr(ns, "trending_window", None) is not None
+            or bool(getattr(ns, "compare_with_prev", False))
+            or bool(getattr(ns, "inventory_summary", False))
+            or bool(getattr(ns, "stats", False))
         )
         if conflicting:
             print(
@@ -438,7 +451,7 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
         )
         if notion_flags_only and not has_snapshot_prune:
             print(
-                "error: --yes only applies to --notion-prune-orphans or --notion-repair-database",
+                "error: --yes only applies to --notion-prune-orphans, --notion-repair-database, or --notion-create-database",
                 file=sys.stderr,
             )
             return int(ExitCode.USAGE)

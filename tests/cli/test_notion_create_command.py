@@ -159,3 +159,34 @@ def test_validate_create_alone_is_allowed():
 
     ns = _ns(notion_create_database=True)
     assert _validate_notion_modifiers(ns) == int(ExitCode.OK)
+
+
+def test_validate_create_rejects_list_metrics():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, list_metrics="RS1")
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_rejects_inventory_summary():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, inventory_summary=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_apply_warn_but_proceed_when_registry_already_configured(caplog):
+    """Apply path (dry_run=False) with an existing registry: warns but still creates."""
+    from aa_auto_sdr.cli.commands import notion_create as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    client = FakeCreateClient(database_id="db-new")
+    p_creds, p_client, _ = _patch_guard(mod, client)
+    with p_creds, p_client, caplog.at_level(logging.WARNING, logger="aa_auto_sdr.cli.commands.notion_create"):
+        code = mod.run_notion_create_database(title="AA SDR Registry", dry_run=False, registry_already_configured=True)
+
+    assert any("notion_create_existing_registry" in r.message for r in caplog.records)
+    assert len(client.create_calls) == 1
+    assert code == int(ExitCode.OK)
