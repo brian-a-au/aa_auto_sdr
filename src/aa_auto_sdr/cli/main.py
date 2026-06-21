@@ -371,9 +371,11 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
         return int(ExitCode.USAGE)
 
     # v1.19.0 — registry flags require a notion mode.
-    # Exempt repair: --notion-repair-database legitimately uses --notion-registry-database
-    # as its database-id source without entering in_notion_mode.
-    if getattr(ns, "notion_registry_database", None) and not in_notion_mode and not repair:
+    # Exempt repair and create: --notion-repair-database and
+    # --notion-create-database legitimately consume --notion-registry-database
+    # (repair as its database-id source; create to detect an already-configured
+    # registry for the warn-but-proceed signal) without entering in_notion_mode.
+    if getattr(ns, "notion_registry_database", None) and not in_notion_mode and not repair and not create:
         print(
             "error: --notion-registry-database requires --format notion or --push-to-notion",
             file=sys.stderr,

@@ -616,3 +616,21 @@ def test_repair_with_registry_database_override_not_rejected(capsys, monkeypatch
     assert rc == int(ExitCode.OK), f"Expected OK but got rc={rc}, stderr={err!r}"
     # Must not emit the misleading "requires --format notion" error
     assert "--format notion" not in err
+
+
+def test_create_with_registry_database_override_not_rejected(capsys, monkeypatch):
+    """--notion-create-database --notion-registry-database <id> must be accepted.
+
+    The create dispatch path passes --notion-registry-database into
+    resolve_notion_database_id to compute registry_already_configured (the
+    warn-but-proceed signal). Like repair, create must be exempt from the
+    v1.19.0 "registry flags require a notion mode" guard, or the flag-based
+    existing-registry case can never reach the handler.
+    """
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-create-database", "--notion-registry-database", "explicit-db-id"])
+    rc = _validate_notion_modifiers(ns)
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OK), f"Expected OK but got rc={rc}, stderr={err!r}"
+    assert "--format notion" not in err
