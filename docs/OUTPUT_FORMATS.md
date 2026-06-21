@@ -58,6 +58,8 @@ Setting `NOTION_REGISTRY_DATABASE_ID` (or `--notion-registry-database`) enables 
 
 Run `aa_auto_sdr --notion-print-database-schema` for the canonical property list to create in Notion. Required properties: `Name` (title), `RSID` (rich_text, the idempotency key), `Last Updated` (date), `Tool Version` (rich_text), and one `number` each for `Dimensions`, `Metrics`, `Segments`, `Calculated Metrics`, `Virtual Report Suites`, `Classifications`. Optional properties are created when present: `Page` (url), `Currency`, `Timezone`, `Parent RSID`, `Quality Verdict` (select), `Degraded Components` (multi_select). There is also an optional `Company` (rich_text) property; when the database has a `Company` column and `--notion-company` (or `NOTION_REGISTRY_COMPANY`) is set, the row key becomes `(Company, RSID)` instead of RSID alone — allowing one database to hold multiple Adobe Analytics organizations.
 
+The registry database should be a standard single-data-source database. If the database has more than one data source, the tool uses the first one and logs a `notion_registry_multi_source` warning.
+
 The detail page remains the primary artifact: if the database upsert fails (integration not invited, missing required property, 5xx), a `notion_registry_unavailable` WARN fires and the run continues.
 
 ### Registry file shape
