@@ -12,6 +12,16 @@ import sys
 from typing import Any
 
 
+def _maybe_load_dotenv() -> None:
+    """Load a ``.env`` file if ``python-dotenv`` is installed; silently skip otherwise."""
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+
 def _require_notion_client() -> Any:
     """Return the ``notion_client.Client`` class or exit 1 with install instructions."""
     try:
@@ -36,12 +46,7 @@ def resolve_notion_token() -> str:
     (e.g. ``--notion-repair-database``, ``--notion-prune-orphans``), which
     do not need ``NOTION_PARENT_PAGE_ID``.
     """
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv()
-    except ImportError:
-        pass
+    _maybe_load_dotenv()
 
     token = os.environ.get("NOTION_TOKEN")
     if not token:
@@ -91,12 +96,7 @@ def resolve_notion_database_id(
         return None
     if cli_override:
         return cli_override
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv()
-    except ImportError:
-        pass
+    _maybe_load_dotenv()
     return os.environ.get("NOTION_REGISTRY_DATABASE_ID") or None
 
 
@@ -109,12 +109,7 @@ def resolve_notion_company(cli_override: str | None, aa_company_id: str | None) 
     """
     if cli_override:
         return cli_override
-    try:
-        from dotenv import load_dotenv
-
-        load_dotenv()
-    except ImportError:
-        pass
+    _maybe_load_dotenv()
     env = os.environ.get("NOTION_REGISTRY_COMPANY")
     if env:
         return env

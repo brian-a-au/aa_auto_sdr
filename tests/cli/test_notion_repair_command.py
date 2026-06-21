@@ -4,36 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-
-class _FakeRepairClient:
-    """Minimal fake Notion client for repair command tests."""
-
-    def __init__(self, *, missing_prop: str | None = None):
-        self.update_calls: list[dict] = []
-        self._missing_prop = missing_prop
-
-        from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA
-
-        existing = {name: {"type": schema["type"]} for name, schema in PROPERTY_SCHEMA.items()}
-        if missing_prop:
-            del existing[missing_prop]
-        self._existing_props = existing
-
-        outer = self
-
-        class _DS:
-            def retrieve(self, **kw):
-                return {"properties": outer._existing_props}
-
-            def update(self, data_source_id=None, **kw):
-                outer.update_calls.append({"data_source_id": data_source_id, **kw})
-
-        class _DBs:
-            def retrieve(self, **kw):
-                return {"data_sources": [{"id": "ds-repair"}]}
-
-        self.data_sources = _DS()
-        self.databases = _DBs()
+from tests._notion_fakes import FakeRepairClient as _FakeRepairClient
 
 
 def test_dry_run_prints_and_no_update(capsys):
@@ -72,3 +43,46 @@ def test_apply_calls_update_and_returns_ok(capsys):
 
     assert code == int(ExitCode.OK)
     assert len(client.update_calls) == 1
+
+
+def test_dry_run_emits_structured_log(caplog):
+    """dry_run=True emits notion_repair_planned with correct add/conflicts counts."""
+    import logging
+
+    from aa_auto_sdr.cli.commands import notion_repair as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    client = _FakeRepairClient(missing_prop="Company")
+    Client_factory = MagicMock(return_value=client)
+
+    with (
+        patch.object(mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
+        caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_repair"),
+    ):
+        code = mod.run_notion_repair_database(database_id="db-id", dry_run=True)
+
+    assert code == int(ExitCode.OK)
+    assert any(
+        "notion_repair_planned" in r.message and "add=" in r.message and "conflicts=" in r.message
+        for r in caplog.records
+    )
+
+
+def test_live_run_does_not_emit_repair_planned_log(caplog):
+    """dry_run=False must NOT emit notion_repair_planned."""
+    import logging
+
+    from aa_auto_sdr.cli.commands import notion_repair as mod
+
+    client = _FakeRepairClient(missing_prop="Company")
+    Client_factory = MagicMock(return_value=client)
+
+    with (
+        patch.object(mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
+        caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_repair"),
+    ):
+        mod.run_notion_repair_database(database_id="db-id", dry_run=False)
+
+    assert not any("notion_repair_planned" in r.message for r in caplog.records)
