@@ -33,7 +33,7 @@ Install it with: uv pip install 'aa-auto-sdr[notion]'
 2. Click **New integration**.
 3. Give it a name (for example, "aa_auto_sdr") and select your workspace.
 4. Click **Submit**. Notion shows you the integration's **Internal Integration Token**.
-5. Copy the token. It starts with `secret_`.
+5. Copy the token. It starts with `secret_` or `ntn_`, depending on when the integration was created.
 6. Set it as an environment variable:
 
 ```bash
