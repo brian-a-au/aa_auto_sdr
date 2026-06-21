@@ -651,3 +651,60 @@ def test_repair_dry_run_no_update():
     assert "Timezone" in result.to_add
     assert result.applied is False
     assert client.update_calls == []
+
+
+def test_build_create_properties_covers_full_schema():
+    from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA, build_create_properties
+
+    props = build_create_properties()
+    assert set(props) == set(PROPERTY_SCHEMA)
+    for name, entry in PROPERTY_SCHEMA.items():
+        assert props[name] == entry["definition"]
+
+
+def test_create_database_one_call_full_schema():
+    from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA, create_database
+    from tests._notion_fakes import FakeCreateClient
+
+    client = FakeCreateClient()
+    db_id, url = create_database(client, parent_page_id="pp-123", title="AA SDR Registry")
+
+    assert db_id == "new-db-id"
+    assert url == "https://www.notion.so/newdbid"
+    assert len(client.create_calls) == 1
+    call = client.create_calls[0]
+    assert call["parent"] == {"type": "page_id", "page_id": "pp-123"}
+    assert call["title"] == [{"type": "text", "text": {"content": "AA SDR Registry"}}]
+    assert set(call["initial_data_source"]["properties"]) == set(PROPERTY_SCHEMA)
+
+
+def test_create_database_title_override_reaches_call():
+    from aa_auto_sdr.output.notion_database import create_database
+    from tests._notion_fakes import FakeCreateClient
+
+    client = FakeCreateClient()
+    create_database(client, parent_page_id="pp", title="Prod Registry")
+    assert client.create_calls[0]["title"][0]["text"]["content"] == "Prod Registry"
+
+
+def test_create_database_url_falls_back_to_id():
+    from aa_auto_sdr.output.notion_database import create_database
+    from tests._notion_fakes import FakeCreateClient
+
+    client = FakeCreateClient(database_id="abc-def", url=None)
+    _, url = create_database(client, parent_page_id="pp", title="T")
+    assert url == "https://www.notion.so/abcdef"
+
+
+def test_create_then_repair_is_zero_drift():
+    """A database created with the full schema needs no repair (parity invariant)."""
+    from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA, build_create_properties, repair_database
+    from tests._notion_fakes import FakeRepairClient
+
+    # Model the live DB as exactly what create_database would have produced.
+    created_props = {name: {"type": PROPERTY_SCHEMA[name]["type"]} for name in build_create_properties()}
+    client = FakeRepairClient(existing_props=created_props)
+
+    result = repair_database(client, database_id="db", dry_run=True)
+    assert result.to_add == []
+    assert result.conflicts == []

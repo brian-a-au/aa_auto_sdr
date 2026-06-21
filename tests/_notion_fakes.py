@@ -137,3 +137,32 @@ class FakePruneClient:
 
     def __init__(self, *, auth):
         self.pages = FakePrunePages()
+
+
+# ---------------------------------------------------------------------------
+# FakeCreateClient
+# Minimal fake for create_database tests: only databases.create is needed.
+# Records each create call so tests can assert on parent/title/properties.
+# ---------------------------------------------------------------------------
+
+
+class FakeCreateClient:
+    """Fake Notion client for create_database tests.
+
+    Records databases.create kwargs in ``create_calls`` and returns a
+    database object shaped like Notion's create response. Pass ``raises``
+    to simulate an SDK error.
+    """
+
+    def __init__(self, *, database_id="new-db-id", url="https://www.notion.so/newdbid", raises=None):
+        self.create_calls: list[dict] = []
+        outer = self
+
+        class _DBs:
+            def create(self, **kw):
+                outer.create_calls.append(kw)
+                if raises is not None:
+                    raise raises
+                return {"id": database_id, "url": url, "data_sources": [{"id": "ds-new"}]}
+
+        self.databases = _DBs()

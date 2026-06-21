@@ -390,6 +390,35 @@ def repair_database(
     return RepairResult(to_add=to_add, conflicts=conflicts, applied=applied)
 
 
+def build_create_properties() -> dict[str, Any]:
+    """Property-definition map for ``databases.create`` ``initial_data_source``.
+
+    Every :data:`PROPERTY_SCHEMA` entry keyed by name, value = its ``definition``
+    (e.g. ``{"title": {}}``, ``{"rich_text": {}}``). Includes the single required
+    ``title`` property (``Name``). This is the same definition shape
+    :func:`repair_database` sends to ``data_sources.update``, so a database
+    created from this map needs zero repair.
+    """
+    return {name: entry["definition"] for name, entry in PROPERTY_SCHEMA.items()}
+
+
+def create_database(client: Any, *, parent_page_id: str, title: str) -> tuple[str, str]:
+    """Create the registry database under ``parent_page_id`` with the full schema.
+
+    Issues a single ``databases.create`` call (2025-09 data-source model:
+    property definitions live under ``initial_data_source.properties``).
+    Returns ``(database_id, database_url)``. SDK errors propagate to the caller.
+    """
+    created = client.databases.create(
+        parent={"type": "page_id", "page_id": parent_page_id},
+        title=[{"type": "text", "text": {"content": title}}],
+        initial_data_source={"properties": build_create_properties()},
+    )
+    database_id = created["id"]
+    database_url = created.get("url") or f"https://www.notion.so/{database_id.replace('-', '')}"
+    return database_id, database_url
+
+
 def schema_cheatsheet() -> str:
     """Return the canonical schema cheatsheet printed by
     ``--notion-print-database-schema``, derived from PROPERTY_SCHEMA.
