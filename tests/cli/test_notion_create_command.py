@@ -1,0 +1,115 @@
+"""Tests for the --notion-create-database command handler."""
+
+from __future__ import annotations
+
+import logging
+from unittest.mock import MagicMock, patch
+
+from tests._notion_fakes import FakeCreateClient
+
+
+def _patch_guard(mod, client=None):
+    """Patch credential + client resolution on the handler module."""
+    factory = MagicMock(return_value=client) if client is not None else MagicMock()
+    return (
+        patch.object(mod, "resolve_notion_credentials", return_value=("tok", "pp-1")),
+        patch.object(mod, "_require_notion_client", return_value=factory),
+        factory,
+    )
+
+
+def test_dry_run_makes_no_calls(capsys):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    p_creds, p_client, factory = _patch_guard(mod)
+    with p_creds, p_client:
+        code = mod.run_notion_create_database(title="AA SDR Registry", dry_run=True, registry_already_configured=False)
+
+    assert code == int(ExitCode.OK)
+    out = capsys.readouterr().out
+    assert "DRY RUN" in out
+    assert "pp-1" in out  # target parent shown
+    factory.assert_not_called()  # no client constructed in dry-run
+
+
+def test_dry_run_emits_planned_log(caplog):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+
+    p_creds, p_client, _ = _patch_guard(mod)
+    with p_creds, p_client, caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_create"):
+        mod.run_notion_create_database(title="AA SDR Registry", dry_run=True, registry_already_configured=False)
+
+    assert any("notion_create_planned" in r.message for r in caplog.records)
+
+
+def test_apply_creates_and_prints_id(capsys):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    client = FakeCreateClient(database_id="db-xyz")
+    p_creds, p_client, _ = _patch_guard(mod, client)
+    with p_creds, p_client:
+        code = mod.run_notion_create_database(title="AA SDR Registry", dry_run=False, registry_already_configured=False)
+
+    assert code == int(ExitCode.OK)
+    assert len(client.create_calls) == 1
+    out = capsys.readouterr().out
+    assert "db-xyz" in out
+    assert "NOTION_REGISTRY_DATABASE_ID" in out
+
+
+def test_apply_emits_created_log(caplog):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+
+    client = FakeCreateClient(database_id="db-xyz")
+    p_creds, p_client, _ = _patch_guard(mod, client)
+    with p_creds, p_client, caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_create"):
+        mod.run_notion_create_database(title="AA SDR Registry", dry_run=False, registry_already_configured=False)
+
+    assert any("notion_database_created" in r.message for r in caplog.records)
+
+
+def test_apply_title_override_reaches_create(capsys):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+
+    client = FakeCreateClient()
+    p_creds, p_client, _ = _patch_guard(mod, client)
+    with p_creds, p_client:
+        mod.run_notion_create_database(title="Prod Registry", dry_run=False, registry_already_configured=False)
+
+    assert client.create_calls[0]["title"][0]["text"]["content"] == "Prod Registry"
+
+
+def test_warn_when_registry_already_configured(caplog):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    p_creds, p_client, _ = _patch_guard(mod)
+    with p_creds, p_client, caplog.at_level(logging.WARNING, logger="aa_auto_sdr.cli.commands.notion_create"):
+        code = mod.run_notion_create_database(title="AA SDR Registry", dry_run=True, registry_already_configured=True)
+
+    assert code == int(ExitCode.OK)
+    assert any("notion_create_existing_registry" in r.message for r in caplog.records)
+
+
+def test_sdk_error_returns_generic(caplog):
+    from aa_auto_sdr.cli.commands import notion_create as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    client = FakeCreateClient(raises=RuntimeError("boom"))
+    p_creds, p_client, _ = _patch_guard(mod, client)
+    with p_creds, p_client, caplog.at_level(logging.WARNING, logger="aa_auto_sdr.cli.commands.notion_create"):
+        code = mod.run_notion_create_database(title="AA SDR Registry", dry_run=False, registry_already_configured=False)
+
+    assert code == int(ExitCode.GENERIC)
+    assert any("notion_create_failed" in r.message for r in caplog.records)
+
+
+def test_missing_credentials_exits_via_guard():
+    import pytest
+
+    from aa_auto_sdr.cli.commands import notion_create as mod
+
+    with patch.object(mod, "resolve_notion_credentials", side_effect=SystemExit(1)), pytest.raises(SystemExit):
+        mod.run_notion_create_database(title="AA SDR Registry", dry_run=True, registry_already_configured=False)
