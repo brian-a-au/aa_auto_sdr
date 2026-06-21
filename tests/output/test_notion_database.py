@@ -10,6 +10,7 @@ import pytest
 from aa_auto_sdr.api import models
 from aa_auto_sdr.output import notion_database as db
 from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
+from tests._notion_fakes import FakeRegistryClient, FakeRepairClient
 
 
 def test_company_is_optional_property():
@@ -365,6 +366,20 @@ def test_schema_cheatsheet_mentions_env_var_name():
     assert "NOTION_REGISTRY_DATABASE_ID" in schema_cheatsheet()
 
 
+def test_schema_cheatsheet_page_hint():
+    from aa_auto_sdr.output.notion_database import schema_cheatsheet
+
+    text = schema_cheatsheet()
+    assert "-> link to the SDR detail page" in text
+
+
+def test_schema_cheatsheet_quality_verdict_hint():
+    from aa_auto_sdr.output.notion_database import schema_cheatsheet
+
+    text = schema_cheatsheet()
+    assert "(suggested options: pass, warn, fail, n/a)" in text
+
+
 # --- build_row_properties_from_dict: envelope + SDR-JSON edge paths ---
 
 
@@ -464,6 +479,40 @@ def test_resolve_data_source_warns_on_multiple(caplog):
     assert any("notion_registry_multi_source" in r.message for r in caplog.records)
 
 
+def test_resolve_data_source_caches_result():
+    """Second call with the same database_id must reuse the cached value.
+
+    Asserts that ``databases.retrieve`` is called exactly once across two
+    ``_resolve_data_source`` invocations, and that ``clear_data_source_cache``
+    forces a fresh resolve on the next call (``databases.retrieve`` called
+    twice total after the clear).
+    """
+    from aa_auto_sdr.output.notion_database import (
+        _resolve_data_source,
+        clear_data_source_cache,
+    )
+
+    client = MagicMock()
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-cached"}]}
+    client.data_sources.retrieve.return_value = {"properties": {"Name": {"type": "title"}}}
+
+    # First call — cache miss; resolve happens.
+    ds_id1, _props1 = _resolve_data_source(client, "db1")
+    assert ds_id1 == "ds-cached"
+    assert client.databases.retrieve.call_count == 1
+
+    # Second call with the same db_id — cache hit; no new network call.
+    ds_id2, _props2 = _resolve_data_source(client, "db1")
+    assert ds_id2 == "ds-cached"
+    assert client.databases.retrieve.call_count == 1  # still 1
+
+    # After clearing the cache, the next call triggers a fresh resolve.
+    clear_data_source_cache()
+    ds_id3, _props3 = _resolve_data_source(client, "db1")
+    assert ds_id3 == "ds-cached"
+    assert client.databases.retrieve.call_count == 2  # now 2 — one fresh resolve
+
+
 def test_filter_logs_dropped_optional(caplog):
     import logging
 
@@ -490,43 +539,8 @@ def test_filter_logs_dropped_optional(caplog):
 # --- company-aware _query_and_upsert filter tests ---
 
 
-class _FakeClient:
-    def __init__(self, existing_rows=None, db_props=None):
-        self.queries = []
-        self.created = []
-        self.updated = []
-        self._rows = existing_rows or []
-        self._db_props = db_props if db_props is not None else {k: {} for k in db.PROPERTY_SCHEMA}
-
-        outer = self
-
-        class _DS:
-            def query(self, **kw):
-                outer.queries.append(kw)
-                return {"results": outer._rows}
-
-            def retrieve(self, **kw):
-                return {"properties": outer._db_props}
-
-        class _DBs:
-            def retrieve(self, **kw):
-                return {"data_sources": [{"id": "ds1"}]}
-
-        class _Pages:
-            def create(self, **kw):
-                outer.created.append(kw)
-                return {"id": "new_row"}
-
-            def update(self, **kw):
-                outer.updated.append(kw)
-
-        self.data_sources = _DS()
-        self.databases = _DBs()
-        self.pages = _Pages()
-
-
 def test_query_filter_uses_company_when_present():
-    client = _FakeClient()
+    client = FakeRegistryClient()
     db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}, "Company": {}}, company="acme")
     flt = client.queries[0]["filter"]
     assert "and" in flt
@@ -535,7 +549,7 @@ def test_query_filter_uses_company_when_present():
 
 
 def test_query_filter_rsid_only_without_company():
-    client = _FakeClient()
+    client = FakeRegistryClient()
     db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}}, company="")
     flt = client.queries[0]["filter"]
     assert flt == {"property": "RSID", "rich_text": {"equals": "rs1"}}
@@ -546,7 +560,7 @@ def test_query_filter_rsid_only_when_company_set_but_not_in_payload():
     a 'Company' key (the database lacks the Company column so filter_payload_to_schema
     dropped it). The filter must fall back to the RSID-only form, not an AND filter.
     """
-    client = _FakeClient()
+    client = FakeRegistryClient()
     # Payload has no "Company" key — simulates a database that lacks the column
     db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}}, company="acme")
     flt = client.queries[0]["filter"]
@@ -555,32 +569,9 @@ def test_query_filter_rsid_only_when_company_set_but_not_in_payload():
 
 # --- repair_database tests ---
 
-
-class _RepairClient:
-    """Fake client for repair_database tests; spies on data_sources.update."""
-
-    def __init__(self, existing_props: dict | None = None):
-        self.update_calls: list[dict] = []
-        # Properties already on the DB — defaults to all PROPERTY_SCHEMA entries with correct types
-        if existing_props is None:
-            existing_props = {name: {"type": schema["type"]} for name, schema in db.PROPERTY_SCHEMA.items()}
-        self._existing_props = existing_props
-
-        outer = self
-
-        class _DS:
-            def retrieve(self, **kw):
-                return {"properties": outer._existing_props}
-
-            def update(self, data_source_id=None, **kw):
-                outer.update_calls.append({"data_source_id": data_source_id, **kw})
-
-        class _DBs:
-            def retrieve(self, **kw):
-                return {"data_sources": [{"id": "ds-repair"}]}
-
-        self.data_sources = _DS()
-        self.databases = _DBs()
+# FakeRepairClient is imported above (from tests._notion_fakes).
+# Local alias keeps the existing test bodies readable without change.
+_RepairClient = FakeRepairClient
 
 
 def test_repair_all_missing():

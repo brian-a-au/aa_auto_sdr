@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.20.1] — 2026-06-21
+
+Efficiency, observability, and cleanup patch for the Notion integration. No new user-facing flags.
+
+### Performance
+- The resolved Notion data source is now cached per database id per run. Parallel batch and watch no longer re-fetch the database schema on every upsert.
+
+### Added
+- `notion_prune_planned` (INFO) — dry-run preview event for `--notion-prune-orphans`, reporting the count of orphaned pages found.
+- `notion_repair_planned` (INFO) — dry-run preview event for `--notion-repair-database`, reporting the count of properties to add and type conflicts found.
+- Restored the `Page` and `Quality Verdict` hints in `--notion-print-database-schema` output.
+
+### Docs
+- Documented the `notion_registry_multi_source` WARNING in `LOGGING_STYLE.md`. Added `notion_repair_planned` (INFO) to the Notion repair events section.
+- Added a note in `OUTPUT_FORMATS.md` and `CONFIGURATION.md` that the registry database should be a standard single-data-source database; if more than one data source is found, the tool uses the first and logs a `notion_registry_multi_source` warning.
+
+### Internals
+- Deduplicated the `load_dotenv` resolver block and the test fake Notion clients.
+
 ## [1.20.0] — 2026-06-20
 
 The Notion integration gains three new standalone modes and two lifted constraints. `--notion-prune-orphans` archives pages that were orphaned by `--notion-force-new`. `--notion-repair-database` additively fixes a registry database whose schema has drifted from the canonical layout. `--notion-company` (and `NOTION_REGISTRY_COMPANY`) adds an optional `Company` column to the registry so one database can index multiple Adobe Analytics organizations. `--watch --format notion` is now supported, publishing to Notion on the baseline cycle and on cycles where changes meet `--watch-threshold`. `--batch --format notion --workers N>1` is now supported; a process-level lock guards `.notion_pages.json` against races.

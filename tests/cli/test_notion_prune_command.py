@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from aa_auto_sdr.cli.commands.notion_prune import run_notion_prune_orphans
 from aa_auto_sdr.output import notion_registry as reg
+from tests._notion_fakes import FakePruneClient as _FakeClient
 
 
 def _seed(tmp_path: Path) -> Path:
@@ -10,19 +11,6 @@ def _seed(tmp_path: Path) -> Path:
     reg.store_page_id(p, "rs1", "a")
     reg.store_page_id(p, "rs1", "b")  # tombstone a
     return p
-
-
-class _FakePages:
-    def __init__(self):
-        self.archived = []
-
-    def update(self, *, page_id, archived):
-        self.archived.append((page_id, archived))
-
-
-class _FakeClient:
-    def __init__(self, *, auth):
-        self.pages = _FakePages()
 
 
 def _patch_notion(fake_client_cls=_FakeClient):
@@ -66,3 +54,24 @@ def test_apply_archives_and_clears_tombstones(tmp_path, capsys):
     assert "Archived 1 page(s)" in out
     assert exit_code == 0
     assert reg.load_registry(p)["rs1"]["superseded"] == []
+
+
+def test_dry_run_emits_structured_log(tmp_path, caplog):
+    """dry_run=True emits notion_prune_planned with correct count."""
+    import logging
+
+    _seed(tmp_path)
+    with caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_prune"):
+        run_notion_prune_orphans(str(tmp_path), dry_run=True)
+    assert any("notion_prune_planned" in r.message and "count=1" in r.message for r in caplog.records)
+
+
+def test_live_run_does_not_emit_prune_planned_log(tmp_path, caplog):
+    """dry_run=False must NOT emit notion_prune_planned."""
+    import logging
+
+    _seed(tmp_path)
+    req_patch, creds_patch = _patch_notion()
+    with req_patch, creds_patch, caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_prune"):
+        run_notion_prune_orphans(str(tmp_path), dry_run=False)
+    assert not any("notion_prune_planned" in r.message for r in caplog.records)

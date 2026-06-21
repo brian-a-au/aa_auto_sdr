@@ -247,6 +247,7 @@ When the SDR Registry database is configured (`NOTION_REGISTRY_DATABASE_ID`), th
 - `notion_registry_upserted` (INFO) — a database row was created or updated. Extras: `rsid`, `notion_row_id`, `duration_ms`.
 - `notion_registry_unavailable` (WARN) — the database upsert failed (auth, missing required property, 5xx). The detail page still wrote and the run continues.
 - `notion_registry_duplicate_rows` (WARN) — more than one row matched the `RSID` filter; the first is updated.
+- `notion_registry_multi_source` (WARNING) — the registry database has more than one data source; the tool uses the first and logs the database id and count. Emitted from `output/notion_database.py::_resolve_data_source`.
 - `notion_registry_property_missing` (DEBUG) — an optional registry property (e.g. `Company`) is absent from the live database schema; the field is silently skipped for this upsert. Emitted from `output/notion_database.py`. Extra: property name in the message string.
 - `notion_registry_skipped` (DEBUG) — no database id resolved for this run (`NOTION_REGISTRY_DATABASE_ID` unset and `--notion-registry-database` not passed); the registry upsert step is skipped. Emitted from `output/writers/notion.py`. Extra: `rsid`, `reason=no_database_id`.
 
@@ -263,6 +264,7 @@ Emitted by `--notion-prune-orphans` via `output/notion_prune.py`.
 
 Emitted by `--notion-repair-database` via `cli/commands/notion_repair.py`.
 
+- `notion_repair_planned` (INFO) — dry-run preview; reports how many properties would be added and how many type conflicts were found. Extras: `add`, `conflicts`.
 - `notion_property_created` (INFO) — a missing property was added to the database. Extra: `notion_property_name`.
 - `notion_repair_type_conflict` (WARNING) — a property exists but its type differs from the canonical schema; it is left untouched. Extras: `notion_property_name`, `want_type`, `have_type`.
 - `notion_repair_complete` (INFO) — repair run finished; reports how many properties were added. Extra: `properties_added`.
@@ -299,3 +301,4 @@ Most maintainers will not need this table. It exists because the vocabulary meta
 | Template-fill writer: `template_load`, `template_sheet_filled`, `template_sheet_skipped`, `template_overflow`, `template_sheet_clipped`; vocabulary: `sheet`, `sheets`, `rows_matched`, `rows_appended`, `rows_dropped`, `soft_cap`, `overflow_rows` | v1.16.0 |
 | VRS exhaust hint: `vrs_unavailable`; vocabulary: `likely_cause` | v1.16.1 |
 | Notion registry debug: `notion_registry_property_missing`, `notion_registry_skipped`; Notion prune: `notion_prune_planned`, `notion_page_archived`, `notion_page_archive_failed`, `notion_prune_complete`; Notion repair: `notion_property_created`, `notion_repair_type_conflict`, `notion_repair_complete`; Notion watch: `notion_watch_publish_failed`; vocabulary: `notion_property_name`, `want_type`, `have_type`, `properties_added` | v1.20.0 |
+| `notion_registry_multi_source` (WARNING); `notion_repair_planned` (INFO); vocabulary: `add`, `conflicts` | v1.20.1 |
