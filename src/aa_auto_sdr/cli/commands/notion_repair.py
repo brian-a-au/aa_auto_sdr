@@ -17,7 +17,7 @@ import sys
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
-    resolve_notion_credentials,
+    resolve_notion_token,
 )
 from aa_auto_sdr.output.notion_database import NotionRegistryError, repair_database
 
@@ -34,7 +34,7 @@ def run_notion_repair_database(database_id: str, dry_run: bool) -> int:
     Returns ``ExitCode.OK`` on success, ``ExitCode.GENERIC`` on error.
     """
     Client = _require_notion_client()
-    token, _parent_page_id = resolve_notion_credentials()
+    token = resolve_notion_token()
     client = Client(auth=token)
 
     try:

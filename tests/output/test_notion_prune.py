@@ -56,7 +56,7 @@ def test_not_found_drops_tombstone(tmp_path):
         p,
         prune.collect_orphans(reg.load_registry(p)),
         dry_run=False,
-        not_found_types=(_NotFound,),
+        is_not_found=lambda e: isinstance(e, _NotFound),
     )
     assert reg.load_registry(p)["rs1"]["superseded"] == []
     assert result.failed == []  # not-found is treated as success
@@ -85,11 +85,42 @@ def test_generic_exception_records_failure_preserves_tombstone(tmp_path):
         p,
         prune.collect_orphans(reg.load_registry(p)),
         dry_run=False,
-        not_found_types=(_NotFound,),
+        is_not_found=lambda e: isinstance(e, _NotFound),
     )
     # page lands in failed with (rsid, page_id, exc_type_name)
     assert result.failed == [("rs1", "a", "RuntimeError")]
     # tombstone is preserved — drop_superseded was NOT called
     assert reg.load_registry(p)["rs1"]["superseded"] == ["a"]
     # page is NOT counted as archived
+    assert result.archived == []
+
+
+class _FakeNotionError(Exception):
+    """Simulates an APIResponseError-like exception with a code attribute."""
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
+def test_non_not_found_api_error_preserves_tombstone(tmp_path):
+    """A Notion API error that is NOT object_not_found must keep the tombstone.
+
+    This guards against transient/auth errors (429, 401, 5xx) being
+    misclassified as 'already gone' and silently destroying tombstone entries.
+    """
+    p = _seed(tmp_path)
+    rate_limited_exc = _FakeNotionError("rate_limited")
+    client = _ErrorClient(rate_limited_exc)
+    # is_not_found returns False for rate_limited — only True for object_not_found
+    result = prune.archive_orphans(
+        client,
+        p,
+        prune.collect_orphans(reg.load_registry(p)),
+        dry_run=False,
+        is_not_found=lambda e: isinstance(e, _FakeNotionError) and e.code == "object_not_found",
+    )
+    # tombstone preserved — prune can be retried
+    assert reg.load_registry(p)["rs1"]["superseded"] == ["a"]
+    assert result.failed == [("rs1", "a", "_FakeNotionError")]
     assert result.archived == []

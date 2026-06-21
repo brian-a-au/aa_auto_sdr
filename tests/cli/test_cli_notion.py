@@ -568,3 +568,22 @@ def test_repair_with_database_id_flag_ok(capsys, monkeypatch):
     rc = _validate_notion_modifiers(ns)
     # Should not return USAGE for missing db id since we supplied one via flag
     assert rc != int(ExitCode.USAGE) or "NOTION_REGISTRY_DATABASE_ID" not in capsys.readouterr().err
+
+
+def test_repair_with_registry_database_override_not_rejected(capsys, monkeypatch):
+    """--notion-repair-database --notion-registry-database <id> must be accepted.
+
+    Before the fix, _validate_notion_modifiers rejected --notion-registry-database
+    when not in 'in_notion_mode' (--format notion or --push-to-notion) because the
+    repair variable was computed AFTER the registry-database check.  Repair mode
+    is not in_notion_mode but legitimately uses --notion-registry-database as its
+    database-id source.
+    """
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-repair-database", "--notion-registry-database", "explicit-db-id"])
+    rc = _validate_notion_modifiers(ns)
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OK), f"Expected OK but got rc={rc}, stderr={err!r}"
+    # Must not emit the misleading "requires --format notion" error
+    assert "--format notion" not in err

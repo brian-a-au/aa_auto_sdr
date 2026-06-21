@@ -46,7 +46,7 @@ def test_dry_run_prints_and_no_update(capsys):
 
     with (
         patch.object(mod, "_require_notion_client", return_value=Client_factory),
-        patch.object(mod, "resolve_notion_credentials", return_value=("tok", "parent-id")),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
     ):
         code = mod.run_notion_repair_database(database_id="db-id", dry_run=True)
 
@@ -66,7 +66,7 @@ def test_apply_calls_update_and_returns_ok(capsys):
 
     with (
         patch.object(mod, "_require_notion_client", return_value=Client_factory),
-        patch.object(mod, "resolve_notion_credentials", return_value=("tok", "parent-id")),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
     ):
         code = mod.run_notion_repair_database(database_id="db-id", dry_run=False)
 

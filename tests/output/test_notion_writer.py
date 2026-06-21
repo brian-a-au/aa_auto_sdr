@@ -10,7 +10,7 @@ import pytest
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.output import registry
-from aa_auto_sdr.output.notion_client_guard import resolve_notion_credentials
+from aa_auto_sdr.output.notion_client_guard import resolve_notion_credentials, resolve_notion_token
 from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME
 from aa_auto_sdr.output.writers import notion as notion_writer_mod
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -74,6 +74,22 @@ def test_resolve_notion_credentials_missing_parent_exits(monkeypatch):
     monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
     with pytest.raises(SystemExit) as exc:
         resolve_notion_credentials()
+    assert exc.value.code == 1
+
+
+def test_resolve_notion_token_returns_token_without_parent_page(monkeypatch):
+    """resolve_notion_token succeeds when only NOTION_TOKEN is set (no NOTION_PARENT_PAGE_ID)."""
+    monkeypatch.setenv("NOTION_TOKEN", "token-only")
+    monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
+    assert resolve_notion_token() == "token-only"
+
+
+def test_resolve_notion_token_missing_token_exits(monkeypatch):
+    """resolve_notion_token exits 1 when NOTION_TOKEN is absent."""
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        resolve_notion_token()
     assert exc.value.code == 1
 
 

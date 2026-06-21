@@ -26,11 +26,15 @@ def _require_notion_client() -> Any:
         sys.exit(1)
 
 
-def resolve_notion_credentials() -> tuple[str, str]:
-    """Return ``(NOTION_TOKEN, NOTION_PARENT_PAGE_ID)``, or exit 1 if missing.
+def resolve_notion_token() -> str:
+    """Return ``NOTION_TOKEN``, or exit 1 if missing.
 
     Resolution order: environment variable → ``.env`` file (if
     ``python-dotenv`` is installed) → hard failure.
+
+    Use this for commands that need a Notion token but do NOT create pages
+    (e.g. ``--notion-repair-database``, ``--notion-prune-orphans``), which
+    do not need ``NOTION_PARENT_PAGE_ID``.
     """
     try:
         from dotenv import load_dotenv
@@ -46,6 +50,17 @@ def resolve_notion_credentials() -> tuple[str, str]:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    return token
+
+
+def resolve_notion_credentials() -> tuple[str, str]:
+    """Return ``(NOTION_TOKEN, NOTION_PARENT_PAGE_ID)``, or exit 1 if missing.
+
+    Resolution order: environment variable → ``.env`` file (if
+    ``python-dotenv`` is installed) → hard failure.
+    """
+    token = resolve_notion_token()
 
     parent_page_id = os.environ.get("NOTION_PARENT_PAGE_ID")
     if not parent_page_id:

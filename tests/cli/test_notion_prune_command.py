@@ -32,8 +32,8 @@ def _patch_notion(fake_client_cls=_FakeClient):
             return_value=fake_client_cls,
         ),
         patch(
-            "aa_auto_sdr.cli.commands.notion_prune.resolve_notion_credentials",
-            return_value=("fake-token", "fake-parent"),
+            "aa_auto_sdr.cli.commands.notion_prune.resolve_notion_token",
+            return_value="fake-token",
         ),
     )
 
