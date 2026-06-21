@@ -308,18 +308,22 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     Returns ExitCode.OK if consistent, ExitCode.USAGE (with stderr
     message) otherwise.
 
-    v1.18.0 rules:
-      - --watch --format notion        (silent looped page rewrites)
-      - --workers > 1 --format notion  (concurrent .notion_pages.json writes)
-
     v1.19.0 rules:
       - --notion-registry-database X --no-notion-registry  (operator confusion)
-      - --notion-registry-database X without a notion mode (flag meaningless)
+      - --notion-registry-database X without a notion mode or repair (flag meaningless)
       - --no-notion-registry without a notion mode         (flag meaningless)
+      Note: --notion-repair-database is exempt from the registry-database check because
+      it legitimately uses --notion-registry-database as its database-id source.
+
+    v1.20.0 rules:
+      - --notion-prune-orphans / --notion-repair-database are standalone modes
+      - --notion-company requires a notion mode
+      - --yes (for notion) requires --notion-prune-orphans or --notion-repair-database
     """
     in_notion_mode = getattr(ns, "format", None) == "notion" or bool(getattr(ns, "push_to_notion", None))
+    repair = bool(getattr(ns, "notion_repair_database", False))
 
-    # v1.19.0 — mutual rejection of the two new flags.
+    # v1.19.0 — mutual rejection of the two registry flags.
     if getattr(ns, "notion_registry_database", None) and getattr(ns, "no_notion_registry", False):
         print(
             "error: --notion-registry-database and --no-notion-registry cannot be combined",
@@ -328,7 +332,9 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
         return int(ExitCode.USAGE)
 
     # v1.19.0 — registry flags require a notion mode.
-    if getattr(ns, "notion_registry_database", None) and not in_notion_mode:
+    # Exempt repair: --notion-repair-database legitimately uses --notion-registry-database
+    # as its database-id source without entering in_notion_mode.
+    if getattr(ns, "notion_registry_database", None) and not in_notion_mode and not repair:
         print(
             "error: --notion-registry-database requires --format notion or --push-to-notion",
             file=sys.stderr,
@@ -341,28 +347,73 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
         )
         return int(ExitCode.USAGE)
 
-    if getattr(ns, "format", None) != "notion":
-        return int(ExitCode.OK)
+    prune = bool(getattr(ns, "notion_prune_orphans", False))
 
-    if getattr(ns, "watch", False):
+    # v1.20.0 — standalone modes: cannot combine with generation, push, diff,
+    # watch, or each other.
+    if prune or repair:
+        conflicting = (
+            bool(getattr(ns, "rsids", []) or [])
+            or bool(getattr(ns, "batch", None))
+            or bool(getattr(ns, "push_to_notion", None))
+            or bool(getattr(ns, "diff", None))
+            or bool(getattr(ns, "watch", False))
+        )
+        if prune and repair:
+            print(
+                "error: --notion-prune-orphans and --notion-repair-database cannot be combined",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
+        if conflicting:
+            mode = "--notion-prune-orphans" if prune else "--notion-repair-database"
+            print(
+                f"error: {mode} cannot be combined with generation or other modes",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
+
+    if repair:
+        from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+        db_id = resolve_notion_database_id(
+            cli_override=getattr(ns, "notion_registry_database", None),
+            disabled=False,
+        )
+        if not db_id:
+            print(
+                "error: --notion-repair-database requires NOTION_REGISTRY_DATABASE_ID or --notion-registry-database",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
+
+    if getattr(ns, "notion_company", None) and not (in_notion_mode or repair):
         print(
-            "error: --watch is not supported with --format notion",
+            "error: --notion-company requires --format notion, --push-to-notion, or --notion-repair-database",
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
 
-    # Treat both `--batch RSID...` and multi-positional `aa_auto_sdr rs1 rs2`
-    # as a batch — same definition `run()` uses in its sampling-validation
-    # block when classifying the run.
-    is_batch = bool(getattr(ns, "batch", None)) or len(getattr(ns, "rsids", []) or []) >= 2
-    if is_batch and getattr(ns, "workers", 1) > 1:
-        print(
-            "error: --workers > 1 is not supported with --format notion "
-            "(concurrent writes to .notion_pages.json would race). "
-            "Run batch serially.",
-            file=sys.stderr,
+    # v1.20.0 — --yes in a pure notion-modifier context (no snapshot prune, no
+    # generate) must target a destructive mode. This guard only fires when the
+    # user invokes --yes alongside notion flags but without a destructive
+    # notion action. It does NOT fire for --prune-snapshots --yes (snapshots
+    # command handles that) or generate/batch --yes (accepted for parity).
+    yes = getattr(ns, "yes", False)
+    if yes and not (prune or repair):
+        has_snapshot_prune = bool(getattr(ns, "prune_snapshots", False))
+        notion_flags_only = (
+            in_notion_mode
+            or bool(getattr(ns, "notion_registry_database", None))
+            or bool(getattr(ns, "no_notion_registry", False))
+            or bool(getattr(ns, "notion_company", None))
         )
-        return int(ExitCode.USAGE)
+        if notion_flags_only and not has_snapshot_prune:
+            print(
+                "error: --yes only applies to --notion-prune-orphans or --notion-repair-database",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
 
     return int(ExitCode.OK)
 
@@ -525,7 +576,21 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             force_new=getattr(ns, "notion_force_new", False),
             notion_registry_database=getattr(ns, "notion_registry_database", None),
             no_notion_registry=getattr(ns, "no_notion_registry", False),
+            notion_company=getattr(ns, "notion_company", None),
         )
+
+    # v1.20.0 — standalone Notion maintenance modes.
+    if getattr(ns, "notion_prune_orphans", False):
+        from aa_auto_sdr.cli.commands.notion_prune import run_notion_prune_orphans
+
+        return run_notion_prune_orphans(getattr(ns, "output_dir", None), dry_run=not getattr(ns, "yes", False))
+
+    if getattr(ns, "notion_repair_database", False):
+        from aa_auto_sdr.cli.commands.notion_repair import run_notion_repair_database
+        from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+        db_id = resolve_notion_database_id(cli_override=getattr(ns, "notion_registry_database", None), disabled=False)
+        return run_notion_repair_database(db_id, dry_run=not getattr(ns, "yes", False))
 
     from aa_auto_sdr.core import colors
 
@@ -1020,6 +1085,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             notion_force_new=getattr(ns, "notion_force_new", False),
             notion_registry_database=getattr(ns, "notion_registry_database", None),
             no_notion_registry=getattr(ns, "no_notion_registry", False),
+            notion_company=getattr(ns, "notion_company", None),
         )
 
     # Single identifier → generate. Default --format to "excel" if omitted.
@@ -1062,6 +1128,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         notion_force_new=getattr(ns, "notion_force_new", False),
         notion_registry_database=getattr(ns, "notion_registry_database", None),
         no_notion_registry=getattr(ns, "no_notion_registry", False),
+        notion_company=getattr(ns, "notion_company", None),
     )
 
 

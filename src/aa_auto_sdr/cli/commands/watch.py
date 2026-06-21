@@ -94,6 +94,42 @@ class _SnapshotStoreAdapter:
         return path, envelope
 
 
+# --- Notion watch publisher ------------------------------------------------
+
+
+@dataclass
+class _NotionWatchPublisher:
+    """Reads the snapshot envelope at `snapshot_path` and publishes it to Notion.
+
+    Constructed only when ``--format notion`` is active. The `publish` method
+    is called by `run_watch_loop` after baseline and real-change cycles.
+    """
+
+    client: Any  # notion_client.Client — typed Any to avoid heavy import at module load
+    parent_page_id: str
+    registry_path: Path
+    database_id: str | None
+    disable_registry: bool
+    company: str | None
+
+    def publish(self, *, snapshot_path: Path, rsid: str) -> None:  # noqa: ARG002
+        import json
+
+        from aa_auto_sdr.cli.commands.push_to_notion import publish_payload_to_notion
+
+        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        publish_payload_to_notion(
+            self.client,
+            payload,
+            parent_page_id=self.parent_page_id,
+            registry_path=self.registry_path,
+            force_new=False,
+            database_id=self.database_id,
+            disable_registry=self.disable_registry,
+            company=self.company,
+        )
+
+
 # --- Handler ---------------------------------------------------------------
 
 
@@ -114,10 +150,10 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         print("error: --watch-threshold must be non-negative", file=sys.stderr)
         return int(ExitCode.USAGE)
     fmt = getattr(ns, "format", None)
-    if fmt is not None and fmt != "json":
+    if fmt is not None and fmt not in ("json", "notion"):
         print(
             f"error: --format={fmt!r} is not compatible with --watch "
-            f"(only `json` is allowed; watch emits NDJSON on stdout)",
+            f"(only `json` and `notion` are allowed; watch emits NDJSON on stdout)",
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
@@ -199,6 +235,15 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
 
     emitter = _LoggingEmitter()  # type: ignore[assignment]
 
+    # --- Build optional Notion publisher (only for --format notion) ----------
+    notion_publisher = None
+    if fmt == "notion" and _injected is None:
+        notion_publisher = _build_notion_publisher(ns, snapshot_dir=snapshot_dir)
+
+    # Allow tests to inject a notion_publisher via _injected.
+    if _injected is not None and hasattr(_injected, "notion_publisher"):
+        notion_publisher = _injected.notion_publisher
+
     ctx = WatchContext(
         fetcher=fetcher,
         snapshot_store=store,
@@ -211,6 +256,7 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         git_push=getattr(ns, "git_push", False),
         git_message=getattr(ns, "git_message", None),
         snapshot_dir=snapshot_dir,
+        notion_publisher=notion_publisher,
     )
 
     # --- 4. Install signal handlers --------------------------------------
@@ -274,3 +320,53 @@ def _build_real_fetcher(ns: argparse.Namespace) -> _BuildSdrFetcher:
     creds = credentials.resolve(profile=profile)
     client = AaClient.from_credentials(creds)
     return _BuildSdrFetcher(client=client, tool_version=version.__version__)
+
+
+def _build_notion_publisher(
+    ns: argparse.Namespace,
+    *,
+    snapshot_dir: Path | None,
+) -> _NotionWatchPublisher:
+    """Build a real _NotionWatchPublisher from the namespace.
+
+    Lazy imports keep this off the fast path.
+    """
+    from aa_auto_sdr.output.notion_client_guard import (
+        _require_notion_client,
+        resolve_notion_company,
+        resolve_notion_credentials,
+        resolve_notion_database_id,
+    )
+    from aa_auto_sdr.output.notion_registry import get_registry_path
+
+    Client = _require_notion_client()
+    token, parent_page_id = resolve_notion_credentials()
+    client = Client(auth=token)
+
+    # Use --output-dir if supplied; fall back to CWD.
+    output_dir_raw = getattr(ns, "output_dir", None)
+    if output_dir_raw:
+        effective_dir = Path(output_dir_raw)
+    elif snapshot_dir is not None:
+        effective_dir = snapshot_dir
+    else:
+        effective_dir = Path.cwd()
+    registry_path = get_registry_path(effective_dir)
+
+    database_id = resolve_notion_database_id(
+        cli_override=getattr(ns, "notion_registry_database", None),
+        disabled=bool(getattr(ns, "no_notion_registry", False)),
+    )
+    company = resolve_notion_company(
+        cli_override=getattr(ns, "notion_company", None),
+        aa_company_id=None,
+    )
+
+    return _NotionWatchPublisher(
+        client=client,
+        parent_page_id=parent_page_id,
+        registry_path=registry_path,
+        database_id=database_id,
+        disable_registry=bool(getattr(ns, "no_notion_registry", False)),
+        company=company,
+    )

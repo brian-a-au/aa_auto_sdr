@@ -171,7 +171,10 @@ def test_push_to_notion_force_new_creates_fresh_page(tmp_path, monkeypatch):
     assert exit_code == 0
     mock_client.pages.create.assert_called_once()
     reg = json.loads((tmp_path / ".notion_pages.json").read_text())
-    assert reg["examplersid1"] == "fresh-page"
+    # old page id moved to superseded; current points to fresh page
+    entry = reg["examplersid1"]
+    assert entry["current"] == "fresh-page"
+    assert entry["superseded"] == ["old"]
 
 
 # --- v1.19.0: registry-database threading on the push path ---
@@ -247,3 +250,164 @@ def test_push_skips_database_when_disabled(tmp_path, monkeypatch):
 
     assert exit_code == 0
     mock_client.databases.retrieve.assert_not_called()
+
+
+# --- v1.20.0: company threading on the push path ---
+
+
+def test_push_threads_company_to_upsert_row(tmp_path, monkeypatch):
+    """notion_company is resolved and forwarded as company= to upsert_row_from_dict."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    monkeypatch.setenv("NOTION_REGISTRY_DATABASE_ID", "db-id")
+    monkeypatch.delenv("NOTION_REGISTRY_COMPANY", raising=False)
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    captured: dict = {}
+
+    def fake_upsert_from_dict(client, **kwargs):
+        captured.update(kwargs)
+        return "row-1"
+
+    mock_client = MagicMock()
+    mock_client.pages.create.side_effect = [{"id": "page-1"}, {"id": "row-1"}]
+    mock_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    Client_factory = MagicMock(return_value=mock_client)
+
+    with (
+        patch.object(pt_mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(pt_mod, "upsert_row_from_dict", fake_upsert_from_dict),
+    ):
+        exit_code = pt_mod.run_push_to_notion(
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
+            notion_registry_database="db-id",
+            no_notion_registry=False,
+            notion_company="acme",
+        )
+
+    assert exit_code == 0
+    assert captured.get("company") == "acme"
+
+
+# --- v1.20.0: publish_payload_to_notion helper is the publish path ----------
+
+
+def test_publish_payload_to_notion_returns_page_id(tmp_path, monkeypatch):
+    """publish_payload_to_notion returns the page id and does NOT print."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    payload = {
+        "report_suite": {
+            "rsid": "examplersid1",
+            "name": "Example RS",
+            "currency": "USD",
+            "timezone": "America/Los_Angeles",
+            "parent_rsid": None,
+        },
+        "captured_at": "2026-05-14T10:00:00+00:00",
+        "tool_version": "1.20.0",
+        "dimensions": [],
+        "metrics": [],
+        "segments": [],
+        "calculated_metrics": [],
+        "virtual_report_suites": [],
+        "classifications": [],
+        "fetch_status": {},
+        "quality": None,
+    }
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+    from aa_auto_sdr.output.notion_registry import get_registry_path
+
+    mock_client = MagicMock()
+    mock_client.pages.create.return_value = {"id": "new-page-123"}
+    mock_client.blocks.children.append.return_value = {}
+
+    page_id = pt_mod.publish_payload_to_notion(
+        mock_client,
+        payload,
+        parent_page_id="parent-id",
+        registry_path=get_registry_path(tmp_path),
+        force_new=False,
+        database_id=None,
+        disable_registry=True,  # skip DB upsert for this test
+        company=None,
+    )
+
+    assert page_id == "new-page-123"
+    mock_client.pages.create.assert_called_once()
+
+
+def test_run_push_to_notion_uses_publish_payload_helper(tmp_path, monkeypatch, capsys):
+    """run_push_to_notion delegates to publish_payload_to_notion and prints the page url."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    mock_client = MagicMock()
+    mock_client.pages.create.return_value = {"id": "delegated-page"}
+    mock_client.blocks.children.append.return_value = {}
+    Client_factory = MagicMock(return_value=mock_client)
+
+    with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
+        exit_code = pt_mod.run_push_to_notion(
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
+            no_notion_registry=True,
+        )
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "notion://pages/delegated-page" in out
+
+
+def test_publish_payload_to_notion_db_error_warns_and_continues(tmp_path, monkeypatch):
+    """A DB upsert failure in publish_payload_to_notion still returns the page id."""
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+    from aa_auto_sdr.output.notion_registry import get_registry_path
+
+    mock_client = MagicMock()
+    mock_client.pages.create.return_value = {"id": "page-abc"}
+    mock_client.blocks.children.append.return_value = {}
+
+    def _boom_upsert(client, **kwargs):
+        raise RuntimeError("DB unavailable")
+
+    with patch.object(pt_mod, "upsert_row_from_dict", _boom_upsert):
+        page_id = pt_mod.publish_payload_to_notion(
+            mock_client,
+            {
+                "report_suite": {
+                    "rsid": "testrsid",
+                    "name": "Test",
+                    "currency": "USD",
+                    "timezone": "UTC",
+                    "parent_rsid": None,
+                },
+                "captured_at": "2026-05-14T10:00:00+00:00",
+                "tool_version": "1.20.0",
+                "dimensions": [],
+                "metrics": [],
+                "segments": [],
+                "calculated_metrics": [],
+                "virtual_report_suites": [],
+                "classifications": [],
+                "fetch_status": {},
+                "quality": None,
+            },
+            parent_page_id="parent-id",
+            registry_path=get_registry_path(tmp_path),
+            force_new=False,
+            database_id="db-id",
+            disable_registry=False,
+            company=None,
+        )
+
+    # Despite DB failure, we still get the page id back.
+    assert page_id == "page-abc"

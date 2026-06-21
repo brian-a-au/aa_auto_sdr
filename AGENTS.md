@@ -106,6 +106,8 @@ parsing logs should treat the field as optional.
 
 Continue-on-error is the batch default; no opt-in flag is needed. Cache sharing across workers is not implemented; cache is per-process and gated by `--enable-cache`.
 
+`--batch --format notion --workers N>1` is supported. A process-level lock serializes all `.notion_pages.json` writes so concurrent workers do not race. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically, but high worker counts may increase latency on large batches.
+
 ### Validation cache
 
 `--enable-cache`, `--clear-cache`, `--cache-ttl SECONDS`, `--cache-size
@@ -304,10 +306,30 @@ Event types (schema `aa-watch-event/v1`, NDJSON on stdout):
 - `change` — subsequent cycle where `total_changes >= watch_threshold`.
 - `error` — per-RSID fetch failure within a cycle; loop continues.
 
-SIGINT / SIGTERM → exit 0. `--format`, `--quality-policy`, and
-`--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2).
-`--interval` or non-default `--watch-threshold` without `--watch` are also
-rejected (exit `USAGE` 2).
+SIGINT / SIGTERM → exit 0. `--quality-policy` and `--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
+
+`--watch --format notion` is supported. Notion publishes on the baseline cycle and on every `change` event. Zero-change cycles and fetch-error cycles do not publish. If the Notion API raises during a cycle, a `notion_watch_publish_failed` WARNING fires and the loop continues.
+
+### Notion standalone modes
+
+Two maintenance modes operate without generating SDRs. Both default to **preview** (no changes) and require `--yes` to apply changes.
+
+| Flag | Exit on success | What it does |
+|------|-----------------|--------------|
+| `--notion-prune-orphans` | `OK` (0) | Preview: print orphaned page ids. With `--yes`: archive each page in `.notion_pages.json`'s `superseded` list (Notion trash, recoverable). |
+| `--notion-repair-database` | `OK` (0) | Preview: print missing and conflicting properties. With `--yes`: additively create missing properties in the registry database. Requires `NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`. |
+
+```bash
+# Dry-run preview
+uv run aa_auto_sdr --notion-prune-orphans
+uv run aa_auto_sdr --notion-repair-database
+
+# Apply
+uv run aa_auto_sdr --notion-prune-orphans --yes
+uv run aa_auto_sdr --notion-repair-database --yes
+```
+
+Without `--yes`, both modes only preview and make no changes (including on non-tty stdin); pass `--yes` to apply. Both modes require the `[notion]` extra and `NOTION_TOKEN`. `--notion-repair-database` additionally requires a database id.
 
 ### Template-fill Excel writer (v1.16.0)
 

@@ -115,6 +115,8 @@ def _run_single_for_batch(
     notion_force_new: bool = False,
     notion_registry_database: str | None = None,
     no_notion_registry: bool = False,
+    # v1.20.0 — Notion registry company threading
+    notion_company: str | None = None,
 ) -> RunResult:
     """Thin wrapper around pipeline.single.run_single for use in worker threads.
 
@@ -154,6 +156,7 @@ def _run_single_for_batch(
         notion_force_new=notion_force_new,
         notion_registry_database=notion_registry_database,
         no_notion_registry=no_notion_registry,
+        notion_company=notion_company,
     )
 
 
@@ -184,6 +187,8 @@ def _run_with_worker_id(
     notion_force_new: bool = False,
     notion_registry_database: str | None = None,
     no_notion_registry: bool = False,
+    # v1.20.0 — Notion registry company threading
+    notion_company: str | None = None,
 ) -> RunResult:
     """Stamp worker_id onto threading.local, run the single-RSID pipeline, clear on exit.
 
@@ -215,6 +220,7 @@ def _run_with_worker_id(
             notion_force_new=notion_force_new,
             notion_registry_database=notion_registry_database,
             no_notion_registry=no_notion_registry,
+            notion_company=notion_company,
         )
         return dataclasses.replace(result, duration_seconds=time.monotonic() - started)
     finally:
@@ -254,6 +260,8 @@ def run_parallel(
     notion_force_new: bool = False,
     notion_registry_database: str | None = None,
     no_notion_registry: bool = False,
+    # v1.20.0 — Notion registry company threading
+    notion_company: str | None = None,
 ) -> BatchResult:
     """Run per-RSID SDR generation in parallel via a ThreadPoolExecutor.
 
@@ -317,6 +325,7 @@ def run_parallel(
             notion_force_new=notion_force_new,
             notion_registry_database=notion_registry_database,
             no_notion_registry=no_notion_registry,
+            notion_company=notion_company,
         )
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future

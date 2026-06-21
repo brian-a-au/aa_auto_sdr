@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 
-from aa_auto_sdr.cli.main import _dispatch, _validate_notion_modifiers
+from aa_auto_sdr.cli.main import _dispatch, _resolve_retry_policy, _validate_notion_modifiers
 from aa_auto_sdr.cli.parser import build_parser
 from aa_auto_sdr.core.exit_codes import ExitCode
 
@@ -57,30 +57,83 @@ def test_validate_notion_modifiers_ok_for_simple_notion():
     assert _validate_notion_modifiers(ns) == int(ExitCode.OK)
 
 
-def test_validate_notion_modifiers_rejects_watch():
-    ns = Namespace(format="notion", watch=True, batch=None, workers=1)
-    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+def test_validate_notion_modifiers_watch_now_allowed():
+    # v1.20.0: --watch --format notion is no longer rejected by the validator.
+    ns = Namespace(
+        format="notion",
+        watch=True,
+        batch=None,
+        workers=1,
+        notion_prune_orphans=False,
+        notion_repair_database=False,
+        notion_registry_database=None,
+        no_notion_registry=False,
+        notion_company=None,
+        yes=False,
+        push_to_notion=None,
+        rsids=[],
+        diff=None,
+        prune_snapshots=False,
+    )
+    assert _validate_notion_modifiers(ns) == int(ExitCode.OK)
 
 
-def test_validate_notion_modifiers_rejects_workers_gt_1():
-    ns = Namespace(format="notion", watch=False, batch=["r1", "r2"], workers=4, rsids=[])
-    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+def test_validate_notion_modifiers_workers_gt_1_now_allowed():
+    # v1.20.0: --workers > 1 with --format notion is no longer rejected.
+    ns = Namespace(
+        format="notion",
+        watch=False,
+        batch=["r1", "r2"],
+        workers=4,
+        rsids=[],
+        notion_prune_orphans=False,
+        notion_repair_database=False,
+        notion_registry_database=None,
+        no_notion_registry=False,
+        notion_company=None,
+        yes=False,
+        push_to_notion=None,
+        diff=None,
+        prune_snapshots=False,
+    )
+    assert _validate_notion_modifiers(ns) == int(ExitCode.OK)
 
 
-def test_validate_notion_modifiers_rejects_positional_batch_workers_gt_1():
-    # Multi-positional shorthand is also a batch (see cli/main.py:run is_batch).
-    ns = Namespace(format="notion", watch=False, batch=None, workers=4, rsids=["r1", "r2"])
-    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+def test_validate_notion_modifiers_positional_batch_workers_gt_1_now_allowed():
+    # v1.20.0: multi-positional batch + --workers 4 + --format notion now allowed.
+    ns = Namespace(
+        format="notion",
+        watch=False,
+        batch=None,
+        workers=4,
+        rsids=["r1", "r2"],
+        notion_prune_orphans=False,
+        notion_repair_database=False,
+        notion_registry_database=None,
+        no_notion_registry=False,
+        notion_company=None,
+        yes=False,
+        push_to_notion=None,
+        diff=None,
+        prune_snapshots=False,
+    )
+    assert _validate_notion_modifiers(ns) == int(ExitCode.OK)
 
 
-def test_positional_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
+def test_positional_batch_notion_workers_gt_1_now_allowed_in_dispatch(capsys, monkeypatch):
+    # v1.20.0: dispatch no longer rejects this combination at the validator level.
+    # It will reach batch.run which needs auth — monkeypatch to avoid that.
+    import aa_auto_sdr.cli.commands.batch as batch_mod
+
+    monkeypatch.setattr(batch_mod, "run", lambda **_kw: 0)
+    argv = ["rsid1", "rsid2", "--format", "notion", "--workers", "4"]
     parser = build_parser()
-    ns = parser.parse_args(["rsid1", "rsid2", "--format", "notion", "--workers", "4"])
-    rc = _dispatch(ns, parser, [])
-    assert rc == int(ExitCode.USAGE)
-    err = capsys.readouterr().err.lower()
-    assert "workers" in err
-    assert "notion" in err
+    ns = parser.parse_args(argv)
+    ns.retry_policy = _resolve_retry_policy(ns)
+    _dispatch(ns, parser, argv)
+    err = capsys.readouterr().err
+    # Must not contain the old rejection message
+    assert "is not supported with --format notion" not in err
 
 
 # --- --push-to-notion co-presence rejection ---
@@ -278,41 +331,32 @@ def test_push_to_notion_explicit_output_dir_non_default_value(tmp_path, monkeypa
     assert captured == str(target)
 
 
-def test_watch_notion_rejected_in_dispatch(capsys):
+def test_watch_notion_no_longer_rejected_in_dispatch(capsys, monkeypatch):
+    # v1.20.0: --watch --format notion passes the validator; watch command handles it.
+    import aa_auto_sdr.cli.commands.watch as watch_mod
+
+    monkeypatch.setattr(watch_mod, "run", lambda _ns: 0)
+    argv = ["examplersid1", "--watch", "--interval", "1m", "--format", "notion"]
     parser = build_parser()
-    ns = parser.parse_args(
-        [
-            "examplersid1",
-            "--watch",
-            "--interval",
-            "1m",
-            "--format",
-            "notion",
-        ]
-    )
-    rc = _dispatch(ns, parser, [])
-    assert rc == int(ExitCode.USAGE)
-    assert "notion" in capsys.readouterr().err.lower()
+    ns = parser.parse_args(argv)
+    ns.retry_policy = _resolve_retry_policy(ns)
+    _dispatch(ns, parser, argv)
+    err = capsys.readouterr().err
+    assert "not supported with --format notion" not in err
 
 
-def test_batch_notion_workers_gt_1_rejected_in_dispatch(capsys):
+def test_batch_notion_workers_gt_1_no_longer_rejected_in_dispatch(capsys, monkeypatch):
+    # v1.20.0: batch with --workers > 1 and --format notion is no longer rejected.
+    import aa_auto_sdr.cli.commands.batch as batch_mod
+
+    monkeypatch.setattr(batch_mod, "run", lambda **_kw: 0)
+    argv = ["--batch", "rsid1", "rsid2", "--format", "notion", "--workers", "4"]
     parser = build_parser()
-    ns = parser.parse_args(
-        [
-            "--batch",
-            "rsid1",
-            "rsid2",
-            "--format",
-            "notion",
-            "--workers",
-            "4",
-        ]
-    )
-    rc = _dispatch(ns, parser, [])
-    assert rc == int(ExitCode.USAGE)
+    ns = parser.parse_args(argv)
+    ns.retry_policy = _resolve_retry_policy(ns)
+    _dispatch(ns, parser, argv)
     err = capsys.readouterr().err.lower()
-    assert "workers" in err
-    assert "notion" in err
+    assert "is not supported with --format notion" not in err
 
 
 # --- v1.19.0: registry-database flags ---
@@ -394,3 +438,152 @@ def test_dispatch_rejects_no_registry_without_notion_mode(capsys):
     err = capsys.readouterr().err
     assert rc == int(ExitCode.USAGE)
     assert "--no-notion-registry" in err
+
+
+# --- v1.20.0: relaxed watch/parallel rejections ---
+
+
+def test_watch_notion_now_allowed(capsys):
+    # --watch --format notion no longer a USAGE error at validation time.
+    # The old "not supported with --format notion" message must be gone.
+    parser = build_parser()
+    ns = parser.parse_args(["examplersid1", "--watch", "--interval", "1h", "--format", "notion"])
+    # Don't dispatch (watch would loop); just validate the notion modifiers directly.
+    rc = _validate_notion_modifiers(ns)
+    err = capsys.readouterr().err
+    assert "not supported with --format notion" not in err
+    # rc may be OK or USAGE for unrelated reasons — we only care the old message is gone.
+    _ = rc  # silence unused-variable linters
+
+
+def test_parallel_batch_notion_now_allowed(capsys):
+    # Multi-RSID batch with --workers 2 + --format notion no longer rejected by
+    # _validate_notion_modifiers. (Downstream dispatch still validates combinations.)
+    parser = build_parser()
+    ns = parser.parse_args(["rs1", "rs2", "--format", "notion", "--workers", "2"])
+    rc = _validate_notion_modifiers(ns)
+    err = capsys.readouterr().err
+    assert "is not supported with --format notion" not in err
+    _ = rc
+
+
+# --- v1.20.0: new flag parser tests ---
+
+
+def test_parser_accepts_notion_prune_orphans():
+    ns = build_parser().parse_args(["--notion-prune-orphans"])
+    assert ns.notion_prune_orphans is True
+
+
+def test_parser_default_notion_prune_orphans_false():
+    ns = build_parser().parse_args(["examplersid1"])
+    assert ns.notion_prune_orphans is False
+
+
+def test_parser_accepts_notion_repair_database():
+    ns = build_parser().parse_args(["--notion-repair-database"])
+    assert ns.notion_repair_database is True
+
+
+def test_parser_default_notion_repair_database_false():
+    ns = build_parser().parse_args(["examplersid1"])
+    assert ns.notion_repair_database is False
+
+
+def test_parser_accepts_notion_company():
+    ns = build_parser().parse_args(["examplersid1", "--format", "notion", "--notion-company", "acme"])
+    assert ns.notion_company == "acme"
+
+
+def test_parser_default_notion_company_none():
+    ns = build_parser().parse_args(["examplersid1"])
+    assert ns.notion_company is None
+
+
+def test_parser_yes_flag_existing():
+    # --yes already existed; ensure it still works (dest="yes")
+    ns = build_parser().parse_args(["examplersid1", "--prune-snapshots", "--yes"])
+    assert ns.yes is True
+
+
+# --- v1.20.0: new validator rules ---
+
+
+def test_company_without_notion_mode_rejected(capsys):
+    # --notion-company without --format notion / --push-to-notion / --notion-repair-database → USAGE
+    parser = build_parser()
+    ns = parser.parse_args(["rs1", "--notion-company", "acme"])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "--notion-company" in err
+
+
+def test_prune_with_generation_rejected(capsys):
+    # --notion-prune-orphans combined with a positional RSID (generation) → USAGE
+    parser = build_parser()
+    ns = parser.parse_args(["rs1", "--notion-prune-orphans"])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "--notion-prune-orphans" in err
+
+
+def test_repair_without_database_id_rejected(capsys, monkeypatch):
+    # --notion-repair-database without env var or --notion-registry-database → USAGE
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-repair-database"])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "NOTION_REGISTRY_DATABASE_ID" in err or "--notion-repair-database" in err
+
+
+def test_yes_with_notion_mode_but_no_destructive_action_rejected(capsys):
+    # --yes with --format notion but without --notion-prune-orphans or
+    # --notion-repair-database → USAGE (notion context without destructive target)
+    parser = build_parser()
+    ns = parser.parse_args(["rs1", "--format", "notion", "--yes"])
+    rc = _dispatch(ns, parser, [])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.USAGE)
+    assert "--yes" in err
+
+
+def test_prune_and_repair_combined_rejected(capsys):
+    # --notion-prune-orphans and --notion-repair-database together → USAGE
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-prune-orphans", "--notion-repair-database"])
+    rc = _dispatch(ns, parser, [])
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
+def test_repair_with_database_id_flag_ok(capsys, monkeypatch):
+    # --notion-repair-database with --notion-registry-database → should not fail on missing db id
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-repair-database", "--notion-registry-database", "some-db-id"])
+    rc = _validate_notion_modifiers(ns)
+    # Should not return USAGE for missing db id since we supplied one via flag
+    assert rc != int(ExitCode.USAGE) or "NOTION_REGISTRY_DATABASE_ID" not in capsys.readouterr().err
+
+
+def test_repair_with_registry_database_override_not_rejected(capsys, monkeypatch):
+    """--notion-repair-database --notion-registry-database <id> must be accepted.
+
+    Before the fix, _validate_notion_modifiers rejected --notion-registry-database
+    when not in 'in_notion_mode' (--format notion or --push-to-notion) because the
+    repair variable was computed AFTER the registry-database check.  Repair mode
+    is not in_notion_mode but legitimately uses --notion-registry-database as its
+    database-id source.
+    """
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-repair-database", "--notion-registry-database", "explicit-db-id"])
+    rc = _validate_notion_modifiers(ns)
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OK), f"Expected OK but got rc={rc}, stderr={err!r}"
+    # Must not emit the misleading "requires --format notion" error
+    assert "--format notion" not in err

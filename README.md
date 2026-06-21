@@ -286,7 +286,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Pipe JSON to jq | `aa_auto_sdr <RSID> --format json --output - \| jq '.report_suite'` |
 | Aliases (excel + markdown) | `aa_auto_sdr <RSID> --format reports` |
 | Template-fill Excel ([download `.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx) · [tutorial](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr)) | `aa_auto_sdr <RSID> --template ~/aa_en_BRD_SDR_template.xlsx` |
-| Notion publishing + optional registry database ([setup](docs/CLI_REFERENCE.md#notion-integration)) | `aa_auto_sdr <RSID> --format notion` |
+| Notion publishing + optional registry database + maintenance modes ([setup](docs/CLI_REFERENCE.md#notion-integration)) | `aa_auto_sdr <RSID> --format notion` |
 | **Discovery & Inspection** | |
 | List metrics for one RS | `aa_auto_sdr --list-metrics <RSID>` |
 | Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |
@@ -327,9 +327,12 @@ Watch mode enters a foreground monitoring loop that fetches, snapshots, and diff
 ```bash
 # Watch a report suite for changes — emits NDJSON events on stdout (Ctrl+C to stop)
 uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
+
+# Watch and publish to Notion on every change
+uv run aa_auto_sdr rs_prod_us --watch --interval 1h --format notion
 ```
 
-Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0.
+Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0. With `--format notion`, Notion publishes on the baseline cycle and on `change` events; zero-change and error cycles are skipped.
 
 ### Git-versioned snapshot audit trail
 

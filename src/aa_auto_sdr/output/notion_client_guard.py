@@ -26,11 +26,15 @@ def _require_notion_client() -> Any:
         sys.exit(1)
 
 
-def resolve_notion_credentials() -> tuple[str, str]:
-    """Return ``(NOTION_TOKEN, NOTION_PARENT_PAGE_ID)``, or exit 1 if missing.
+def resolve_notion_token() -> str:
+    """Return ``NOTION_TOKEN``, or exit 1 if missing.
 
     Resolution order: environment variable → ``.env`` file (if
     ``python-dotenv`` is installed) → hard failure.
+
+    Use this for commands that need a Notion token but do NOT create pages
+    (e.g. ``--notion-repair-database``, ``--notion-prune-orphans``), which
+    do not need ``NOTION_PARENT_PAGE_ID``.
     """
     try:
         from dotenv import load_dotenv
@@ -46,6 +50,17 @@ def resolve_notion_credentials() -> tuple[str, str]:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    return token
+
+
+def resolve_notion_credentials() -> tuple[str, str]:
+    """Return ``(NOTION_TOKEN, NOTION_PARENT_PAGE_ID)``, or exit 1 if missing.
+
+    Resolution order: environment variable → ``.env`` file (if
+    ``python-dotenv`` is installed) → hard failure.
+    """
+    token = resolve_notion_token()
 
     parent_page_id = os.environ.get("NOTION_PARENT_PAGE_ID")
     if not parent_page_id:
@@ -83,3 +98,24 @@ def resolve_notion_database_id(
     except ImportError:
         pass
     return os.environ.get("NOTION_REGISTRY_DATABASE_ID") or None
+
+
+def resolve_notion_company(cli_override: str | None, aa_company_id: str | None) -> str:
+    """Return the Company value for the registry row.
+
+    Precedence: ``--notion-company`` flag, then ``NOTION_REGISTRY_COMPANY``
+    env (or .env), then the Adobe global company id (generate path only),
+    else empty string.
+    """
+    if cli_override:
+        return cli_override
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+    env = os.environ.get("NOTION_REGISTRY_COMPANY")
+    if env:
+        return env
+    return aa_company_id or ""

@@ -10,7 +10,7 @@ import pytest
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.output import registry
-from aa_auto_sdr.output.notion_client_guard import resolve_notion_credentials
+from aa_auto_sdr.output.notion_client_guard import resolve_notion_credentials, resolve_notion_token
 from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME
 from aa_auto_sdr.output.writers import notion as notion_writer_mod
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -52,6 +52,7 @@ def _reset_notion_singleton():
     nw.force_new = False
     nw.database_id = None
     nw.disable_registry = False
+    nw.company = ""
 
 
 def test_resolve_notion_credentials_reads_env(monkeypatch):
@@ -73,6 +74,22 @@ def test_resolve_notion_credentials_missing_parent_exits(monkeypatch):
     monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
     with pytest.raises(SystemExit) as exc:
         resolve_notion_credentials()
+    assert exc.value.code == 1
+
+
+def test_resolve_notion_token_returns_token_without_parent_page(monkeypatch):
+    """resolve_notion_token succeeds when only NOTION_TOKEN is set (no NOTION_PARENT_PAGE_ID)."""
+    monkeypatch.setenv("NOTION_TOKEN", "token-only")
+    monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
+    assert resolve_notion_token() == "token-only"
+
+
+def test_resolve_notion_token_missing_token_exits(monkeypatch):
+    """resolve_notion_token exits 1 when NOTION_TOKEN is absent."""
+    monkeypatch.delenv("NOTION_TOKEN", raising=False)
+    monkeypatch.delenv("NOTION_PARENT_PAGE_ID", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        resolve_notion_token()
     assert exc.value.code == 1
 
 
@@ -122,8 +139,10 @@ def test_create_or_update_page_creates_new_when_not_in_registry(tmp_path):
     )
     assert page_id == "new-page-id"
     client.pages.create.assert_called_once()
-    # registry now holds the new id
-    assert json.loads(registry_path.read_text())["examplersid1"] == "new-page-id"
+    # registry now holds the new id in object shape
+    entry = json.loads(registry_path.read_text())["examplersid1"]
+    assert entry["current"] == "new-page-id"
+    assert entry["superseded"] == []
 
     # The Notion API expects the title to arrive as a fully-shaped title
     # property object (not a bare rich-text array). Guard the wire shape
@@ -177,8 +196,10 @@ def test_create_or_update_page_force_new_ignores_registry(tmp_path):
     )
     assert page_id == "brand-new-page"
     client.pages.create.assert_called_once()
-    # registry entry replaced
-    assert json.loads(registry_path.read_text())["examplersid1"] == "brand-new-page"
+    # registry entry replaced; old id tombstoned in superseded
+    entry = json.loads(registry_path.read_text())["examplersid1"]
+    assert entry["current"] == "brand-new-page"
+    assert entry["superseded"] == ["existing-page"]
 
 
 # --- NotionWriter end-to-end ---
@@ -227,7 +248,10 @@ def test_notion_writer_force_new_creates_fresh_page(tmp_path, monkeypatch):
         writer.write(doc, output_path)
 
     mock_client.pages.create.assert_called_once()
-    assert json.loads((tmp_path / REGISTRY_FILENAME).read_text())["examplersid1"] == "fresh-page"
+    # old page id moved to superseded; current points to fresh page
+    entry = json.loads((tmp_path / REGISTRY_FILENAME).read_text())["examplersid1"]
+    assert entry["current"] == "fresh-page"
+    assert entry["superseded"] == ["old-page"]
 
 
 def test_notion_writer_emits_structured_log(tmp_path, monkeypatch, caplog):
@@ -388,6 +412,36 @@ def test_writer_upserts_row_when_database_id_set(monkeypatch, tmp_path):
     fake_client.data_sources.query.assert_called_once()
 
 
+def test_writer_logs_registry_skipped_when_no_db(monkeypatch, tmp_path, caplog):
+    """notion_registry_skipped is emitted at DEBUG when database_id resolves to None."""
+    import logging
+
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = None
+    writer.disable_registry = False
+    writer.force_new = False
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+
+    fake_client = MagicMock()
+    fake_client.pages.create.return_value = {"id": "page-1"}
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.output.writers.notion"):
+        writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    assert any("notion_registry_skipped" in r.message for r in caplog.records)
+
+
 def test_writer_continues_when_database_upsert_fails(monkeypatch, tmp_path, caplog):
     """Detail page is the primary artifact — DB errors WARN and continue."""
     import logging
@@ -417,3 +471,53 @@ def test_writer_continues_when_database_upsert_fails(monkeypatch, tmp_path, capl
 
     assert paths == [tmp_path / REGISTRY_FILENAME]
     assert any("notion_registry_unavailable" in r.message for r in caplog.records)
+
+
+# --- v1.20.0: company threading through the writer ---
+
+
+def test_writer_threads_company_to_upsert(monkeypatch, tmp_path):
+    """writer.company is forwarded as company= kwarg to upsert_row."""
+    captured: dict = {}
+
+    def fake_upsert(client, **kwargs):
+        captured.update(kwargs)
+        return "row1"
+
+    monkeypatch.setattr("aa_auto_sdr.output.writers.notion.upsert_row", fake_upsert)
+    monkeypatch.setattr(
+        "aa_auto_sdr.output.writers.notion.resolve_notion_database_id",
+        lambda **_kwargs: "db1",
+    )
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+
+    fake_client = MagicMock()
+    fake_client.pages.create.return_value = {"id": "page-1"}
+    fake_client.blocks.children.list.return_value = {"results": [], "has_more": False}
+
+    monkeypatch.setattr(
+        notion_writer_mod,
+        "_require_notion_client",
+        lambda: MagicMock(return_value=fake_client),
+    )
+
+    registry.bootstrap()
+    writer = registry.get_writer("notion")
+    writer.database_id = "db1"
+    writer.disable_registry = False
+    writer.force_new = False
+    writer.company = "acme"
+
+    writer.write(_make_doc(), tmp_path / "examplersid1.notion")
+
+    assert captured.get("company") == "acme"
+
+
+def test_writer_company_attr_defaults_to_empty_string():
+    """NotionWriter exposes company as a class attribute defaulting to empty string."""
+    from aa_auto_sdr.output import registry as out_registry
+
+    out_registry.bootstrap()
+    nw = out_registry.get_writer("notion")
+    assert nw.company == ""

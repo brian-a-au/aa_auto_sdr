@@ -13,6 +13,7 @@ the data-source SDK calls (``databases.retrieve`` to resolve the data source,
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Any
 
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -20,27 +21,31 @@ from aa_auto_sdr.sdr.document import SdrDocument
 logger = logging.getLogger(__name__)
 
 
-REQUIRED_PROPERTIES: tuple[str, ...] = (
-    "Name",
-    "RSID",
-    "Last Updated",
-    "Tool Version",
-    "Dimensions",
-    "Metrics",
-    "Segments",
-    "Calculated Metrics",
-    "Virtual Report Suites",
-    "Classifications",
-)
+# Single source of truth for the registry database schema. The upsert payload,
+# the repair command (--notion-repair-database), and the cheatsheet
+# (--notion-print-database-schema) all derive from this table.
+PROPERTY_SCHEMA: dict[str, dict] = {
+    "Name": {"type": "title", "required": True, "definition": {"title": {}}},
+    "RSID": {"type": "rich_text", "required": True, "definition": {"rich_text": {}}},
+    "Last Updated": {"type": "date", "required": True, "definition": {"date": {}}},
+    "Tool Version": {"type": "rich_text", "required": True, "definition": {"rich_text": {}}},
+    "Dimensions": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Metrics": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Segments": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Calculated Metrics": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Virtual Report Suites": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Classifications": {"type": "number", "required": True, "definition": {"number": {}}},
+    "Page": {"type": "url", "required": False, "definition": {"url": {}}},
+    "Company": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Currency": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Timezone": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Parent RSID": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
+    "Quality Verdict": {"type": "select", "required": False, "definition": {"select": {}}},
+    "Degraded Components": {"type": "multi_select", "required": False, "definition": {"multi_select": {}}},
+}
 
-OPTIONAL_PROPERTIES: tuple[str, ...] = (
-    "Page",
-    "Currency",
-    "Timezone",
-    "Parent RSID",
-    "Quality Verdict",
-    "Degraded Components",
-)
+REQUIRED_PROPERTIES: tuple[str, ...] = tuple(n for n, s in PROPERTY_SCHEMA.items() if s["required"])
+OPTIONAL_PROPERTIES: tuple[str, ...] = tuple(n for n, s in PROPERTY_SCHEMA.items() if not s["required"])
 
 
 class NotionRegistryError(Exception):
@@ -70,7 +75,7 @@ def _detail_page_url(page_id: str) -> str:
     return f"https://www.notion.so/{page_id.replace('-', '')}"
 
 
-def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[str, Any]:
+def build_row_properties(doc: SdrDocument, detail_page_id: str | None, company: str = "") -> dict[str, Any]:
     """Build the full property payload for a database row.
 
     Caller filters the result against the database's actual property list
@@ -110,12 +115,14 @@ def build_row_properties(doc: SdrDocument, detail_page_id: str | None) -> dict[s
             "multi_select": [{"name": n} for n in degraded_names],
         },
     }
+    if company:
+        props["Company"] = _rich_text(company)
     if detail_page_id is not None:
         props["Page"] = {"url": _detail_page_url(detail_page_id)}
     return props
 
 
-def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) -> dict[str, Any]:
+def build_row_properties_from_dict(payload: dict, detail_page_id: str | None, company: str = "") -> dict[str, Any]:
     """Same as :func:`build_row_properties` but reads the SDR-JSON or
     snapshot-envelope dict shape directly (push-to-notion path).
     """
@@ -176,6 +183,8 @@ def build_row_properties_from_dict(payload: dict, detail_page_id: str | None) ->
             "multi_select": [{"name": n} for n in sorted(degraded)],
         },
     }
+    if company:
+        props["Company"] = _rich_text(company)
     if detail_page_id is not None:
         props["Page"] = {"url": _detail_page_url(detail_page_id)}
     return props
@@ -199,6 +208,9 @@ def filter_payload_to_schema(
             f"Notion registry database is missing required properties: {missing_required}. "
             "Run `aa_auto_sdr --notion-print-database-schema` for the canonical list."
         )
+    dropped = [k for k in payload if k not in db_properties]
+    for name in dropped:
+        logger.debug("notion_registry_property_missing name=%s", name)
     return {k: v for k, v in payload.items() if k in db_properties}
 
 
@@ -230,20 +242,21 @@ def _resolve_data_source(client: Any, database_id: str) -> tuple[str, dict[str, 
     return data_source_id, db_properties
 
 
-def _query_and_upsert(client: Any, data_source_id: str, rsid: str, payload: dict[str, Any]) -> str:
-    """Find the row for ``rsid`` in the data source and update it, else create it."""
-    response = client.data_sources.query(
-        data_source_id=data_source_id,
-        filter={"property": "RSID", "rich_text": {"equals": rsid}},
-        page_size=2,
-    )
+def _query_and_upsert(client: Any, data_source_id: str, rsid: str, payload: dict[str, Any], company: str = "") -> str:
+    """Find the row for ``rsid`` (and ``company`` when present) and update it, else create it."""
+    if company and "Company" in payload:
+        flt = {
+            "and": [
+                {"property": "RSID", "rich_text": {"equals": rsid}},
+                {"property": "Company", "rich_text": {"equals": company}},
+            ]
+        }
+    else:
+        flt = {"property": "RSID", "rich_text": {"equals": rsid}}
+    response = client.data_sources.query(data_source_id=data_source_id, filter=flt, page_size=2)
     results = response.get("results") or []
     if len(results) > 1:
-        logger.warning(
-            "notion_registry_duplicate_rows rsid=%s count=%d (updating first)",
-            rsid,
-            len(results),
-        )
+        logger.warning("notion_registry_duplicate_rows rsid=%s count=%d (updating first)", rsid, len(results))
     if results:
         row_id = results[0]["id"]
         client.pages.update(page_id=row_id, properties=payload)
@@ -262,17 +275,18 @@ def upsert_row(
     rsid: str,
     detail_page_id: str | None,
     doc: SdrDocument,
+    company: str = "",
 ) -> str:
-    """Idempotent upsert by RSID. Returns the database row's page ID.
+    """Idempotent upsert by RSID (and Company when provided). Returns the database row's page ID.
 
     Raises :class:`NotionRegistryError` if the database has no data source or
     its data source is missing a required property. SDK errors (401/403/5xx)
     propagate to the caller, which logs ``notion_registry_unavailable``.
     """
     data_source_id, db_properties = _resolve_data_source(client, database_id)
-    payload = build_row_properties(doc, detail_page_id)
+    payload = build_row_properties(doc, detail_page_id, company=company)
     payload = filter_payload_to_schema(payload, db_properties)
-    return _query_and_upsert(client, data_source_id, rsid, payload)
+    return _query_and_upsert(client, data_source_id, rsid, payload, company=company)
 
 
 def upsert_row_from_dict(
@@ -282,47 +296,86 @@ def upsert_row_from_dict(
     rsid: str,
     detail_page_id: str | None,
     payload_dict: dict,
+    company: str = "",
 ) -> str:
     """Same as :func:`upsert_row` but builds from a JSON-shaped dict
     (push-to-notion path).
     """
     data_source_id, db_properties = _resolve_data_source(client, database_id)
-    payload = build_row_properties_from_dict(payload_dict, detail_page_id)
+    payload = build_row_properties_from_dict(payload_dict, detail_page_id, company=company)
     payload = filter_payload_to_schema(payload, db_properties)
-    return _query_and_upsert(client, data_source_id, rsid, payload)
+    return _query_and_upsert(client, data_source_id, rsid, payload, company=company)
 
 
-_SCHEMA_CHEATSHEET = """\
-Notion SDR Registry Database — required schema for aa_auto_sdr v1.19.0
-======================================================================
+@dataclass
+class RepairResult:
+    """Result of :func:`repair_database`.
 
-Required properties:
-  Name                    title
-  RSID                    rich_text
-  Last Updated            date
-  Tool Version            rich_text
-  Dimensions              number
-  Metrics                 number
-  Segments                number
-  Calculated Metrics      number
-  Virtual Report Suites   number
-  Classifications         number
+    ``to_add`` — property names that were missing and will be (or were) added.
+    ``conflicts`` — ``(name, want_type, have_type)`` tuples for properties that
+        exist on the database but have the wrong type; these are skipped.
+    ``applied`` — ``True`` if the update was actually sent (``dry_run=False``
+        and at least one property was missing).
+    """
 
-Optional properties (created when present on the database):
-  Page                    url             -> link to the SDR detail page
-  Currency                rich_text
-  Timezone                rich_text
-  Parent RSID             rich_text
-  Quality Verdict         select          (suggested options: pass, warn, fail, n/a)
-  Degraded Components     multi_select
+    to_add: list[str] = field(default_factory=list)
+    conflicts: list[tuple[str, str, str]] = field(default_factory=list)
+    applied: bool = False
 
-To enable the registry, set:
-  NOTION_REGISTRY_DATABASE_ID=<your-database-id>
-"""
+
+def repair_database(
+    client: Any,
+    *,
+    database_id: str,
+    dry_run: bool = True,
+) -> RepairResult:
+    """Repair a Notion registry database to match :data:`PROPERTY_SCHEMA`.
+
+    Compares the database's current property set against the canonical
+    ``PROPERTY_SCHEMA``.  Missing properties are collected into ``to_add``
+    and — when ``dry_run=False`` — added via a single ``data_sources.update``
+    call.  Properties present but with the wrong type are recorded as
+    ``conflicts`` and never touched.
+
+    Returns a :class:`RepairResult` describing what was (or would be) changed.
+    Raises :class:`NotionRegistryError` if the database has no data source.
+    """
+    data_source_id, db_properties = _resolve_data_source(client, database_id)
+
+    to_add: list[str] = []
+    conflicts: list[tuple[str, str, str]] = []
+    payload: dict[str, Any] = {}
+
+    for name, schema_entry in PROPERTY_SCHEMA.items():
+        if name not in db_properties:
+            to_add.append(name)
+            payload[name] = schema_entry["definition"]
+        elif db_properties[name].get("type") != schema_entry["type"]:
+            conflicts.append((name, schema_entry["type"], db_properties[name].get("type", "unknown")))
+
+    applied = False
+    if to_add and not dry_run:
+        client.data_sources.update(data_source_id=data_source_id, properties=payload)
+        applied = True
+
+    return RepairResult(to_add=to_add, conflicts=conflicts, applied=applied)
 
 
 def schema_cheatsheet() -> str:
-    """Return the canonical schema cheatsheet text printed by
-    ``--notion-print-database-schema``.
+    """Return the canonical schema cheatsheet printed by
+    ``--notion-print-database-schema``, derived from PROPERTY_SCHEMA.
     """
-    return _SCHEMA_CHEATSHEET
+    req = "\n".join(f"  {name:<23} {PROPERTY_SCHEMA[name]['type']}" for name in REQUIRED_PROPERTIES)
+    opt = "\n".join(f"  {name:<23} {PROPERTY_SCHEMA[name]['type']}" for name in OPTIONAL_PROPERTIES)
+    return (
+        "Notion SDR Registry Database — required schema for aa_auto_sdr\n"
+        "==============================================================\n\n"
+        "Required properties:\n"
+        f"{req}\n\n"
+        "Optional properties (created when present on the database):\n"
+        f"{opt}\n\n"
+        "Company enables multi-company databases: when set, rows are keyed by\n"
+        "(Company, RSID) instead of RSID alone.\n\n"
+        "To enable the registry, set:\n"
+        "  NOTION_REGISTRY_DATABASE_ID=<your-database-id>\n"
+    )
