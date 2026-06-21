@@ -302,6 +302,36 @@ def _reject_push_to_notion_conflicts(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _reject_standalone_mode_conflicts(ns: argparse.Namespace, mode_flag: str, *, sibling: bool) -> int:
+    """Reject co-presence of a standalone Notion mode with any other top-level mode.
+
+    The standalone Notion modes (``--notion-prune-orphans``,
+    ``--notion-repair-database``, ``--notion-create-database``) own the whole
+    run: combining one with any other top-level action would let dispatch order
+    silently pick one and drop the other. Reuse the canonical
+    :data:`_PUSH_TO_NOTION_CONFLICTS` enumeration (every non-generating
+    top-level action — discovery/inspection, snapshot lifecycle, config/profile,
+    fast-path) so newly-added modes are covered automatically, then reject
+    generation (positional RSIDs), ``--push-to-notion``, and any sibling
+    standalone mode the caller flags via ``sibling``.
+
+    Returns ``ExitCode.USAGE`` (after printing to stderr) on conflict, else
+    ``ExitCode.OK``. The mutual-exclusion of the standalone modes against each
+    other is the caller's responsibility where a more specific message applies
+    (e.g. prune + repair).
+    """
+    for attr, flag in _PUSH_TO_NOTION_CONFLICTS:
+        val = getattr(ns, attr, None)
+        triggered = (val is not None) if attr == "explain_exit_code" else bool(val)
+        if triggered:
+            print(f"error: {mode_flag} cannot be combined with {flag}", file=sys.stderr)
+            return int(ExitCode.USAGE)
+    if bool(getattr(ns, "rsids", []) or []) or bool(getattr(ns, "push_to_notion", None)) or sibling:
+        print(f"error: {mode_flag} cannot be combined with generation or other modes", file=sys.stderr)
+        return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
 def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     """Reject mutually-incompatible Notion flag combinations.
 
@@ -358,29 +388,21 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
 
     prune = bool(getattr(ns, "notion_prune_orphans", False))
 
-    # v1.20.0 — standalone modes: cannot combine with generation, push, diff,
-    # watch, or each other.
-    if prune or repair:
-        conflicting = (
-            bool(getattr(ns, "rsids", []) or [])
-            or bool(getattr(ns, "batch", None))
-            or bool(getattr(ns, "push_to_notion", None))
-            or bool(getattr(ns, "diff", None))
-            or bool(getattr(ns, "watch", False))
+    # v1.20.0 / v1.21.0 — prune, repair, and create are standalone modes: each
+    # rejects co-presence with any other top-level mode (see
+    # _reject_standalone_mode_conflicts). They also cannot be combined with
+    # each other; prune + repair keeps its own specific message.
+    if prune and repair:
+        print(
+            "error: --notion-prune-orphans and --notion-repair-database cannot be combined",
+            file=sys.stderr,
         )
-        if prune and repair:
-            print(
-                "error: --notion-prune-orphans and --notion-repair-database cannot be combined",
-                file=sys.stderr,
-            )
-            return int(ExitCode.USAGE)
-        if conflicting:
-            mode = "--notion-prune-orphans" if prune else "--notion-repair-database"
-            print(
-                f"error: {mode} cannot be combined with generation or other modes",
-                file=sys.stderr,
-            )
-            return int(ExitCode.USAGE)
+        return int(ExitCode.USAGE)
+    if prune or repair:
+        mode = "--notion-prune-orphans" if prune else "--notion-repair-database"
+        rc = _reject_standalone_mode_conflicts(ns, mode, sibling=create)
+        if rc != int(ExitCode.OK):
+            return rc
 
     if repair:
         from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
@@ -396,29 +418,12 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
             )
             return int(ExitCode.USAGE)
 
-    # v1.21.0 — --notion-create-database is a standalone mode: it cannot be
-    # combined with ANY other top-level mode. Reuse the canonical
-    # _PUSH_TO_NOTION_CONFLICTS enumeration (every non-generating top-level
-    # action — discovery/inspection, snapshot lifecycle, config/profile,
-    # fast-path) so newly-added modes are covered automatically, then add the
-    # modes that list does not name: generation (positional RSIDs),
-    # --push-to-notion, and the sibling Notion standalones.
+    # v1.21.0 — --notion-create-database is a standalone mode (see
+    # _reject_standalone_mode_conflicts).
     if create:
-        for attr, flag in _PUSH_TO_NOTION_CONFLICTS:
-            val = getattr(ns, attr, None)
-            triggered = (val is not None) if attr == "explain_exit_code" else bool(val)
-            if triggered:
-                print(
-                    f"error: --notion-create-database cannot be combined with {flag}",
-                    file=sys.stderr,
-                )
-                return int(ExitCode.USAGE)
-        if bool(getattr(ns, "rsids", []) or []) or bool(getattr(ns, "push_to_notion", None)) or prune or repair:
-            print(
-                "error: --notion-create-database cannot be combined with generation or other modes",
-                file=sys.stderr,
-            )
-            return int(ExitCode.USAGE)
+        rc = _reject_standalone_mode_conflicts(ns, "--notion-create-database", sibling=(prune or repair))
+        if rc != int(ExitCode.OK):
+            return rc
 
     if getattr(ns, "notion_company", None) and not (in_notion_mode or repair):
         print(

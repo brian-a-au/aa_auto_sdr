@@ -560,6 +560,35 @@ def test_prune_and_repair_combined_rejected(capsys):
     assert rc == int(ExitCode.USAGE)
 
 
+def test_prune_rejects_other_top_level_mode(capsys):
+    # v1.21.0: standalone-mode contract is uniform — prune rejects any other
+    # top-level mode (here a config/profile action), not just generation.
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-prune-orphans", "--config-status"])
+    rc = _validate_notion_modifiers(ns)
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
+def test_repair_rejects_other_top_level_mode(capsys):
+    # v1.21.0: repair rejects another top-level mode. A db id is supplied so the
+    # conflict (not the missing-db-id guard) is what trips USAGE.
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-repair-database", "--notion-registry-database", "db", "--profile-list"])
+    rc = _validate_notion_modifiers(ns)
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
+def test_prune_rejects_create_database(capsys):
+    # v1.21.0: the three standalone modes reject each other.
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-prune-orphans", "--notion-create-database"])
+    rc = _validate_notion_modifiers(ns)
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
 def test_repair_with_database_id_flag_ok(capsys, monkeypatch):
     # --notion-repair-database with --notion-registry-database → should not fail on missing db id
     monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
