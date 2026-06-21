@@ -30,7 +30,6 @@ def run_notion_prune_orphans(output_dir: str | None, dry_run: bool) -> int:
         for rsid, page_id in orphans:
             print(f"  - {rsid}: {page_id}")
         print("(nothing changed; add --yes to archive)")
-        archive_orphans(None, registry_path, orphans, dry_run=True)
         return int(ExitCode.OK)
 
     Client = _require_notion_client()

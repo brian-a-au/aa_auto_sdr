@@ -25,7 +25,7 @@ class _FakeRepairClient:
             def retrieve(self, **kw):
                 return {"properties": outer._existing_props}
 
-            def update(self, data_source_id, **kw):
+            def update(self, data_source_id=None, **kw):
                 outer.update_calls.append({"data_source_id": data_source_id, **kw})
 
         class _DBs:

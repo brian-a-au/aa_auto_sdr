@@ -541,6 +541,18 @@ def test_query_filter_rsid_only_without_company():
     assert flt == {"property": "RSID", "rich_text": {"equals": "rs1"}}
 
 
+def test_query_filter_rsid_only_when_company_set_but_not_in_payload():
+    """Backward-compat: company is non-empty but the payload does NOT contain
+    a 'Company' key (the database lacks the Company column so filter_payload_to_schema
+    dropped it). The filter must fall back to the RSID-only form, not an AND filter.
+    """
+    client = _FakeClient()
+    # Payload has no "Company" key — simulates a database that lacks the column
+    db._query_and_upsert(client, "ds1", "rs1", {"RSID": {}}, company="acme")
+    flt = client.queries[0]["filter"]
+    assert flt == {"property": "RSID", "rich_text": {"equals": "rs1"}}
+
+
 # --- repair_database tests ---
 
 
@@ -560,7 +572,7 @@ class _RepairClient:
             def retrieve(self, **kw):
                 return {"properties": outer._existing_props}
 
-            def update(self, data_source_id, **kw):
+            def update(self, data_source_id=None, **kw):
                 outer.update_calls.append({"data_source_id": data_source_id, **kw})
 
         class _DBs:

@@ -12,6 +12,7 @@ only exposes the handler function.
 from __future__ import annotations
 
 import logging
+import sys
 
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.notion_client_guard import (
@@ -41,6 +42,15 @@ def run_notion_repair_database(database_id: str, dry_run: bool) -> int:
     except NotionRegistryError as exc:
         logger.error("notion_repair_error detail=%s", exc)
         print(f"error: --notion-repair-database: {exc}")
+        return int(ExitCode.GENERIC)
+    except Exception as exc:
+        logger.warning(
+            "notion_repair_failed reason=%s detail=%s",
+            type(exc).__name__,
+            exc,
+            extra={"reason": type(exc).__name__, "detail": str(exc)},
+        )
+        print(f"error: --notion-repair-database failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return int(ExitCode.GENERIC)
 
     if dry_run:

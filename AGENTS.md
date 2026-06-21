@@ -329,7 +329,7 @@ uv run aa_auto_sdr --notion-prune-orphans --yes
 uv run aa_auto_sdr --notion-repair-database --yes
 ```
 
-Non-tty stdin without `--yes` refuses with `USAGE` (2). Both modes require the `[notion]` extra and `NOTION_TOKEN`. `--notion-repair-database` additionally requires a database id.
+Without `--yes`, both modes only preview and make no changes (including on non-tty stdin); pass `--yes` to apply. Both modes require the `[notion]` extra and `NOTION_TOKEN`. `--notion-repair-database` additionally requires a database id.
 
 ### Template-fill Excel writer (v1.16.0)
 

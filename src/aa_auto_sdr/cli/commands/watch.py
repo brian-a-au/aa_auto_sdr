@@ -153,7 +153,7 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
     if fmt is not None and fmt not in ("json", "notion"):
         print(
             f"error: --format={fmt!r} is not compatible with --watch "
-            f"(only `json` is allowed; watch emits NDJSON on stdout)",
+            f"(only `json` and `notion` are allowed; watch emits NDJSON on stdout)",
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)

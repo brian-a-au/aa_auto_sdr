@@ -355,7 +355,7 @@ def repair_database(
 
     applied = False
     if to_add and not dry_run:
-        client.data_sources.update(data_source_id, properties=payload)
+        client.data_sources.update(data_source_id=data_source_id, properties=payload)
         applied = True
 
     return RepairResult(to_add=to_add, conflicts=conflicts, applied=applied)
