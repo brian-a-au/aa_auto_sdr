@@ -41,7 +41,7 @@ def run_notion_prune_orphans(output_dir: str | None, dry_run: bool) -> int:
         return int(ExitCode.OK)
 
     if dry_run:
-        logger.info("notion_prune_planned count=%d", len(orphans))
+        logger.info("notion_prune_planned count=%d", len(orphans), extra={"count": len(orphans)})
         print(f"DRY RUN — would archive {len(orphans)} orphaned page(s):")
         for rsid, page_id in orphans:
             print(f"  - {rsid}: {page_id}")
