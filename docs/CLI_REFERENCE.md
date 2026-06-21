@@ -392,6 +392,8 @@ uv run aa_auto_sdr --batch demo.prod demo.staging --run-summary-json runs/$(date
 
 ## Notion Integration
 
+New to the Notion integration? See [NOTION_SETUP.md](NOTION_SETUP.md) for a step-by-step setup walkthrough.
+
 Publishes SDR reports to Notion as structured pages. Requires the optional extra and two env vars:
 
 ```bash
