@@ -396,32 +396,24 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
             )
             return int(ExitCode.USAGE)
 
-    # v1.21.0 — --notion-create-database is a standalone mode: cannot combine
-    # with generation, batch, push, diff, watch, prune, repair, or any
-    # discovery/inspection/rollup action.
+    # v1.21.0 — --notion-create-database is a standalone mode: it cannot be
+    # combined with ANY other top-level mode. Reuse the canonical
+    # _PUSH_TO_NOTION_CONFLICTS enumeration (every non-generating top-level
+    # action — discovery/inspection, snapshot lifecycle, config/profile,
+    # fast-path) so newly-added modes are covered automatically, then add the
+    # modes that list does not name: generation (positional RSIDs),
+    # --push-to-notion, and the sibling Notion standalones.
     if create:
-        conflicting = (
-            bool(getattr(ns, "rsids", []) or [])
-            or bool(getattr(ns, "batch", None))
-            or bool(getattr(ns, "push_to_notion", None))
-            or bool(getattr(ns, "diff", None))
-            or bool(getattr(ns, "watch", False))
-            or prune
-            or repair
-            or bool(getattr(ns, "list_reportsuites", False))
-            or bool(getattr(ns, "list_virtual_reportsuites", False))
-            or bool(getattr(ns, "describe_reportsuite", False))
-            or getattr(ns, "list_metrics", None) is not None
-            or getattr(ns, "list_dimensions", None) is not None
-            or getattr(ns, "list_segments", None) is not None
-            or getattr(ns, "list_calculated_metrics", None) is not None
-            or getattr(ns, "list_classification_datasets", None) is not None
-            or getattr(ns, "trending_window", None) is not None
-            or bool(getattr(ns, "compare_with_prev", False))
-            or bool(getattr(ns, "inventory_summary", False))
-            or bool(getattr(ns, "stats", False))
-        )
-        if conflicting:
+        for attr, flag in _PUSH_TO_NOTION_CONFLICTS:
+            val = getattr(ns, attr, None)
+            triggered = (val is not None) if attr == "explain_exit_code" else bool(val)
+            if triggered:
+                print(
+                    f"error: --notion-create-database cannot be combined with {flag}",
+                    file=sys.stderr,
+                )
+                return int(ExitCode.USAGE)
+        if bool(getattr(ns, "rsids", []) or []) or bool(getattr(ns, "push_to_notion", None)) or prune or repair:
             print(
                 "error: --notion-create-database cannot be combined with generation or other modes",
                 file=sys.stderr,

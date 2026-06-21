@@ -177,6 +177,38 @@ def test_validate_create_rejects_inventory_summary():
     assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
 
 
+def test_validate_create_rejects_config_status():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, config_status=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_rejects_profile_list():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, profile_list=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_rejects_interactive():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, interactive=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_rejects_snapshot_lifecycle():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, prune_snapshots=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
 def test_apply_warn_but_proceed_when_registry_already_configured(caplog):
     """Apply path (dry_run=False) with an existing registry: warns but still creates."""
     from aa_auto_sdr.cli.commands import notion_create as mod
