@@ -20,6 +20,21 @@ from aa_auto_sdr.sdr.document import SdrDocument
 
 logger = logging.getLogger(__name__)
 
+# Module-level cache: database_id → (data_source_id, db_properties).
+# Populated lazily by _resolve_data_source; cleared between tests (and on
+# explicit refresh) via clear_data_source_cache().
+_DATA_SOURCE_CACHE: dict[str, tuple[str, dict]] = {}
+
+
+def clear_data_source_cache() -> None:
+    """Empty the data-source resolution cache.
+
+    Call this when you want to force a fresh ``databases.retrieve`` /
+    ``data_sources.retrieve`` round-trip on the next upsert — for example,
+    after a schema repair or in test teardown.
+    """
+    _DATA_SOURCE_CACHE.clear()
+
 
 # Single source of truth for the registry database schema. The upsert payload,
 # the repair command (--notion-repair-database), and the cheatsheet
@@ -35,12 +50,17 @@ PROPERTY_SCHEMA: dict[str, dict] = {
     "Calculated Metrics": {"type": "number", "required": True, "definition": {"number": {}}},
     "Virtual Report Suites": {"type": "number", "required": True, "definition": {"number": {}}},
     "Classifications": {"type": "number", "required": True, "definition": {"number": {}}},
-    "Page": {"type": "url", "required": False, "definition": {"url": {}}},
+    "Page": {"type": "url", "required": False, "definition": {"url": {}}, "hint": "-> link to the SDR detail page"},
     "Company": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
     "Currency": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
     "Timezone": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
     "Parent RSID": {"type": "rich_text", "required": False, "definition": {"rich_text": {}}},
-    "Quality Verdict": {"type": "select", "required": False, "definition": {"select": {}}},
+    "Quality Verdict": {
+        "type": "select",
+        "required": False,
+        "definition": {"select": {}},
+        "hint": "(suggested options: pass, warn, fail, n/a)",
+    },
     "Degraded Components": {"type": "multi_select", "required": False, "definition": {"multi_select": {}}},
 }
 
@@ -222,7 +242,14 @@ def _resolve_data_source(client: Any, database_id: str) -> tuple[str, dict[str, 
     ``data_sources`` list, not ``properties``; the schema and the queryable
     rows live on the data source. The registry database is single-source, so
     we resolve the first data source and read the property schema from it.
+
+    Results are cached in :data:`_DATA_SOURCE_CACHE` (keyed by ``database_id``)
+    so that batch and watch runs resolve each database only once. Call
+    :func:`clear_data_source_cache` to force a fresh round-trip.
     """
+    if database_id in _DATA_SOURCE_CACHE:
+        return _DATA_SOURCE_CACHE[database_id]
+
     db = client.databases.retrieve(database_id=database_id)
     sources = db.get("data_sources") or []
     if not sources:
@@ -239,7 +266,9 @@ def _resolve_data_source(client: Any, database_id: str) -> tuple[str, dict[str, 
     data_source_id = sources[0]["id"]
     ds = client.data_sources.retrieve(data_source_id=data_source_id)
     db_properties = ds.get("properties") or {}
-    return data_source_id, db_properties
+    result: tuple[str, dict[str, Any]] = (data_source_id, db_properties)
+    _DATA_SOURCE_CACHE[database_id] = result
+    return result
 
 
 def _query_and_upsert(client: Any, data_source_id: str, rsid: str, payload: dict[str, Any], company: str = "") -> str:
@@ -365,8 +394,17 @@ def schema_cheatsheet() -> str:
     """Return the canonical schema cheatsheet printed by
     ``--notion-print-database-schema``, derived from PROPERTY_SCHEMA.
     """
-    req = "\n".join(f"  {name:<23} {PROPERTY_SCHEMA[name]['type']}" for name in REQUIRED_PROPERTIES)
-    opt = "\n".join(f"  {name:<23} {PROPERTY_SCHEMA[name]['type']}" for name in OPTIONAL_PROPERTIES)
+
+    def _entry(name: str) -> str:
+        entry = PROPERTY_SCHEMA[name]
+        line = f"  {name:<23} {entry['type']}"
+        hint = entry.get("hint")
+        if hint:
+            line = f"{line} {hint}"
+        return line
+
+    req = "\n".join(_entry(name) for name in REQUIRED_PROPERTIES)
+    opt = "\n".join(_entry(name) for name in OPTIONAL_PROPERTIES)
     return (
         "Notion SDR Registry Database — required schema for aa_auto_sdr\n"
         "==============================================================\n\n"

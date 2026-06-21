@@ -54,6 +54,12 @@ def run_notion_repair_database(database_id: str, dry_run: bool) -> int:
         return int(ExitCode.GENERIC)
 
     if dry_run:
+        logger.info(
+            "notion_repair_planned add=%d conflicts=%d",
+            len(result.to_add),
+            len(result.conflicts),
+            extra={"add": len(result.to_add), "conflicts": len(result.conflicts)},
+        )
         print("DRY RUN — no changes will be made")
         for name in result.to_add:
             print(f"+ {name}")
