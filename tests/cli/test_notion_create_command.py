@@ -113,3 +113,49 @@ def test_missing_credentials_exits_via_guard():
 
     with patch.object(mod, "resolve_notion_credentials", side_effect=SystemExit(1)), pytest.raises(SystemExit):
         mod.run_notion_create_database(title="AA SDR Registry", dry_run=True, registry_already_configured=False)
+
+
+def _ns(**kw):
+    import argparse
+
+    return argparse.Namespace(**kw)
+
+
+def test_validate_title_requires_create_mode():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=False, notion_database_title="X")
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_rejects_positional_rsid():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, rsids=["myrs"])
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_rejects_combined_repair():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, notion_repair_database=True, notion_registry_database="db")
+    assert _validate_notion_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_validate_create_with_yes_is_allowed():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True, yes=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.OK)
+
+
+def test_validate_create_alone_is_allowed():
+    from aa_auto_sdr.cli.main import _validate_notion_modifiers
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    ns = _ns(notion_create_database=True)
+    assert _validate_notion_modifiers(ns) == int(ExitCode.OK)

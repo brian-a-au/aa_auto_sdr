@@ -840,5 +840,24 @@ def build_parser() -> argparse.ArgumentParser:
         dest="notion_company",
         help="Company value for the registry row; makes the row key (Company, RSID). Overrides NOTION_REGISTRY_COMPANY.",
     )
+    notion_group.add_argument(
+        "--notion-create-database",
+        action="store_true",
+        default=False,
+        dest="notion_create_database",
+        help=(
+            "Create the Notion SDR Registry database with the full canonical schema "
+            "under NOTION_PARENT_PAGE_ID. Preview by default; --yes creates it and "
+            "prints the new database id to set as NOTION_REGISTRY_DATABASE_ID."
+        ),
+    )
+    notion_group.add_argument(
+        "--notion-database-title",
+        type=str,
+        default=None,
+        metavar="NAME",
+        dest="notion_database_title",
+        help="Title for the database created by --notion-create-database (default: AA SDR Registry).",
+    )
 
     return p

@@ -322,6 +322,15 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     """
     in_notion_mode = getattr(ns, "format", None) == "notion" or bool(getattr(ns, "push_to_notion", None))
     repair = bool(getattr(ns, "notion_repair_database", False))
+    create = bool(getattr(ns, "notion_create_database", False))
+
+    # v1.21.0 — --notion-database-title is meaningless without --notion-create-database.
+    if getattr(ns, "notion_database_title", None) is not None and not create:
+        print(
+            "error: --notion-database-title requires --notion-create-database",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
 
     # v1.19.0 — mutual rejection of the two registry flags.
     if getattr(ns, "notion_registry_database", None) and getattr(ns, "no_notion_registry", False):
@@ -387,6 +396,25 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
             )
             return int(ExitCode.USAGE)
 
+    # v1.21.0 — --notion-create-database is a standalone mode: cannot combine
+    # with generation, batch, push, diff, watch, prune, or repair.
+    if create:
+        conflicting = (
+            bool(getattr(ns, "rsids", []) or [])
+            or bool(getattr(ns, "batch", None))
+            or bool(getattr(ns, "push_to_notion", None))
+            or bool(getattr(ns, "diff", None))
+            or bool(getattr(ns, "watch", False))
+            or prune
+            or repair
+        )
+        if conflicting:
+            print(
+                "error: --notion-create-database cannot be combined with generation or other modes",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
+
     if getattr(ns, "notion_company", None) and not (in_notion_mode or repair):
         print(
             "error: --notion-company requires --format notion, --push-to-notion, or --notion-repair-database",
@@ -400,7 +428,7 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     # notion action. It does NOT fire for --prune-snapshots --yes (snapshots
     # command handles that) or generate/batch --yes (accepted for parity).
     yes = getattr(ns, "yes", False)
-    if yes and not (prune or repair):
+    if yes and not (prune or repair or create):
         has_snapshot_prune = bool(getattr(ns, "prune_snapshots", False))
         notion_flags_only = (
             in_notion_mode
@@ -591,6 +619,20 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
 
         db_id = resolve_notion_database_id(cli_override=getattr(ns, "notion_registry_database", None), disabled=False)
         return run_notion_repair_database(db_id, dry_run=not getattr(ns, "yes", False))
+
+    if getattr(ns, "notion_create_database", False):
+        from aa_auto_sdr.cli.commands.notion_create import DEFAULT_REGISTRY_TITLE, run_notion_create_database
+        from aa_auto_sdr.output.notion_client_guard import resolve_notion_database_id
+
+        already = resolve_notion_database_id(
+            cli_override=getattr(ns, "notion_registry_database", None),
+            disabled=False,
+        )
+        return run_notion_create_database(
+            title=getattr(ns, "notion_database_title", None) or DEFAULT_REGISTRY_TITLE,
+            dry_run=not getattr(ns, "yes", False),
+            registry_already_configured=bool(already),
+        )
 
     from aa_auto_sdr.core import colors
 
