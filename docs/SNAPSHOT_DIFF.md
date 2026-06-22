@@ -366,7 +366,8 @@ aa_auto_sdr --watch --interval 1h <RSID> --profile prod
 - `--interval Nh|Nd|Nw` — required with `--watch`.
 - `--watch-threshold N` — minimum changes to emit (default 1; `0` = heartbeat, emits every cycle).
 - SIGINT / SIGTERM exit cleanly with code 0.
-- `--format`, `--quality-policy`, and `--fail-on-quality` are rejected with `--watch` (exit 2).
+- `--watch` accepts only `--format json` or `--format notion`. Any other format value exits 2.
+- `--quality-policy` and `--fail-on-quality` are rejected with `--watch` (exit 2).
 
 ## Sample outputs
 
