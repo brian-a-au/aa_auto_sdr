@@ -56,6 +56,10 @@ The `notion` format is opt-in only — it is **not** included in the `all`, `rep
 
 Setting `NOTION_REGISTRY_DATABASE_ID` (or `--notion-registry-database`) enables a queryable database index alongside the detail pages: one row per RSID, with a `Page` url linking to the detail page. Leaving the variable unset keeps behavior identical to the page-only flow.
 
+To stand up the registry database, run `aa_auto_sdr --notion-create-database --yes`
+(see `docs/NOTION_SETUP.md`). It creates the database with the full schema in one
+command.
+
 Run `aa_auto_sdr --notion-print-database-schema` for the canonical property list to create in Notion. Required properties: `Name` (title), `RSID` (rich_text, the idempotency key), `Last Updated` (date), `Tool Version` (rich_text), and one `number` each for `Dimensions`, `Metrics`, `Segments`, `Calculated Metrics`, `Virtual Report Suites`, `Classifications`. Optional properties are created when present: `Page` (url), `Currency`, `Timezone`, `Parent RSID`, `Quality Verdict` (select), `Degraded Components` (multi_select). There is also an optional `Company` (rich_text) property; when the database has a `Company` column and `--notion-company` (or `NOTION_REGISTRY_COMPANY`) is set, the row key becomes `(Company, RSID)` instead of RSID alone — allowing one database to hold multiple Adobe Analytics organizations.
 
 The registry database should be a standard single-data-source database. If the database has more than one data source, the tool uses the first one and logs a `notion_registry_multi_source` warning.

@@ -560,6 +560,35 @@ def test_prune_and_repair_combined_rejected(capsys):
     assert rc == int(ExitCode.USAGE)
 
 
+def test_prune_rejects_other_top_level_mode(capsys):
+    # v1.21.0: standalone-mode contract is uniform — prune rejects any other
+    # top-level mode (here a config/profile action), not just generation.
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-prune-orphans", "--config-status"])
+    rc = _validate_notion_modifiers(ns)
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
+def test_repair_rejects_other_top_level_mode(capsys):
+    # v1.21.0: repair rejects another top-level mode. A db id is supplied so the
+    # conflict (not the missing-db-id guard) is what trips USAGE.
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-repair-database", "--notion-registry-database", "db", "--profile-list"])
+    rc = _validate_notion_modifiers(ns)
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
+def test_prune_rejects_create_database(capsys):
+    # v1.21.0: the three standalone modes reject each other.
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-prune-orphans", "--notion-create-database"])
+    rc = _validate_notion_modifiers(ns)
+    capsys.readouterr()
+    assert rc == int(ExitCode.USAGE)
+
+
 def test_repair_with_database_id_flag_ok(capsys, monkeypatch):
     # --notion-repair-database with --notion-registry-database → should not fail on missing db id
     monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
@@ -586,4 +615,22 @@ def test_repair_with_registry_database_override_not_rejected(capsys, monkeypatch
     err = capsys.readouterr().err
     assert rc == int(ExitCode.OK), f"Expected OK but got rc={rc}, stderr={err!r}"
     # Must not emit the misleading "requires --format notion" error
+    assert "--format notion" not in err
+
+
+def test_create_with_registry_database_override_not_rejected(capsys, monkeypatch):
+    """--notion-create-database --notion-registry-database <id> must be accepted.
+
+    The create dispatch path passes --notion-registry-database into
+    resolve_notion_database_id to compute registry_already_configured (the
+    warn-but-proceed signal). Like repair, create must be exempt from the
+    v1.19.0 "registry flags require a notion mode" guard, or the flag-based
+    existing-registry case can never reach the handler.
+    """
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    parser = build_parser()
+    ns = parser.parse_args(["--notion-create-database", "--notion-registry-database", "explicit-db-id"])
+    rc = _validate_notion_modifiers(ns)
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OK), f"Expected OK but got rc={rc}, stderr={err!r}"
     assert "--format notion" not in err

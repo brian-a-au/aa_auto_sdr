@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.0] — 2026-06-21
+
+The Notion integration gains `--notion-create-database`: a standalone mode that creates the SDR Registry database with the full canonical schema under `NOTION_PARENT_PAGE_ID` in one command — closing the last manual step in Notion setup. A database created under a page the integration already reaches inherits that access, so no separate "Share with integration" step is needed.
+
+### Added
+- `--notion-create-database` — standalone mode; creates the registry database with all `PROPERTY_SCHEMA` properties via a single `databases.create` call (`initial_data_source.properties`). Preview by default; `--yes` creates it and prints the new database id to set as `NOTION_REGISTRY_DATABASE_ID`. Requires `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID`.
+- `--notion-database-title NAME` — optional title for the created database (default: `AA SDR Registry`). Requires `--notion-create-database`.
+- New events: `notion_create_planned` (INFO, dry-run preview), `notion_database_created` (INFO, apply), `notion_create_existing_registry` (WARNING, a registry id is already configured), `notion_create_failed` (WARNING, the create call raised).
+
+### Changed
+- `--yes` / `-y` now also confirms `--notion-create-database`.
+
+### Constraints
+- `--notion-create-database` is a standalone mode: naming it with generation, `--batch`, `--push-to-notion`, `--diff`, `--watch`, `--notion-prune-orphans`, or `--notion-repair-database` exits `ExitCode.USAGE`. `--notion-database-title` without `--notion-create-database` exits `USAGE`.
+- AA invariants untouched — the Notion path never imports `aanalytics2`; meta-tests under `tests/meta/` are unaffected.
+
 ## [1.20.1] — 2026-06-21
 
 Efficiency, observability, and cleanup patch for the Notion integration. No new user-facing flags.
