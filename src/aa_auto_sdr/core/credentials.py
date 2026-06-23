@@ -70,7 +70,9 @@ def _from_dotenv(working_dir: Path) -> Credentials | None:
     path = working_dir / ".env"
     if not path.exists():
         return None
-    values = dotenv_values(path)
+    # .env files use the UPPERCASE env-var contract (ORG_ID, ...) per .env.example;
+    # normalize to the lowercase keys `_from_dict` expects, mirroring `_from_env`.
+    values = {k.lower(): v for k, v in dotenv_values(path).items()}
     return _from_dict(values, source=".env")
 
 

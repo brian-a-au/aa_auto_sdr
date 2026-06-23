@@ -115,6 +115,23 @@ def test_explicit_profile_overrides_aa_profile_env(monkeypatch: pytest.MonkeyPat
     assert creds.org_id == "X"
 
 
+def test_dotenv_resolves_with_uppercase_keys(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A .env copied from .env.example uses UPPERCASE keys (ORG_ID, ...), matching
+    the env-var contract. `_from_dotenv` must normalize them to the lowercase keys
+    `_from_dict` expects, the same way `_from_env` maps `ORG_ID` -> `org_id`."""
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    (tmp_path / ".env").write_text(
+        "ORG_ID=D@AdobeOrg\nCLIENT_ID=Dc\nSECRET=Ds\nSCOPES=Dx\n",
+    )
+    creds = credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+    assert creds.source == ".env"
+    assert creds.org_id == "D@AdobeOrg"
+    assert creds.client_id == "Dc"
+    assert creds.secret == "Ds"
+    assert creds.scopes == "Dx"
+
+
 def test_resolve_raises_when_no_source_provides_creds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
         monkeypatch.delenv(var, raising=False)
