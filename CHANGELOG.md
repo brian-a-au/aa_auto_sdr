@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.1] — 2026-06-23
+
+Bug fix for credential resolution from a `.env` file.
+
+### Fixed
+- `.env` loading now resolves credentials. A `.env` copied from `.env.example` uses the uppercase env-var keys (`ORG_ID`, `CLIENT_ID`, `SECRET`, `SCOPES`), but `_from_dotenv` passed those keys to the loader unchanged while every other source normalizes to lowercase. All four fields came back empty, so `.env` resolution silently fell through to "No credentials found." The `.env` path now lowercases keys before normalizing, mirroring how the environment-variable path maps `ORG_ID` to `org_id`. The uppercase keys in `.env.example` are the intended contract and are unchanged.
+
+### Tests
+- Added a credential-resolution test that writes a `.env` with uppercase keys and asserts it resolves with `source == ".env"`. `python-dotenv` is now in the dev dependency group so this path runs under test.
+
 ## [1.21.0] — 2026-06-21
 
 The Notion integration gains `--notion-create-database`: a standalone mode that creates the SDR Registry database with the full canonical schema under `NOTION_PARENT_PAGE_ID` in one command — closing the last manual step in Notion setup. A database created under a page the integration already reaches inherits that access, so no separate "Share with integration" step is needed.
