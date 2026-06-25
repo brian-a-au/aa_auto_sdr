@@ -1,6 +1,6 @@
 # Configuration
 
-How to authenticate `aa_auto_sdr` against your Adobe Analytics 2.0 API. See [`QUICKSTART.md`](QUICKSTART.md) for the 90-second onboarding flow; this page is the deeper reference.
+How to authenticate `aa_auto_sdr` against your Adobe Analytics 2.0 API. See [`QUICKSTART.md`](QUICKSTART.md) for the step-by-step onboarding walkthrough; this page is the deeper reference.
 
 ## Adobe Developer Console setup
 
@@ -217,7 +217,7 @@ Credentials are env vars only — they are **not** stored in profile `config.jso
 
 ## See also
 
-- [`QUICKSTART.md`](QUICKSTART.md) — the 5-step onboarding flow
+- [`QUICKSTART.md`](QUICKSTART.md) — the step-by-step onboarding walkthrough
 - [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — every flag with examples
 - [`LOGGING.md`](LOGGING.md) — log output, events, redaction
 - [Adobe I/O Console](https://developer.adobe.com/console) — credential setup

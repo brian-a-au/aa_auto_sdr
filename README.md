@@ -13,9 +13,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Last Commit](https://img.shields.io/github/last-commit/brian-a-au/aa_auto_sdr)](https://github.com/brian-a-au/aa_auto_sdr/commits/main)
 
-A production-ready Python CLI that automates the creation of **Solution Design Reference (SDR)** documentation from your Adobe Analytics implementation. **Read-only** against Adobe Analytics. **API 2.0 only**.
+A production-ready Python CLI that automates the creation of Solution Design Reference (SDR) documentation from your Adobe Analytics implementation. Read-only against Adobe Analytics. API 2.0 only.
 
-Sister project to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does **not** share code.
+Counterpart to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does not share code.
 
 ## What It Is
 
@@ -404,7 +404,7 @@ when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
 
 | Guide | Description |
 |-------|-------------|
-| [Quickstart](docs/QUICKSTART.md) | 90-second onboarding from clone to first SDR |
+| [Quickstart](docs/QUICKSTART.md) | Step-by-step walkthrough from clone to first SDR |
 | [CLI Reference](docs/CLI_REFERENCE.md) | Every flag organized by capability, exit codes, machine-readable error envelope |
 | [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, diagnostics, troubleshooting |
 | [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, trending, watch, common workflows |
