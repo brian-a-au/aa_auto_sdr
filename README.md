@@ -403,9 +403,13 @@ when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
 
 | Guide | Description |
 |-------|-------------|
+| [Quick Reference](docs/QUICK_REFERENCE.md) | Single-page command cheat sheet, grouped by mode |
 | [Quickstart](docs/QUICKSTART.md) | Step-by-step walkthrough from clone to first SDR |
-| [CLI Reference](docs/CLI_REFERENCE.md) | Every flag organized by capability, exit codes, machine-readable error envelope |
+| [Installation](docs/INSTALLATION.md) | Platform setup, install methods, optional extras, dependency reference |
 | [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, diagnostics, troubleshooting |
+| [Notion Setup](docs/NOTION_SETUP.md) | Step-by-step Notion publishing and SDR Registry setup |
+| [CLI Reference](docs/CLI_REFERENCE.md) | Every flag organized by capability, exit codes, machine-readable error envelope |
+| [Use Cases & Best Practices](docs/USE_CASES.md) | Scenario playbooks, automation, scheduling, CI/CD |
 | [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, trending, watch, common workflows |
 | [Output Formats](docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
 | [Template-Fill Workflow](docs/TEMPLATE_WORKFLOW.md) | Hands-on guide for `--template` — getting Adobe's template, first run, batch, composition with snapshot/git, coverage map, troubleshooting |
