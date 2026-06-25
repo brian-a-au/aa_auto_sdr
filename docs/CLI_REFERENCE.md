@@ -9,6 +9,7 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 - [Generation](#generation) — single, auto-batch, `--batch`, modifiers
 - [Discovery and inspection](#discovery-and-inspection) — list / describe / stats / interactive
 - [Snapshot](#snapshot) — capture, auto-snapshot, prune, list
+- [Git-versioned snapshots](#git-versioned-snapshots) — commit / push the snapshot trail
 - [Diff](#diff) — snapshot comparison, modifiers, polish
 - [Trending and drift](#trending-and-drift)
 - [Watch and scheduled](#watch-and-scheduled)
@@ -19,6 +20,7 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 - [Resilience](#resilience) — retries
 - [Profile and config](#profile-and-config)
 - [Logging and observability](#logging-and-observability)
+- [Notion integration](#notion-integration)
 - [Machine-readable errors](#machine-readable-errors)
 - [Fast-path actions](#fast-path-actions)
 
@@ -107,7 +109,7 @@ aa_auto_sdr <RSID> --metrics-only --format json --output-dir /tmp/metrics-only
 aa_auto_sdr <RSID> --dry-run --auto-snapshot --profile prod
 ```
 
-### `--template PATH` *(v1.16.0)*
+### `--template PATH`
 
 > **Workflow guide:** [`docs/TEMPLATE_WORKFLOW.md`](TEMPLATE_WORKFLOW.md) — first-run + batch + troubleshooting walkthroughs, coverage map, log-signals reference.
 
@@ -117,7 +119,7 @@ The fill writer is non-destructive: it matches existing skeleton rows by id and 
 
 USAGE (2) if the path is missing, a directory, or non-`.xlsx`. USAGE (2) if combined with `--diff` / `--watch` / a `--list-*` action / `--trending-window` / `--compare-with-prev` / `--inventory-summary` / `--describe-reportsuite`. USAGE (2) if `--format` resolves to a set without `excel` / `excel-template`.
 
-### `--template-organization NAME` *(v1.16.0)*
+### `--template-organization NAME`
 
 Organization string written to `Glossary!C2` — the source-of-truth cell every other sheet's `C2` formula reads. Defaults to the report suite name. Requires `--template`.
 
@@ -200,6 +202,23 @@ uv run aa_auto_sdr --prune-snapshots RS1 --profile prod --keep-since 90d
 
 On non-interactive stdin without `--yes` the command refuses with exit code 2.
 
+## Git-versioned snapshots
+
+Commit the snapshot directory to git for a versioned, tamper-evident audit trail. These compose with `--snapshot` / `--auto-snapshot` (and the watch loop) — each saved snapshot becomes a commit.
+
+| Flag | Behavior |
+|----|----|
+| `--git-commit` | After saving a snapshot, commit it to the snapshot directory's git repo. Auto-initializes the directory as a git repo on first use. |
+| `--git-message TEXT` | Override the auto-generated commit message. Requires `--git-commit`. |
+| `--git-push` | Push after a successful commit. Requires `--git-commit`. |
+
+```bash
+uv run aa_auto_sdr <RSID> --auto-snapshot --git-commit --profile prod
+uv run aa_auto_sdr <RSID> --watch --interval 1h --git-commit --git-push --profile prod
+```
+
+Exit codes: on single / `--batch` runs a git failure exits `16` (`SNAPSHOT`); under `--watch` a git failure is reported as an `error` event and the loop continues (exit `0`).
+
 ## Diff
 
 ### `aa_auto_sdr --diff <a> <b>`
@@ -280,7 +299,7 @@ aa_auto_sdr <RSID> --watch --interval 1h --profile prod
 | `--interval Nh\|Nd\|Nw` | Required with `--watch`. |
 | `--watch-threshold N` | Minimum total change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). |
 
-Rejected with `--watch`: `--format`, `--quality-policy`, `--fail-on-quality` (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
+Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy` and `--fail-on-quality` (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
 
 ## Quality severity engine
 

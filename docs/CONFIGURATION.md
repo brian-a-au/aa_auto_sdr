@@ -104,6 +104,10 @@ Use with `--profile prod` on subsequent commands. Multi-org users create one pro
 | `SCOPES` | yes | comma-separated list (see above). The tool normalizes whitespace before requesting tokens, so `"openid, AdobeID, ..."` also works — but no-space is the canonical form |
 | `AA_PROFILE` | no | shorthand to set `--profile` |
 | `LOG_LEVEL` | no | honored by the CLI's logging |
+| `NO_COLOR` | no | when set to a non-empty value, disables ANSI colors in console output (per [no-color.org](https://no-color.org/)) |
+| `GITHUB_STEP_SUMMARY` | no | when set (GitHub Actions sets it per job), `--diff` also appends a markdown render to that file |
+
+These last two are behavioral toggles, not credentials. Notion-related environment variables are documented under [Notion Integration](#notion-integration-optional) below.
 
 Per-platform setup:
 

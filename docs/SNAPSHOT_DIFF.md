@@ -6,7 +6,7 @@ The "version control of SDR" capability. Capture a snapshot of a report suite's 
 
 Adobe Analytics report suites change over time — dimensions get renamed, metrics get retired, segments get tweaked. Without a structured way to capture state, "what did the SDR look like last quarter?" is unanswerable. The snapshot/diff feature solves this:
 
-- **Capture** — `--snapshot` persists the normalized SdrDocument as JSON next to your output files.
+- **Capture** — `--snapshot` persists the normalized SdrDocument as JSON into the profile's snapshot store (see [Storage convention](#storage-convention) below), not next to your format outputs.
 - **Compare** — `--diff <a> <b>` produces a structured report of what changed: added components, removed components, per-field deltas on modified components.
 
 Diffs run on the **normalized model**, not on rendered files — renaming a column in Excel does not create a false diff.
@@ -21,6 +21,14 @@ Schema: `aa-sdr-snapshot/v4`. Sorted keys, atomic writes, git-diff-friendly out 
   "rsid": "demo.prod",
   "captured_at": "2026-04-26T17:29:01+00:00",
   "tool_version": "X.Y.Z",
+  "degraded_components": [],
+  "partial_components": {},
+  "quality": {
+    "naming_audit": { ... },
+    "stale_components": [ ... ],
+    "issues": [ ... ],
+    "summary": { ... }
+  },
   "components": {
     "report_suite": { ... },
     "dimensions": [ ... ],
@@ -29,16 +37,13 @@ Schema: `aa-sdr-snapshot/v4`. Sorted keys, atomic writes, git-diff-friendly out 
     "calculated_metrics": [ ... ],
     "virtual_report_suites": [ ... ],
     "classifications": [ ... ]
-  },
-  "quality": {
-    "fetch_status": { ... },
-    "issues": [ ... ],
-    "summary": { ... }
   }
 }
 ```
 
-The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load with missing fields defaulted (v1 envelopes load as if `fetch_status` reports all components healthy and the `quality` block is empty).
+`degraded_components` (a list of component types whose fetch returned no data) and `partial_components` (a map of component type → reduced expansion level) are always present — empty by default. The `quality` block is `null` when no audit ran; when populated it carries `naming_audit`, `stale_components`, `issues`, and `summary`.
+
+The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load forward-compat: `v1` envelopes load with `degraded_components` / `partial_components` defaulted to empty and `quality` defaulted to `null`.
 
 ## Storage convention
 
@@ -376,5 +381,5 @@ Browse [`sample_outputs/`](../sample_outputs/) for committed examples of each di
 ## See also
 
 - [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — full flag reference
-- [`OUTPUT_FORMATS.md`](OUTPUT_FORMATS.md) — five generation formats
+- [`OUTPUT_FORMATS.md`](OUTPUT_FORMATS.md) — generation formats, aliases, and file layouts
 - [`sample_outputs/`](../sample_outputs/) — browse representative outputs

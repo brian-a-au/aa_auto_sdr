@@ -120,7 +120,7 @@ Output you want to see — 4 ✅ lines, one per data sheet, each listing the fil
 
 **Multi-tenant template.** Agency maintains a per-market template (`apac.xlsx`, `emea.xlsx`, `americas.xlsx`), each with the appropriate market name pre-baked into `Glossary!C2` defaults via formula. Use `--template apac.xlsx --template-organization "Acme APAC"` to fill while keeping the regional styling.
 
-### What's NOT supported in v1.16
+### What's NOT supported
 
 - **Renaming the canonical data sheets.** Anchors are hardcoded. A `--template-anchors path/to/anchors.json` flag for arbitrary mapping is plausible for a future release but isn't shipped.
 - **Templates with the data on a different cell grid.** The writer expects `B4` for the section title and rows 5–10 for the `ID` header. If your template puts the section title at `A1` and the header at row 20, the writer can't find them.
@@ -208,7 +208,7 @@ The `B` column ("ID") on every data sheet is **never written** — that's custom
 
 ## What rows fill, what rows stay
 
-Per-sheet fill strategy (see [v1.16.0 design spec §3.6](../docs/superpowers/specs/2026-05-11-aa-auto-sdr-v1.16.0-design.md) for the formal contract):
+Per-sheet fill strategy (the formal contract lives in the design spec under `docs/superpowers/specs/` — gitignored, local only):
 
 - **`eVars`, `props`, `custom events (metrics)`:** match-by-id with always-overwrite. The writer normalizes `variables/evar1` → `evar1` and `metrics/event1` → `event1` before matching, then case-insensitively matches against the template's existing rows. Matched rows are filled in place. Unmatched template-skeleton rows (e.g. `eVar37` when the RSID has only 12 eVars) are **untouched** — their pre-seeded Adobe example content survives. API IDs that don't appear in the template at all are **appended past `max_row`** (default styling, see "Style notes" below).
 
@@ -219,7 +219,7 @@ Adobe's template ships with example calc metrics and segments (Average Time Spen
 ### Style notes
 
 - **Matched-row fills:** keep the template's existing cell style (openpyxl preserves style on `cell.value = …` to an already-styled cell). Borders, fonts, alignment, conditional formatting — all untouched.
-- **Appended rows:** use openpyxl's default style (no border, no font customization). Acceptable for v1; a future release may copy the style of the last pre-styled row downward.
+- **Appended rows:** use openpyxl's default style (no border, no font customization). Matched-row fills keep their styling; only rows appended past the template's pre-styled skeleton are plain.
 - **Soft cap:** the writer appends up to 50 rows past `max_row`. Beyond that, additional API entries are dropped with a `template_sheet_clipped` WARNING. In practice this only trips for tenants with hundreds of segments — very rare.
 
 ## Troubleshooting

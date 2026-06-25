@@ -338,7 +338,7 @@ uv run aa_auto_sdr --notion-create-database --notion-database-title "Acme SDR Re
 
 Without `--yes`, all three modes only preview and make no changes (including on non-tty stdin); pass `--yes` to apply. All modes require the `[notion]` extra and `NOTION_TOKEN`. `--notion-repair-database` additionally requires a database id. `--notion-create-database` additionally requires `NOTION_PARENT_PAGE_ID`.
 
-### Template-fill Excel writer (v1.16.0)
+### Template-fill Excel writer
 
 Hands-on workflow guide: [`docs/TEMPLATE_WORKFLOW.md`](docs/TEMPLATE_WORKFLOW.md) — covers first-run, batch, snapshot/git composition, coverage map, and the five `template_*` log events used as health signals in unattended runs.
 
@@ -353,7 +353,7 @@ Hands-on workflow guide: [`docs/TEMPLATE_WORKFLOW.md`](docs/TEMPLATE_WORKFLOW.md
   spec: match-by-id is the uniform rule, customer-edited descriptions should
   be re-applied after generation. argparse-rejected if passed.
 
-### Git integration (v1.15.0)
+### Git integration
 
 Commit each snapshot to a git-versioned audit trail under the snapshot
 directory. The directory IS the git repo — initialized on first use, no
@@ -411,7 +411,7 @@ On git failure, the original baseline/change event emits first (with no
 ```
 
 The watch loop never dies on git failure — per-cycle errors continue
-the loop (same posture as fetch errors from v1.14.0).
+the loop (same posture as fetch errors).
 
 **Batch composition.** Each RSID's snapshot commits as a separate commit
 (pathspec-scoped to `<rsid>/`). Workers are serialized for git operations
@@ -529,8 +529,8 @@ records under `--log-format json` so log aggregation can quantify retries
 per run.
 
 **Note on stall budget.** `aanalytics2` performs its own urllib3-level retries
-inside each outer attempt (4 internal retries with `backoff_factor=1`,
-hardcoded). Our `--max-retries` runs *outside* that, so the worst-case
+inside each outer attempt (3 internal retries, i.e. 4 attempts, with
+`backoff_factor=1`, hardcoded). Our `--max-retries` runs *outside* that, so the worst-case
 HTTP-request count for a hard-failing endpoint scales as
 `(urllib3_retries + 1) × (--max-retries + 1)`. At the default `--max-retries 3`
 that's up to 16 requests; at `--max-retries 6` it's up to 28. Wall-clock
