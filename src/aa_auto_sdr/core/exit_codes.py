@@ -163,7 +163,7 @@ What to try:
 
 Likely causes:
 - Snapshot file path doesn't exist (or is a directory).
-- Snapshot envelope schema is missing/wrong (not `aa-sdr-snapshot/v1`).
+- Snapshot envelope schema is missing or an unrecognized major (expected `aa-sdr-snapshot/v1` through `v4`).
 - `<RSID>@<spec>` token used without `--profile`.
 - `git:<ref>:<path>` ref or path doesn't exist in the current repo.
 

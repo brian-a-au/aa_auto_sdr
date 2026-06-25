@@ -253,14 +253,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         metavar="DURATION",
-        help=("Per-RSID drift window (Nh|Nd|Nw, e.g. '30d'). Reads existing snapshots; no API contact (v1.13.0)."),
+        help=("Per-RSID drift window (Nh|Nd|Nw, e.g. '30d'). Reads existing snapshots; no API contact."),
     )
     actions.add_argument(
         "--compare-with-prev",
         action="store_true",
         help=(
             "Diff a report suite's latest snapshot vs the immediately previous one. "
-            "Sugar for --diff <RSID>@previous <RSID>@latest (v1.13.0)."
+            "Sugar for --diff <RSID>@previous <RSID>@latest."
         ),
     )
     actions.add_argument(
@@ -269,7 +269,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Enter watch mode: loop over the positional RSID(s) at --interval, "
             "snapshot + diff each cycle, emit NDJSON events to stdout. "
-            "SIGINT to stop. (v1.14.0)"
+            "SIGINT to stop."
         ),
     )
     actions.add_argument(
@@ -419,7 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         metavar="DURATION",
-        help="Watch cadence (Nh|Nd|Nw, e.g. '1h'). Required with --watch. (v1.14.0)",
+        help="Watch cadence (Nh|Nd|Nw, e.g. '1h'). Required with --watch.",
     )
     p.add_argument(
         "--watch-threshold",
@@ -427,7 +427,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         metavar="N",
         help=(
-            "Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1. (v1.14.0)"
+            "Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1."
         ),
     )
 
@@ -437,20 +437,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "After saving a snapshot, commit it to the snapshot dir's git repo. "
-            "Auto-inits the dir as a git repo on first use. (v1.15.0)"
+            "Auto-inits the dir as a git repo on first use."
         ),
     )
     p.add_argument(
         "--git-push",
         action="store_true",
-        help="Push after a successful --git-commit. Requires --git-commit. (v1.15.0)",
+        help="Push after a successful --git-commit. Requires --git-commit.",
     )
     p.add_argument(
         "--git-message",
         type=str,
         default=None,
         metavar="TEXT",
-        help="Override the auto-generated commit message. Requires --git-commit. (v1.15.0)",
+        help="Override the auto-generated commit message. Requires --git-commit.",
     )
 
     # v1.16.0 — template-fill modifiers (NOT in any mutex group)
@@ -462,7 +462,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Path to an existing .xlsx template (e.g. Adobe's BRD/SDR template). "
             "Switches the Excel writer to fill mode, preserving styles, formulas, "
-            "and untouched cells. (v1.16.0)"
+            "and untouched cells."
         ),
     )
     p.add_argument(
@@ -472,7 +472,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help=(
             "Organization name written to Glossary!C2. Defaults to the report suite "
-            "name. Requires --template. (v1.16.0)"
+            "name. Requires --template."
         ),
     )
 
@@ -660,7 +660,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # v1.8.0 — batch parallelism
-    batch_grp = p.add_argument_group("batch parallelism (v1.8.0+)")
+    batch_grp = p.add_argument_group("batch parallelism")
     batch_grp.add_argument(
         "--workers",
         type=_workers_int,
@@ -675,7 +675,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # v1.10.0 — batch sampling
-    sample_grp = p.add_argument_group("batch sampling (v1.10.0+)")
+    sample_grp = p.add_argument_group("batch sampling")
     sample_grp.add_argument(
         "--sample",
         type=int,
@@ -698,11 +698,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # v1.8.0 — validation cache (dormant; populated in v1.12.0)
-    cache_grp = p.add_argument_group("validation cache (dormant in v1.8.0; populated in v1.12.0)")
+    cache_grp = p.add_argument_group("validation cache")
     cache_grp.add_argument(
         "--enable-cache",
         action="store_true",
-        help="Instantiate the validation cache (no-op until v1.12.0's quality engine).",
+        help="Instantiate the validation cache (used by the quality severity engine).",
     )
     cache_grp.add_argument(
         "--clear-cache",
@@ -726,7 +726,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # v1.9.0 — field-level shaping + naming audits  (extended in v1.12.0)
     quality_grp = p.add_argument_group(
-        "quality audits + name matching (v1.9.0+, severity engine v1.12.0+)",
+        "quality audits + name matching",
     )
     quality_grp.add_argument(
         "--audit-naming",
@@ -755,22 +755,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--quality-report",
         choices=("json", "csv"),
         default=None,
-        help="Emit a machine-readable quality report alongside the SDR output (v1.12.0).",
+        help="Emit a machine-readable quality report alongside the SDR output.",
     )
     quality_grp.add_argument(
         "--quality-policy",
         type=Path,
         default=None,
-        help="Path to a JSON quality-policy file. CLI flags win over policy values (v1.12.0).",
+        help="Path to a JSON quality-policy file. CLI flags win over policy values.",
     )
     quality_grp.add_argument(
         "--fail-on-quality",
         choices=("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"),
         default=None,
-        help="Exit with code 17 if any issue at or above this severity exists (v1.12.0).",
+        help="Exit with code 17 if any issue at or above this severity exists.",
     )
 
-    notion_group = p.add_argument_group("Notion Integration (v1.18.0+)")
+    notion_group = p.add_argument_group("Notion Integration")
     notion_group.add_argument(
         "--push-to-notion",
         type=str,
@@ -815,7 +815,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Skip the registry database upsert for this run even when "
             "NOTION_REGISTRY_DATABASE_ID is set. The detail page is still "
-            "written. (v1.19.0)"
+            "written."
         ),
     )
     notion_group.add_argument(
