@@ -46,3 +46,17 @@ def test_emit_error_envelope_one_line(capsys) -> None:
     emit_error_envelope(AuthError("multi\nline\nmessage"), ExitCode.AUTH.value)
     err = capsys.readouterr().err
     assert err.count("\n") == 1  # one trailing newline only
+
+
+def test_hint_for_unknown_code_returns_empty() -> None:
+    """A code outside the ExitCode enum yields an empty hint, not a crash."""
+    from aa_auto_sdr.output.error_envelope import _hint_for
+
+    assert _hint_for(9999) == ""
+
+
+def test_hint_for_code_without_remediation_returns_empty() -> None:
+    """A valid code whose explanation has no 'What to try:' bullet → empty hint."""
+    from aa_auto_sdr.output.error_envelope import _hint_for
+
+    assert _hint_for(ExitCode.OK.value) == ""

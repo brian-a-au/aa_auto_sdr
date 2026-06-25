@@ -45,3 +45,14 @@ def test_read_invalid_json_raises_jsondecodeerror(tmp_path: Path) -> None:
     target.write_text("not json")
     with pytest.raises(json.JSONDecodeError):
         json_io.read_json(target)
+
+
+def test_write_unserializable_payload_cleans_up_temp_and_reraises(tmp_path: Path) -> None:
+    """A non-serializable payload raises during json.dump; the temp file must be
+    removed and no destination file left behind."""
+    target = tmp_path / "out.json"
+    with pytest.raises(TypeError):
+        json_io.write_json(target, {"bad": object()})
+    assert not target.exists()
+    assert not list(tmp_path.glob("*.tmp"))
+    assert not list(tmp_path.glob(".*"))

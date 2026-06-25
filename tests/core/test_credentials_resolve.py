@@ -158,3 +158,28 @@ def test_legacy_sandbox_key_in_config_is_ignored(tmp_path: Path) -> None:
     assert creds.org_id == "F"
     assert creds.scopes == "Fx"
     assert not hasattr(creds, "sandbox")
+
+
+def test_from_dotenv_returns_none_when_python_dotenv_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """When python-dotenv is not installed, `_from_dotenv` swallows the
+    ImportError and returns None so resolution falls through to the next source."""
+    import sys
+
+    # Force `from dotenv import dotenv_values` to raise ImportError.
+    monkeypatch.setitem(sys.modules, "dotenv", None)
+    (tmp_path / ".env").write_text("ORG_ID=O\n")
+    assert credentials._from_dotenv(tmp_path) is None
+
+
+def test_resolution_chain_reports_unmatched_profile_entry(tmp_path: Path) -> None:
+    """A profile that resolves to a missing config.json is reported as an
+    unmatched priority-1 entry rather than skipped."""
+    chain = credentials.resolution_chain(
+        profile="ghost",
+        profiles_base=tmp_path,
+        working_dir=tmp_path,
+    )
+    profile_entry = chain[0]
+    assert profile_entry.priority == 1
+    assert "ghost" in profile_entry.source
+    assert profile_entry.matched is False
