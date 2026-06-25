@@ -310,3 +310,47 @@ def test_resolve_output_dash_returns_path_dash() -> None:
     assert _resolve_output("-") == Path("-")
     assert _resolve_output(None) is None
     assert _resolve_output("/tmp/x.json") == Path("/tmp/x.json")
+
+
+@patch("aa_auto_sdr.api.fetch.fetch_report_suite_summaries")
+@patch("aa_auto_sdr.cli.commands.discovery.AaClient")
+def test_list_reportsuites_generic_error_returns_1(mock_client_cls, mock_fetch, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import AaAutoSdrError
+
+    mock_fetch.side_effect = AaAutoSdrError("weird internal failure")
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=MagicMock(), company_id="testco")
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 1  # generic error
+    assert "error:" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.api.fetch.fetch_virtual_report_suite_summaries")
+@patch("aa_auto_sdr.cli.commands.discovery.AaClient")
+def test_list_virtual_reportsuites_generic_error_returns_1(mock_client_cls, mock_fetch, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import AaAutoSdrError
+
+    mock_fetch.side_effect = AaAutoSdrError("weird internal failure")
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=MagicMock(), company_id="testco")
+    from aa_auto_sdr.cli.commands import discovery as _disc
+
+    rc = _disc.run_list_virtual_reportsuites(
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == 1  # generic error
+    assert "error:" in capsys.readouterr().out

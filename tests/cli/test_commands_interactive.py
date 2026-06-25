@@ -118,3 +118,56 @@ def test_missing_creds_returns_config(
     monkeypatch.chdir(tmp_path)
     rc = cmd.run(profile=None)
     assert rc == ExitCode.CONFIG.value
+
+
+@patch("aa_auto_sdr.cli.commands.interactive.AaClient")
+def test_auth_error_returns_auth(
+    mock_client_cls,
+    env_creds,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    mock_client_cls.from_credentials.side_effect = AuthError("bad scopes")
+    rc = cmd.run(profile=None)
+    assert rc == ExitCode.AUTH.value
+    assert "auth error" in capsys.readouterr().out.lower()
+
+
+@patch("aa_auto_sdr.cli.commands.interactive.AaClient")
+def test_api_error_returns_api(
+    mock_client_cls,
+    env_creds,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    handle = MagicMock()
+    handle.getReportSuites.side_effect = ApiError("rate limit")
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+    rc = cmd.run(profile=None)
+    assert rc == ExitCode.API.value
+    assert "api error" in capsys.readouterr().out.lower()
+
+
+@patch("aa_auto_sdr.cli.commands.interactive.AaClient")
+def test_eof_returns_130(
+    mock_client_cls,
+    env_creds,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=_build_handle(raw),
+        company_id="testco",
+    )
+
+    def _eof(_):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", _eof)
+    rc = cmd.run(profile=None)
+    assert rc == 130

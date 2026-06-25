@@ -56,6 +56,11 @@ class TestProfileList:
         rc = cmd.list_run(format_name="yaml", base=aa_base)
         assert rc == ExitCode.OUTPUT.value
 
+    def test_table_empty(self, aa_base: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        rc = cmd.list_run(format_name="table", base=aa_base)
+        assert rc == ExitCode.OK.value
+        assert "(no profiles)" in capsys.readouterr().out
+
 
 class TestProfileShow:
     def test_show_masks_client_id(
@@ -116,6 +121,18 @@ class TestProfileImport:
     ) -> None:
         rc = cmd.import_run("x", "/no/such/path.json", base=aa_base)
         assert rc == ExitCode.CONFIG.value
+
+    def test_invalid_json(
+        self,
+        aa_base: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        src = tmp_path / "broken.json"
+        src.write_text("{not valid json")
+        rc = cmd.import_run("broken", str(src), base=aa_base)
+        assert rc == ExitCode.CONFIG.value
+        assert "could not read" in capsys.readouterr().out
 
 
 class TestProfileTest:

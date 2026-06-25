@@ -378,3 +378,54 @@ class TestRunErrorPaths:
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.API.value
         assert "503 on rs1" in capsys.readouterr().out
+
+    def test_api_error_during_resolve_returns_api_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Per-identifier resolve loop: ApiError raised inside resolve_rsid."""
+        from aa_auto_sdr.core.exceptions import ApiError
+
+        with (
+            patch.object(inv_command.credentials, "resolve", return_value=MagicMock()),
+            patch.object(inv_command.AaClient, "from_credentials", return_value=MagicMock()),
+            patch.object(inv_command.fetch, "resolve_rsid", side_effect=ApiError("500 during resolve")),
+        ):
+            exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
+        assert exit_code == ExitCode.API.value
+        assert "500 during resolve" in capsys.readouterr().out
+
+
+class TestRunClassificationFetchStatus:
+    def test_non_healthy_cls_marks_fetch_status(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """A degraded classification fetch records fetch_status on the per-RSID row."""
+        degraded = _StubFetchOutcome(data=[], status="degraded", expansion_level="minimal")
+        patches = _patch_fetchers(cls_outcome=degraded)
+        _enter_all(patches)
+        try:
+            inv_command.run(
+                rsids=["rs1"],
+                profile=None,
+                format_name="json",
+            )
+        finally:
+            _exit_all(patches)
+        payload = _json.loads(capsys.readouterr().out)
+        assert payload["per_rsid"][0]["fetch_status"]["classifications"]["status"] == "degraded"
+
+
+class TestRunTableFooter:
+    def test_table_footer_printed_when_fetch_degraded(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """When a row carries a non-healthy fetch_status, the table emits a footer."""
+        degraded = _StubFetchOutcome(data=[], status="degraded", expansion_level="minimal")
+        patches = _patch_fetchers(vrs_outcome=degraded)
+        _enter_all(patches)
+        try:
+            exit_code = inv_command.run(
+                rsids=["rs1"],
+                profile=None,
+                format_name="table",
+            )
+        finally:
+            _exit_all(patches)
+        assert exit_code == ExitCode.OK.value
+        out = capsys.readouterr().out
+        assert "fetch degraded" in out
+        assert "may be inaccurate" in out

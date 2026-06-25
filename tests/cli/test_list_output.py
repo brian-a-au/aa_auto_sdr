@@ -5,6 +5,8 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 from aa_auto_sdr.cli.list_output import render_records
 
 _RECORDS = [
@@ -131,3 +133,54 @@ def test_csv_output_appends_extension_if_missing(tmp_path: Path) -> None:
     rc = render_records(_RECORDS, format_name="csv", output=target, columns=None)
     assert rc == 0
     assert (tmp_path / "out.csv").exists()
+
+
+def test_build_footer_skips_healthy_status_entries() -> None:
+    """A healthy fetch_status entry is defensively skipped — no footer line."""
+    from aa_auto_sdr.cli.list_output import build_footer
+
+    records = [
+        {
+            "rsid": "rs1",
+            "fetch_status": {"virtual_report_suites": {"status": "healthy", "expansion_level": "full"}},
+        },
+    ]
+    assert build_footer(records) == []
+
+
+def test_csv_empty_records_prints_stderr_note(capsys) -> None:
+    rc = render_records([], format_name="csv", output=None, columns=["id", "name"])
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "0 records" in captured.err
+
+
+def test_unknown_format_returns_output_exit(capsys) -> None:
+    rc = render_records(_RECORDS, format_name="xml", output=None, columns=None)
+    assert rc == 15
+    assert "unknown format" in capsys.readouterr().err
+
+
+def test_implicit_table_empty_records_no_columns_prints_note(capsys) -> None:
+    """Empty records with no explicit columns yields empty cols — table is a no-op."""
+    rc = render_records([], format_name=None, output=None, columns=None)
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "0 records" in captured.err
+
+
+def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch) -> None:
+    """If os.replace fails mid-write, the temp file is removed and the error propagates."""
+    import aa_auto_sdr.cli.list_output as lo
+
+    target = tmp_path / "out.json"
+
+    def _boom(_src, _dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(lo.os, "replace", _boom)
+    with pytest.raises(OSError, match="disk full"):
+        render_records(_RECORDS, format_name="json", output=target, columns=None)
+    # No target written and no orphaned temp file left behind.
+    assert not target.exists()
+    assert list(tmp_path.iterdir()) == []

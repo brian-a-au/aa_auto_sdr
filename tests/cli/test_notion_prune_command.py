@@ -75,3 +75,35 @@ def test_live_run_does_not_emit_prune_planned_log(tmp_path, caplog):
     with req_patch, creds_patch, caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.notion_prune"):
         run_notion_prune_orphans(str(tmp_path), dry_run=False)
     assert not any("notion_prune_planned" in r.message for r in caplog.records)
+
+
+def _api_error(code: str):
+    import httpx
+    from notion_client.errors import APIResponseError
+
+    return APIResponseError(code=code, status=404, message="boom", headers=httpx.Headers(), raw_body_text="{}")
+
+
+def test_is_notion_not_found_true_for_object_not_found():
+    """Only the object_not_found error code counts as a genuine not-found."""
+    from aa_auto_sdr.cli.commands.notion_prune import _is_notion_not_found
+
+    assert _is_notion_not_found(_api_error("object_not_found")) is True
+
+
+def test_is_notion_not_found_false_for_other_api_errors():
+    """Transient / auth API errors must NOT be treated as not-found."""
+    from aa_auto_sdr.cli.commands.notion_prune import _is_notion_not_found
+
+    assert _is_notion_not_found(_api_error("rate_limited")) is False
+    assert _is_notion_not_found(ValueError("not an api error")) is False
+
+
+def test_is_notion_not_found_false_when_notion_client_missing(monkeypatch):
+    """If notion_client.errors cannot be imported, the guard returns False."""
+    import sys
+
+    from aa_auto_sdr.cli.commands.notion_prune import _is_notion_not_found
+
+    monkeypatch.setitem(sys.modules, "notion_client.errors", None)
+    assert _is_notion_not_found(ValueError("anything")) is False
