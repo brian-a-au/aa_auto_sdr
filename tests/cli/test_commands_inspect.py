@@ -477,3 +477,169 @@ def test_describe_reportsuite_unknown_returns_13(mock_client_cls, env_creds) -> 
         output=None,
     )
     assert rc == 13
+
+
+# --- error-path coverage for _list_per_component / run_describe_reportsuite ---
+
+
+def _raise(exc):
+    def _fn(*args, **kwargs):
+        raise exc
+
+    return _fn
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_list_metrics_api_error_in_component_fetch_returns_12(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """resolve succeeds, but the per-component fetch raises ApiError → exit 12."""
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    monkeypatch.setattr(fetch, "fetch_metrics", _raise(ApiError("rate limited")))
+
+    rc = cmd.run_list_metrics(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == ExitCode.API.value
+    assert "api error" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_list_metrics_generic_error_in_component_fetch_returns_1(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A non-API AaAutoSdrError from the component fetch → exit 1 (GENERIC)."""
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import AaAutoSdrError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    monkeypatch.setattr(fetch, "fetch_metrics", _raise(AaAutoSdrError("unexpected")))
+
+    rc = cmd.run_list_metrics(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=None,
+    )
+    assert rc == ExitCode.GENERIC.value
+    assert "error:" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_list_metrics_invalid_limit_returns_usage(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """apply_filters raises ValueError on a negative --limit → exit 2 (USAGE)."""
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = cmd.run_list_metrics(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+        name_filter=None,
+        name_exclude=None,
+        sort_field=None,
+        limit=-1,
+    )
+    assert rc == ExitCode.USAGE.value
+    assert "--limit" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_api_error_during_resolve_returns_12(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """An ApiError from resolve_rsid in describe → exit 12 (API)."""
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=MagicMock(), company_id="testco")
+    monkeypatch.setattr(fetch, "resolve_rsid", _raise(ApiError("503")))
+
+    rc = cmd.run_describe_reportsuite(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == ExitCode.API.value
+    assert "api error" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_api_error_during_component_fetch_returns_12(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """resolve succeeds but a per-RSID component fetch raises ApiError → exit 12."""
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    monkeypatch.setattr(fetch, "fetch_report_suite", _raise(ApiError("boom")))
+
+    rc = cmd.run_describe_reportsuite(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == ExitCode.API.value
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_generic_error_during_component_fetch_returns_1(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """A non-API AaAutoSdrError during the per-RSID fetch → exit 1 (GENERIC)."""
+    from aa_auto_sdr.api import fetch
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exceptions import AaAutoSdrError
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    monkeypatch.setattr(fetch, "fetch_dimensions", _raise(AaAutoSdrError("weird")))
+
+    rc = cmd.run_describe_reportsuite(
+        identifier="demo.prod",
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == ExitCode.GENERIC.value

@@ -86,3 +86,90 @@ def test_live_run_does_not_emit_repair_planned_log(caplog):
         mod.run_notion_repair_database(database_id="db-id", dry_run=False)
 
     assert not any("notion_repair_planned" in r.message for r in caplog.records)
+
+
+def _conflict_client():
+    """A FakeRepairClient whose first canonical property has the wrong type
+    (forces a single ``conflicts`` entry, no ``to_add``)."""
+    from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA
+
+    existing = {name: {"type": schema["type"]} for name, schema in PROPERTY_SCHEMA.items()}
+    first = next(iter(existing))
+    existing[first] = {"type": "checkbox" if existing[first]["type"] != "checkbox" else "rich_text"}
+    return _FakeRepairClient(existing_props=existing)
+
+
+def test_notion_registry_error_returns_generic(capsys):
+    """A NotionRegistryError from repair_database → printed error, ExitCode.GENERIC."""
+    from aa_auto_sdr.cli.commands import notion_repair as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+    from aa_auto_sdr.output.notion_database import NotionRegistryError
+
+    Client_factory = MagicMock(return_value=MagicMock())
+    with (
+        patch.object(mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
+        patch.object(mod, "repair_database", side_effect=NotionRegistryError("no data source")),
+    ):
+        code = mod.run_notion_repair_database(database_id="db-id", dry_run=True)
+
+    assert code == int(ExitCode.GENERIC)
+    assert "--notion-repair-database" in capsys.readouterr().out
+
+
+def test_unexpected_exception_returns_generic(capsys):
+    """A generic Exception from repair_database → stderr error, ExitCode.GENERIC."""
+    from aa_auto_sdr.cli.commands import notion_repair as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    Client_factory = MagicMock(return_value=MagicMock())
+    with (
+        patch.object(mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
+        patch.object(mod, "repair_database", side_effect=RuntimeError("boom")),
+    ):
+        code = mod.run_notion_repair_database(database_id="db-id", dry_run=True)
+
+    assert code == int(ExitCode.GENERIC)
+    assert "RuntimeError" in capsys.readouterr().err
+
+
+def test_dry_run_reports_type_conflicts(capsys):
+    """dry_run=True with a type conflict prints a '!' conflict line."""
+    from aa_auto_sdr.cli.commands import notion_repair as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    client = _conflict_client()
+    Client_factory = MagicMock(return_value=client)
+    with (
+        patch.object(mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
+    ):
+        code = mod.run_notion_repair_database(database_id="db-id", dry_run=True)
+
+    assert code == int(ExitCode.OK)
+    out = capsys.readouterr().out
+    assert "! " in out
+    assert "want" in out
+    # A pure conflict (no missing props) sends no update.
+    assert client.update_calls == []
+
+
+def test_apply_logs_type_conflicts(caplog):
+    """dry_run=False with a type conflict emits notion_repair_type_conflict (WARNING)."""
+    import logging
+
+    from aa_auto_sdr.cli.commands import notion_repair as mod
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    client = _conflict_client()
+    Client_factory = MagicMock(return_value=client)
+    with (
+        patch.object(mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(mod, "resolve_notion_token", return_value="tok"),
+        caplog.at_level(logging.WARNING, logger="aa_auto_sdr.cli.commands.notion_repair"),
+    ):
+        code = mod.run_notion_repair_database(database_id="db-id", dry_run=False)
+
+    assert code == int(ExitCode.OK)
+    assert any("notion_repair_type_conflict" in r.message for r in caplog.records)

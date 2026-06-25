@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.2] — 2026-06-25
+
+Test-coverage patch. No new flags and no change to runtime behavior. Line coverage rose from 92.6% to 94.3% and the suite grew from 2052 to 2094 tests.
+
+### Tests
+- `cli/commands/watch.py` is now fully covered. New unit tests exercise the real-collaborator adapters (`_WallClock`, `_RealSleeper`, `_BuildSdrFetcher`, `_SnapshotStoreAdapter`, `_NotionWatchPublisher`), the `_build_real_fetcher` / `_build_notion_publisher` constructors, the signal-handler install on the non-injected path, the `--format notion` publisher build, and the fatal-exception guard around the watch loop. These are the paths the `_injected` test seam bypasses.
+- `cli/commands/notion_repair.py` is now fully covered: the `NotionRegistryError` branch, the generic-exception branch, the type-conflict report on a dry run, and the type-conflict warning on apply.
+- `snapshot/resolver.py` and `output/error_envelope.py` are now fully covered. Added error-path tests for a missing or unreadable snapshot file, non-JSON file contents, malformed `<rsid>@<spec>` tokens, an unknown timestamp, an unknown rsid directory, non-JSON `git:` content, and the empty-hint fallbacks for unknown and remediation-free exit codes.
+- Added inspect-command error-path tests for `--list-metrics` and `--describe-reportsuite`: API errors, generic errors, and an invalid `--limit` now have explicit exit-code coverage.
+- Added fast-path tests for `__main__` (`--explain-exit-code` with a missing or non-integer code, `--completion` with no shell, `--notion-print-database-schema` combined with other arguments), for `core/json_io` (temp-file cleanup when a write fails partway), and for `core/credentials` (python-dotenv absent, and an unmatched profile reported in the resolution chain).
+
 ## [1.21.1] — 2026-06-23
 
 Bug fix for credential resolution from a `.env` file.

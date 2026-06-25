@@ -3,6 +3,8 @@
 import subprocess
 import sys
 
+from aa_auto_sdr.__main__ import main
+
 
 def test_version_flag_short() -> None:
     result = subprocess.run(
@@ -11,7 +13,7 @@ def test_version_flag_short() -> None:
         text=True,
         check=True,
     )
-    assert "1.21.1" in result.stdout
+    assert "1.21.2" in result.stdout
 
 
 def test_version_flag_long() -> None:
@@ -21,7 +23,7 @@ def test_version_flag_long() -> None:
         text=True,
         check=True,
     )
-    assert "1.21.1" in result.stdout
+    assert "1.21.2" in result.stdout
 
 
 def test_help_flag_does_not_import_aanalytics2() -> None:
@@ -170,6 +172,40 @@ def test_help_lists_git_flags() -> None:
     assert "--git-message" in out
     assert "--git-init" not in out
     assert "--git-push-on-change" not in out
+
+
+def test_explain_exit_code_without_arg_returns_usage(capsys) -> None:
+    """`--explain-exit-code` with no CODE → usage error, exit 2."""
+    rc = main(["--explain-exit-code"])
+    assert rc == 2
+    assert "requires a CODE" in capsys.readouterr().out
+
+
+def test_explain_exit_code_non_integer_returns_usage(capsys) -> None:
+    """A non-integer CODE → usage error, exit 2."""
+    rc = main(["--explain-exit-code", "notanint"])
+    assert rc == 2
+    assert "not a valid exit code" in capsys.readouterr().out
+
+
+def test_explain_exit_code_valid_returns_zero(capsys) -> None:
+    rc = main(["--explain-exit-code", "0"])
+    assert rc == 0
+    assert capsys.readouterr().out.strip()
+
+
+def test_completion_without_shell_returns_usage(capsys) -> None:
+    """`--completion` with no SHELL → usage error, exit 2."""
+    rc = main(["--completion"])
+    assert rc == 2
+    assert "requires a SHELL" in capsys.readouterr().out
+
+
+def test_notion_print_schema_with_extra_args_returns_usage(capsys) -> None:
+    """`--notion-print-database-schema` must be used alone."""
+    rc = main(["--notion-print-database-schema", "extra"])
+    assert rc == 2
+    assert "cannot be combined" in capsys.readouterr().out
 
 
 def test_help_lists_template_flags() -> None:

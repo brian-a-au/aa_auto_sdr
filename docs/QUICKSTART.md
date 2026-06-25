@@ -180,7 +180,7 @@ This command:
 
 ```bash
 $ uv run aa_auto_sdr -V
-aa_auto_sdr 1.21.1
+aa_auto_sdr 1.21.2
 ```
 
 > **Important:** All commands in this guide assume you're in the `aa_auto_sdr` directory. If you see "command not found", make sure you're in the right directory and have run `uv sync`.

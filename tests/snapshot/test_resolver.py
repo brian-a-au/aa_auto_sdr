@@ -139,3 +139,67 @@ def test_resolve_git_token_missing_path_part_raises(tmp_path: Path) -> None:
         resolve_snapshot("git:HEAD:", profile_snapshot_dir=None, repo_root=tmp_path)
     with pytest.raises(SnapshotResolveError, match="git:"):
         resolve_snapshot("git::path.json", profile_snapshot_dir=None, repo_root=tmp_path)
+
+
+# --- helper-level + dispatch error-path coverage ---------------------------
+
+
+def test_resolve_path_helper_missing_raises() -> None:
+    """_resolve_path guards a non-existent path even though _dispatch only
+    calls it for existing paths (defensive)."""
+    from aa_auto_sdr.snapshot import resolver
+
+    with pytest.raises(SnapshotResolveError, match="not found"):
+        resolver._resolve_path(Path("/nonexistent/snap.json"))
+
+
+def test_resolve_existing_path_with_invalid_json_raises(tmp_path: Path) -> None:
+    """An existing file that is not valid JSON → SnapshotResolveError, not a raw
+    JSONDecodeError leaking out."""
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not valid json")
+    with pytest.raises(SnapshotResolveError, match="not valid JSON"):
+        resolve_snapshot(str(bad), profile_snapshot_dir=None, repo_root=None)
+
+
+def test_resolve_path_helper_oserror_raises(tmp_path: Path, monkeypatch) -> None:
+    """An OSError while reading a present snapshot is wrapped as SnapshotResolveError."""
+    from aa_auto_sdr.snapshot import resolver
+
+    snap = tmp_path / "x.json"
+    _write_snapshot(snap, "demo.prod", "2026-04-26T17:29:01+00:00")
+
+    def _boom(_path):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(resolver, "read_json", _boom)
+    with pytest.raises(SnapshotResolveError, match="could not read"):
+        resolver._resolve_path(snap)
+
+
+def test_resolve_rsid_at_empty_spec_raises(tmp_path: Path) -> None:
+    """`<rsid>@` with no spec → parse error."""
+    with pytest.raises(SnapshotResolveError, match="<rsid>@<spec>"):
+        resolve_snapshot("demo.prod@", profile_snapshot_dir=tmp_path, repo_root=None)
+
+
+def test_resolve_rsid_at_missing_timestamp_raises(tmp_path: Path) -> None:
+    """An exact timestamp that has no matching file → not found."""
+    _write_snapshot(tmp_path / "demo.prod" / "2026-04-26T17-29-01+00-00.json", "demo.prod", "2026-04-26T17:29:01+00:00")
+    with pytest.raises(SnapshotResolveError, match="not found"):
+        resolve_snapshot("demo.prod@2099-01-01T00-00-00", profile_snapshot_dir=tmp_path, repo_root=None)
+
+
+def test_resolve_git_non_json_raises(tmp_path: Path, monkeypatch) -> None:
+    """`git show` content that isn't JSON → SnapshotResolveError."""
+    from aa_auto_sdr.snapshot import resolver
+
+    monkeypatch.setattr(resolver, "git_show", lambda **_kw: "not json at all")
+    with pytest.raises(SnapshotResolveError, match="did not decode as JSON"):
+        resolve_snapshot("git:HEAD:snap.json", profile_snapshot_dir=None, repo_root=tmp_path)
+
+
+def test_resolve_rsid_at_unknown_rsid_dir_raises(tmp_path: Path) -> None:
+    """An rsid whose snapshot subdir does not exist under the profile dir → error."""
+    with pytest.raises(SnapshotResolveError, match="no snapshots for"):
+        resolve_snapshot("ghost.rsid@latest", profile_snapshot_dir=tmp_path, repo_root=None)
