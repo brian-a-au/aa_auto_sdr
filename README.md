@@ -461,7 +461,7 @@ aa_auto_sdr/
 │       │   ├── registry.py
 │       │   ├── error_envelope.py  # JSON envelope on stderr for pipe-path failures
 │       │   ├── _helpers.py
-│       │   ├── writers/       # excel.py, csv.py, json.py, html.py, markdown.py
+│       │   ├── writers/       # excel.py, excel_template.py, csv.py, json.py, html.py, markdown.py, notion.py
 │       │   └── diff_renderers/  # console.py, json.py, markdown.py, pr_comment.py, _filters.py
 │       ├── pipeline/          # run coordination
 │       │   ├── single.py      # single-RSID

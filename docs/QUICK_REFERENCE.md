@@ -101,7 +101,7 @@ aa_auto_sdr --stats demo.prod
 aa_auto_sdr --stats                      # every visible report suite
 
 # Pick a report suite interactively, then feed it to another command
-RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot
+RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot --profile prod
 ```
 
 ## Snapshot & diff
@@ -280,6 +280,8 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 | `console` / `table` | ❌ | ✅ (default) | ✅ (default) | ✅ (default) | Terminal output |
 | `pr-comment` | ❌ | ✅ | ❌ | ❌ | Compact GFM with collapsible `<details>` for GitHub PRs |
 
+> The List/Inspect column covers `--describe-reportsuite` and the `--list-*` commands (table/json/csv). `--stats` is the exception: it supports `table` and `json` only.
+
 ### Format aliases (generation)
 
 | Alias | Resolves to | Use case |
@@ -342,8 +344,7 @@ export NOTION_REGISTRY_DATABASE_ID=<database-id>   # optional registry index
 export NOTION_REGISTRY_COMPANY="Acme Corp"         # optional multi-org keying
 
 # Console color policy
-export NO_COLOR=1               # disable ANSI colors
-export FORCE_COLOR=1            # force-enable ANSI colors
+export NO_COLOR=1               # disable ANSI colors (https://no-color.org/)
 
 # GitHub Actions job summary (usually set automatically)
 export GITHUB_STEP_SUMMARY=/path/to/summary.md     # --diff auto-appends a render

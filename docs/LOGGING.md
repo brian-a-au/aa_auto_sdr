@@ -54,7 +54,7 @@ full canonical vocabulary and the binding contract.
 | `auth_failure` | ERROR | `api/client.py` | Credentials bootstrap failed. Carries `error_class`, `reason`. |
 | `snapshot_save` | INFO | `snapshot/store.py` | Snapshot persisted to disk. Carries `snapshot_id`, `rsid`, `output_path`, `count`, `duration_ms`. |
 | `component_fetch` | INFO | `api/fetch.py` | Per-component AA fetch returned. Carries `rsid`, `component_type` (one of: dimension/metric/segment/calculated_metric/virtual_report_suite/classification), `count`, `duration_ms`. |
-| `output_write` | INFO | `output/writers/*` | Output file written. Carries `format` (one of: excel/csv/json/html/markdown), `output_path`, `count` (1 for excel/json/html/markdown, 7 for csv), `duration_ms`, `rsid`. |
+| `output_write` | INFO | `output/writers/*` | Output file written. Carries `format` (one of: excel/csv/json/html/markdown/excel-template/notion), `output_path`, `count` (1 for excel/json/html/markdown/excel-template/notion, 7 for csv), `duration_ms`, `rsid`. |
 
 ## Per-RSID instrumentation
 

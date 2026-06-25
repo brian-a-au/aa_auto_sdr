@@ -25,7 +25,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `count` | int | Any record reporting a quantity (items fetched, files written, RSIDs in batch, components saved, files pruned). |
 | `duration_ms` | int | Any record reporting an operation's elapsed time. |
 | `output_path` | str | Records that announce a file written (final results, snapshot saves). |
-| `format` | str — `excel`/`excel-template`/`csv`/`json`/`html`/`markdown` | Output-write records emitted from `output/writers/*`. |
+| `format` | str — `excel`/`excel-template`/`csv`/`json`/`html`/`markdown`/`notion` | Output-write records emitted from `output/writers/*`. |
 | `snapshot_id` | str | Snapshot save/load/diff records. |
 | `batch_id` | str | All batch-mode records. |
 | `error_class` | str (exception class name) | Every `ERROR` and `CRITICAL` record. |
@@ -234,9 +234,9 @@ Every SDK call in `api/fetch.py` is wrapped in either `_retry_and_normalize` (bu
 
 ## Output file write records
 
-Five writers in `output/writers/*` each emit one `output_write` INFO record on a successful write. The `format` extra discriminates the five writers — its values are `excel`, `csv`, `json`, `html`, and `markdown`.
+Each writer in `output/writers/*` emits one `output_write` INFO record on a successful write. The `format` extra discriminates them — its values are `excel`, `csv`, `json`, `html`, `markdown`, `excel-template`, and `notion`. The first six are in `INSTRUMENTED_MODULES` and are checked by the meta-test; the Notion writer emits the same `output_write` record but is not part of the instrumented set.
 
-**One writer call → one record, regardless of file count.** The CSV writer produces 7 component files per invocation; it emits ONE `output_write` record with `count=7`, not 7 records. Other writers produce 1 file each and emit `count=1`.
+**One writer call → one record, regardless of file count.** The CSV writer produces 7 files per invocation (a summary plus six per-component files); it emits ONE `output_write` record with `count=7`, not 7 records. Other writers produce 1 file each and emit `count=1`.
 
 Required extras on every `output_write` INFO record: `format`, `output_path`, `count`, `duration_ms`, `rsid`. For writers whose `write()` returns a list of N paths, `output_path` is `str(paths[0])` — abstracted so a future internal change to a writer's file shape doesn't break the contract.
 
@@ -290,7 +290,7 @@ Emitted by `--notion-create-database` via `cli/commands/notion_create.py`.
 
 ## Appendix A — Event and field introductions
 
-Most maintainers will not need this table. It exists because the vocabulary meta-test references release-anchored event sets in commit history; this is the single source of truth for "when did this enter the test contract." For everyday use, the canonical-events and vocabulary sections above describe the *current* contract — every event listed there is active, regardless of when it landed.
+Most maintainers will not need this table. It records when each event and field was introduced into the logging surface. Note the scope of enforcement: the vocabulary meta-test only checks the modules in `INSTRUMENTED_MODULES` (`tests/core/test_logging_vocabulary.py`), which does **not** include the Notion writer or the `notion_*` commands. The Notion rows below (v1.20.0+) are therefore documented for history but are not enforced by the meta-test. For everyday use, the canonical-events and vocabulary sections above describe the *current* contract — every event listed there is active, regardless of when it landed.
 
 | Event / field | Introduced |
 |---|---|

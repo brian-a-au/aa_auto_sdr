@@ -44,15 +44,16 @@ aa_auto_sdr demo.prod --output-dir ./audits/$(date +%Y%m%d)
 
 ### Implementation verification
 
-Confirm an implementation matches the plan: capture a baseline snapshot, then diff the live report suite against it to surface drift, missing components, or renamed fields.
+Confirm an implementation matches the plan: capture a baseline snapshot, then capture again after the work and diff the two to surface drift, missing components, or renamed fields. Diffs always run snapshot-against-snapshot — there is no live-against-snapshot mode — so capture state at each checkpoint.
 
 **Best for:** post-implementation validation, sign-off against a planning document.
 
 ```bash
-# Capture a baseline
-aa_auto_sdr demo.prod --snapshot --profile prod
+# Capture a baseline before the work
+aa_auto_sdr demo.prod --auto-snapshot --profile prod
 
-# Later, compare the live report suite to the most recent snapshot
+# After the implementation work, capture again and diff the two most recent snapshots
+aa_auto_sdr demo.prod --auto-snapshot --profile prod
 aa_auto_sdr demo.prod --compare-with-prev --profile prod
 ```
 
@@ -91,13 +92,14 @@ Document configuration before and after a change using snapshots and diffs. Diff
 **Best for:** release management, change-control processes.
 
 ```bash
-# Save a baseline before the change
-aa_auto_sdr demo.prod --snapshot --profile prod
+# Capture a baseline before the change
+aa_auto_sdr demo.prod --auto-snapshot --profile prod
 
-# After the change, diff latest vs previous
+# After the change, capture again and diff the two most recent snapshots
+aa_auto_sdr demo.prod --auto-snapshot --profile prod
 aa_auto_sdr demo.prod --compare-with-prev --profile prod
 
-# Produce an HTML diff for stakeholders
+# Produce a Markdown diff for stakeholders
 aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod \
   --format markdown --output ./reports/change.md
 ```
@@ -141,10 +143,11 @@ Prepare for report-suite migrations or consolidations by documenting current sta
 
 ```bash
 # Before: capture the baseline
-aa_auto_sdr demo.prod --snapshot --profile prod
+aa_auto_sdr demo.prod --auto-snapshot --profile prod
 
-# After the work, diff two captured snapshots (no API calls)
-aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod --format html \
+# After the migration: capture again, then diff the two snapshots (no API calls)
+aa_auto_sdr demo.prod --auto-snapshot --profile prod
+aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod --format markdown \
   --output ./migration/signoff.md
 ```
 

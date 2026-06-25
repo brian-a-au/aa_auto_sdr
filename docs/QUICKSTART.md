@@ -180,7 +180,7 @@ This command:
 
 ```bash
 $ uv run aa_auto_sdr -V
-aa_auto_sdr 1.21.3
+aa_auto_sdr 1.x.y
 ```
 
 > **Important:** All commands in this guide assume you're in the `aa_auto_sdr` directory. If you see "command not found", make sure you're in the right directory and have run `uv sync`.
@@ -475,7 +475,7 @@ Every non-fast-path run also writes a per-run log under `./logs/` (e.g. `logs/SD
 
 ## Step 6: Understand the Output
 
-Open the generated Excel file. It contains **7 sheets** — a summary plus one sheet per component type. Every sheet has a frozen header row and an autofilter.
+Open the generated Excel file. It contains **7 sheets** — a summary plus one sheet per component type. Every sheet has a frozen header row and an autofilter. The column tables below list the primary fields; component sheets also carry a trailing `extra` column that holds any API fields not broken out into their own column (often empty).
 
 ### Sheet 1: Summary
 
