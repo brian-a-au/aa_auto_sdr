@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.3] — 2026-06-25
+
+Test-coverage patch. No new flags and no change to runtime behavior. Line coverage rose from 94.3% to 99.7% and the suite grew from 2094 to 2252 tests.
+
+### Tests
+- `cli/commands/generate.py` and `cli/commands/batch.py` — the two largest remaining gaps — are now near-fully covered. New tests exercise the format/template/writer pre-flight guards, the `--template` → `excel-template` format swap, the stdout-pipe and file-write error paths, dry-run CSV and snapshot listing, the auto-prune policy branches, open-after-write, and the quality gate. Batch adds coverage for per-RSID worker error handling, the partial-success rollup, and the sampling and fail-fast branches.
+- `cli/commands/interactive.py`, `discovery.py`, `stats.py`, `profiles.py`, `inventory.py`, `notion_prune.py`, `push_to_notion.py`, and `cli/list_output.py` now have explicit error-path tests: auth / API / config / generic exceptions, `EOFError` on prompt, degraded fetch-status footers, the Notion `object_not_found` and import-guard fallbacks, and the atomic-write temp-file cleanup on a failed replace.
+- `cli/commands/trending.py` gains coverage for invalid-format rejection, the JSON / Markdown / console-to-file renderers, and profile-based snapshot-dir resolution.
+- `pipeline/workers.py`, `pipeline/single.py`, `snapshot/git.py`, and `snapshot/store.py` are now fully covered. New tests drive the fail-fast cancel loop and the Notion watch-publish path in the parallel batch runner, and the git failure paths (git binary missing, init / add / commit non-zero returns, the `FileNotFoundError` / `TimeoutExpired` guards) via the `_run_git` / `subprocess.run` seam.
+- The output layer is now fully covered: the Excel-template writer's styling and anchor branches, the CSV writer edge cases, the Notion block builders, the Notion client-guard import branches, the registry lookups, the diff console and PR-comment renderers, and the trending Markdown renderer.
+- `core/logging.py`, `api/fetch.py`, `sdr/quality.py`, `sdr/quality_policy.py`, and the `cli/main.py` dispatch and `--template` validation branches gained targeted error-path and usage-path tests.
+
 ## [1.21.2] — 2026-06-25
 
 Test-coverage patch. No new flags and no change to runtime behavior. Line coverage rose from 92.6% to 94.3% and the suite grew from 2052 to 2094 tests.

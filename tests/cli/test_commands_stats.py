@@ -159,3 +159,45 @@ def test_stats_api_error_on_fetch_returns_api_exit(
     )
     rc = cmd.run(rsids=["demo.prod"], profile=None, format_name="table")
     assert rc == ExitCode.API.value
+
+
+@patch("aa_auto_sdr.cli.commands.stats.AaClient")
+def test_stats_api_error_on_resolve_returns_api_exit(
+    mock_client_cls,
+    env_creds,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ApiError raised while resolving a supplied identifier → exit 12."""
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    handle.getReportSuites.side_effect = ApiError("rate limit")
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+    rc = cmd.run(rsids=["demo.prod"], profile=None, format_name="table")
+    assert rc == ExitCode.API.value
+    assert "api error" in capsys.readouterr().out.lower()
+
+
+@patch("aa_auto_sdr.cli.commands.stats.AaClient")
+def test_stats_api_error_listing_all_returns_api_exit(
+    mock_client_cls,
+    env_creds,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ApiError raised while listing all visible RSes (no rsids given) → exit 12."""
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    handle.getReportSuites.side_effect = ApiError("rate limit")
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=handle,
+        company_id="testco",
+    )
+    rc = cmd.run(rsids=[], profile=None, format_name="json")
+    assert rc == ExitCode.API.value
+    assert "api error" in capsys.readouterr().out.lower()

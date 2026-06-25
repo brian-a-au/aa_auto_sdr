@@ -411,3 +411,73 @@ def test_publish_payload_to_notion_db_error_warns_and_continues(tmp_path, monkey
 
     # Despite DB failure, we still get the page id back.
     assert page_id == "page-abc"
+
+
+def test_publish_payload_notion_registry_error_warns_and_continues(tmp_path):
+    """A NotionRegistryError (schema mismatch) WARNs and still returns the page id."""
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+    from aa_auto_sdr.output.notion_database import NotionRegistryError
+    from aa_auto_sdr.output.notion_registry import get_registry_path
+
+    mock_client = MagicMock()
+    mock_client.pages.create.return_value = {"id": "page-xyz"}
+    mock_client.blocks.children.append.return_value = {}
+
+    def _raise_registry(client, **kwargs):
+        raise NotionRegistryError("registry schema mismatch")
+
+    with patch.object(pt_mod, "upsert_row_from_dict", _raise_registry):
+        page_id = pt_mod.publish_payload_to_notion(
+            mock_client,
+            {
+                "report_suite": {
+                    "rsid": "testrsid",
+                    "name": "Test",
+                    "currency": "USD",
+                    "timezone": "UTC",
+                    "parent_rsid": None,
+                },
+                "captured_at": "2026-05-14T10:00:00+00:00",
+                "tool_version": "1.20.0",
+                "dimensions": [],
+                "metrics": [],
+                "segments": [],
+                "calculated_metrics": [],
+                "virtual_report_suites": [],
+                "classifications": [],
+                "fetch_status": {},
+                "quality": None,
+            },
+            parent_page_id="parent-id",
+            registry_path=get_registry_path(tmp_path),
+            force_new=False,
+            database_id="db-id",
+            disable_registry=False,
+            company=None,
+        )
+
+    # Schema-mismatch on the registry must not sink the push.
+    assert page_id == "page-xyz"
+
+
+def test_run_push_to_notion_publish_value_error_guarded(tmp_path, monkeypatch, capsys):
+    """If publish_payload_to_notion raises ValueError, run_push_to_notion guards it."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    Client_factory = MagicMock(return_value=MagicMock())
+    with (
+        patch.object(pt_mod, "_require_notion_client", return_value=Client_factory),
+        patch.object(pt_mod, "publish_payload_to_notion", side_effect=ValueError("bad shape")),
+    ):
+        code = pt_mod.run_push_to_notion(
+            str(json_path),
+            output_dir=str(tmp_path),
+            force_new=False,
+        )
+
+    assert code == 1
+    assert "unrecognized" in capsys.readouterr().err.lower()
