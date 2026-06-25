@@ -393,8 +393,9 @@ demo.prod                 Demo Production                   331    122     45   
 ```
 
 For JSON output (`--format json`), the equivalent signal is a per-record
-`fetch_status` field. CSV format omits both signals — use JSON when
-machine-parseable fetch quality is needed.
+`fetch_status` field. Where CSV is available (`--describe-reportsuite`), it
+omits both signals — use JSON when machine-parseable fetch quality is needed.
+(`--stats` itself supports only `table` and `json`.)
 
 `--list-classification-datasets` emits a stderr banner above the list
 when the fetch degrades; exit code stays 0 to preserve pipeline behavior.

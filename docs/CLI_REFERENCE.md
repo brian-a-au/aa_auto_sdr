@@ -217,7 +217,7 @@ uv run aa_auto_sdr <RSID> --auto-snapshot --git-commit --profile prod
 uv run aa_auto_sdr <RSID> --watch --interval 1h --git-commit --git-push --profile prod
 ```
 
-Exit codes: `16` (`SNAPSHOT`) on a git failure.
+Exit codes: on single / `--batch` runs a git failure exits `16` (`SNAPSHOT`); under `--watch` a git failure is reported as an `error` event and the loop continues (exit `0`).
 
 ## Diff
 

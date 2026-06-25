@@ -123,7 +123,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 ### Resilience (3)
 
 - `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
-- `vrs_expansion_fallback` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires when the full-expansion VRS call (`extended_info=True`) fails (exhausts its retry budget, or fast-fails via `VrsEndpointShapeError` in v1.16.1+) and the minimal-expansion fallback rung (`extended_info=False`) is attempted. Carries `rsid`, `component_type=virtual_report_suite`, `expansion_level=minimal`, and `error_class` (the class name of the full-rung failure that triggered the fallback).
+- `vrs_expansion_fallback` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires when the full-expansion VRS call (`extended_info=True`) fails (exhausts its retry budget, or fast-fails via `VrsEndpointShapeError`) and the minimal-expansion fallback rung (`extended_info=False`) is attempted. Carries `rsid`, `component_type=virtual_report_suite`, `expansion_level=minimal`, and `error_class` (the class name of the full-rung failure that triggered the fallback).
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
 - `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the existing exhausted/count-only WARNING when both ladder rungs or the count-only path fail with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. On the ladder path operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
 
@@ -149,7 +149,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted `change` event on stdout (baseline / error events are observable via their stdout NDJSON and do not double-log). Carries `cycle`, `rsid`, `change_count`, `emitted`.
 - `watch_loop_stop` — INFO. `cli/commands/watch.py::run`. Fires once at loop termination (SIGINT/SIGTERM, max_cycles, or fatal). Carries `reason` (sigint|max_cycles|fatal), `cycles_completed`.
 
-### Git integration (v1.15.0)
+### Git integration
 
 | Event                  | When                                                  | Extra keys                                           |
 |------------------------|-------------------------------------------------------|------------------------------------------------------|
@@ -157,7 +157,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 | `git_commit_complete`  | After a successful commit (and optional push)         | `rsid`, `commit_sha`, `pushed`, `duration_ms`        |
 | `git_op_failed`        | On any git op failure (init / commit / push)          | `rsid`, `op` (init\|commit\|push), `error_class`, `duration_ms` |
 
-### v1.16.0 additions — template-fill writer
+### Template-fill writer
 
 - `template_load path=<path> sheets=<n>` — INFO. Fired once per `ExcelTemplateWriter.write()` after `load_workbook` succeeds. Extras: `path`, `sheets`.
 - `template_sheet_filled sheet=<name> rows_matched=<n> rows_appended=<n>` — INFO. Fired once per resolved data sheet after the fill loop. Extras: `sheet`, `rows_matched`, `rows_appended`.
