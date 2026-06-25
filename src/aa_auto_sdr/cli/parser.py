@@ -426,9 +426,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         metavar="N",
-        help=(
-            "Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1."
-        ),
+        help=("Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1."),
     )
 
     # v1.15.0 — git integration modifiers (NOT in any mutex group)
@@ -470,10 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         metavar="NAME",
-        help=(
-            "Organization name written to Glossary!C2. Defaults to the report suite "
-            "name. Requires --template."
-        ),
+        help=("Organization name written to Glossary!C2. Defaults to the report suite name. Requires --template."),
     )
 
     p.add_argument(
