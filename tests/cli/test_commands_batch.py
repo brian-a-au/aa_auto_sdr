@@ -104,6 +104,50 @@ def test_batch_partial_success_returns_14(
 
 
 @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_preload_listing_failure_falls_back_to_per_identifier_resolve(
+    mock_client_cls,
+    mock_handle,
+    authed_env,
+    tmp_path,
+    capsys,
+) -> None:
+    """The resolve-phase preload (fetch_report_suites_raw) is best-effort: when the
+    one-shot listing call fails, batch falls back to preloaded_suites=None and each
+    identifier resolves through its own getReportSuites call (unstubbed resolve_rsid),
+    completing the run exactly as before the listing-once optimization existed."""
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    listing_df = mock_handle.getReportSuites.return_value
+    listing_calls: list[dict] = []
+
+    def _get_report_suites(**kwargs):
+        listing_calls.append(kwargs)
+        if len(listing_calls) == 1:  # first call is the preload listing — fail it
+            raise ApiError("listing endpoint down")
+        return listing_df
+
+    mock_handle.getReportSuites.side_effect = _get_report_suites
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Successful: 2" in out
+    assert "Failed: 0" in out
+    # Fallback proof: after the failed preload, each identifier re-listed on its
+    # own (full listings, no rsid_list filter) through the real resolve_rsid.
+    assert len(listing_calls) >= 3
+    assert "rsid_list" not in listing_calls[1]
+    assert "rsid_list" not in listing_calls[2]
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
 def test_batch_all_fail_returns_last_failure_code(
     mock_client_cls,
     mock_handle,
