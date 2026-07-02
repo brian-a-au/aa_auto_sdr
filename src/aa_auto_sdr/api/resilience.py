@@ -45,8 +45,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import requests
-
 from aa_auto_sdr.core.exceptions import TransientApiError, VrsEndpointShapeError
 
 logger = logging.getLogger(__name__)
@@ -91,6 +89,8 @@ def is_retryable(exc: BaseException) -> bool:
     _retry_and_normalize first), plain ApiError (permanent), AuthError,
     ReportSuiteNotFoundError, AttributeError, TypeError, anything else.
     """
+    import requests  # deferred: keeps `requests` off the light-command import path
+
     return isinstance(
         exc,
         (TransientApiError, requests.exceptions.ConnectionError, requests.exceptions.Timeout),
