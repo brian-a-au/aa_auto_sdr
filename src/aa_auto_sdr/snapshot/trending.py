@@ -174,23 +174,27 @@ def compute_trending(
     """
     paths = list_snapshots(snapshot_dir, rsid=rsid)
     matching = [p for p in paths if _path_in_window(p, window)]
-    snapshots = [load_snapshot(p) for p in matching]
 
     series: list[SnapshotPoint] = []
-    for i, snap in enumerate(snapshots):
+    prev = None
+    last = None
+    for p in matching:
+        snap = load_snapshot(p)
         delta_by_type: dict[str, LifecycleDelta] | None = None
-        if i > 0:
+        if prev is not None:
             diff = compare(
-                a=snapshots[i - 1],
+                a=prev,
                 b=snap,
                 ignore_fields=frozenset(ignore_fields),
                 extended_fields=extended_fields,
             )
             delta_by_type = {cd.component_type: _summarize_diff(cd) for cd in diff.components}
         series.append(_to_snapshot_point(snap, delta_by_type))
+        prev = snap
+        last = snap
 
     drift = _compute_drift_summary(series)
-    name = _name_from_envelope(snapshots[-1]) if snapshots else None
+    name = _name_from_envelope(last) if last is not None else None
 
     # Message keys align with extras keys exactly. v1.12.1 added word-boundary
     # matching to the vocabulary validator (Rule 2 at test_logging_vocabulary
