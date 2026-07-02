@@ -35,3 +35,14 @@ def test_fetch_report_suite_uses_server_side_filter():
     assert rs.rsid == "rs2"
     assert rs.currency == "EUR"
     assert client.handle.calls[0]["rsid_list"] == "rs2"  # not a full-org scan
+
+
+def test_resolve_rsid_uses_preloaded_suites():
+    client = _Client(_ROWS)
+    preloaded = fetch.fetch_report_suites_raw(client)
+    assert len(client.handle.calls) == 1  # one listing to build the preload
+
+    rsids, was_name = fetch.resolve_rsid(client, "rs1", preloaded_suites=preloaded)
+    assert rsids == ["rs1"]
+    assert was_name is False
+    assert len(client.handle.calls) == 1  # resolve made NO extra SDK call

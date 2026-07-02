@@ -446,7 +446,7 @@ def test_batch_ambiguous_match_records_failure_continues(tmp_path: Path, capsys)
 
     candidates = [("rs001", "Suite One"), ("rs002", "Suite Two")]
 
-    def resolve_side_effect(client, identifier, *, name_match="insensitive"):
+    def resolve_side_effect(client, identifier, *, name_match="insensitive", preloaded_suites=None):
         if identifier == "ambig_name":
             raise AmbiguousMatchError("ambiguous", candidates=candidates)
         raise ReportSuiteNotFoundError("not found")  # other identifiers also fail to keep test simple

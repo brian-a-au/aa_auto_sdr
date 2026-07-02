@@ -68,9 +68,15 @@ def run(
         # Resolve identifiers (or list all visible RSes when none given).
         canonical: list[str] = []
         if rsids:
+            try:
+                preloaded_suites = fetch.fetch_report_suites_raw(client)
+            except Exception:  # best-effort; any failure falls back to per-identifier fetch
+                preloaded_suites = None
             for ident in rsids:
                 try:
-                    resolved, _ = fetch.resolve_rsid(client, ident, name_match=name_match)
+                    resolved, _ = fetch.resolve_rsid(
+                        client, ident, name_match=name_match, preloaded_suites=preloaded_suites
+                    )
                     canonical.extend(resolved)
                 except AmbiguousMatchError as exc:
                     print(
