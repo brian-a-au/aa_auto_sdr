@@ -64,13 +64,16 @@ def snapshot_path(*, snapshot_dir: Path, rsid: str, captured_at_iso: str) -> Pat
     return snapshot_dir / rsid / captured_at_to_filename(captured_at_iso)
 
 
-def save_snapshot(doc: SdrDocument, *, snapshot_dir: Path) -> Path:
+def save_snapshot(doc: SdrDocument, *, snapshot_dir: Path, payload: dict[str, Any] | None = None) -> Path:
     """Build envelope and atomic-write under the canonical path. Returns the file path.
 
     Filesystem errors are wrapped in OutputError so run_batch can fold the
-    failure into BatchFailure (per v0.7 spec §3) instead of aborting the run."""
+    failure into BatchFailure (per v0.7 spec §3) instead of aborting the run.
+
+    `payload`, when provided, is a pre-built `doc.to_dict()` result forwarded
+    to `document_to_envelope` to avoid re-serializing the document."""
     started = time.monotonic()
-    envelope = document_to_envelope(doc)
+    envelope = document_to_envelope(doc, payload=payload)
     target = snapshot_path(
         snapshot_dir=snapshot_dir,
         rsid=doc.report_suite.rsid,

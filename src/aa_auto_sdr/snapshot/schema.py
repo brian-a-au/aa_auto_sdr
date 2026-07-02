@@ -62,14 +62,20 @@ _SUPPORTED_SCHEMA_RE = re.compile(r"^aa-sdr-snapshot/v[1234](\.\d+)?$")
 _AWARE_TS_RE = re.compile(r".+(Z|[+-]\d{2}:\d{2})$")
 
 
-def document_to_envelope(doc: SdrDocument) -> dict[str, Any]:
+def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build a v3 envelope from an SdrDocument.
 
     `degraded_components` and `partial_components` are always present;
     healthy snapshots carry empty list/dict respectively.
     `quality` is always present at top level (None when no audit ran).
+
+    `payload`, when provided, is a pre-built `doc.to_dict()` result reused to
+    avoid re-serializing the document. Callers that already have the dict pass
+    it; otherwise it is computed here. `dict(payload)` shallow-copies so the
+    `.pop()` calls below don't mutate the caller's dict (which the pipe path
+    still emits to stdout).
     """
-    payload = doc.to_dict()
+    payload = dict(payload) if payload is not None else doc.to_dict()
     captured_at = payload.pop("captured_at")
     tool_version = payload.pop("tool_version")
     # quality + fetch_status are now produced by to_dict() (v1.12.0 fix).
