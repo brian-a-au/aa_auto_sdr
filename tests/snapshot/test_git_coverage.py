@@ -103,6 +103,49 @@ def test_git_init_returns_error_when_initial_commit_fails(tmp_path: Path, monkey
 
 
 # ---------------------------------------------------------------------------
+# git_init_snapshot_repo — _already_checked skip-redundant-probe micro
+# ---------------------------------------------------------------------------
+
+
+def test_git_init_already_checked_skips_is_git_repository_probe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`_already_checked=True` (as passed by `git_commit_snapshot`, which has
+    just run the same probe itself) must skip the internal
+    `is_git_repository` call entirely — the init still proceeds normally."""
+    calls = {"n": 0}
+
+    def _spy(_path: Path) -> bool:
+        calls["n"] += 1
+        return False
+
+    monkeypatch.setattr(git, "is_git_repository", _spy)
+    monkeypatch.setattr(git, "_run_git", _selective_run_git({}))
+
+    result = git.git_init_snapshot_repo(tmp_path, _already_checked=True)
+
+    assert calls["n"] == 0
+    assert result.ok is True
+
+
+def test_git_init_default_still_probes_is_git_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Public no-arg behavior is unchanged: the default still probes and
+    short-circuits when the directory is already a repo."""
+    calls = {"n": 0}
+
+    def _spy(_path: Path) -> bool:
+        calls["n"] += 1
+        return True
+
+    monkeypatch.setattr(git, "is_git_repository", _spy)
+
+    result = git.git_init_snapshot_repo(tmp_path)
+
+    assert calls["n"] == 1
+    assert result.ok is True
+
+
+# ---------------------------------------------------------------------------
 # git_commit_snapshot — failure paths
 # ---------------------------------------------------------------------------
 
@@ -110,7 +153,7 @@ def test_git_init_returns_error_when_initial_commit_fails(tmp_path: Path, monkey
 def test_git_commit_returns_init_error_when_lazy_init_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(git, "is_git_repository", lambda _p: False)
     failed = git.GitOpResult(ok=False, error_kind="GitInitError", error_message="init failed")
-    monkeypatch.setattr(git, "git_init_snapshot_repo", lambda _d: failed)
+    monkeypatch.setattr(git, "git_init_snapshot_repo", lambda _d, **_kw: failed)
 
     result = git.git_commit_snapshot(tmp_path, rsid="rs_a", message="m", push=False)
     assert result is failed
