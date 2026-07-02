@@ -286,6 +286,31 @@ def test_worker_id_filter_omits_field_in_main_thread() -> None:
     assert not hasattr(record, "worker_id")
 
 
+def test_worker_id_filter_skips_import_when_workers_not_loaded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When pipeline.workers was never imported, the filter must skip the import
+    entirely (keeps the heavy stack off the light-command runtime path) and
+    pass the record through untouched."""
+    import sys
+
+    from aa_auto_sdr.core.logging import WorkerIdFilter
+
+    monkeypatch.delitem(sys.modules, "aa_auto_sdr.pipeline.workers", raising=False)
+    filter_instance = WorkerIdFilter()
+    record = logging.LogRecord(
+        name="test",
+        level=logging.INFO,
+        pathname="",
+        lineno=0,
+        msg="hello",
+        args=(),
+        exc_info=None,
+    )
+    assert filter_instance.filter(record) is True
+    assert not hasattr(record, "worker_id")
+    # The guard must not have re-imported workers as a side effect.
+    assert "aa_auto_sdr.pipeline.workers" not in sys.modules
+
+
 # ---------------------------------------------------------------------------
 # Test 11: fail_fast records all co-completed futures (regression for drop bug)
 # ---------------------------------------------------------------------------

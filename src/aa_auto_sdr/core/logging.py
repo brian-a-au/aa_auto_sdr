@@ -133,6 +133,14 @@ class WorkerIdFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        # If pipeline.workers was never imported, no worker pool can possibly be
+        # active — skip the import entirely. This keeps the heavy stack
+        # (workers.py imports api.client → aanalytics2 and sdr.builder → pandas)
+        # off the light-command runtime path; the first log record must not
+        # drag it in. Once the batch path imports workers.py, this resolves
+        # real worker ids exactly as before.
+        if "aa_auto_sdr.pipeline.workers" not in sys.modules:
+            return True
         # Lazy import to avoid circular: pipeline.workers imports core.logging indirectly.
         from aa_auto_sdr.pipeline.workers import _worker_local
 
