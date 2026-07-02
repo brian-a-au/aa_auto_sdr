@@ -201,3 +201,36 @@ def test_stats_api_error_listing_all_returns_api_exit(
     rc = cmd.run(rsids=[], profile=None, format_name="json")
     assert rc == ExitCode.API.value
     assert "api error" in capsys.readouterr().out.lower()
+
+
+@patch("aa_auto_sdr.cli.commands.stats.AaClient")
+def test_stats_preload_listing_failure_falls_back_to_per_identifier_resolve(
+    mock_client_cls,
+    env_creds,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """fetch_report_suites_raw failing during the preload is best-effort: the
+    per-identifier resolve loop falls back to preloaded_suites=None (not some
+    other value) and resolves each identifier on its own — the stats run must
+    still complete successfully. Mirrors the batch/inventory coverage added in
+    76068de for the same `except Exception: preloaded_suites = None` branch."""
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(
+        handle=_build_handle(raw),
+        company_id="testco",
+    )
+    real_resolve_rsid = cmd.fetch.resolve_rsid
+    with (
+        patch.object(cmd.fetch, "fetch_report_suites_raw", side_effect=ApiError("listing failed")),
+        patch.object(cmd.fetch, "resolve_rsid", side_effect=real_resolve_rsid) as resolve_mock,
+    ):
+        rc = cmd.run(rsids=["demo.prod"], profile=None, format_name="table")
+    assert rc == ExitCode.OK.value
+    out = capsys.readouterr().out
+    assert "demo.prod" in out
+    # The fallback must hand resolve_rsid exactly None — a wrong value (e.g. a
+    # stub or partial listing) would silently change matching inputs.
+    assert resolve_mock.call_count == 1
+    assert resolve_mock.call_args.kwargs["preloaded_suites"] is None

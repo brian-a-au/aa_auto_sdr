@@ -14,7 +14,10 @@ light-command startup, fewer redundant API calls, and one data-correctness fix.
   for missing `description` / `created` / `modified` and as `True` for missing
   booleans. Affected report suites will show a one-time snapshot diff on the next
   capture as these values correct to `null` / their true value. The snapshot
-  schema (`aa-sdr-snapshot/v4`) is unchanged.
+  schema (`aa-sdr-snapshot/v4`) is unchanged. Report-suite metadata fields
+  (`timezone`, `currency`, `parent_rsid`) may show the same one-time
+  correction, since the single-suite lookup no longer round-trips through a
+  ragged full-company DataFrame.
 - A deterministic `KeyError: "[...] not in index"` from the SDK's column slicing
   is now treated as permanent and fails fast, instead of being retried with the
   full budget (which re-ran the entire paginated fetch before failing the same

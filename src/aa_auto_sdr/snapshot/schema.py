@@ -63,7 +63,7 @@ _AWARE_TS_RE = re.compile(r".+(Z|[+-]\d{2}:\d{2})$")
 
 
 def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Build a v3 envelope from an SdrDocument.
+    """Build a v4 envelope from an SdrDocument.
 
     `degraded_components` and `partial_components` are always present;
     healthy snapshots carry empty list/dict respectively.
