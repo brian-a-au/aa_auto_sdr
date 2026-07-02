@@ -79,7 +79,10 @@ def _section_html(heading: str, items: list[Any], cls_name: str) -> str:
     headers = [f.name for f in fields(cls)]
     if not items:
         return f'<section><h2>{escape_html(heading)} <span class="count">0</span></h2><p><em>(none)</em></p></section>'
-    rows = [[stringify_cell(asdict(item).get(h)) for h in headers] for item in items]
+    rows = []
+    for item in items:
+        d = asdict(item)
+        rows.append([stringify_cell(d.get(h)) for h in headers])
     return (
         f'<section><h2>{escape_html(heading)} <span class="count">{len(items)}</span></h2>'
         f"{_table_html(headers, rows)}</section>"
