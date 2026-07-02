@@ -167,7 +167,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     started = time.monotonic()
     suites = _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
+            lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True),
             policy=client.retry_policy,
             rsid=rsid,
         )
