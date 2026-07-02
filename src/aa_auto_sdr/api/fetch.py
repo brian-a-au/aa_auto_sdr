@@ -424,7 +424,7 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     started = time.monotonic()
     raws = _records(
         _retry_and_normalize(
-            lambda: client.handle.getSegments(rsids_list=[rsid], extended_info=True),
+            lambda: client.handle.getSegments(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             policy=client.retry_policy,
             rsid=rsid,
             component_type="segment",
@@ -482,7 +482,7 @@ def fetch_calculated_metrics(
     started = time.monotonic()
     raws = _records(
         _retry_and_normalize(
-            lambda: client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True),
+            lambda: client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             policy=client.retry_policy,
             rsid=rsid,
             component_type="calculated_metric",
