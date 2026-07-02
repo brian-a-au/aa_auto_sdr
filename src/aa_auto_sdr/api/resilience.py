@@ -45,7 +45,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from aa_auto_sdr.core.exceptions import TransientApiError, VrsEndpointShapeError
+from aa_auto_sdr.core.exceptions import ApiError, TransientApiError, VrsEndpointShapeError
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,16 @@ def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str |
     """
     try:
         return fn()
-    except (KeyError, ValueError) as e:
+    except KeyError as e:
+        ctx = f"{component_type} " if component_type else ""
+        # Deterministic pandas column-slice failure (e.g. "['dataGroup'] not in
+        # index") is permanent — the SDK sliced to a hardcoded column list that
+        # this payload lacks. Retrying re-runs the whole paginated fetch and
+        # fails identically, so fast-fail instead of promoting to transient.
+        if "not in index" in str(e):
+            raise ApiError(f"{ctx}permanent SDK shape error: {type(e).__name__}: {e}") from e
+        raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
+    except ValueError as e:
         ctx = f"{component_type} " if component_type else ""
         raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
 
