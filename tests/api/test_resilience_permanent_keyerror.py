@@ -25,3 +25,13 @@ def test_other_keyerror_still_transient():
     with pytest.raises(TransientApiError) as ei:
         resilience.classify_transient_sdk_call(boom)
     assert resilience.is_retryable(ei.value)
+
+
+def test_value_error_still_transient():
+    def boom():
+        raise ValueError("Expected object or value")
+
+    with pytest.raises(TransientApiError) as ei:
+        resilience.classify_transient_sdk_call(boom, component_type="segment")
+    assert resilience.is_retryable(ei.value)
+    assert "segment transient SDK failure" in str(ei.value)
