@@ -167,7 +167,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     started = time.monotonic()
     suites = _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True),
+            lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True, limit=1000),
             policy=client.retry_policy,
             rsid=rsid,
         )
@@ -206,7 +206,7 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     started = time.monotonic()
     raw = _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
+            lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
             policy=client.retry_policy,
         )
     )
@@ -233,7 +233,7 @@ def fetch_report_suites_raw(client: AaClient) -> list[dict[str, Any]]:
     many identifiers against a single fetch (batch/stats/inventory)."""
     return _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
+            lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
             policy=client.retry_policy,
         )
     )
@@ -278,7 +278,7 @@ def resolve_rsid(
     else:
         suites = _records(
             _retry_and_normalize(
-                lambda: client.handle.getReportSuites(extended_info=True),
+                lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
                 policy=client.retry_policy,
             )
         )
@@ -677,7 +677,7 @@ def fetch_virtual_report_suites(
                 with_retries(
                     lambda: classify_transient_sdk_call(
                         lambda: classify_permanent_vrs_shape_error(
-                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                            lambda: client.handle.getVirtualReportSuites(extended_info=False, limit=1000),
                         ),
                         component_type="virtual_report_suite",
                     ),
@@ -719,7 +719,7 @@ def fetch_virtual_report_suites(
             with_retries(
                 lambda: classify_transient_sdk_call(
                     lambda: classify_permanent_vrs_shape_error(
-                        lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                        lambda: client.handle.getVirtualReportSuites(extended_info=True, limit=1000),
                     ),
                     component_type="virtual_report_suite",
                 ),
@@ -733,7 +733,7 @@ def fetch_virtual_report_suites(
                 with_retries(
                     lambda: classify_transient_sdk_call(
                         lambda: classify_permanent_vrs_shape_error(
-                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
+                            lambda: client.handle.getVirtualReportSuites(extended_info=False, limit=1000),
                         ),
                         component_type="virtual_report_suite",
                     ),
@@ -804,7 +804,7 @@ def fetch_virtual_report_suite_summaries(
         raw = _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
-                    lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    lambda: client.handle.getVirtualReportSuites(extended_info=True, limit=1000),
                     component_type="virtual_report_suite",
                 ),
                 policy=client.retry_policy,

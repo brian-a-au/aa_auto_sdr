@@ -25,7 +25,7 @@ def test_vrs_count_only_success_returns_healthy_with_stubs() -> None:
     """
     call_count = {"n": 0}
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = True, limit: int = 100) -> pd.DataFrame:
         call_count["n"] += 1
         assert extended_info is False, "count_only must call extended_info=False"
         return pd.DataFrame([_vrs_row("v1")])
@@ -48,7 +48,7 @@ def test_vrs_count_only_failure_returns_degraded() -> None:
     """count_only=True fails → FetchOutcome.degraded(); no full-rung retry."""
     call_count = {"n": 0}
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = True, limit: int = 100) -> pd.DataFrame:
         call_count["n"] += 1
         assert extended_info is False
         raise KeyError("content")
@@ -73,7 +73,7 @@ def test_vrs_count_only_default_false_runs_existing_ladder() -> None:
     """
     call_log: list[bool] = []
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = True, limit: int = 100) -> pd.DataFrame:
         call_log.append(extended_info)
         if extended_info:
             raise KeyError("content")  # full rung fails
@@ -95,7 +95,7 @@ def test_vrs_count_only_default_false_runs_existing_ladder() -> None:
 def test_vrs_count_only_filters_by_parent_rsid() -> None:
     """count_only=True still applies the v1.7.0 client-side parentRsid filter."""
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = True, limit: int = 100) -> pd.DataFrame:
         # Two rows: one matching the requested parent, one belonging to a different parent.
         return pd.DataFrame(
             [

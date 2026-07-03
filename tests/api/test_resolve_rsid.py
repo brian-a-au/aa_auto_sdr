@@ -104,4 +104,4 @@ def test_passes_extended_info_to_getReportSuites() -> None:
     response carries the name field."""
     client = _client_with_suites([{"rsid": "abc.prod", "name": "Production"}])
     fetch.resolve_rsid(client, "abc.prod")
-    client.handle.getReportSuites.assert_called_once_with(extended_info=True)
+    client.handle.getReportSuites.assert_called_once_with(extended_info=True, limit=1000)
