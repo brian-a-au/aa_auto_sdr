@@ -43,7 +43,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
 | `tool_version` | str | The running tool's version. May appear on records that need provenance (e.g. snapshot save). |
 | `agent_mode` | bool | `run_start` / `run_complete` / `run_failure` records — `True` when `--agent-mode` preset was active; `False` otherwise. Lets log-aggregation queries filter by agent-driven runs without joining on `argv_summary`. |
-| `expansion_level` | str — `full`/`minimal`/`exhausted`/`count_only` | VRS-fetch records (`api/fetch.py::fetch_virtual_report_suites`). Records which rung of the two-rung expansion ladder produced the result. See [VRS fetch behavior](#vrs-fetch-behavior) for emission sites. |
+| `expansion_level` | str — `full`/`exhausted`/`count_only` | VRS-fetch records (`api/fetch.py::fetch_virtual_report_suites`). `full` describes the successful payload shape; `exhausted` / `count_only` label the failure WARNING by path. See [VRS fetch behavior](#vrs-fetch-behavior) for emission sites. |
 | `pulled` | int | `vrs_parent_filter` DEBUG record. Number of VRS rows the SDK returned before client-side parent filtering. |
 | `filtered` | int | `vrs_parent_filter` DEBUG record. Number of VRS rows kept after the `parentRsid == parent_rsid` filter. |
 | `dropped_no_parent` | int | `vrs_parent_filter` DEBUG record. Count of rows dropped because `parentRsid` was missing/empty. |
@@ -123,9 +123,8 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 ### Resilience (3)
 
 - `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
-- `vrs_expansion_fallback` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires when the full-expansion VRS call (`extended_info=True`) fails (exhausts its retry budget, or fast-fails via `VrsEndpointShapeError`) and the minimal-expansion fallback rung (`extended_info=False`) is attempted. Carries `rsid`, `component_type=virtual_report_suite`, `expansion_level=minimal`, and `error_class` (the class name of the full-rung failure that triggered the fallback).
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
-- `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the existing exhausted/count-only WARNING when both ladder rungs or the count-only path fail with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. On the ladder path operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
+- `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the fetch-failed WARNING when the VRS fetch fails with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. Operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
 
 ### Batch sampling (1)
 
@@ -198,13 +197,12 @@ For N=10 RSIDs: **102 records.** For N=50: **462 records** — within `RotatingF
 
 Two fetchers in `api/fetch.py` degrade gracefully instead of failing the run: `fetch_classification_datasets` and `fetch_virtual_report_suites`. On SDK-side exception, both emit a WARNING instead of `component_fetch` INFO, return `[]`, and let the SDR build complete. The WARNING record carries `rsid`, `component_type` (`"classification"` or `"virtual_report_suite"`), and `error_class` — but not `count` or `duration_ms` (the call did not complete). All other component fetchers fail the run on exception.
 
-### Expansion ladder
+### Full expansion only
 
-`fetch_virtual_report_suites` runs a two-rung ladder:
+`fetch_virtual_report_suites` makes a single full-expansion call — `getVirtualReportSuites(extended_info=True)`. The SDK's `extended_info=False` path strips rows to `{name, vrsid}` (no `parentRsid`), which cannot support the client-side parent filter, so no reduced-expansion rung exists.
 
-- **`full` rung** — `getVirtualReportSuites(extended_info=True)`. The successful `component_fetch` INFO record carries `expansion_level="full"`.
-- **`minimal` rung** — fallback when the full rung exhausts its retry budget. Calls `extended_info=False` and emits a `vrs_expansion_fallback` WARNING with `expansion_level="minimal"`. If this rung succeeds, the success `component_fetch` INFO carries `expansion_level="minimal"`.
-- **`exhausted`** — both rungs failed. A WARNING with `expansion_level="exhausted"` and `error_class` fires, then the fetcher returns `[]`. No `component_fetch` INFO is emitted (the function returns before the INFO emit). Log-aggregation queries that filter `component_fetch` records by `expansion_level=exhausted` will never match — query the WARNING records instead.
+- **Success** — the `component_fetch` INFO record carries `expansion_level="full"`.
+- **`exhausted`** — the retry budget is spent (or the call fast-fails on a permanent `VrsEndpointShapeError`). A WARNING with `expansion_level="exhausted"` and `error_class` fires, then the fetcher returns `[]`. No `component_fetch` INFO is emitted (the function returns before the INFO emit). Log-aggregation queries that filter `component_fetch` records by `expansion_level=exhausted` will never match — query the WARNING records instead.
 
 ### VRS parent-filter visibility
 
@@ -220,7 +218,7 @@ In addition to the WARNING records, `fetch_virtual_report_suites` and `fetch_cla
 
 ### Request-time minimal scope (`count_only=True`)
 
-The two graceful-degrade fetchers accept a `count_only: bool = False` kwarg. When `True`, VRS bypasses the reduced-expansion ladder and makes a single `extended_info=False` call — the `vrs_expansion_fallback` WARNING does NOT fire on this path (the fallback record is specific to ladder-driven recovery, which `count_only` deliberately skips). The `component_fetch` INFO record fires identically with `expansion_level="minimal"` describing the payload shape. On failure, a `"virtual report suites fetch failed ... expansion_level=count_only"` WARNING fires (distinct from the ladder's `"expansion_level=exhausted"`) so log analytics can distinguish the two failure paths.
+The two graceful-degrade fetchers accept a `count_only: bool = False` kwarg. For VRS the call shape is identical to the default path (a single full-expansion request — the reduced shape lacks `parentRsid` and cannot be counted against a parent); the `component_fetch` INFO record fires with `expansion_level="full"`. On failure, a `"virtual report suites fetch failed ... expansion_level=count_only"` WARNING fires (distinct from the default path's `"expansion_level=exhausted"`) so log analytics can distinguish the two failure paths.
 
 Classifications' `count_only=True` is a no-op (the SDK has no expansion knob) — same call, same logs.
 
@@ -299,7 +297,7 @@ Most maintainers will not need this table. It records when each event and field 
 | `command_start` / `command_complete` / `creds_resolved` / `rsid_resolved` | v1.5 |
 | Vocabulary additions: `command`, `creds_source`, `snapshot_spec`, `tool_version` | v1.5 |
 | `agent_mode` field | v1.6 |
-| Resilience 3 (`retry_attempt`, `vrs_expansion_fallback`, `vrs_parent_filter`); vocabulary: `expansion_level`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent` | v1.7.0 |
+| Resilience 3 (`retry_attempt`, `vrs_expansion_fallback`, `vrs_parent_filter`); vocabulary: `expansion_level`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent` | v1.7.0 (`vrs_expansion_fallback` and the `minimal` expansion level retired with the reduced-expansion ladder — see CHANGELOG) |
 | `expansion_level=count_only` value | v1.7.2 |
 | `degraded_components` / `partial_components` snapshot-envelope channel | v1.7.1 |
 | Parallel batch fields: `worker_id`, `workers`, `cache_event` | v1.8.0 |

@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.5] — 2026-07-02
+
+Correctness & performance patch following up v1.21.4. No new flags and no
+changed defaults.
+
+### Fixed
+- Virtual-report-suite counts on `--describe-reportsuite`, `--stats`, and
+  `--inventory-summary` were always zero. The count paths requested the SDK's
+  reduced expansion, whose rows carry only `name` and `vrsid` — no
+  `parentRsid` — so the client-side parent filter dropped every row. Count
+  paths now request full expansion; the single-call, healthy/degraded
+  contract is unchanged.
+- The remaining NaN pollution from ragged DataFrame rows is closed for the
+  fetchers that have no raw option in the SDK (dimensions, metrics, virtual
+  report suites, and the report-suite listing): missing cells no longer
+  surface as the literal string `"nan"` (description, type, parent, timezone,
+  …) or as `True` for missing booleans (`pathable`, `segmentable`), and
+  NaN-valued cells in unknown passthrough columns are dropped from `extra`
+  instead of serializing as a bare `NaN` token (invalid strict JSON) in
+  snapshots. Same class of bug v1.21.4 fixed for segments/calculated metrics
+  via `format="raw"`; affected report suites will show a one-time snapshot
+  diff as values correct.
+
+### Changed
+- The VRS reduced-expansion fallback rung is removed. With the real SDK it
+  could only ever return an empty "partial" result (its rows lack
+  `parentRsid`) after spending a second full retry budget — so full-rung
+  exhaustion now degrades directly. This halves the VRS worst-case request
+  budget (32 → 16 at defaults), retires the `vrs_expansion_fallback` log
+  event and the `minimal` expansion level, and means new snapshots no longer
+  populate `partial_components`. Snapshots written by earlier releases keep
+  loading and diffing exactly as before.
+- Report-suite and virtual-report-suite listings page at the API maximum
+  (1000 per request) instead of the SDK default (100), cutting listing HTTP
+  round trips ~10x for large orgs. Mirrors the v1.21.4 segments/calculated-
+  metrics change.
+- The Excel writer computes column widths from the already-stringified cells
+  instead of re-converting every column through pandas. Output is unchanged.
+
 ## [1.21.4] — 2026-07-02
 
 Performance & correctness patch. No new flags and no changed defaults. Faster

@@ -1,4 +1,11 @@
-"""count_only=True parameter on graceful-degrade fetchers — see spec §4.1."""
+"""count_only=True parameter on graceful-degrade fetchers — see spec §4.1.
+
+count_only requests FULL expansion: the SDK's extended_info=False path strips
+rows to {name, vrsid} — no parentRsid — so a reduced-expansion call cannot
+support the client-side parent filter and reported 0 VRS for every org.
+count_only's remaining contract is the single call and the healthy/degraded
+outcome shape.
+"""
 
 from __future__ import annotations
 
@@ -13,21 +20,21 @@ from aa_auto_sdr.api.fetch import (
 
 
 def _vrs_row(vrs_id: str, parent: str = "rs1") -> dict:
-    """Minimal row shape — matches what extended_info=False returns."""
+    """Full-expansion row shape — id + parentRsid present."""
     return {"id": vrs_id, "name": vrs_id.upper(), "parentRsid": parent}
 
 
 def test_vrs_count_only_success_returns_healthy_with_stubs() -> None:
     """count_only=True succeeds → FetchOutcome.healthy with expansion_level=None.
 
-    Verifies caller asked for minimal expansion (extended_info=False) and a
-    single SDK call was made (no fallback to extended_info=True).
-    """
+    Verifies the caller asked for full expansion (extended_info=True — the
+    reduced shape has no parentRsid, so counts would be structurally zero)
+    and that a single SDK call was made."""
     call_count = {"n": 0}
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = False, limit: int = 100) -> pd.DataFrame:
         call_count["n"] += 1
-        assert extended_info is False, "count_only must call extended_info=False"
+        assert extended_info is True, "count_only must request full expansion"
         return pd.DataFrame([_vrs_row("v1")])
 
     handle = MagicMock()
@@ -41,16 +48,15 @@ def test_vrs_count_only_success_returns_healthy_with_stubs() -> None:
     assert outcome.expansion_level is None
     assert len(outcome.data) == 1
     assert outcome.data[0].id == "v1"
-    assert call_count["n"] == 1, "count_only must not retry to full expansion"
+    assert call_count["n"] == 1, "count_only must be a single SDK call"
 
 
 def test_vrs_count_only_failure_returns_degraded() -> None:
-    """count_only=True fails → FetchOutcome.degraded(); no full-rung retry."""
+    """count_only=True fails → FetchOutcome.degraded() after one call."""
     call_count = {"n": 0}
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = False, limit: int = 100) -> pd.DataFrame:
         call_count["n"] += 1
-        assert extended_info is False
         raise KeyError("content")
 
     handle = MagicMock()
@@ -63,21 +69,17 @@ def test_vrs_count_only_failure_returns_degraded() -> None:
     assert outcome.status == "degraded"
     assert outcome.expansion_level is None
     assert outcome.data == []
-    assert call_count["n"] == 1, "count_only must not fall back to extended_info=True"
+    assert call_count["n"] == 1
 
 
-def test_vrs_count_only_default_false_runs_existing_ladder() -> None:
-    """count_only=False (default) runs the v1.7.0 ladder unchanged.
-
-    Regression guard: full rung fails, minimal rung succeeds → partial(minimal).
-    """
+def test_vrs_count_only_default_false_same_single_rung() -> None:
+    """count_only=False (default) runs the same single full-expansion rung:
+    a failure degrades directly — no reduced-expansion fallback call."""
     call_log: list[bool] = []
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = False, limit: int = 100) -> pd.DataFrame:
         call_log.append(extended_info)
-        if extended_info:
-            raise KeyError("content")  # full rung fails
-        return pd.DataFrame([_vrs_row("v1")])  # minimal rung succeeds
+        raise KeyError("content")
 
     handle = MagicMock()
     handle.getVirtualReportSuites = gvrs
@@ -86,16 +88,15 @@ def test_vrs_count_only_default_false_runs_existing_ladder() -> None:
     client.retry_policy = MagicMock(max_retries=0, base_delay=0.0, max_delay=0.0)
 
     outcome = fetch_virtual_report_suites(client, "rs1")  # default count_only=False
-    assert call_log == [True, False], "ladder must fire: full then minimal"
-    assert outcome.status == "partial"
-    assert outcome.expansion_level == "minimal"
-    assert len(outcome.data) == 1
+    assert call_log == [True], "single full-expansion call, no fallback"
+    assert outcome.status == "degraded"
+    assert outcome.data == []
 
 
 def test_vrs_count_only_filters_by_parent_rsid() -> None:
     """count_only=True still applies the v1.7.0 client-side parentRsid filter."""
 
-    def gvrs(extended_info: bool = True) -> pd.DataFrame:
+    def gvrs(extended_info: bool = False, limit: int = 100) -> pd.DataFrame:
         # Two rows: one matching the requested parent, one belonging to a different parent.
         return pd.DataFrame(
             [
@@ -166,3 +167,4 @@ def test_count_only_keyerror_content_fast_fails(monkeypatch, caplog) -> None:
     # No retries — count-only does a single SDK call when shape-error fires
     assert handle.getVirtualReportSuites.call_count == 1
     assert any("vrs_unavailable" in r.message for r in caplog.records)
+    assert any("expansion_level=count_only" in r.message for r in caplog.records)

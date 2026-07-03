@@ -14,4 +14,4 @@ def test_version_matches_semver_dev() -> None:
 
 
 def test_version_is_current_release() -> None:
-    assert aa_auto_sdr.__version__ == "1.21.4"
+    assert aa_auto_sdr.__version__ == "1.21.5"

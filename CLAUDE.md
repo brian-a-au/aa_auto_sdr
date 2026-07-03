@@ -62,7 +62,7 @@ Capabilities currently implemented:
 - Quality severity engine (`--quality-report`, `--quality-policy`, `--fail-on-quality` → exit 17).
 - Inventory rollup (`--inventory-summary`).
 - Watch / scheduled mode (`--watch`, `--interval`, `--watch-threshold`, NDJSON events on stdout).
-- Resilience layer (retry-with-jitter, configurable via `--max-retries` / `--retry-base-delay` / `--retry-max-delay`; VRS reduced-expansion retry ladder).
+- Resilience layer (retry-with-jitter, configurable via `--max-retries` / `--retry-base-delay` / `--retry-max-delay`; permanent VRS endpoint-shape errors fast-fail to a degraded, empty VRS section).
 - Agent mode (`--agent-mode` preset: `--format json --output - --log-format json`).
 
 Out of scope: API auto-tuning, circuit breakers, derived-field-only mode. Do not port from `cja_auto_sdr` without first asking.

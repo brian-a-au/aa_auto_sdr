@@ -1,7 +1,9 @@
-"""fetch_virtual_report_suites returns FetchOutcome — ladder mapping per spec §4.2."""
+"""fetch_virtual_report_suites returns FetchOutcome — healthy/degraded mapping.
 
-# v1.7.2 regression for count_only=False (default) running the full→minimal
-# ladder unchanged: see tests/api/test_fetch_count_only.py::test_vrs_count_only_default_false_runs_existing_ladder
+Single full-expansion rung: the reduced-expansion fallback was retired (its
+rows lack parentRsid, so it could only ever return empty). See
+tests/api/test_fetch_vrs_full_expansion_only.py for the truthful-shape tests.
+"""
 
 from __future__ import annotations
 
@@ -29,7 +31,7 @@ def _vrs_row(vrs_id: str, parent: str = "rs1") -> dict:
 def _client_for_vrs(*, full_response, minimal_response=None) -> MagicMock:
     handle = MagicMock()
 
-    def get_vrs(extended_info: bool = True) -> pd.DataFrame:
+    def get_vrs(extended_info: bool = True, limit: int = 100) -> pd.DataFrame:
         if extended_info:
             if isinstance(full_response, Exception):
                 raise full_response
@@ -54,21 +56,12 @@ def test_vrs_full_expansion_returns_healthy() -> None:
     assert len(outcome.data) == 1
 
 
-def test_vrs_minimal_rung_success_returns_partial_minimal() -> None:
+def test_vrs_full_rung_failure_returns_degraded_without_fallback() -> None:
+    """A full-rung failure degrades directly — the reduced-expansion rows
+    would lack parentRsid, so there is no fallback worth taking."""
     client = _client_for_vrs(
         full_response=KeyError("content"),
-        minimal_response=[_vrs_row("v1")],
-    )
-    outcome = fetch_virtual_report_suites(client, "rs1")
-    assert outcome.status == "partial"
-    assert outcome.expansion_level == "minimal"
-    assert len(outcome.data) == 1
-
-
-def test_vrs_both_rungs_exhausted_returns_degraded() -> None:
-    client = _client_for_vrs(
-        full_response=KeyError("content"),
-        minimal_response=KeyError("content"),
+        minimal_response=[_vrs_row("v1")],  # must never be reached
     )
     outcome = fetch_virtual_report_suites(client, "rs1")
     assert outcome.status == "degraded"

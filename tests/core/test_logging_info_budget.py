@@ -178,13 +178,14 @@ def test_batch_n2_excel_info_budget(tmp_path, monkeypatch):
 
 
 def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
-    """v1.7.0 — VRS-degraded run hits the SAME INFO count as a healthy run.
+    """VRS-degraded run stays inside the healthy run's INFO envelope.
 
-    The full-expansion rung fast-fails on ``KeyError("content")``
-    (v1.16.1: classified as permanent VrsEndpointShapeError — no retries);
-    the minimal-expansion rung succeeds. The degradation surfaces at WARNING
-    (``vrs_expansion_fallback``), NEVER at INFO — so the INFO budget is
-    unchanged from the healthy single-RSID excel run (spec §8.1: 19 ±2).
+    The single full-expansion rung fast-fails on ``KeyError("content")``
+    (v1.16.1: classified as permanent VrsEndpointShapeError — no retries)
+    and the fetch degrades directly (the reduced-expansion fallback rung was
+    retired: its rows lack parentRsid, so it could only return empty).
+    The degradation surfaces at WARNING, NEVER at INFO — so the INFO budget
+    stays within the healthy single-RSID excel envelope (spec §8.1: 19 ±2).
     A future change that promotes a DEBUG/WARNING record on this path to
     INFO would silently inflate the budget; this test locks that down.
     """
@@ -207,16 +208,11 @@ def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
         login.return_value.getCompanyId.return_value = [{"globalCompanyId": "co"}]
         rs_patch.return_value = _make_report_suite_mock("RS1")
 
-        # Drive the VRS ladder: full-expansion rung (extended_info=True)
-        # fast-fails on KeyError("content") — v1.16.1 classifies this as
-        # permanent VrsEndpointShapeError, no retries — then the minimal-
-        # expansion rung (extended_info=False) succeeds on its first try.
-        # Total SDK calls: 1 (full, fast-fail) + 1 (minimal) = 2.
+        # Drive the VRS degrade: the single full-expansion rung fast-fails on
+        # KeyError("content") — v1.16.1 classifies this as permanent
+        # VrsEndpointShapeError, no retries. Total SDK calls: 1.
         handle = analytics.return_value
-        handle.getVirtualReportSuites.side_effect = [
-            KeyError("content"),  # full rung — permanent, fast-fail
-            [],  # minimal rung — success (empty list)
-        ]
+        handle.getVirtualReportSuites.side_effect = KeyError("content")
 
         caplog.set_level(logging.DEBUG)
         exit_code = run(
@@ -241,24 +237,22 @@ def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
         f"expected 17..21 INFO records (spec §8.1: 19 ±2); "
         f"got {len(info_records)}: {[r.message for r in info_records]!r}"
     )
-    # Exactly one WARNING — the vrs_expansion_fallback record. The
-    # vrs_unavailable additive WARNING only fires when BOTH rungs exhaust;
-    # here the minimal rung succeeds so only vrs_expansion_fallback fires.
-    assert len(warning_records) == 1, (
-        f"expected exactly 1 WARNING (vrs_expansion_fallback); "
+    # Exactly two WARNINGs — the fetch-failed record (expansion_level=
+    # exhausted) plus the additive vrs_unavailable record that fires when the
+    # cause is the permanent endpoint-shape error.
+    assert len(warning_records) == 2, (
+        f"expected exactly 2 WARNINGs (fetch failed + vrs_unavailable); "
         f"got {len(warning_records)}: {[r.message for r in warning_records]!r}"
     )
-    msg = warning_records[0].getMessage()
-    assert "vrs_expansion_fallback" in msg, msg
-    assert "minimal" in msg, msg
-    # Belt-and-suspenders: confirm the SDK was actually called the expected
-    # number of times — 1 fast-fail on the full rung + 1 successful call on
-    # the minimal rung = 2 total. If aanalytics2 gets called fewer times,
-    # the side_effect didn't drive both rungs and the test isn't proving what
-    # it claims to prove.
-    assert handle.getVirtualReportSuites.call_count == 2, (
-        f"expected 2 SDK calls (1 full-rung fast-fail + 1 minimal-rung success); "
-        f"got {handle.getVirtualReportSuites.call_count}"
+    messages = [r.getMessage() for r in warning_records]
+    assert any("virtual report suites fetch failed" in m and "exhausted" in m for m in messages), messages
+    assert any("vrs_unavailable" in m for m in messages), messages
+    # Belt-and-suspenders: confirm the SDK was actually called exactly once —
+    # the permanent classification means no retries, and there is no
+    # reduced-expansion fallback rung. If aanalytics2 gets called more times,
+    # the fast-fail or single-rung behavior regressed.
+    assert handle.getVirtualReportSuites.call_count == 1, (
+        f"expected 1 SDK call (single full rung, permanent fast-fail); got {handle.getVirtualReportSuites.call_count}"
     )
 
 

@@ -113,8 +113,22 @@ def _records(value: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
+    """dict.get that treats pandas float-NaN like an absent key.
+
+    The DataFrame-bound fetchers (dimensions / metrics / VRS / report-suite
+    listing — no format="raw" in the SDK) receive NaN for cells absent from
+    ragged rows; str(NaN) is the literal "nan" and bool(NaN) is True, so NaN
+    must resolve to `default` before any coercion. NaN is the only float that
+    is != itself."""
+    val = d.get(key, default)
+    if isinstance(val, float) and val != val:
+        return default
+    return val
+
+
 def _str_or_none(d: dict[str, Any], key: str) -> str | None:
-    val = d.get(key)
+    val = _get(d, key)
     if val is None:
         return None
     text = str(val)
@@ -122,7 +136,7 @@ def _str_or_none(d: dict[str, Any], key: str) -> str | None:
 
 
 def _bool(d: dict[str, Any], key: str, default: bool = False) -> bool:
-    val = d.get(key)
+    val = _get(d, key)
     return bool(val) if val is not None else default
 
 
@@ -142,7 +156,7 @@ def _int(d: dict[str, Any], key: str, default: int = 0) -> int:
 
 
 def _list(d: dict[str, Any], key: str) -> list[Any]:
-    val = d.get(key)
+    val = _get(d, key)
     if val is None:
         return []
     if isinstance(val, list):
@@ -158,7 +172,12 @@ def _owner_id(raw: dict[str, Any]) -> int | None:
 
 
 def _extra(d: dict[str, Any], known: set[str]) -> dict[str, Any]:
-    return {k: v for k, v in d.items() if k not in known}
+    """Passthrough of unknown keys, minus NaN cells from ragged DataFrame rows.
+
+    A NaN that reaches a snapshot becomes a bare `NaN` token under json.dump
+    (invalid strict JSON); dropping the key matches the raw path, where an
+    absent cell is an absent key."""
+    return {k: v for k, v in d.items() if k not in known and not (isinstance(v, float) and v != v)}
 
 
 def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
@@ -167,7 +186,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     started = time.monotonic()
     suites = _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True),
+            lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True, limit=1000),
             policy=client.retry_policy,
             rsid=rsid,
         )
@@ -183,7 +202,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
         if raw.get("rsid") == rsid:
             return models.ReportSuite(
                 rsid=str(raw["rsid"]),
-                name=str(raw.get("name", rsid)),
+                name=str(_get(raw, "name", rsid)),
                 timezone=_str_or_none(raw, "timezone") or _str_or_none(raw, "timezoneZoneinfo"),
                 currency=_str_or_none(raw, "currency"),
                 parent_rsid=_str_or_none(raw, "parentRsid"),
@@ -206,7 +225,7 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     started = time.monotonic()
     raw = _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
+            lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
             policy=client.retry_policy,
         )
     )
@@ -233,7 +252,7 @@ def fetch_report_suites_raw(client: AaClient) -> list[dict[str, Any]]:
     many identifiers against a single fetch (batch/stats/inventory)."""
     return _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
+            lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
             policy=client.retry_policy,
         )
     )
@@ -278,7 +297,7 @@ def resolve_rsid(
     else:
         suites = _records(
             _retry_and_normalize(
-                lambda: client.handle.getReportSuites(extended_info=True),
+                lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
                 policy=client.retry_policy,
             )
         )
@@ -353,10 +372,10 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     out = [
         models.Dimension(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
-            type=str(r.get("type", "unknown")),
+            name=str(_get(r, "name", r["id"])),
+            type=str(_get(r, "type", "unknown")),
             category=_str_or_none(r, "category"),
-            parent=str(r.get("parent") or ""),
+            parent=str(_get(r, "parent") or ""),
             pathable=_bool(r, "pathable"),
             description=_str_or_none(r, "description"),
             tags=_list(r, "tags"),
@@ -410,8 +429,8 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
     out = [
         models.Metric(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
-            type=str(r.get("type", "unknown")),
+            name=str(_get(r, "name", r["id"])),
+            type=str(_get(r, "type", "unknown")),
             category=_str_or_none(r, "category"),
             precision=_int(r, "precision"),
             segmentable=_bool(r, "segmentable"),
@@ -562,10 +581,10 @@ def _finalize_vrs_fetch(
 ) -> list[models.VirtualReportSuite]:
     """Apply parentRsid filter, build VRS rows, emit DEBUG + INFO logs.
 
-    Shared between the v1.7.0 full→minimal ladder path and the v1.7.2
-    count_only=True path. The expansion_level string is descriptive of the
-    payload shape ("full" / "minimal") and goes into the component_fetch
-    INFO record; it does NOT control the FetchOutcome.expansion_level field
+    Shared by the default and count_only=True paths (both request full
+    expansion). The expansion_level string is descriptive of the payload
+    shape (always "full" today) and goes into the component_fetch INFO
+    record; it does NOT control the FetchOutcome.expansion_level field
     (that's the caller's responsibility).
     """
     known = {
@@ -582,7 +601,7 @@ def _finalize_vrs_fetch(
     out = [
         models.VirtualReportSuite(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
+            name=str(_get(r, "name", r["id"])),
             parent_rsid=str(r.get("parentRsid", "")),
             timezone=_str_or_none(r, "timezone") or _str_or_none(r, "timezoneZoneinfo"),
             description=_str_or_none(r, "description"),
@@ -596,7 +615,7 @@ def _finalize_vrs_fetch(
     ]
     # v1.7.0 Item D — structured DEBUG when client-side parentRsid filter drops rows.
     if len(out) != len(raws):
-        dropped_no_parent = sum(1 for r in raws if not r.get("parentRsid"))
+        dropped_no_parent = sum(1 for r in raws if not _get(r, "parentRsid"))
         dropped_other_parent = len(raws) - len(out) - dropped_no_parent
         logger.debug(
             "vrs_parent_filter rsid=%s pulled=%s filtered=%s dropped_no_parent=%s dropped_other_parent=%s",
@@ -642,22 +661,28 @@ def fetch_virtual_report_suites(
     The SDK call has no rsid filter — we filter client-side after pulling all
     VRS via extended_info=True (which gives us `parentRsid`).
 
-    Two-rung ladder per v1.7.0 (Approach C, spike D2):
-      1. Full expansion — extended_info=True (heavy 16-field expansion).
-      2. Minimal expansion — extended_info=False (id/name/parentRsid only).
+    Always full expansion. The SDK's extended_info=False path strips every
+    row to {name, vrsid} — no id, no parentRsid — so a reduced-expansion
+    response cannot support the client-side parent filter and can only ever
+    yield zero rows. That constraint retired two earlier paths:
 
-    Each rung gets the full retry budget for transient errors; ``KeyError('content')``
-    is classified permanent (v1.16.1) and fast-fails without retries. On all-rung exhaustion, returns
-    FetchOutcome.degraded() (data=[]) (preserves v1.6.1 graceful-degrade after a
-    customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS
-    endpoint returned HTTP 500 — the SDK unconditionally indexes
-    `vrsid['content']` on the response envelope, which is absent on error).
+      * the v1.7.0 two-rung ladder's minimal fallback, which spent a second
+        full retry budget to return an empty "partial" result;
+      * the v1.7.2 count_only=True minimal call, which made every count-only
+        consumer (describe / stats / inventory) report 0 VRS.
 
-    When count_only=True (v1.7.2+): bypasses the ladder entirely. Single
-    SDK call with extended_info=False; on success returns
-    FetchOutcome.healthy(stub_rows) with expansion_level=None (caller asked
-    for minimal scope; not a degradation). On failure returns
-    FetchOutcome.degraded(). No fallback to extended_info=True.
+    Single rung, full retry budget for transient errors; ``KeyError('content')``
+    is classified permanent (v1.16.1) and fast-fails without retries. On
+    exhaustion, returns FetchOutcome.degraded() (data=[]) (preserves v1.6.1
+    graceful-degrade after a customer hit `KeyError: 'content'` from
+    `aanalytics2` 0.5.1 when Adobe's VRS endpoint returned HTTP 500 — the SDK
+    unconditionally indexes `vrsid['content']` on the response envelope,
+    which is absent on error).
+
+    count_only=True keeps its contract — single call, healthy/degraded,
+    expansion_level=None on the outcome — and differs only in the
+    `expansion_level=count_only` label on the failure WARNING, so log
+    analytics can still distinguish the two failure paths.
     """
     started = time.monotonic()
 
@@ -671,55 +696,12 @@ def fetch_virtual_report_suites(
             component_type="virtual_report_suite",
         )
 
-    if count_only:
-        try:
-            raws = _records(
-                with_retries(
-                    lambda: classify_transient_sdk_call(
-                        lambda: classify_permanent_vrs_shape_error(
-                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
-                        ),
-                        component_type="virtual_report_suite",
-                    ),
-                    policy=client.retry_policy,
-                    on_attempt=_on_attempt,
-                )
-            )
-        except Exception as e:
-            logger.warning(
-                "virtual report suites fetch failed rsid=%s expansion_level=count_only error_class=%s",
-                parent_rsid,
-                type(e).__name__,
-                extra={
-                    "rsid": parent_rsid,
-                    "component_type": "virtual_report_suite",
-                    "expansion_level": "count_only",
-                    "error_class": type(e).__name__,
-                },
-            )
-            if isinstance(e, VrsEndpointShapeError):
-                logger.warning(
-                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
-                    parent_rsid,
-                    extra={
-                        "rsid": parent_rsid,
-                        "component_type": "virtual_report_suite",
-                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
-                    },
-                )
-            return models.FetchOutcome.degraded()
-        out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="minimal")
-        return models.FetchOutcome.healthy(out)
-
-    # Existing v1.7.0 ladder path — unchanged below
-    expansion_level = "full"
-
     try:
         raws = _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
                     lambda: classify_permanent_vrs_shape_error(
-                        lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                        lambda: client.handle.getVirtualReportSuites(extended_info=True, limit=1000),
                     ),
                     component_type="virtual_report_suite",
                 ),
@@ -727,58 +709,32 @@ def fetch_virtual_report_suites(
                 on_attempt=_on_attempt,
             )
         )
-    except Exception as e:  # full rung exhausted — try minimal-expansion fallback
-        try:
-            raws = _records(
-                with_retries(
-                    lambda: classify_transient_sdk_call(
-                        lambda: classify_permanent_vrs_shape_error(
-                            lambda: client.handle.getVirtualReportSuites(extended_info=False),
-                        ),
-                        component_type="virtual_report_suite",
-                    ),
-                    policy=client.retry_policy,
-                    on_attempt=_on_attempt,
-                )
-            )
-            expansion_level = "minimal"
+    except Exception as e:
+        failure_label = "count_only" if count_only else "exhausted"
+        logger.warning(
+            "virtual report suites fetch failed rsid=%s expansion_level=%s error_class=%s",
+            parent_rsid,
+            failure_label,
+            type(e).__name__,
+            extra={
+                "rsid": parent_rsid,
+                "component_type": "virtual_report_suite",
+                "expansion_level": failure_label,
+                "error_class": type(e).__name__,
+            },
+        )
+        if isinstance(e, VrsEndpointShapeError):
             logger.warning(
-                "vrs_expansion_fallback rsid=%s expansion_level=minimal error_class=%s",
+                "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
                 parent_rsid,
-                type(e).__name__,
                 extra={
                     "rsid": parent_rsid,
                     "component_type": "virtual_report_suite",
-                    "expansion_level": "minimal",
-                    "error_class": type(e).__name__,
+                    "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
                 },
             )
-        except Exception as e2:  # both rungs exhausted — graceful-degrade to FetchOutcome.degraded()
-            logger.warning(
-                "virtual report suites fetch failed rsid=%s expansion_level=exhausted error_class=%s",
-                parent_rsid,
-                type(e2).__name__,
-                extra={
-                    "rsid": parent_rsid,
-                    "component_type": "virtual_report_suite",
-                    "expansion_level": "exhausted",
-                    "error_class": type(e2).__name__,
-                },
-            )
-            if isinstance(e2, VrsEndpointShapeError):
-                logger.warning(
-                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
-                    parent_rsid,
-                    extra={
-                        "rsid": parent_rsid,
-                        "component_type": "virtual_report_suite",
-                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
-                    },
-                )
-            return models.FetchOutcome.degraded()
-    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level=expansion_level)
-    if expansion_level == "minimal":
-        return models.FetchOutcome.partial(out, expansion_level="minimal")
+        return models.FetchOutcome.degraded()
+    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="full")
     return models.FetchOutcome.healthy(out)
 
 
@@ -804,7 +760,7 @@ def fetch_virtual_report_suite_summaries(
         raw = _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
-                    lambda: client.handle.getVirtualReportSuites(extended_info=True),
+                    lambda: client.handle.getVirtualReportSuites(extended_info=True, limit=1000),
                     component_type="virtual_report_suite",
                 ),
                 policy=client.retry_policy,

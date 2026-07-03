@@ -538,7 +538,7 @@ stalls scale similarly because urllib3 honors `Retry-After` and exponential
 backoff. Tune `--max-retries` deliberately for unattended runs where total
 budget matters.
 
-**VRS doubles this budget.** `fetch_virtual_report_suites` runs the reduced-expansion ladder as two sequential retry rungs (full → minimal), and each rung consumes the full `--max-retries` budget independently. So VRS worst case is `2 × (urllib3_retries + 1) × (--max-retries + 1)` — up to **32 requests** at default, **56** at `--max-retries 6`. Other fetchers (dimensions / metrics / segments / calculated metrics / classifications / report-suite / VRS-summary discovery) use the single-rung formula above.
+All fetchers — including VRS — use this single-rung formula. (An earlier reduced-expansion fallback rung doubled the VRS budget; it was retired because the SDK's `extended_info=False` rows lack `parentRsid` and the rung could only ever return empty.)
 
 ### `fetch_status` field on inspect/stats JSON output
 
@@ -572,11 +572,11 @@ stderr banner.
 
 ---
 
-## VRS Reduced Expansion
+## VRS Fetch Degradation
 
-When Adobe's `/reportsuites/virtualreportsuites` endpoint fails on the full expansion request (after the configured retry budget exhausts), `aa_auto_sdr` falls back to a minimal-expansion call (`extended_info=False`) so the SDR still gets a partial VRS list. The structured `expansion_level` field on the `component_fetch` INFO record carries `full` / `minimal` / `exhausted` so operators can spot when an org is hitting the fallback. A separate `vrs_expansion_fallback` WARNING fires for the minimal/exhausted paths.
+When Adobe's `/reportsuites/virtualreportsuites` endpoint fails (after the configured retry budget exhausts, or immediately on a permanent endpoint-shape error), `aa_auto_sdr` degrades gracefully: the SDR is generated with an empty VRS list and the snapshot envelope records the degradation. The structured `expansion_level` field carries `full` on the success INFO record and `exhausted` / `count_only` on the failure WARNING. There is no reduced-expansion fallback — the SDK's `extended_info=False` rows lack `parentRsid`, so a minimal call cannot be attributed to a report suite.
 
-**Snapshot signalling.** Snapshots taken at `expansion_level=minimal` (and degraded-fetch snapshots) carry `partial_components` / `degraded_components` markers in the envelope; the diff comparator suppresses sections with mismatched fetch quality rather than rendering false-modified VRS rows. Pre-`v2` snapshots load forward-compat as if all components were healthy.
+**Snapshot signalling.** Degraded-fetch snapshots carry `degraded_components` markers in the envelope (`partial_components` remains in the schema and is still honored when reading snapshots written by earlier releases); the diff comparator suppresses sections with mismatched fetch quality rather than rendering false-modified VRS rows. Pre-`v2` snapshots load forward-compat as if all components were healthy.
 
 **Envelope keys for agent introspection.** Current (`v4`) snapshots
 carry two fetch-status keys directly accessible via `jq`:
@@ -584,7 +584,9 @@ carry two fetch-status keys directly accessible via `jq`:
 - `.degraded_components` — list of component-type names whose fetch
   returned no data (e.g., `["classifications"]`).
 - `.partial_components` — dict mapping component-type name to expansion
-  level (e.g., `{"virtual_report_suites": "minimal"}`).
+  level (e.g., `{"virtual_report_suites": "minimal"}` in snapshots written
+  by earlier releases; current releases no longer produce partial fetches
+  but the key remains present and honored by `--diff`).
 
 Both keys are always present (empty `[]` / `{}` when nothing is
 degraded). Pre-`v2` snapshots lack these keys; the loader fills them
