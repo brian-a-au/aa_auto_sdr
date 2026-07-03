@@ -131,3 +131,24 @@ def test_report_suite_nan_metadata_resolves_to_none() -> None:
     assert rs.timezone is None
     assert rs.currency is None
     assert rs.parent_rsid is None
+
+
+def test_extra_dict_drops_nan_cells() -> None:
+    """Unknown ragged columns (e.g. extraTitleInfo on some rows only) must not
+    carry NaN into the extra passthrough dict — json.dump would emit a bare
+    NaN token, which is invalid strict JSON in snapshots."""
+    import math
+
+    frame = pd.DataFrame(
+        [
+            {"id": "evar1", "name": "A", "extraTitleInfo": "t"},
+            {"id": "evar2", "name": "B"},  # extraTitleInfo cell becomes NaN
+        ],
+    )
+    client = _client(getDimensions=frame)
+    dims = fetch.fetch_dimensions(client, "rs1")
+    keeps = next(d for d in dims if d.id == "evar1")
+    bare = next(d for d in dims if d.id == "evar2")
+    assert keeps.extra["extraTitleInfo"] == "t"
+    assert "extraTitleInfo" not in bare.extra
+    assert not any(isinstance(v, float) and math.isnan(v) for v in bare.extra.values())

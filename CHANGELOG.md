@@ -18,10 +18,12 @@ changed defaults.
   fetchers that have no raw option in the SDK (dimensions, metrics, virtual
   report suites, and the report-suite listing): missing cells no longer
   surface as the literal string `"nan"` (description, type, parent, timezone,
-  …) or as `True` for missing booleans (`pathable`, `segmentable`). Same
-  class of bug v1.21.4 fixed for segments/calculated metrics via
-  `format="raw"`; affected report suites will show a one-time snapshot diff
-  as values correct.
+  …) or as `True` for missing booleans (`pathable`, `segmentable`), and
+  NaN-valued cells in unknown passthrough columns are dropped from `extra`
+  instead of serializing as a bare `NaN` token (invalid strict JSON) in
+  snapshots. Same class of bug v1.21.4 fixed for segments/calculated metrics
+  via `format="raw"`; affected report suites will show a one-time snapshot
+  diff as values correct.
 
 ### Changed
 - The VRS reduced-expansion fallback rung is removed. With the real SDK it

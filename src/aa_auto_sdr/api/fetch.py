@@ -172,7 +172,12 @@ def _owner_id(raw: dict[str, Any]) -> int | None:
 
 
 def _extra(d: dict[str, Any], known: set[str]) -> dict[str, Any]:
-    return {k: v for k, v in d.items() if k not in known}
+    """Passthrough of unknown keys, minus NaN cells from ragged DataFrame rows.
+
+    A NaN that reaches a snapshot becomes a bare `NaN` token under json.dump
+    (invalid strict JSON); dropping the key matches the raw path, where an
+    absent cell is an absent key."""
+    return {k: v for k, v in d.items() if k not in known and not (isinstance(v, float) and v != v)}
 
 
 def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
@@ -576,10 +581,10 @@ def _finalize_vrs_fetch(
 ) -> list[models.VirtualReportSuite]:
     """Apply parentRsid filter, build VRS rows, emit DEBUG + INFO logs.
 
-    Shared between the v1.7.0 full→minimal ladder path and the v1.7.2
-    count_only=True path. The expansion_level string is descriptive of the
-    payload shape ("full" / "minimal") and goes into the component_fetch
-    INFO record; it does NOT control the FetchOutcome.expansion_level field
+    Shared by the default and count_only=True paths (both request full
+    expansion). The expansion_level string is descriptive of the payload
+    shape (always "full" today) and goes into the component_fetch INFO
+    record; it does NOT control the FetchOutcome.expansion_level field
     (that's the caller's responsibility).
     """
     known = {
@@ -610,7 +615,7 @@ def _finalize_vrs_fetch(
     ]
     # v1.7.0 Item D — structured DEBUG when client-side parentRsid filter drops rows.
     if len(out) != len(raws):
-        dropped_no_parent = sum(1 for r in raws if not r.get("parentRsid"))
+        dropped_no_parent = sum(1 for r in raws if not _get(r, "parentRsid"))
         dropped_other_parent = len(raws) - len(out) - dropped_no_parent
         logger.debug(
             "vrs_parent_filter rsid=%s pulled=%s filtered=%s dropped_no_parent=%s dropped_other_parent=%s",

@@ -169,15 +169,15 @@ def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str |
 def classify_permanent_vrs_shape_error[T](fn: Callable[[], T]) -> T:
     """Run ``fn``; re-raise ``KeyError('content')`` as ``VrsEndpointShapeError``.
 
-    Wraps ``client.handle.getVirtualReportSuites`` calls inside
-    ``fetch_virtual_report_suites`` (count-only, full, and minimal rungs)
-    so the empty-tenant / malformed-envelope failure mode raises a
-    non-transient ``ApiError`` subclass *before* the outer
-    ``classify_transient_sdk_call`` promotes it to ``TransientApiError``.
-    Result: the resilience layer's retry policy (``is_retryable``) skips
-    the rung and the existing ``except Exception:`` falls through to the
-    next rung (or to graceful-degrade), cutting ~90 s of pointless
-    retries on zero-VRS tenants down to ≤ 3 s.
+    Wraps the ``client.handle.getVirtualReportSuites`` call inside
+    ``fetch_virtual_report_suites`` (single full-expansion rung, shared by
+    the default and count-only paths) so the empty-tenant /
+    malformed-envelope failure mode raises a non-transient ``ApiError``
+    subclass *before* the outer ``classify_transient_sdk_call`` promotes it
+    to ``TransientApiError``. Result: the resilience layer's retry policy
+    (``is_retryable``) skips retries and the existing ``except Exception:``
+    falls through to graceful-degrade, cutting ~90 s of pointless retries
+    on zero-VRS tenants down to ≤ 3 s.
 
     See ``docs/superpowers/specs/2026-05-12-aa-auto-sdr-v1.16.1-design.md``.
 
