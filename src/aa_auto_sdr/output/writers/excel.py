@@ -63,7 +63,11 @@ class ExcelWriter:
                 if df.shape[1] > 0 and df.shape[0] > 0:
                     ws.autofilter(0, 0, df.shape[0], df.shape[1] - 1)
                 for col_idx, col in enumerate(df.columns):
-                    width = max(len(str(col)), int(df[col].astype(str).str.len().max() or 10))
+                    # Component-sheet cells are already strings (stringify_cell);
+                    # str() on the Summary sheet's mixed values matches what
+                    # astype(str) produced, without a full column re-conversion.
+                    longest = max((len(v) if isinstance(v, str) else len(str(v)) for v in df[col]), default=0)
+                    width = max(len(str(col)), longest or 10)
                     ws.set_column(col_idx, col_idx, min(width + 2, 60))
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
