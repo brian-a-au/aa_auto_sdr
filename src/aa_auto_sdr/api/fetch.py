@@ -656,22 +656,28 @@ def fetch_virtual_report_suites(
     The SDK call has no rsid filter — we filter client-side after pulling all
     VRS via extended_info=True (which gives us `parentRsid`).
 
-    Two-rung ladder per v1.7.0 (Approach C, spike D2):
-      1. Full expansion — extended_info=True (heavy 16-field expansion).
-      2. Minimal expansion — extended_info=False (id/name/parentRsid only).
+    Always full expansion. The SDK's extended_info=False path strips every
+    row to {name, vrsid} — no id, no parentRsid — so a reduced-expansion
+    response cannot support the client-side parent filter and can only ever
+    yield zero rows. That constraint retired two earlier paths:
 
-    Each rung gets the full retry budget for transient errors; ``KeyError('content')``
-    is classified permanent (v1.16.1) and fast-fails without retries. On all-rung exhaustion, returns
-    FetchOutcome.degraded() (data=[]) (preserves v1.6.1 graceful-degrade after a
-    customer hit `KeyError: 'content'` from `aanalytics2` 0.5.1 when Adobe's VRS
-    endpoint returned HTTP 500 — the SDK unconditionally indexes
-    `vrsid['content']` on the response envelope, which is absent on error).
+      * the v1.7.0 two-rung ladder's minimal fallback, which spent a second
+        full retry budget to return an empty "partial" result;
+      * the v1.7.2 count_only=True minimal call, which made every count-only
+        consumer (describe / stats / inventory) report 0 VRS.
 
-    When count_only=True (v1.7.2+): bypasses the ladder entirely. Single
-    SDK call with extended_info=False; on success returns
-    FetchOutcome.healthy(stub_rows) with expansion_level=None (caller asked
-    for minimal scope; not a degradation). On failure returns
-    FetchOutcome.degraded(). No fallback to extended_info=True.
+    Single rung, full retry budget for transient errors; ``KeyError('content')``
+    is classified permanent (v1.16.1) and fast-fails without retries. On
+    exhaustion, returns FetchOutcome.degraded() (data=[]) (preserves v1.6.1
+    graceful-degrade after a customer hit `KeyError: 'content'` from
+    `aanalytics2` 0.5.1 when Adobe's VRS endpoint returned HTTP 500 — the SDK
+    unconditionally indexes `vrsid['content']` on the response envelope,
+    which is absent on error).
+
+    count_only=True keeps its contract — single call, healthy/degraded,
+    expansion_level=None on the outcome — and differs only in the
+    `expansion_level=count_only` label on the failure WARNING, so log
+    analytics can still distinguish the two failure paths.
     """
     started = time.monotonic()
 
@@ -684,49 +690,6 @@ def fetch_virtual_report_suites(
             rsid=parent_rsid,
             component_type="virtual_report_suite",
         )
-
-    if count_only:
-        try:
-            raws = _records(
-                with_retries(
-                    lambda: classify_transient_sdk_call(
-                        lambda: classify_permanent_vrs_shape_error(
-                            lambda: client.handle.getVirtualReportSuites(extended_info=False, limit=1000),
-                        ),
-                        component_type="virtual_report_suite",
-                    ),
-                    policy=client.retry_policy,
-                    on_attempt=_on_attempt,
-                )
-            )
-        except Exception as e:
-            logger.warning(
-                "virtual report suites fetch failed rsid=%s expansion_level=count_only error_class=%s",
-                parent_rsid,
-                type(e).__name__,
-                extra={
-                    "rsid": parent_rsid,
-                    "component_type": "virtual_report_suite",
-                    "expansion_level": "count_only",
-                    "error_class": type(e).__name__,
-                },
-            )
-            if isinstance(e, VrsEndpointShapeError):
-                logger.warning(
-                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
-                    parent_rsid,
-                    extra={
-                        "rsid": parent_rsid,
-                        "component_type": "virtual_report_suite",
-                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
-                    },
-                )
-            return models.FetchOutcome.degraded()
-        out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="minimal")
-        return models.FetchOutcome.healthy(out)
-
-    # Existing v1.7.0 ladder path — unchanged below
-    expansion_level = "full"
 
     try:
         raws = _records(
@@ -741,58 +704,32 @@ def fetch_virtual_report_suites(
                 on_attempt=_on_attempt,
             )
         )
-    except Exception as e:  # full rung exhausted — try minimal-expansion fallback
-        try:
-            raws = _records(
-                with_retries(
-                    lambda: classify_transient_sdk_call(
-                        lambda: classify_permanent_vrs_shape_error(
-                            lambda: client.handle.getVirtualReportSuites(extended_info=False, limit=1000),
-                        ),
-                        component_type="virtual_report_suite",
-                    ),
-                    policy=client.retry_policy,
-                    on_attempt=_on_attempt,
-                )
-            )
-            expansion_level = "minimal"
+    except Exception as e:
+        failure_label = "count_only" if count_only else "exhausted"
+        logger.warning(
+            "virtual report suites fetch failed rsid=%s expansion_level=%s error_class=%s",
+            parent_rsid,
+            failure_label,
+            type(e).__name__,
+            extra={
+                "rsid": parent_rsid,
+                "component_type": "virtual_report_suite",
+                "expansion_level": failure_label,
+                "error_class": type(e).__name__,
+            },
+        )
+        if isinstance(e, VrsEndpointShapeError):
             logger.warning(
-                "vrs_expansion_fallback rsid=%s expansion_level=minimal error_class=%s",
+                "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
                 parent_rsid,
-                type(e).__name__,
                 extra={
                     "rsid": parent_rsid,
                     "component_type": "virtual_report_suite",
-                    "expansion_level": "minimal",
-                    "error_class": type(e).__name__,
+                    "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
                 },
             )
-        except Exception as e2:  # both rungs exhausted — graceful-degrade to FetchOutcome.degraded()
-            logger.warning(
-                "virtual report suites fetch failed rsid=%s expansion_level=exhausted error_class=%s",
-                parent_rsid,
-                type(e2).__name__,
-                extra={
-                    "rsid": parent_rsid,
-                    "component_type": "virtual_report_suite",
-                    "expansion_level": "exhausted",
-                    "error_class": type(e2).__name__,
-                },
-            )
-            if isinstance(e2, VrsEndpointShapeError):
-                logger.warning(
-                    "vrs_unavailable rsid=%s likely_cause=empty_tenant_or_permanent_endpoint_shape_error",
-                    parent_rsid,
-                    extra={
-                        "rsid": parent_rsid,
-                        "component_type": "virtual_report_suite",
-                        "likely_cause": "empty_tenant_or_permanent_endpoint_shape_error",
-                    },
-                )
-            return models.FetchOutcome.degraded()
-    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level=expansion_level)
-    if expansion_level == "minimal":
-        return models.FetchOutcome.partial(out, expansion_level="minimal")
+        return models.FetchOutcome.degraded()
+    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="full")
     return models.FetchOutcome.healthy(out)
 
 

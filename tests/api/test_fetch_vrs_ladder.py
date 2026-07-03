@@ -1,9 +1,13 @@
-"""VRS reduced-expansion ladder tests (Item C from VRS hardening spec).
+"""VRS fetch resilience tests — single full-expansion rung.
 
-LADDER APPROACH: C — two-rung (full → minimal via extended_info=False).
-Per spike D2 (docs/superpowers/spikes/2026-05-08-aanalytics2-resilience-spike.md),
-the SDK does not expose expansion= control, so Approach A's reduced-expansion
-middle rung is not feasible without re-implementing ~40 lines of SDK internals.
+Historical note: v1.7.0 ran a two-rung ladder (full → minimal via
+extended_info=False). The ladder was retired when the minimal rung was shown
+to be structurally empty: the SDK strips reduced-expansion rows to
+{name, vrsid} — no parentRsid — so the client-side parent filter dropped
+every row and the rung could only ever return partial([]) after burning a
+second full retry budget. Failure of the full rung now degrades directly.
+See tests/api/test_fetch_vrs_full_expansion_only.py for the truthful-shape
+regression tests.
 """
 
 from __future__ import annotations
@@ -35,8 +39,8 @@ def _vrs_records(parent: str = "rs1") -> pd.DataFrame:
     )
 
 
-class TestVrsLadder:
-    def test_full_succeeds_no_fallback(self, mock_client) -> None:
+class TestVrsSingleRung:
+    def test_full_succeeds_single_call(self, mock_client) -> None:
         mock_client.handle.getVirtualReportSuites.return_value = _vrs_records()
         result = fetch_virtual_report_suites(mock_client, "rs1")
         assert result.status == "healthy"
@@ -44,59 +48,34 @@ class TestVrsLadder:
         # Only one SDK invocation per the happy path
         assert mock_client.handle.getVirtualReportSuites.call_count == 1
 
-    def test_full_fails_minimal_succeeds(self, mock_client, caplog) -> None:
-        """v1.16.1: KeyError('content') is classified permanent (fast-fail).
-        Full-expansion fires once and falls to minimal immediately (no retry).
-        Minimal-expansion succeeds first try.
-        Total SDK calls: 1 (full, fast-fail) + 1 (minimal) = 2."""
-        mock_client.handle.getVirtualReportSuites.side_effect = [
-            KeyError("content"),  # full attempt 1 — permanent, no retry
-            _vrs_records(),  # minimal attempt 1 — success
-        ]
-        with caplog.at_level(logging.WARNING):
-            result = fetch_virtual_report_suites(mock_client, "rs1")
-        assert result.status == "partial"
-        assert result.expansion_level == "minimal"
-        assert len(result.data) == 2
-        assert mock_client.handle.getVirtualReportSuites.call_count == 2
-        assert any("vrs_expansion_fallback" in r.message and "minimal" in r.message for r in caplog.records)
-
-    def test_v1_6_1_keyerror_repro_now_returns_partial(self, mock_client, caplog) -> None:
+    def test_keyerror_content_degrades_in_one_call(self, mock_client, caplog) -> None:
         """Field repro: customer hit KeyError('content') from aanalytics2 0.5.1
-        when Adobe's VRS endpoint returned HTTP 500. v1.6.1 returned [];
-        v1.7.0 returned partial data via the minimal-expansion fallback (with retries).
-        v1.16.1: KeyError('content') is classified permanent — fast-fail, no retries.
-        Full fires once (permanent → no retry), minimal succeeds first try.
-        Total SDK calls: 1 (full, fast-fail) + 1 (minimal) = 2."""
-        mock_client.handle.getVirtualReportSuites.side_effect = [
-            KeyError("content"),  # full attempt 1 — permanent, no retry
-            _vrs_records(),  # minimal attempt 1 — success
-        ]
+        when Adobe's VRS endpoint returned HTTP 500. v1.16.1 classifies it
+        permanent — fast-fail, no retries. With the minimal fallback rung
+        retired, the single full-rung failure degrades directly:
+        1 SDK call total, no reduced-expansion attempt."""
+        mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(mock_client, "rs1")
-        assert result.status == "partial"
-        assert result.expansion_level == "minimal"
-        assert len(result.data) == 2
-        assert any("vrs_expansion_fallback" in r.message for r in caplog.records)
+        assert result.status == "degraded"
+        assert result.data == []
+        assert mock_client.handle.getVirtualReportSuites.call_count == 1
+        assert not any("vrs_expansion_fallback" in r.message for r in caplog.records)
 
-    def test_max_retries_zero_still_enters_ladder(self, monkeypatch, caplog) -> None:
-        """Spec §5.5 resolution: --max-retries 0 disables retries but does NOT
-        disable the minimal-expansion ladder. First-attempt failure on full
-        triggers the minimal rung."""
+    def test_max_retries_zero_single_attempt(self, monkeypatch, caplog) -> None:
+        """--max-retries 0 disables retries; a first-attempt failure on the
+        full rung degrades with exactly one SDK call."""
         monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", lambda _s: None)
         handle = MagicMock()
         client = AaClient(handle=handle, company_id="co", retry_policy=RetryPolicy(max_retries=0))
-        # Full fails immediately (no retry), minimal succeeds.
-        handle.getVirtualReportSuites.side_effect = [KeyError("content"), _vrs_records()]
+        handle.getVirtualReportSuites.side_effect = KeyError("content")
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(client, "rs1")
-        assert result.status == "partial"
-        assert result.expansion_level == "minimal"
-        assert len(result.data) == 2
-        assert any("vrs_expansion_fallback" in r.message and "minimal" in r.message for r in caplog.records)
+        assert result.status == "degraded"
+        assert handle.getVirtualReportSuites.call_count == 1
 
-    def test_all_rungs_fail_returns_empty_preserving_v1_6_1(self, mock_client, caplog) -> None:
-        """Both rungs deterministically fail → graceful-degrade to []."""
+    def test_full_rung_fail_returns_empty_preserving_v1_6_1(self, mock_client, caplog) -> None:
+        """Deterministic failure → graceful-degrade to [] (v1.6.1 contract)."""
         mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
         with caplog.at_level(logging.WARNING):
             result = fetch_virtual_report_suites(mock_client, "rs1")
@@ -115,22 +94,14 @@ class TestVrsLadder:
         assert getattr(info_records[0], "expansion_level", None) == "full"
 
 
-def test_keyerror_content_fast_fails_both_rungs(mock_client, caplog):
-    """v1.16.1: KeyError('content') is now classified permanent on the VRS
-    path. Both rungs fail-fast (no retries), exhaust to degraded outcome.
-
-    Pre-1.16.1, max_retries=1 forced 2 calls per rung × 2 rungs = 4 calls.
-    Post-1.16.1, fast-fail collapses to 1 call per rung = 2 calls total.
-
-    (The additive `vrs_unavailable` WARNING is tested separately in Task 4
-    so each task's commit lands with a fully green test suite.)"""
-    import logging
-
+def test_keyerror_content_fast_fails_without_retries(mock_client, caplog):
+    """v1.16.1: KeyError('content') is classified permanent on the VRS path —
+    fail-fast, no retries. One rung → exactly 1 SDK call, exhausted label."""
     mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     with caplog.at_level(logging.WARNING):
         result = fetch_virtual_report_suites(mock_client, "rs1")
     assert result.status == "degraded"
-    assert mock_client.handle.getVirtualReportSuites.call_count == 2  # one per rung, no retries
+    assert mock_client.handle.getVirtualReportSuites.call_count == 1  # no retries, no second rung
     assert any("expansion_level=exhausted" in r.message for r in caplog.records)
 
 
@@ -140,26 +111,21 @@ def test_non_content_keyerror_still_retries(mock_client):
     transient classifier and retried by `with_retries`. Otherwise we've
     accidentally widened the fast-fail beyond the documented shape.
 
-    `mock_client` fixture uses RetryPolicy(max_retries=1), so a transient
-    failure on the full rung fires twice (initial + 1 retry) before the
-    ladder falls to the minimal rung."""
+    `mock_client` fixture uses RetryPolicy(max_retries=1): initial + 1 retry
+    on the single full rung, then degraded."""
     mock_client.handle.getVirtualReportSuites.side_effect = [
-        KeyError("totalElements"),  # full attempt 1 — promoted to TransientApiError
-        KeyError("totalElements"),  # full attempt 2 — retry exhausts the rung
-        _vrs_records(),  # minimal attempt 1 — succeeds
+        KeyError("totalElements"),  # attempt 1 — promoted to TransientApiError
+        KeyError("totalElements"),  # attempt 2 — retry exhausts the budget
     ]
     result = fetch_virtual_report_suites(mock_client, "rs1")
-    assert result.status == "partial"
-    assert result.expansion_level == "minimal"
-    assert mock_client.handle.getVirtualReportSuites.call_count == 3
+    assert result.status == "degraded"
+    assert mock_client.handle.getVirtualReportSuites.call_count == 2
 
 
 def test_vrs_unavailable_warning_fires_on_shape_error_exhaust(mock_client, caplog):
     """When the cause of exhaust is the permanent shape error, an additive
     `vrs_unavailable` WARNING fires alongside the existing
     `expansion_level=exhausted` line, pointing operators at the real cause."""
-    import logging
-
     mock_client.handle.getVirtualReportSuites.side_effect = KeyError("content")
     with caplog.at_level(logging.WARNING):
         result = fetch_virtual_report_suites(mock_client, "rs1")

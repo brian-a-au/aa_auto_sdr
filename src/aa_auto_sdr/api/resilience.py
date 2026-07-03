@@ -16,13 +16,11 @@ which the SDK then indexes into and raises KeyError/ValueError. The
 
 Worst-case total attempt count for a hard-failing endpoint at default
 settings: (urllib3_retries + 1) * (max_retries + 1) = 4 * 4 = 16 HTTP
-requests. With --max-retries 6, that climbs to 28. **VRS doubles this
-budget** because `fetch_virtual_report_suites` runs two sequential
-retry rungs (full-expansion + minimal-expansion ladder, see Item C),
-each consuming the full --max-retries budget — so VRS worst case is
-2 * (urllib3_retries + 1) * (max_retries + 1) = 32 at default, 56 at
---max-retries 6. Document this so operators tuning --max-retries
-aren't surprised by minute-long stalls.
+requests. With --max-retries 6, that climbs to 28. All fetchers —
+including VRS, whose reduced-expansion fallback rung was retired (the
+SDK's extended_info=False rows lack parentRsid, so the rung could only
+return empty) — use this single-rung budget. Document this so operators
+tuning --max-retries aren't surprised by minute-long stalls.
 
 Exception (v1.16.1): ``KeyError('content')`` on the VRS path is
 classified permanent by ``classify_permanent_vrs_shape_error`` and
@@ -147,8 +145,8 @@ def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str |
     typed signal.
 
     Used by ``_retry_and_normalize`` (bubbling fetchers in ``api/fetch.py``),
-    the VRS ladder rungs (each rung needs the classifier independently so
-    the outer try/except can fall to the next rung), AND the auth bootstrap
+    the graceful-degrade fetchers (VRS / classifications wrap it directly so
+    their outer try/except can degrade), AND the auth bootstrap
     in ``api/client.py``. Lives here (not ``api/fetch.py``) to avoid a
     circular import on the bootstrap path.
     """

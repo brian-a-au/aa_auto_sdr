@@ -129,7 +129,9 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     # v1.7.0 resilience-layer additions (per docs/LOGGING_STYLE.md
     # "Canonical event names" → v1.7.0 sub-block).
     "retry_attempt": {"retry_attempt", "error_class", "rsid", "component_type"},
-    "vrs_expansion_fallback": {"rsid", "component_type", "expansion_level", "error_class"},
+    # vrs_expansion_fallback retired with the reduced-expansion ladder — the
+    # SDK's extended_info=False rows lack parentRsid, so the fallback rung
+    # could only ever return empty and was removed.
     "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
     # v1.12.0 — quality engine
     "quality_policy_loaded": {"policy_path"},
@@ -295,7 +297,7 @@ def test_canonical_event_calls_carry_required_extras(module_path):
 # Cleanup item C3 from v1.7.2: count_only must be in the expansion_level
 # allowed-values list (was missing despite v1.7.2 emitting it from fetch.py).
 
-EXPANSION_LEVEL_ALLOWED_VALUES = {"full", "minimal", "exhausted", "count_only"}
+EXPANSION_LEVEL_ALLOWED_VALUES = {"full", "exhausted", "count_only"}
 CACHE_EVENT_ALLOWED_VALUES = {"hit", "miss", "evict", "expire"}
 
 
@@ -303,14 +305,14 @@ def test_expansion_level_allowed_values_include_count_only() -> None:
     """Regression for v1.7.2 cleanup item C3.
 
     fetch.py emits expansion_level=count_only on count_only-path failures
-    (see docs/LOGGING_STYLE.md "Request-time minimal scope (v1.7.2+)" paragraph).
-    The allowed-values set MUST include this fourth value alongside
-    full / minimal / exhausted.
+    (see docs/LOGGING_STYLE.md "Request-time minimal scope" paragraph).
+    The allowed-values set MUST include this value alongside
+    full / exhausted. ("minimal" retired with the reduced-expansion ladder.)
     """
     assert "count_only" in EXPANSION_LEVEL_ALLOWED_VALUES
-    # Sanity: the set is exactly the four values; alarm if a fifth slips in
+    # Sanity: the set is exactly the three values; alarm if another slips in
     # without spec/doc update.
-    assert {"full", "minimal", "exhausted", "count_only"} == EXPANSION_LEVEL_ALLOWED_VALUES
+    assert {"full", "exhausted", "count_only"} == EXPANSION_LEVEL_ALLOWED_VALUES
 
 
 def test_cache_event_allowed_values() -> None:
