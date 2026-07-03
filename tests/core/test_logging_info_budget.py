@@ -252,8 +252,7 @@ def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
     # reduced-expansion fallback rung. If aanalytics2 gets called more times,
     # the fast-fail or single-rung behavior regressed.
     assert handle.getVirtualReportSuites.call_count == 1, (
-        f"expected 1 SDK call (single full rung, permanent fast-fail); "
-        f"got {handle.getVirtualReportSuites.call_count}"
+        f"expected 1 SDK call (single full rung, permanent fast-fail); got {handle.getVirtualReportSuites.call_count}"
     )
 
 
