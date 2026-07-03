@@ -365,7 +365,9 @@ Current schema: `aa-sdr-snapshot/v4`. Snapshot files carry two top-level fetch-q
 - `degraded_components: list[str]` — component types whose fetch returned no
   data (e.g., when Adobe's VRS endpoint flapped). Empty by default.
 - `partial_components: dict[str, str]` — component types whose fetch fell
-  back to a reduced expansion level. Empty by default.
+  back to a reduced expansion level. Empty by default; current releases no
+  longer produce partial fetches (the key is kept for snapshots written by
+  earlier releases and remains honored by `--diff`).
 
 …plus a `quality` block (`issues`, `summary`) populated when the quality engine runs.
 
