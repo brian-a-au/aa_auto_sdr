@@ -61,10 +61,11 @@ def test_calculated_metrics_raw_and_limit():
     assert client.handle.calls[0]["limit"] == 1000
 
 
-def test_dataframe_path_pollutes_but_raw_does_not():
-    """Characterization: shows *why* format='raw' matters. This passes on its own
-    (it exercises the helpers directly); the red→green driver is the two kwargs
-    assertions above. Keep it as a guard against anyone reverting to the df path."""
+def test_dataframe_and_raw_paths_agree_on_missing_cells():
+    """Characterization: format='raw' avoids NaN fill for ragged rows, and the
+    coercion helpers now also treat float-NaN like an absent key — so both
+    paths resolve a missing cell to None. Guards the helpers' NaN handling for
+    the fetchers that have no raw option (dimensions / metrics / VRS)."""
     import pandas as pd
 
     from aa_auto_sdr.api.fetch import _records, _str_or_none
@@ -72,7 +73,8 @@ def test_dataframe_path_pollutes_but_raw_does_not():
     # Ragged rows: the second lacks 'description'. DataFrame.to_dict fills NaN.
     df = pd.DataFrame([{"id": "a", "description": "d"}, {"id": "b"}])
     df_recs = _records(df)
-    assert _str_or_none(df_recs[1], "description") == "nan"  # the bug (old df path)
+    assert isinstance(df_recs[1]["description"], float)  # NaN reaches the helper
+    assert _str_or_none(df_recs[1], "description") is None  # helper neutralizes it
 
     raw_recs = _records([{"id": "a", "description": "d"}, {"id": "b"}])
     assert _str_or_none(raw_recs[1], "description") is None  # raw path is clean

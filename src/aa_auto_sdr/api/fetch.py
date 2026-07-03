@@ -113,8 +113,22 @@ def _records(value: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
+    """dict.get that treats pandas float-NaN like an absent key.
+
+    The DataFrame-bound fetchers (dimensions / metrics / VRS / report-suite
+    listing — no format="raw" in the SDK) receive NaN for cells absent from
+    ragged rows; str(NaN) is the literal "nan" and bool(NaN) is True, so NaN
+    must resolve to `default` before any coercion. NaN is the only float that
+    is != itself."""
+    val = d.get(key, default)
+    if isinstance(val, float) and val != val:
+        return default
+    return val
+
+
 def _str_or_none(d: dict[str, Any], key: str) -> str | None:
-    val = d.get(key)
+    val = _get(d, key)
     if val is None:
         return None
     text = str(val)
@@ -122,7 +136,7 @@ def _str_or_none(d: dict[str, Any], key: str) -> str | None:
 
 
 def _bool(d: dict[str, Any], key: str, default: bool = False) -> bool:
-    val = d.get(key)
+    val = _get(d, key)
     return bool(val) if val is not None else default
 
 
@@ -142,7 +156,7 @@ def _int(d: dict[str, Any], key: str, default: int = 0) -> int:
 
 
 def _list(d: dict[str, Any], key: str) -> list[Any]:
-    val = d.get(key)
+    val = _get(d, key)
     if val is None:
         return []
     if isinstance(val, list):
@@ -183,7 +197,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
         if raw.get("rsid") == rsid:
             return models.ReportSuite(
                 rsid=str(raw["rsid"]),
-                name=str(raw.get("name", rsid)),
+                name=str(_get(raw, "name", rsid)),
                 timezone=_str_or_none(raw, "timezone") or _str_or_none(raw, "timezoneZoneinfo"),
                 currency=_str_or_none(raw, "currency"),
                 parent_rsid=_str_or_none(raw, "parentRsid"),
@@ -353,10 +367,10 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     out = [
         models.Dimension(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
-            type=str(r.get("type", "unknown")),
+            name=str(_get(r, "name", r["id"])),
+            type=str(_get(r, "type", "unknown")),
             category=_str_or_none(r, "category"),
-            parent=str(r.get("parent") or ""),
+            parent=str(_get(r, "parent") or ""),
             pathable=_bool(r, "pathable"),
             description=_str_or_none(r, "description"),
             tags=_list(r, "tags"),
@@ -410,8 +424,8 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
     out = [
         models.Metric(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
-            type=str(r.get("type", "unknown")),
+            name=str(_get(r, "name", r["id"])),
+            type=str(_get(r, "type", "unknown")),
             category=_str_or_none(r, "category"),
             precision=_int(r, "precision"),
             segmentable=_bool(r, "segmentable"),
@@ -582,7 +596,7 @@ def _finalize_vrs_fetch(
     out = [
         models.VirtualReportSuite(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
+            name=str(_get(r, "name", r["id"])),
             parent_rsid=str(r.get("parentRsid", "")),
             timezone=_str_or_none(r, "timezone") or _str_or_none(r, "timezoneZoneinfo"),
             description=_str_or_none(r, "description"),
