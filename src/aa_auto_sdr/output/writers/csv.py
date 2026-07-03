@@ -73,7 +73,10 @@ def _component_rows(items: list[Any]) -> tuple[list[str], list[list[str]]]:
         return [], []
     cls = type(items[0])
     headers = [f.name for f in fields(cls)]
-    rows = [[stringify_cell(asdict(item).get(h)) for h in headers] for item in items]
+    rows = []
+    for item in items:
+        d = asdict(item)
+        rows.append([stringify_cell(d.get(h)) for h in headers])
     return headers, rows
 
 

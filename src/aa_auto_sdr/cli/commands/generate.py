@@ -474,11 +474,12 @@ def _run_impl(
                 )
                 _emit_timings_if_enabled(show_timings=show_timings)
                 return ExitCode.API.value
-            docs.append(doc.to_dict())
+            payload = doc.to_dict()
+            docs.append(payload)
             if snapshot_dir is not None:
                 from aa_auto_sdr.snapshot.store import save_snapshot
 
-                save_snapshot(doc, snapshot_dir=snapshot_dir)
+                save_snapshot(doc, snapshot_dir=snapshot_dir, payload=payload)
             pipe_per_rsid.append(
                 PerRsidResult(
                     rsid=canonical_rsid,

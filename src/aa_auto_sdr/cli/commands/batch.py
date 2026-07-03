@@ -328,9 +328,15 @@ def _run_impl(
     seen: set[str] = set()
     pre_failures: list[BatchFailure] = []
     with timings.Timer("resolve"):
+        try:
+            preloaded_suites = fetch.fetch_report_suites_raw(client)
+        except Exception:  # best-effort; any failure falls back to per-identifier fetch
+            preloaded_suites = None
         for identifier in rsids:
             try:
-                resolved, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+                resolved, _was_name = fetch.resolve_rsid(
+                    client, identifier, name_match=name_match, preloaded_suites=preloaded_suites
+                )
             except AmbiguousMatchError as exc:
                 print(
                     f"error: identifier '{identifier}' is ambiguous; matched {len(exc.candidates)} report suites:",

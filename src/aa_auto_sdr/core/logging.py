@@ -85,9 +85,20 @@ class SensitiveDataFilter(logging.Filter):
 
     A regex failure surfaces as the sentinel ``[log-redaction-error]`` rather
     than leaking the raw value.
+
+    **Single-pass marker**: the same ``LogRecord`` instance is filtered once
+    per handler (e.g. console + file, each with its own ``SensitiveDataFilter``
+    instance) since filters run per-handler but records are shared across a
+    logger's handlers. The first pass sets ``record._redacted = True``; later
+    passes short-circuit immediately instead of re-redacting already-redacted
+    (idempotent but wasted) text. The leading underscore keeps the marker out
+    of ``JSONFormatter`` output (reserved/underscore-prefixed keys are
+    excluded from the extras payload).
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        if getattr(record, "_redacted", False):
+            return True
         if isinstance(record.msg, str):
             try:
                 rendered = record.getMessage()
@@ -117,6 +128,7 @@ class SensitiveDataFilter(logging.Filter):
         for attr in list(vars(record)):
             if attr in _SENSITIVE_FIELDS or attr.lower() in _SENSITIVE_FIELDS:
                 setattr(record, attr, "[REDACTED]")
+        record._redacted = True
         return True
 
 
@@ -133,6 +145,14 @@ class WorkerIdFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        # If pipeline.workers was never imported, no worker pool can possibly be
+        # active — skip the import entirely. This keeps the heavy stack
+        # (workers.py imports api.client → aanalytics2 and sdr.builder → pandas)
+        # off the light-command runtime path; the first log record must not
+        # drag it in. Once the batch path imports workers.py, this resolves
+        # real worker ids exactly as before.
+        if "aa_auto_sdr.pipeline.workers" not in sys.modules:
+            return True
         # Lazy import to avoid circular: pipeline.workers imports core.logging indirectly.
         from aa_auto_sdr.pipeline.workers import _worker_local
 

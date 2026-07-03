@@ -167,7 +167,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     started = time.monotonic()
     suites = _records(
         _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
+            lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True),
             policy=client.retry_policy,
             rsid=rsid,
         )
@@ -228,11 +228,23 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     return sorted(summaries, key=lambda s: s.rsid)
 
 
+def fetch_report_suites_raw(client: AaClient) -> list[dict[str, Any]]:
+    """One full report-suite listing as raw records, for callers that resolve
+    many identifiers against a single fetch (batch/stats/inventory)."""
+    return _records(
+        _retry_and_normalize(
+            lambda: client.handle.getReportSuites(extended_info=True),
+            policy=client.retry_policy,
+        )
+    )
+
+
 def resolve_rsid(
     client: AaClient,
     identifier: str,
     *,
     name_match: NameMatchStrategy = "insensitive",
+    preloaded_suites: list[dict[str, Any]] | None = None,
 ) -> tuple[list[str], bool]:
     """Resolve a user-supplied identifier to one or more canonical RSIDs.
 
@@ -250,6 +262,10 @@ def resolve_rsid(
     with candidates exposed. insensitive mode preserves pre-v1.9.0 behavior
     (returns all matched RSIDs; CLI generates per-RSID).
 
+    `preloaded_suites`, when given, is used instead of calling the SDK —
+    callers resolving many identifiers (batch/stats/inventory) fetch the
+    listing once via `fetch_report_suites_raw` and pass it in here.
+
     Returns (rsids, was_name_lookup). `rsids` is always a non-empty list
     on successful return.
     """
@@ -257,12 +273,15 @@ def resolve_rsid(
         raise ValueError(f"name_match must be one of {list(_NAME_MATCH_VALUES)}, got {name_match!r}")
 
     logger.debug("resolve_rsid identifier-input strategy=%s", name_match)
-    suites = _records(
-        _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True),
-            policy=client.retry_policy,
+    if preloaded_suites is not None:
+        suites = preloaded_suites
+    else:
+        suites = _records(
+            _retry_and_normalize(
+                lambda: client.handle.getReportSuites(extended_info=True),
+                policy=client.retry_policy,
+            )
         )
-    )
 
     # 1) Exact RSID match — RSIDs are distinct and case-sensitive
     for raw in suites:
@@ -424,7 +443,7 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     started = time.monotonic()
     raws = _records(
         _retry_and_normalize(
-            lambda: client.handle.getSegments(rsids_list=[rsid], extended_info=True),
+            lambda: client.handle.getSegments(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             policy=client.retry_policy,
             rsid=rsid,
             component_type="segment",
@@ -482,7 +501,7 @@ def fetch_calculated_metrics(
     started = time.monotonic()
     raws = _records(
         _retry_and_normalize(
-            lambda: client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True),
+            lambda: client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             policy=client.retry_policy,
             rsid=rsid,
             component_type="calculated_metric",

@@ -127,11 +127,17 @@ def is_git_repository(path: Path) -> bool:
     return toplevel == path.resolve()
 
 
-def git_init_snapshot_repo(snapshot_dir: Path) -> GitOpResult:
+def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False) -> GitOpResult:
     """Initialize `snapshot_dir` as a git repo and create the initial commit.
 
     Idempotent: if `snapshot_dir` is already a git repo, returns ok=True
     without re-initializing.
+
+    `_already_checked` is an internal-only optimization for callers (namely
+    `git_commit_snapshot`) that have just run `is_git_repository(snapshot_dir)`
+    themselves and know it returned False — it skips the redundant repeat
+    probe. Public/default behavior (`_already_checked=False`) is unchanged:
+    this function always verifies for itself unless told not to.
 
     Side effects on a fresh repo:
     - `git init --initial-branch=main`
@@ -140,7 +146,7 @@ def git_init_snapshot_repo(snapshot_dir: Path) -> GitOpResult:
     - Creates the initial commit with that README.
     """
     snapshot_dir.mkdir(parents=True, exist_ok=True)
-    if is_git_repository(snapshot_dir):
+    if not _already_checked and is_git_repository(snapshot_dir):
         return GitOpResult(ok=True)
 
     init = _run_git(["init", "--initial-branch=main"], cwd=snapshot_dir)
@@ -277,9 +283,11 @@ def git_commit_snapshot(
     """
     with _GIT_LOCK:
         started = time.monotonic()
-        # Lazy init.
+        # Lazy init. We've just confirmed `is_git_repository` is False, so pass
+        # _already_checked=True to skip the redundant re-probe inside
+        # git_init_snapshot_repo.
         if not is_git_repository(snapshot_dir):
-            init = git_init_snapshot_repo(snapshot_dir)
+            init = git_init_snapshot_repo(snapshot_dir, _already_checked=True)
             if not init.ok:
                 duration_ms = int((time.monotonic() - started) * 1000)
                 logger.info(

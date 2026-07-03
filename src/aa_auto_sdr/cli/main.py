@@ -16,7 +16,6 @@ from aa_auto_sdr.cli.agent_output import (
     resolve_agent_output_path,
 )
 from aa_auto_sdr.cli.commands import config as config_cmd
-from aa_auto_sdr.cli.commands import generate as generate_cmd
 from aa_auto_sdr.cli.commands._shared import resolve_snapshot_dir
 from aa_auto_sdr.cli.parser import (
     _apply_agent_mode_defaults,
@@ -1150,6 +1149,8 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         stdout_formats=frozenset(),
     )
     output_dir: Path = Path("-") if resolved_output == "-" else ns.output_dir
+    from aa_auto_sdr.cli.commands import generate as generate_cmd
+
     return generate_cmd.run(
         rsid=rsids[0],
         output_dir=output_dir,

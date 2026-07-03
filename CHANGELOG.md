@@ -2,6 +2,45 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.4] — 2026-07-02
+
+Performance & correctness patch. No new flags and no changed defaults. Faster
+light-command startup, fewer redundant API calls, and one data-correctness fix.
+
+### Fixed
+- Segments and calculated metrics are now fetched with `format="raw"` instead of
+  round-tripping through a pandas DataFrame. The DataFrame path filled absent
+  cells of ragged rows with `NaN`, which surfaced as the literal string `"nan"`
+  for missing `description` / `created` / `modified` and as `True` for missing
+  booleans. Affected report suites will show a one-time snapshot diff on the next
+  capture as these values correct to `null` / their true value. The snapshot
+  schema (`aa-sdr-snapshot/v4`) is unchanged. Report-suite metadata fields
+  (`timezone`, `currency`, `parent_rsid`) may show the same one-time
+  correction, since the single-suite lookup no longer round-trips through a
+  ragged full-company DataFrame.
+- A deterministic `KeyError: "[...] not in index"` from the SDK's column slicing
+  is now treated as permanent and fails fast, instead of being retried with the
+  full budget (which re-ran the entire paginated fetch before failing the same
+  way).
+
+### Changed
+- Light commands (`--diff`, `--show-config`, `--list-snapshots`,
+  `--trending-window`, and the other no-network paths) no longer import
+  `pandas` / `aanalytics2` / `requests` at startup, cutting ~0.3–0.4 s off their
+  launch. Meta-tests guard the import boundary.
+- The report-suite listing is fetched once per invocation. A single-suite lookup
+  now uses the API's server-side `rsid_list` filter, and the batch / stats /
+  inventory resolve loops resolve every identifier against one listing instead of
+  one per identifier.
+- Segments and calculated metrics page at the API maximum (1000 per request)
+  instead of 500.
+- CSV and HTML writers build each row's dict once instead of once per column;
+  trending streams snapshots with a two-envelope window instead of loading the
+  whole window into memory; the snapshot/pipe paths reuse a single serialized
+  document payload. Output is unchanged.
+- Minor internal tidy-ups: retention `keep_last` selection, single log-redaction
+  pass, and one fewer git subprocess per commit.
+
 ## [1.21.3] — 2026-06-25
 
 Test-coverage patch. No new flags and no change to runtime behavior. Line coverage rose from 94.3% to 99.7% and the suite grew from 2094 to 2252 tests.

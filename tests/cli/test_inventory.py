@@ -116,13 +116,19 @@ def _stub_fetch_table(client: object, rsid: str) -> _StubReportSuite:
     return _StubReportSuite(rsid, rsid.upper())
 
 
-def _stub_resolve_rsid(_client: object, ident: str, name_match: str = "insensitive") -> tuple[list[str], bool]:
+def _stub_resolve_rsid(
+    _client: object,
+    ident: str,
+    name_match: str = "insensitive",
+    preloaded_suites: list | None = None,
+) -> tuple[list[str], bool]:
     """Identity-resolve: pass the supplied identifier through as the canonical RSID.
 
-    `name_match` is accepted because production calls `resolve_rsid` with it as a
-    keyword arg; the stub ignores it.
+    `name_match` and `preloaded_suites` are accepted because production calls
+    `resolve_rsid` with them as keyword args; the stub ignores both.
     """
     _ = name_match
+    _ = preloaded_suites
     return ([ident], False)
 
 
@@ -391,6 +397,28 @@ class TestRunErrorPaths:
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.API.value
         assert "500 during resolve" in capsys.readouterr().out
+
+    def test_preload_listing_failure_falls_back_to_per_identifier_resolve(self) -> None:
+        """fetch_report_suites_raw failing is best-effort: the resolve loop falls back
+        to preloaded_suites=None (not some other value) and resolves each identifier
+        on its own, exactly as before the listing-once optimization existed."""
+        from aa_auto_sdr.core.exceptions import ApiError
+
+        patches = _patch_fetchers()
+        _enter_all(patches)
+        try:
+            with (
+                patch.object(inv_command.fetch, "fetch_report_suites_raw", side_effect=ApiError("listing failed")),
+                patch.object(inv_command.fetch, "resolve_rsid", side_effect=_stub_resolve_rsid) as resolve_mock,
+            ):
+                exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
+        finally:
+            _exit_all(patches)
+        assert exit_code == ExitCode.OK.value
+        # The fallback must hand resolve_rsid exactly None — a wrong value (e.g. a
+        # stub or partial listing) would silently change matching inputs.
+        assert resolve_mock.call_count == 1
+        assert resolve_mock.call_args.kwargs["preloaded_suites"] is None
 
 
 class TestRunClassificationFetchStatus:
