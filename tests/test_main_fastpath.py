@@ -220,3 +220,28 @@ def test_help_lists_template_flags() -> None:
     assert "--template" in out
     assert "--template-organization" in out
     assert "--template-overwrite-reserved" not in out
+
+
+def test_help_has_no_version_anchors_or_changelog() -> None:
+    """Per CLAUDE.md, user-facing prose does not carry 'added in vX' anchors or
+    a changelog block; that history lives in CHANGELOG.md. The help text lists
+    what the tool does now."""
+    import re
+
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    out = result.stdout
+    # No parenthetical version markers like "(v1.2)" or "(v1.13.0)".
+    assert not re.search(r"\(v\d+\.\d+", out), "help text still carries a (vX.Y) anchor"
+    # No changelog lines like "v1.8.0: ...".
+    assert not re.search(r"(?m)^v\d+\.\d+\.\d+:", out), "help text still carries a changelog block"
+    # The section headers no longer carry version parentheticals either.
+    assert "Batch parallelism:" in out
+    assert "Watch mode:" in out
+    # Flags are still documented.
+    assert "--git-commit" in out
+    assert "--template " in out
