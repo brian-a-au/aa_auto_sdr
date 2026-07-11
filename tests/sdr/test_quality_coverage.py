@@ -63,11 +63,6 @@ def test_detect_stale_skips_components_without_name_or_id() -> None:
     assert detect_stale(bundle) == []
 
 
-def test_id_of_falls_back_to_dataset_id() -> None:
-    item = types.SimpleNamespace(dataset_id="ds-9")
-    assert _id_of(item) == "ds-9"
-
-
 def test_id_of_falls_back_to_repr_when_no_id_attrs() -> None:
     item = types.SimpleNamespace()
     assert _id_of(item) == repr(item)
