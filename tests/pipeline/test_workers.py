@@ -528,3 +528,102 @@ def test_fail_fast_records_never_submitted_rsids_as_cancelled(
     by_rsid = {f.rsid: f.error_type for f in result.failures}
     assert by_rsid["r3"] == "CancelledError"
     assert by_rsid["r4"] == "CancelledError"
+
+
+def test_fail_fast_late_success_emits_rsid_complete_log(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A still-running worker that completes after fail-fast triggers must go
+    through the same rsid_complete logging as a normally-completed future —
+    it still wrote output and appears in the summary."""
+    import logging
+
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    rb_started = threading.Event()
+    release_rb = threading.Event()
+
+    def runner(*, rsid: str, **_kw: object) -> RunResult:
+        if rsid == "rA":
+            rb_started.wait(timeout=5.0)
+            raise ApiError("forced failure")
+        rb_started.set()
+        release_rb.wait(timeout=5.0)
+        return _success_result(rsid)
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    with caplog.at_level(logging.INFO, logger="aa_auto_sdr.pipeline.workers"):
+        run_parallel(
+            rsids=["rA", "rB"],
+            workers=2,
+            client=MagicMock(),
+            cache=None,
+            fail_fast=True,
+            failure_callback=lambda *_a: release_rb.set(),
+            formats=["json"],
+            output_dir=Path("/tmp"),
+            captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+            tool_version="1.21.6",
+        )
+
+    complete_rsids = {
+        r.rsid for r in caplog.records if r.getMessage().startswith("rsid_complete") and getattr(r, "rsid", None)
+    }
+    assert "rB" in complete_rsids
+
+
+def test_fail_fast_late_failure_logs_and_invokes_callback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A still-running worker that fails after fail-fast triggers must emit
+    rsid_failure and invoke failure_callback, matching the normal failure path."""
+    import logging
+
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    rb_started = threading.Event()
+    release_rb = threading.Event()
+    callback_rsids: list[str] = []
+
+    def runner(*, rsid: str, **_kw: object) -> RunResult:
+        if rsid == "rA":
+            rb_started.wait(timeout=5.0)
+            raise ApiError("rA failed first")
+        rb_started.set()
+        release_rb.wait(timeout=5.0)
+        raise ApiError("rB failed late")
+
+    def _callback(_i: int, _total: int, rsid: str, _msg: str) -> None:
+        callback_rsids.append(rsid)
+        if rsid == "rA":
+            release_rb.set()
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    with caplog.at_level(logging.ERROR, logger="aa_auto_sdr.pipeline.workers"):
+        result = run_parallel(
+            rsids=["rA", "rB"],
+            workers=2,
+            client=MagicMock(),
+            cache=None,
+            fail_fast=True,
+            failure_callback=_callback,
+            formats=["json"],
+            output_dir=Path("/tmp"),
+            captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+            tool_version="1.21.6",
+        )
+
+    assert {f.rsid for f in result.failures} == {"rA", "rB"}
+    # rB is a real API failure, not a synthetic cancellation.
+    by_rsid = {f.rsid: f for f in result.failures}
+    assert by_rsid["rB"].error_type == "ApiError"
+    assert by_rsid["rB"].exit_code == 12
+    assert "rB" in callback_rsids
+    failure_rsids = {
+        r.rsid for r in caplog.records if r.getMessage().startswith("rsid_failure") and getattr(r, "rsid", None)
+    }
+    assert "rB" in failure_rsids

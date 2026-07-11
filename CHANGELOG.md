@@ -37,6 +37,11 @@ change is called out under Changed.
   cancelled failures. With more RSIDs than workers, identifiers still waiting
   in the submission queue used to vanish from the batch result, so the summary
   held fewer records than the input.
+- A worker that was already running when parallel `--fail-fast` triggered now
+  emits its terminal `rsid_complete` or `rsid_failure` log and fires the
+  failure callback, matching a normally-completed worker. Such a worker still
+  writes output and appears in the summary, so structured-log and progress
+  consumers no longer miss its outcome.
 - An all-failed `--fail-fast` batch now exits with the code of the error that
   triggered the stop, e.g. 12 for an API error, instead of 1. The synthetic
   cancellation records are skipped when choosing the exit code.
