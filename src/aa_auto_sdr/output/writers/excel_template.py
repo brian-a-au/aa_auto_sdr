@@ -142,7 +142,7 @@ class ExcelTemplateWriter:
         for comp in remaining:
             if append_row > soft_cap:
                 break
-            ws.cell(row=append_row, column=id_col, value=get_id(comp))
+            _set_text_safe_cell(ws, row=append_row, col=id_col, value=get_id(comp))
             _write_row(
                 ws,
                 row=append_row,
@@ -349,7 +349,7 @@ class ExcelTemplateWriter:
         if "Glossary" not in wb.sheetnames:
             return
         org = self.organization or doc.report_suite.name
-        wb["Glossary"]["C2"] = org
+        _set_text_safe_cell(wb["Glossary"], row=2, col=3, value=org)
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
         if self.template_path is None:
@@ -417,7 +417,18 @@ def _write_row(
         text = str(value).strip()
         if not text:
             continue
-        ws.cell(row=row, column=col, value=value)
+        _set_text_safe_cell(ws, row=row, col=col, value=value)
+
+
+def _set_text_safe_cell(ws, *, row: int, col: int, value: Any) -> None:
+    """Write a cell, forcing string type when openpyxl would infer a formula.
+
+    openpyxl marks any string starting with `=` as data_type 'f' (a live
+    formula). Component names are user-authored in Adobe Analytics, so a name
+    like `=HYPERLINK(...)` must land as literal text, not executable content."""
+    cell = ws.cell(row=row, column=col, value=value)
+    if cell.data_type == "f":
+        cell.data_type = "s"
 
 
 register_writer("excel-template", ExcelTemplateWriter())

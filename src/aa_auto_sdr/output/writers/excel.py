@@ -55,7 +55,11 @@ class ExcelWriter:
         }
 
         target.parent.mkdir(parents=True, exist_ok=True)
-        with pd.ExcelWriter(target, engine="xlsxwriter") as xl:
+        # strings_to_formulas/urls off: xlsxwriter otherwise converts any
+        # leading-`=` string (user-authored component names) into a LIVE
+        # formula cell, and URL-looking strings into hyperlinks.
+        engine_kwargs = {"options": {"strings_to_formulas": False, "strings_to_urls": False}}
+        with pd.ExcelWriter(target, engine="xlsxwriter", engine_kwargs=engine_kwargs) as xl:
             for name, df in sheets.items():
                 df.to_excel(xl, sheet_name=name, index=False)
                 ws = xl.sheets[name]

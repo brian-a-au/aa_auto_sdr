@@ -15,7 +15,7 @@ from dataclasses import asdict, fields
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.output._helpers import stringify_cell
+from aa_auto_sdr.output._helpers import neutralize_formula, stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -90,11 +90,14 @@ def _component_headers_for_empty(field_name: str) -> list[str]:
 
 
 def _encode_csv(headers: list[str], rows: list[list[str]]) -> str:
-    """Format a CSV body as a string (suitable for atomic write)."""
+    """Format a CSV body as a string (suitable for atomic write).
+
+    Data cells are formula-neutralized: component names are user-authored in
+    AA, and Excel evaluates leading-`=` cells on CSV import."""
     buf = io.StringIO()
     writer = _csv.writer(buf)
     writer.writerow(headers)
-    writer.writerows(rows)
+    writer.writerows([neutralize_formula(cell) for cell in row] for row in rows)
     return buf.getvalue()
 
 
