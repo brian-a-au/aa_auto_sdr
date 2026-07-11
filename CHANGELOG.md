@@ -50,10 +50,16 @@ change is called out under Changed.
 - An all-failed `--fail-fast` batch now exits with the code of the error that
   triggered the stop, e.g. 12 for an API error, instead of 1. The synthetic
   cancellation records are skipped when choosing the exit code.
-- `--git-commit` and `--template` are now also rejected when combined with the
+- `--git-commit` and `--template` are now rejected when combined with the
   fast-path diagnostic actions `--exit-codes`, `--explain-exit-code`, and
-  `--completion`. A modifier before one of these used to reach the slow path
-  and be silently ignored.
+  `--completion`, in either order. These diagnostic flags now short-circuit
+  only in their exact standalone form; when extra tokens follow, the run
+  defers to the full parser and modifier validators, so `--exit-codes
+  --git-commit` no longer exits 0 while silently ignoring the modifier.
+- The `--quality-report` plus `--output -` conflict is now reported before the
+  credential round-trip, so a missing-credentials environment no longer masks
+  it: the run exits 15 (OUTPUT) with the conflict message instead of 10
+  (CONFIG).
 - The quality cache key now includes component names as well as ids. The
   audits are name-based, so a renamed component with the same id used to
   return a stale cached result within one run.

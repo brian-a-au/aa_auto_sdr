@@ -105,11 +105,15 @@ def main(argv: list[str] | None = None) -> int:
         return _print_version()
     if args and args[0] in _FASTPATH_HELP:
         return _print_help()
-    if args and args[0] == "--exit-codes":
+    # Diagnostic fast paths only short-circuit for their exact standalone form.
+    # When extra tokens follow (e.g. `--exit-codes --git-commit`), fall through
+    # to run(), where the parser + modifier validators reject the combination —
+    # so validation does not depend on whether the diagnostic flag came first.
+    if args and args[0] == "--exit-codes" and len(args) == 1:
         from aa_auto_sdr.cli.commands.exit_codes import run_list_exit_codes
 
         return run_list_exit_codes()
-    if args and args[0] == "--explain-exit-code":
+    if args and args[0] == "--explain-exit-code" and len(args) <= 2:
         from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
 
         if len(args) < 2:
@@ -121,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"error: '{args[1]}' is not a valid exit code (must be int)", file=sys.stderr, flush=True)
             return 2
         return run_explain_exit_code(code)
-    if args and args[0] == "--completion":
+    if args and args[0] == "--completion" and len(args) <= 2:
         from aa_auto_sdr.cli.commands.completion import run_completion
 
         if len(args) < 2:

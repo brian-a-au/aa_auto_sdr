@@ -245,3 +245,27 @@ def test_help_has_no_version_anchors_or_changelog() -> None:
     # Flags are still documented.
     assert "--git-commit" in out
     assert "--template " in out
+
+
+def test_exit_codes_with_trailing_modifier_rejected(capsys) -> None:
+    """`--exit-codes --git-commit` must not silently ignore the modifier; the
+    fast path should defer to the parser + validators, which reject it (USAGE)."""
+    rc = main(["--exit-codes", "--git-commit"])
+    assert rc == 2
+
+
+def test_completion_with_trailing_modifier_rejected(capsys) -> None:
+    rc = main(["--completion", "bash", "--git-commit"])
+    assert rc == 2
+
+
+def test_explain_exit_code_with_trailing_modifier_rejected(capsys) -> None:
+    rc = main(["--explain-exit-code", "0", "--git-commit"])
+    assert rc == 2
+
+
+def test_exit_codes_standalone_still_fast_paths(capsys) -> None:
+    """The common standalone form is unaffected."""
+    rc = main(["--exit-codes"])
+    assert rc == 0
+    assert capsys.readouterr().out.strip()

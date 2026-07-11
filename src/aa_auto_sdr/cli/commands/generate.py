@@ -259,6 +259,15 @@ def _run_impl(
         )
         return ExitCode.USAGE.value
 
+    if is_pipe and quality_report:
+        # Pure argument conflict: the quality report is a file artifact and
+        # there is no stdout slot for it on the pipe path (stdout carries the
+        # SDR JSON). Reject before the credential round-trip so a missing-creds
+        # environment cannot mask this with CONFIG (10) instead of OUTPUT (15).
+        msg = "error: --quality-report cannot be combined with --output - (use --output-dir <DIR>)"
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
+        return ExitCode.OUTPUT.value
+
     from aa_auto_sdr.sdr.builder import ComponentFilter
 
     component_filter = ComponentFilter.from_args(
@@ -289,14 +298,6 @@ def _run_impl(
 
     if is_pipe and (len(formats) != 1 or formats[0] != "json"):
         msg = f"error: format {format_name!r} cannot be piped to stdout; use --output-dir <DIR> instead"
-        _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
-        return ExitCode.OUTPUT.value
-
-    if is_pipe and quality_report:
-        # The quality report is a file artifact; there is no stdout slot for it
-        # on the pipe path (stdout carries the SDR JSON). Reject loudly instead
-        # of silently skipping the report.
-        msg = "error: --quality-report cannot be combined with --output - (use --output-dir <DIR>)"
         _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
         return ExitCode.OUTPUT.value
 

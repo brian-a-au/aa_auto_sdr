@@ -430,3 +430,28 @@ class TestModifierValidatorDiagnosticActions:
         template.write_bytes(b"")
         ns = argparse.Namespace(template=template, template_organization=None, completion="bash")
         assert _validate_template_modifiers(ns) == 2
+
+
+# --- Codex review round 4 --------------------------------------------------
+
+
+class TestPipeReportConflictBeforeCreds:
+    def test_quality_report_pipe_conflict_wins_over_missing_creds(
+        self, monkeypatch: pytest.MonkeyPatch, capsys, tmp_path: Path
+    ) -> None:
+        """--output - + --quality-report is a pure argument conflict (exit 15);
+        it must be reported before the credential round-trip, so a missing-creds
+        environment does not mask it with CONFIG (10)."""
+        for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+            monkeypatch.delenv(v, raising=False)
+        monkeypatch.chdir(tmp_path)  # no config.json to pick up
+        rc = generate_cmd.run(
+            rsid="demo.prod",
+            output_dir=Path("-"),
+            format_name="json",
+            profile=None,
+            quality_report="json",
+            audit_naming=True,
+        )
+        assert rc == 15
+        assert "quality-report" in capsys.readouterr().err
