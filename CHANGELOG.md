@@ -91,6 +91,10 @@ change is called out under Changed.
 - `--fail-fast` now also stops sequential batches (`--workers 1`). It was
   silently ignored there before. Unattempted RSIDs are recorded as cancelled
   failures on both paths so the accounting matches.
+- `--fail-fast` now also covers the identifier-resolution phase. The first
+  identifier that fails to resolve stops the batch, and the identifiers after
+  it are recorded as cancelled instead of generating. Without `--fail-fast`,
+  every unresolvable identifier is still reported in one run.
 
 ### Removed
 - Dead code found by the sweep: the unused `WatchEventEmitter` protocol,

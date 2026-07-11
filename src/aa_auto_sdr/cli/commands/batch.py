@@ -334,7 +334,7 @@ def _run_impl(
             preloaded_suites = fetch.fetch_report_suites_raw(client)
         except Exception:  # best-effort; any failure falls back to per-identifier fetch
             preloaded_suites = None
-        for identifier in rsids:
+        for i, identifier in enumerate(rsids):
             try:
                 resolved, _was_name = fetch.resolve_rsid(
                     client, identifier, name_match=name_match, preloaded_suites=preloaded_suites
@@ -358,7 +358,6 @@ def _run_impl(
                         exit_code=ExitCode.NOT_FOUND.value,
                     ),
                 )
-                continue
             except ReportSuiteNotFoundError as exc:
                 print(f"error: {exc}", file=sys.stderr, flush=True)
                 pre_failures.append(
@@ -369,7 +368,6 @@ def _run_impl(
                         exit_code=ExitCode.NOT_FOUND.value,
                     ),
                 )
-                continue
             except ApiError as exc:
                 print(f"api error: {exc}", file=sys.stderr, flush=True)
                 pre_failures.append(
@@ -380,12 +378,31 @@ def _run_impl(
                         exit_code=ExitCode.API.value,
                     ),
                 )
+            else:
+                for rs in resolved:
+                    if rs in seen:
+                        continue
+                    seen.add(rs)
+                    canonical.append(rs)
                 continue
-            for rs in resolved:
-                if rs in seen:
-                    continue
-                seen.add(rs)
-                canonical.append(rs)
+            # Reached only when resolve_rsid raised. Under --fail-fast, stop at
+            # the first resolution failure: cancel every remaining identifier so
+            # nothing after it generates, matching fail-fast in the generation
+            # phase. Without --fail-fast we continue so every bad identifier is
+            # reported in one run.
+            if fail_fast:
+                for skipped in rsids[i + 1 :]:
+                    if skipped in seen:
+                        continue  # a duplicate that already resolved before the failure
+                    pre_failures.append(
+                        BatchFailure(
+                            rsid=skipped,
+                            error_type="CancelledError",
+                            message="cancelled",
+                            exit_code=ExitCode.GENERIC.value,
+                        ),
+                    )
+                break
 
     captured_at = datetime.now(UTC)
 
@@ -614,8 +631,7 @@ def _run_impl(
     # API/auth/output/config code rather than GENERIC. This is the last real
     # failure by list order — resolution pre_failures are appended last, and
     # parallel completion order varies — so it is not necessarily the failure
-    # that triggered fail-fast. (fail-fast covers the generation phase only;
-    # resolution failures are collected separately before run_batch.)
+    # that triggered fail-fast.
     real_failures = [f for f in final.failures if f.error_type != "CancelledError"]
     relevant = real_failures or final.failures
     return relevant[-1].exit_code

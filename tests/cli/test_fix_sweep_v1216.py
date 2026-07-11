@@ -455,3 +455,67 @@ class TestPipeReportConflictBeforeCreds:
         )
         assert rc == 15
         assert "quality-report" in capsys.readouterr().err
+
+
+class TestFailFastResolutionPhase:
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_fail_fast_halts_on_first_resolution_failure(
+        self, mock_client_cls, env_creds, capsys, tmp_path: Path
+    ) -> None:
+        """Under --fail-fast, a resolution failure at the first identifier stops
+        the batch: later identifiers are cancelled and never generate."""
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=_build_multi_handle(["valid"]), company_id="testco"
+        )
+        rc = batch_cmd.run(
+            rsids=["missing", "valid"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            workers=1,
+            fail_fast=True,
+        )
+        assert rc == 13  # all failed → NOT_FOUND (the triggering resolution error)
+        assert not (tmp_path / "valid.json").exists()  # valid never generated
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_fail_fast_keeps_successes_before_the_failure(
+        self, mock_client_cls, env_creds, capsys, tmp_path: Path
+    ) -> None:
+        """An identifier that resolved before the failing one still generates."""
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=_build_multi_handle(["valid"]), company_id="testco"
+        )
+        rc = batch_cmd.run(
+            rsids=["valid", "missing"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            workers=1,
+            fail_fast=True,
+        )
+        assert rc == 14  # partial: valid succeeded, missing failed
+        assert (tmp_path / "valid.json").exists()
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_without_fail_fast_reports_all_resolution_failures(
+        self, mock_client_cls, env_creds, capsys, tmp_path: Path
+    ) -> None:
+        """Continue-on-error still reports every bad identifier and generates the
+        good ones — the report-all-typos behavior is preserved without fail-fast."""
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=_build_multi_handle(["valid"]), company_id="testco"
+        )
+        rc = batch_cmd.run(
+            rsids=["missing1", "valid", "missing2"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            workers=1,
+            fail_fast=False,
+        )
+        assert rc == 14
+        assert (tmp_path / "valid.json").exists()
+        err = capsys.readouterr().err
+        assert "missing1" in err
+        assert "missing2" in err

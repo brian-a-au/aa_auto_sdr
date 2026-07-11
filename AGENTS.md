@@ -99,7 +99,11 @@ to run per-RSID SDR generation in parallel via a `ThreadPoolExecutor`.
 - `--workers N>=2`: parallel run via the worker pool.
 - `--fail-fast` opts out of the continue-on-error default on both paths:
   sequential runs stop at the first failure; parallel runs cancel pending
-  workers. Unattempted RSIDs are recorded as cancelled failures.
+  workers. Unattempted RSIDs are recorded as cancelled failures. Fail-fast
+  also covers the identifier-resolution phase: the first identifier that
+  fails to resolve stops the batch, and the identifiers after it are recorded
+  as cancelled. Without `--fail-fast`, every unresolvable identifier is
+  reported in one run.
 
 JSON log records on parallel runs include `worker_id` (the per-RSID
 submission index, 0..N-1). Sequential runs omit the field. Agents
