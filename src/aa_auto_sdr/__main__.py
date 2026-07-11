@@ -123,19 +123,19 @@ def main(argv: list[str] | None = None) -> int:
         from aa_auto_sdr.cli.commands.exit_codes import run_explain_exit_code
 
         if len(args) < 2:
-            print("error: --explain-exit-code requires a CODE argument", flush=True)
+            print("error: --explain-exit-code requires a CODE argument", file=sys.stderr, flush=True)
             return 2
         try:
             code = int(args[1])
         except ValueError:
-            print(f"error: '{args[1]}' is not a valid exit code (must be int)", flush=True)
+            print(f"error: '{args[1]}' is not a valid exit code (must be int)", file=sys.stderr, flush=True)
             return 2
         return run_explain_exit_code(code)
     if args and args[0] == "--completion":
         from aa_auto_sdr.cli.commands.completion import run_completion
 
         if len(args) < 2:
-            print("error: --completion requires a SHELL argument (bash, zsh, or fish)", flush=True)
+            print("error: --completion requires a SHELL argument (bash, zsh, or fish)", file=sys.stderr, flush=True)
             return 2
         return run_completion(args[1])
     if args and args[0] == "--notion-print-database-schema":
@@ -144,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         if len(args) > 1:
             print(
                 "error: --notion-print-database-schema cannot be combined with other arguments",
+                file=sys.stderr,
                 flush=True,
             )
             return 2

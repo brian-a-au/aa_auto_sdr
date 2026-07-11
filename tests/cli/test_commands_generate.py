@@ -331,7 +331,7 @@ def test_generate_pipe_no_creds_emits_envelope_to_stderr(
     assert payload["error"]["type"] == "ConfigError"
 
 
-def test_generate_non_pipe_no_creds_prints_to_stdout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+def test_generate_non_pipe_no_creds_prints_to_stderr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     """Non-pipe path keeps the legacy human-readable error on stdout."""
     for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
         monkeypatch.delenv(v, raising=False)
@@ -339,7 +339,7 @@ def test_generate_non_pipe_no_creds_prints_to_stdout(monkeypatch: pytest.MonkeyP
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == 10
     captured = capsys.readouterr()
-    assert "error:" in captured.out
+    assert "error:" in captured.err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
@@ -358,7 +358,7 @@ def test_generate_pipe_auth_error_emits_envelope(mock_client_cls, env_creds, cap
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
-def test_generate_non_pipe_auth_error_prints_to_stdout(mock_client_cls, env_creds, tmp_path, capsys) -> None:
+def test_generate_non_pipe_auth_error_prints_to_stderr(mock_client_cls, env_creds, tmp_path, capsys) -> None:
     """Non-pipe path keeps the legacy `auth error: ...` on stdout."""
     from aa_auto_sdr.core.exceptions import AuthError
 
@@ -366,7 +366,7 @@ def test_generate_non_pipe_auth_error_prints_to_stdout(mock_client_cls, env_cred
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == 11
     captured = capsys.readouterr()
-    assert "auth error" in captured.out
+    assert "auth error" in captured.err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
@@ -417,7 +417,7 @@ def test_generate_non_pipe_unknown_rsid_returns_13(mock_client_cls, env_creds, t
     mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
     rc = cmd.run(rsid="never-exists", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == 13
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
@@ -438,7 +438,7 @@ def test_generate_non_pipe_runsingle_apierror(
     monkeypatch.setattr(single, "run_single", boom)
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == 12
-    assert "api error" in capsys.readouterr().out
+    assert "api error" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")

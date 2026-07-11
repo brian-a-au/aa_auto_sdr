@@ -47,7 +47,7 @@ def test_generate_unknown_format_returns_generic(env_creds, tmp_path: Path, caps
     """resolve_formats raises KeyError for an unknown alias → GENERIC (1)."""
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="bogus", profile=None)
     assert rc == ExitCode.GENERIC.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
@@ -101,7 +101,7 @@ def test_generate_writer_unavailable_returns_output(
     monkeypatch.setattr(registry, "get_writer", _no_writer)
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == ExitCode.OUTPUT.value
-    assert "is not available in this build" in capsys.readouterr().out
+    assert "is not available in this build" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ def test_generate_resolve_apierror_returns_api(
     monkeypatch.setattr(fetch, "resolve_rsid", boom)
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out
+    assert "api error" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +269,7 @@ def test_generate_file_run_single_rsid_not_found_returns_13(
     monkeypatch.setattr(single, "run_single", boom)
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == ExitCode.NOT_FOUND.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
@@ -293,7 +293,7 @@ def test_generate_file_run_single_generic_error_returns_generic(
     monkeypatch.setattr(single, "run_single", boom)
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
     assert rc == ExitCode.GENERIC.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +345,7 @@ def test_generate_auto_prune_bad_keep_since_returns_config(
         snapshot_dir=snap_dir,
     )
     assert rc == ExitCode.CONFIG.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")

@@ -83,9 +83,11 @@ def _emit_pipe_or_print(
     message: str,
     exit_code: int,
 ) -> None:
-    """Pipe-aware error emitter. On pipe path, write JSON envelope to stderr;
-    otherwise print human-readable message to stdout. Master spec §6.2: pipe-path
-    failures must keep stdout silent so downstream `jq` etc. sees empty input."""
+    """Pipe-aware error emitter. On pipe path, write JSON envelope to stderr
+    (master spec §6.2: pipe-path failures must keep stdout silent so downstream
+    `jq` etc. sees empty input); otherwise print the human-readable message to
+    stderr, matching the cja_auto_sdr convention that errors never pollute
+    stdout."""
     if is_pipe:
         from aa_auto_sdr.output.error_envelope import emit_error_envelope
 
@@ -93,7 +95,7 @@ def _emit_pipe_or_print(
         # (e.g. format-rejection paths that don't have an exception object).
         emit_error_envelope(exc if exc is not None else RuntimeError(message), exit_code)
     else:
-        print(message, flush=True)
+        print(message, file=sys.stderr, flush=True)
 
 
 def run(
@@ -290,6 +292,14 @@ def _run_impl(
         _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
         return ExitCode.OUTPUT.value
 
+    if is_pipe and quality_report:
+        # The quality report is a file artifact; there is no stdout slot for it
+        # on the pipe path (stdout carries the SDR JSON). Reject loudly instead
+        # of silently skipping the report.
+        msg = "error: --quality-report cannot be combined with --output - (use --output-dir <DIR>)"
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
+        return ExitCode.OUTPUT.value
+
     # Vestigial pre-flight (every concrete format has a writer in v0.2+)
     registry.bootstrap()
     for fmt in formats:
@@ -356,6 +366,7 @@ def _run_impl(
         print("DRY RUN — would generate:", flush=True)
         ext_map = {
             "excel": "xlsx",
+            "excel-template": "xlsx",
             "json": "json",
             "html": "html",
             "markdown": "md",
@@ -413,6 +424,7 @@ def _run_impl(
         # (single object for one RSID, array of objects for multi-match).
         docs: list[dict] = []
         pipe_per_rsid: list[PerRsidResult] = []
+        pipe_gate_failed = False
         from aa_auto_sdr.output.error_envelope import emit_error_envelope
 
         for canonical_rsid in canonical_rsids:
@@ -476,10 +488,40 @@ def _run_impl(
                 return ExitCode.API.value
             payload = doc.to_dict()
             docs.append(payload)
+            if (
+                _fail_on_quality is not None
+                and doc.quality is not None
+                and doc.quality.get("summary", {}).get("verdict") == "fail"
+            ):
+                pipe_gate_failed = True
             if snapshot_dir is not None:
-                from aa_auto_sdr.snapshot.store import save_snapshot
+                from aa_auto_sdr.snapshot import store as snapshot_store
 
-                save_snapshot(doc, snapshot_dir=snapshot_dir, payload=payload)
+                try:
+                    snapshot_store.save_snapshot(doc, snapshot_dir=snapshot_dir, payload=payload)
+                except OutputError as e:
+                    emit_error_envelope(e, ExitCode.OUTPUT.value)
+                    pipe_per_rsid.append(
+                        PerRsidResult(
+                            rsid=canonical_rsid,
+                            name=doc.report_suite.name,
+                            succeeded=False,
+                            formats=list(formats),
+                            output_paths=[],
+                            snapshot_path=None,
+                            error=str(e),
+                        ),
+                    )
+                    _emit_run_summary(
+                        run_summary_json=run_summary_json,
+                        started_at=started_at,
+                        finished_at=datetime.now(UTC),
+                        profile=profile,
+                        per_rsid=pipe_per_rsid,
+                        show_timings=show_timings,
+                    )
+                    _emit_timings_if_enabled(show_timings=show_timings)
+                    return ExitCode.OUTPUT.value
             pipe_per_rsid.append(
                 PerRsidResult(
                     rsid=canonical_rsid,
@@ -526,6 +568,11 @@ def _run_impl(
             show_timings=show_timings,
         )
         _emit_timings_if_enabled(show_timings=show_timings)
+        # v1.12.0 quality gate, pipe-path parity: the SDR JSON already streamed
+        # to stdout; a failing verdict still turns the exit code into QUALITY
+        # exactly like the file-output path below.
+        if pipe_gate_failed:
+            return ExitCode.QUALITY.value
         return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
@@ -559,7 +606,7 @@ def _run_impl(
                 notion_company=notion_company,
             )
         except ReportSuiteNotFoundError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", file=sys.stderr, flush=True)
             per_rsid_results.append(
                 PerRsidResult(
                     rsid=canonical_rsid,
@@ -582,7 +629,7 @@ def _run_impl(
             _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.NOT_FOUND.value
         except ApiError as e:
-            print(f"api error: {e}", flush=True)
+            print(f"api error: {e}", file=sys.stderr, flush=True)
             per_rsid_results.append(
                 PerRsidResult(
                     rsid=canonical_rsid,
@@ -605,7 +652,7 @@ def _run_impl(
             _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.API.value
         except OutputError as e:
-            print(f"output error: {e}", flush=True)
+            print(f"output error: {e}", file=sys.stderr, flush=True)
             per_rsid_results.append(
                 PerRsidResult(
                     rsid=canonical_rsid,
@@ -628,7 +675,7 @@ def _run_impl(
             _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.OUTPUT.value
         except AaAutoSdrError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", file=sys.stderr, flush=True)
             per_rsid_results.append(
                 PerRsidResult(
                     rsid=canonical_rsid,

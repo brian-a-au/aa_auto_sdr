@@ -134,7 +134,7 @@ def test_diff_with_positional_rsid_returns_2(capsys) -> None:
     """`--diff a b extra-rsid` is a usage error, not a silent ignore."""
     rc = run(["--diff", "a.json", "b.json", "extra-rsid"])
     assert rc == 2
-    err = capsys.readouterr().out
+    err = capsys.readouterr().err
     assert "positional" in err.lower() or "diff" in err.lower()
 
 
@@ -348,9 +348,9 @@ class TestAutoBatchPositional:
         assert ns.batch == ["rs2"]
         # Now run the dispatch — it should print the mutex error and return USAGE (2).
         rc = run(["rs1", "--batch", "rs2"])
-        out = capsys.readouterr().out
+        err = capsys.readouterr().err
         assert rc == 2
-        assert "cannot combine --batch with positional RSIDs" in out
+        assert "cannot combine --batch with positional RSIDs" in err
 
     def test_zero_positionals_returns_usage(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = run([])
@@ -364,7 +364,7 @@ class TestAutoBatchPositional:
         rather than silently dropped."""
         rc = run(["--describe-reportsuite", "rs1", "rs2"])
         assert rc == 2
-        assert "takes its RSID inline" in capsys.readouterr().out
+        assert "takes its RSID inline" in capsys.readouterr().err
 
     def test_list_metrics_with_extra_positional_rejects(
         self,
@@ -372,7 +372,7 @@ class TestAutoBatchPositional:
     ) -> None:
         rc = run(["--list-metrics", "rs1", "rs2"])
         assert rc == 2
-        assert "takes its RSID inline" in capsys.readouterr().out
+        assert "takes its RSID inline" in capsys.readouterr().err
 
     def test_profile_test_with_extra_positional_rejects(
         self,
@@ -380,7 +380,7 @@ class TestAutoBatchPositional:
     ) -> None:
         rc = run(["--profile-test", "prod", "extra-arg"])
         assert rc == 2
-        assert "takes its RSID inline" in capsys.readouterr().out
+        assert "takes its RSID inline" in capsys.readouterr().err
 
     def test_list_snapshots_with_two_positionals_rejects(
         self,
@@ -388,7 +388,7 @@ class TestAutoBatchPositional:
     ) -> None:
         rc = run(["--list-snapshots", "rs1", "rs2", "--profile", "prod"])
         assert rc == 2
-        assert "at most one positional" in capsys.readouterr().out
+        assert "at most one positional" in capsys.readouterr().err
 
 
 class TestV12Dispatch:

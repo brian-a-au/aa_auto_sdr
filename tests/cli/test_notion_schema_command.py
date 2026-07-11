@@ -43,6 +43,6 @@ def test_print_schema_combined_with_args_exits_usage(capsys):
     from aa_auto_sdr.__main__ import main as entry
 
     rc = entry(["--notion-print-database-schema", "examplersid1"])
-    out = capsys.readouterr().out
+    err = capsys.readouterr().err
     assert rc == 2
-    assert "cannot be combined" in out
+    assert "cannot be combined" in err
