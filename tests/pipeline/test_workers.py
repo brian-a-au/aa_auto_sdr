@@ -494,3 +494,37 @@ def test_fail_fast_uncancellable_running_future_records_true_outcome(
 
     assert [r.rsid for r in result.successes] == ["rB"]
     assert {f.rsid for f in result.failures} == {"rA"}
+
+
+def test_fail_fast_records_never_submitted_rsids_as_cancelled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With more RSIDs than workers, identifiers still in the lazy-submission
+    iterator when fail-fast trips were never submitted at all. They must still
+    appear in BatchResult as cancelled failures — otherwise the summary holds
+    fewer records than the input."""
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    def runner(*, rsid: str, **_kw: object) -> RunResult:
+        raise ApiError(f"{rsid} failed")
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    result = run_parallel(
+        rsids=["r1", "r2", "r3", "r4"],
+        workers=2,
+        client=MagicMock(),
+        cache=None,
+        fail_fast=True,
+        formats=["json"],
+        output_dir=Path("/tmp"),
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="1.21.6",
+    )
+
+    recorded = {f.rsid for f in result.failures} | {r.rsid for r in result.successes}
+    assert recorded == {"r1", "r2", "r3", "r4"}
+    by_rsid = {f.rsid: f.error_type for f in result.failures}
+    assert by_rsid["r3"] == "CancelledError"
+    assert by_rsid["r4"] == "CancelledError"

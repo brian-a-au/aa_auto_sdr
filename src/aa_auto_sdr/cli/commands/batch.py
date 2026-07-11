@@ -608,8 +608,13 @@ def _run_impl(
         return ExitCode.OK.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value
-    # All failed → exit code of the *last* failure
-    return final.failures[-1].exit_code
+    # All failed → exit code of the last *real* failure. Fail-fast appends
+    # synthetic CancelledError records (GENERIC) after the triggering error;
+    # skip those so the exit code stays the actionable API/auth/output/config
+    # code that actually stopped the batch.
+    real_failures = [f for f in final.failures if f.error_type != "CancelledError"]
+    relevant = real_failures or final.failures
+    return relevant[-1].exit_code
 
 
 def _apply_auto_prune(

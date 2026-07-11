@@ -153,6 +153,13 @@ def _non_generating_action_selected(ns: argparse.Namespace) -> bool:
         or bool(getattr(ns, "notion_prune_orphans", False))
         or bool(getattr(ns, "notion_repair_database", False))
         or bool(getattr(ns, "notion_create_database", False))
+        # Fast-path diagnostic actions. These short-circuit in __main__.py only
+        # when they are argv[0]; a generation modifier before one (e.g.
+        # `--git-commit --exit-codes`) reaches the slow path, so reject here too.
+        # explain_exit_code=0 is falsy but a valid request — test for None.
+        or bool(getattr(ns, "exit_codes", False))
+        or getattr(ns, "explain_exit_code", None) is not None
+        or getattr(ns, "completion", None) is not None
     )
 
 

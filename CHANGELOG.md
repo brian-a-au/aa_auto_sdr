@@ -33,6 +33,17 @@ change is called out under Changed.
 - Parallel `--fail-fast` no longer records an in-flight worker as "cancelled"
   when it cannot be cancelled. Such a worker runs to completion and writes
   its outputs, so the batch summary now records its true outcome.
+- Parallel `--fail-fast` now records RSIDs that were never submitted as
+  cancelled failures. With more RSIDs than workers, identifiers still waiting
+  in the submission queue used to vanish from the batch result, so the summary
+  held fewer records than the input.
+- An all-failed `--fail-fast` batch now exits with the code of the error that
+  triggered the stop, e.g. 12 for an API error, instead of 1. The synthetic
+  cancellation records are skipped when choosing the exit code.
+- `--git-commit` and `--template` are now also rejected when combined with the
+  fast-path diagnostic actions `--exit-codes`, `--explain-exit-code`, and
+  `--completion`. A modifier before one of these used to reach the slow path
+  and be silently ignored.
 - The quality cache key now includes component names as well as ids. The
   audits are name-based, so a renamed component with the same id used to
   return a stale cached result within one run.

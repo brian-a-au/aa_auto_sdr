@@ -361,3 +361,72 @@ class TestResolutionChainAccuracy:
             working_dir=tmp_path,
         )
         assert chain[0].matched is True
+
+
+# --- Codex review round 1 -------------------------------------------------
+
+
+def _build_multi_handle(rsids: list[str]) -> MagicMock:
+    """A handle whose getReportSuites resolves every rsid in `rsids`, so all of
+    them reach run_batch rather than failing to resolve as pre_failures."""
+    import pandas as pd
+
+    raw = json.loads(FIXTURE.read_text())
+    base = raw["report_suite"]
+    records = [{**base, "rsid": r, "name": r} for r in rsids]
+    handle = MagicMock()
+    handle.getReportSuites.return_value = pd.DataFrame(records)
+    handle.getDimensions.return_value = pd.DataFrame(raw["dimensions"])
+    handle.getMetrics.return_value = pd.DataFrame(raw["metrics"])
+    handle.getSegments.return_value = pd.DataFrame(raw["segments"])
+    handle.getCalculatedMetrics.return_value = pd.DataFrame(raw["calculated_metrics"])
+    handle.getVirtualReportSuites.return_value = pd.DataFrame(raw["virtual_report_suites"])
+    handle.getClassificationDatasets.return_value = pd.DataFrame(raw["classification_datasets"])
+    return handle
+
+
+class TestFailFastExitCodePreserved:
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_sequential_all_failed_keeps_triggering_code(
+        self, mock_client_cls, env_creds, monkeypatch: pytest.MonkeyPatch, capsys, tmp_path: Path
+    ) -> None:
+        """Fail-fast appends synthetic cancellations after the real failure. With
+        multiple RSIDs and all-failed, the exit code must stay the triggering
+        error's code (API=12), not the trailing cancellation's GENERIC (1)."""
+        from aa_auto_sdr.core.exceptions import ApiError
+        from aa_auto_sdr.pipeline import batch as batch_runner_mod
+
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=_build_multi_handle(["a.rs", "b.rs", "c.rs"]), company_id="testco"
+        )
+
+        def boom(**_kw):
+            raise ApiError("rate limit exceeded")
+
+        monkeypatch.setattr(batch_runner_mod, "run_single", boom)
+        rc = batch_cmd.run(
+            rsids=["a.rs", "b.rs", "c.rs"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            workers=1,
+            fail_fast=True,
+        )
+        assert rc == 12
+
+
+class TestModifierValidatorDiagnosticActions:
+    def test_git_commit_rejected_with_exit_codes(self, capsys) -> None:
+        ns = argparse.Namespace(git_commit=True, git_push=False, git_message=None, exit_codes=True)
+        assert _validate_git_modifiers(ns) == 2
+
+    def test_git_commit_rejected_with_explain_exit_code_zero(self, capsys) -> None:
+        """explain_exit_code=0 is falsy but a legitimate request; must still trip."""
+        ns = argparse.Namespace(git_commit=True, git_push=False, git_message=None, explain_exit_code=0)
+        assert _validate_git_modifiers(ns) == 2
+
+    def test_template_rejected_with_completion(self, capsys, tmp_path: Path) -> None:
+        template = tmp_path / "t.xlsx"
+        template.write_bytes(b"")
+        ns = argparse.Namespace(template=template, template_organization=None, completion="bash")
+        assert _validate_template_modifiers(ns) == 2

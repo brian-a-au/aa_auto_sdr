@@ -461,6 +461,19 @@ def run_parallel(
                                 total_bytes += _bytes_for(late_result)
                                 successes.append(late_result)
                         pending_set = set()
+                        # RSIDs still in the lazy-submission iterator were never
+                        # submitted (fail-fast seeds only `workers` at a time).
+                        # Record them as cancelled too so BatchResult holds one
+                        # entry per input RSID, matching the sequential path.
+                        for _idx, rsid in rsid_iter:
+                            failures.append(
+                                BatchFailure(
+                                    rsid=rsid,
+                                    error_type="CancelledError",
+                                    message="cancelled",
+                                    exit_code=ExitCode.GENERIC.value,
+                                )
+                            )
             except KeyboardInterrupt:
                 for pf in pending_set:
                     pf.cancel()
