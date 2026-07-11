@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from aa_auto_sdr.core.version import __version__
+
 pytestmark = pytest.mark.integration
 
 
@@ -51,4 +53,4 @@ def test_version_invocation(tmp_path: Path) -> None:
         cwd=tmp_path,
     )
     assert result.returncode == 0
-    assert "1.21.5" in result.stdout
+    assert __version__ in result.stdout
