@@ -87,7 +87,7 @@ The on-disk module map is in `README.md` ("Project structure"); treat that as de
 
 - **No monolithic orchestrator.** `sdr/builder.py` composes from `api/` outputs. If it grows past a comfortable read, split by component type, not by output format.
 - **SDK isolation.** Only `api/client.py` imports `aanalytics2`. Everything downstream consumes our normalized models. Protects the codebase from SDK churn and keeps tests fast.
-- **Writer protocol.** Output writers implement a single `Writer` protocol and self-register. Adding a format = one new file, no edits to a central dispatcher.
+- **Writer protocol.** Output writers implement a single `Writer` protocol and self-register on import by calling `register_writer`. There is no central format dispatcher to edit. Adding a format is mostly one new writer file, plus two small edits in `output/registry.py`. Add the format key to the `_CONCRETE` set so `resolve_formats` accepts it, and import the new module in `bootstrap()` so it loads and self-registers.
 - **Pure builder.** `sdr/builder.py` takes data in, returns a document object. It does no I/O. Output is a separate step.
 - **Lazy imports for heavy deps.** Defer `pandas`/`xlsxwriter`/`aanalytics2` imports until a command actually needs them. The fast path stays fast.
 - **No 1.4 API and no AA writes.** Both invariants are enforced by meta-tests under `tests/meta/`.

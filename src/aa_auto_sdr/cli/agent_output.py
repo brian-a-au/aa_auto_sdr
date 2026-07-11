@@ -31,7 +31,6 @@ __all__ = [
     "STATS_STDOUT_FORMATS",
     "is_stdout_path",
     "resolve_agent_output_path",
-    "resolve_agent_quiet",
 ]
 
 
@@ -118,24 +117,3 @@ def resolve_agent_output_path(
         return output_path
 
     return None
-
-
-def resolve_agent_quiet(
-    args: argparse.Namespace,
-    *,
-    argv: list[str] | None = None,
-    output_path: str | None,
-) -> bool:
-    """Resolve the effective quiet flag from the **resolved** output path.
-
-    Explicit ``--quiet`` always wins. Otherwise quiet is derived solely
-    from whether the effective output destination still targets stdout
-    (or whether ``--run-summary-json -`` is in effect).
-    """
-    if _option_was_explicit("--quiet", argv):
-        return True
-
-    if is_stdout_path(getattr(args, "run_summary_json", None)):
-        return True
-
-    return is_stdout_path(output_path)

@@ -18,7 +18,6 @@ from aa_auto_sdr.cli.main import (
     _derive_quiet_from_output_destination,
     _dispatch,
     _resolve_retry_policy,
-    _stub_action,
     _validate_template_modifiers,
 )
 from aa_auto_sdr.cli.parser import build_parser
@@ -198,7 +197,7 @@ def test_dispatch_notion_create_database(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_profile_import_rejects_extra_positionals(capsys: pytest.CaptureFixture[str]) -> None:
     rc = _dispatch_argv(["--profile-import", "prod", "/tmp/c.json", "extra-rsid"])
     assert rc == int(ExitCode.USAGE)
-    assert "--profile-import takes" in capsys.readouterr().out
+    assert "--profile-import takes" in capsys.readouterr().err
 
 
 # --- quality-policy loading (687-697) ---------------------------------------
@@ -212,7 +211,7 @@ def test_quality_policy_load_failure_returns_config_error(
     policy.write_text('{"bogus_key": 1}')  # unknown key → ConfigError
     rc = _dispatch_argv(["rs1", "--quality-policy", str(policy)])
     assert rc == int(ExitCode.CONFIG)
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 def test_quality_policy_loaded_then_generates(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -240,7 +239,7 @@ def test_quality_policy_loaded_then_generates(monkeypatch: pytest.MonkeyPatch, t
 def test_quality_flags_rejected_with_non_sdr_action(capsys: pytest.CaptureFixture[str]) -> None:
     rc = _dispatch_argv(["--stats", "rs1", "--fail-on-quality", "HIGH"])
     assert rc == int(ExitCode.USAGE)
-    assert "require" in capsys.readouterr().out.lower()
+    assert "require" in capsys.readouterr().err.lower()
 
 
 # --- profile / config dispatch (740 / 748 / 892-894 / 896-898) --------------
@@ -312,7 +311,7 @@ def test_dispatch_profile_show(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_prune_snapshots_rejects_multiple_positionals(capsys: pytest.CaptureFixture[str]) -> None:
     rc = _dispatch_argv(["--prune-snapshots", "rs1", "rs2"])
     assert rc == int(ExitCode.USAGE)
-    assert "at most one positional" in capsys.readouterr().out
+    assert "at most one positional" in capsys.readouterr().err
 
 
 # --- list-virtual-reportsuites dispatch (940-948) ---------------------------
@@ -331,12 +330,3 @@ def test_dispatch_list_virtual_reportsuites(monkeypatch: pytest.MonkeyPatch) -> 
     rc = _dispatch_argv(["--list-virtual-reportsuites", "--profile", "prod"])
     assert rc == 0
     assert captured["profile"] == "prod"
-
-
-# --- _stub_action (1190-1191) -----------------------------------------------
-
-
-def test_stub_action_returns_generic(capsys: pytest.CaptureFixture[str]) -> None:
-    rc = _stub_action("some-action")
-    assert rc == ExitCode.GENERIC.value
-    assert "not yet implemented" in capsys.readouterr().out

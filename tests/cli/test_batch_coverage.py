@@ -92,7 +92,7 @@ def test_batch_metrics_and_dimensions_only_mutex(authed_env, tmp_path: Path, cap
         dimensions_only=True,
     )
     assert rc == ExitCode.USAGE.value
-    assert "mutually exclusive" in capsys.readouterr().out
+    assert "mutually exclusive" in capsys.readouterr().err
 
 
 def test_batch_unknown_format_returns_generic(authed_env, tmp_path: Path, capsys) -> None:
@@ -104,7 +104,7 @@ def test_batch_unknown_format_returns_generic(authed_env, tmp_path: Path, capsys
         profile=None,
     )
     assert rc == ExitCode.GENERIC.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.batch.AaClient")
@@ -170,7 +170,7 @@ def test_batch_writer_unavailable_returns_output(
         profile=None,
     )
     assert rc == ExitCode.OUTPUT.value
-    assert "is not available in this build" in capsys.readouterr().out
+    assert "is not available in this build" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ def test_batch_resolve_apierror_records_failure(
         profile=None,
     )
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out
+    assert "api error" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +289,7 @@ def test_batch_auto_prune_without_policy_returns_config(
         snapshot_dir=snap_dir,
     )
     assert rc == ExitCode.CONFIG.value
-    assert "--auto-prune requires" in capsys.readouterr().out
+    assert "--auto-prune requires" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.batch.AaClient")
@@ -314,7 +314,7 @@ def test_batch_auto_prune_bad_keep_since_returns_config(
         snapshot_dir=snap_dir,
     )
     assert rc == ExitCode.CONFIG.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.batch.AaClient")

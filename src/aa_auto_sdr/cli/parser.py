@@ -107,6 +107,13 @@ def build_parser() -> argparse.ArgumentParser:
         allow_abbrev=False,
     )
 
+    # --version is normally handled by the __main__.py fast path (argv[0] only);
+    # registering it here makes it position-independent — without this,
+    # `aa_auto_sdr --quiet --version` dies with "unrecognized arguments" (2).
+    from aa_auto_sdr.core.version import __version__
+
+    p.add_argument("-V", "--version", action="version", version=f"aa_auto_sdr {__version__}")
+
     # Action flags (mutually exclusive). Positional RSID is also an action;
     # we enforce mutual exclusion via post-parse dispatch since argparse can't
     # put a positional in an exclusive group cleanly.

@@ -94,7 +94,7 @@ class TestGenerationModifiers:
             snapshot=True,
         )
         assert rc == ExitCode.USAGE.value
-        assert "filtered snapshots" in capsys.readouterr().out
+        assert "filtered snapshots" in capsys.readouterr().err
 
     def test_metrics_only_with_auto_snapshot_rejected(
         self,
@@ -127,7 +127,7 @@ class TestGenerationModifiers:
             snapshot=True,
         )
         assert rc == ExitCode.USAGE.value
-        assert "filtered snapshots" in capsys.readouterr().out
+        assert "filtered snapshots" in capsys.readouterr().err
 
 
 class TestDryRun:

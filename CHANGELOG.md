@@ -2,6 +2,107 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.6] — 2026-07-11
+
+Correctness patch from a repo-wide defect sweep. No new flags. One behavior
+change is called out under Changed.
+
+### Fixed
+- Component names that start with `=`, `+`, `-`, or `@` no longer become live
+  formulas in the Excel, CSV, and template outputs. Names are authored by org
+  users in Adobe Analytics, so a name like `=HYPERLINK(...)` used to execute
+  when someone opened the file in Excel. The Excel writer now stores such
+  values as text, the template writer forces the cell type back to string,
+  and the CSV writer prefixes a single quote per the OWASP guidance.
+- `--fail-on-quality` now sets exit code 17 on the pipe path (`--output -`,
+  which is also the `--agent-mode` default). The gate only worked on the
+  file-output path before, so agent runs exited 0 on a failing verdict.
+- `--quality-report` combined with `--output -` is now rejected with exit 15.
+  The report is a file artifact and was silently skipped before.
+- A snapshot write failure on the pipe path now returns exit 15 with a JSON
+  error envelope instead of an unhandled traceback.
+- Error messages now print to stderr instead of stdout, matching
+  `cja_auto_sdr`. Before this, some errors landed in the same stdout stream a
+  JSON consumer was parsing, e.g. the `--output -` batch rejection.
+- `--version` and `-V` now work in any argv position. They were only handled
+  as the first argument, so `aa_auto_sdr --quiet --version` exited 2.
+- The watch loop now survives snapshot-store failures. A disk-full error or
+  one corrupt stored snapshot used to end the whole watch run. The cycle now
+  emits an `error` event and the loop continues, which is what the module
+  already promised for fetch failures.
+- Parallel `--fail-fast` no longer records an in-flight worker as "cancelled"
+  when it cannot be cancelled. Such a worker runs to completion and writes
+  its outputs, so the batch summary now records its true outcome.
+- Parallel `--fail-fast` now records RSIDs that were never submitted as
+  cancelled failures. With more RSIDs than workers, identifiers still waiting
+  in the submission queue used to vanish from the batch result, so the summary
+  held fewer records than the input.
+- A worker that was already running when parallel `--fail-fast` triggered now
+  emits its terminal `rsid_complete` or `rsid_failure` log and fires the
+  failure callback, matching a normally-completed worker. Such a worker still
+  writes output and appears in the summary, so structured-log and progress
+  consumers no longer miss its outcome.
+- Parallel `--fail-fast` now cancels every remaining future before it blocks on
+  any running worker's result. When the pending set held both a running future
+  and a not-yet-started one, blocking on the running one first left a window
+  where a freed thread could start the queued future before its own cancel ran.
+  Cancelling the whole set up front narrows that window.
+- An all-failed `--fail-fast` batch now exits with the code of the error that
+  triggered the stop, e.g. 12 for an API error, instead of 1. The synthetic
+  cancellation records are skipped when choosing the exit code.
+- `--git-commit` and `--template` are now rejected when combined with the
+  fast-path diagnostic actions `--exit-codes`, `--explain-exit-code`, and
+  `--completion`, in either order. These diagnostic flags now short-circuit
+  only in their exact standalone form; when extra tokens follow, the run
+  defers to the full parser and modifier validators, so `--exit-codes
+  --git-commit` no longer exits 0 while silently ignoring the modifier.
+- The `--quality-report` plus `--output -` conflict is now reported before the
+  credential round-trip, so a missing-credentials environment no longer masks
+  it: the run exits 15 (OUTPUT) with the conflict message instead of 10
+  (CONFIG).
+- The quality cache key now includes component names as well as ids. The
+  audits are name-based, so a renamed component with the same id used to
+  return a stale cached result within one run.
+- Huge duration values, e.g. `--keep-since 999999999999w`, now produce a
+  clean usage or config error. They used to raise an unhandled OverflowError.
+  The same fix covers `--interval` and `--trending-window`.
+- `--keep-since 0h` is now rejected. A zero window set the cutoff to the
+  current moment and deleted every snapshot.
+- Snapshot validation now parses `captured_at` as a real timestamp instead of
+  only checking that the string ends with a timezone offset. A malformed
+  value used to pass validation and then crash `--trending-window`.
+- `--diff --format json` with no `--output` flag now emits the JSON error
+  envelope on failures. The envelope only fired when `--output -` was
+  explicit, so implicit stdout got a human error line instead.
+- Batch `--dry-run` now exits 14 when some identifiers fail to resolve and
+  with the failure's code when all fail. It always exited 0 before, so CI
+  could not catch typos in preview mode.
+- Dry-run previews now show the right file names for `--template` runs
+  (`.xlsx`) and, in batch mode, for `--format notion` (the registry file).
+- `--git-commit` and `--template` are now rejected with snapshot-lifecycle,
+  profile, config, interactive, and Notion standalone actions. They were
+  silently ignored before.
+- `--config-status` no longer reports a profile as the matched source when
+  its config.json exists but is incomplete. It also no longer shows a later
+  source as matched when an explicit profile fails, because resolution never
+  falls back from an explicit profile.
+
+### Changed
+- `--fail-fast` now also stops sequential batches (`--workers 1`). It was
+  silently ignored there before. Unattempted RSIDs are recorded as cancelled
+  failures on both paths so the accounting matches.
+- `--fail-fast` now also covers the identifier-resolution phase. The first
+  identifier that fails to resolve stops the batch, and the identifiers after
+  it are recorded as cancelled instead of generating. Without `--fail-fast`,
+  every unresolvable identifier is still reported in one run.
+
+### Removed
+- Dead code found by the sweep: the unused `WatchEventEmitter` protocol,
+  `StopToken.wait`, `resolve_agent_quiet`, `_stub_action`, and the
+  unreachable `dataset_id` branch in the quality engine's id adapter. The
+  logging worker-id filter now calls `get_current_worker_id()` instead of
+  reading the thread-local directly.
+
 ## [1.21.5] — 2026-07-02
 
 Correctness & performance patch following up v1.21.4. No new flags and no

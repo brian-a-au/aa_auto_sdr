@@ -4,6 +4,7 @@ import subprocess
 import sys
 
 from aa_auto_sdr.__main__ import main
+from aa_auto_sdr.core.version import __version__
 
 
 def test_version_flag_short() -> None:
@@ -13,7 +14,7 @@ def test_version_flag_short() -> None:
         text=True,
         check=True,
     )
-    assert "1.21.5" in result.stdout
+    assert __version__ in result.stdout
 
 
 def test_version_flag_long() -> None:
@@ -23,7 +24,7 @@ def test_version_flag_long() -> None:
         text=True,
         check=True,
     )
-    assert "1.21.5" in result.stdout
+    assert __version__ in result.stdout
 
 
 def test_help_flag_does_not_import_aanalytics2() -> None:
@@ -178,14 +179,14 @@ def test_explain_exit_code_without_arg_returns_usage(capsys) -> None:
     """`--explain-exit-code` with no CODE → usage error, exit 2."""
     rc = main(["--explain-exit-code"])
     assert rc == 2
-    assert "requires a CODE" in capsys.readouterr().out
+    assert "requires a CODE" in capsys.readouterr().err
 
 
 def test_explain_exit_code_non_integer_returns_usage(capsys) -> None:
     """A non-integer CODE → usage error, exit 2."""
     rc = main(["--explain-exit-code", "notanint"])
     assert rc == 2
-    assert "not a valid exit code" in capsys.readouterr().out
+    assert "not a valid exit code" in capsys.readouterr().err
 
 
 def test_explain_exit_code_valid_returns_zero(capsys) -> None:
@@ -198,14 +199,14 @@ def test_completion_without_shell_returns_usage(capsys) -> None:
     """`--completion` with no SHELL → usage error, exit 2."""
     rc = main(["--completion"])
     assert rc == 2
-    assert "requires a SHELL" in capsys.readouterr().out
+    assert "requires a SHELL" in capsys.readouterr().err
 
 
 def test_notion_print_schema_with_extra_args_returns_usage(capsys) -> None:
     """`--notion-print-database-schema` must be used alone."""
     rc = main(["--notion-print-database-schema", "extra"])
     assert rc == 2
-    assert "cannot be combined" in capsys.readouterr().out
+    assert "cannot be combined" in capsys.readouterr().err
 
 
 def test_help_lists_template_flags() -> None:
@@ -219,3 +220,52 @@ def test_help_lists_template_flags() -> None:
     assert "--template" in out
     assert "--template-organization" in out
     assert "--template-overwrite-reserved" not in out
+
+
+def test_help_has_no_version_anchors_or_changelog() -> None:
+    """Per CLAUDE.md, user-facing prose does not carry 'added in vX' anchors or
+    a changelog block; that history lives in CHANGELOG.md. The help text lists
+    what the tool does now."""
+    import re
+
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    out = result.stdout
+    # No parenthetical version markers like "(v1.2)" or "(v1.13.0)".
+    assert not re.search(r"\(v\d+\.\d+", out), "help text still carries a (vX.Y) anchor"
+    # No changelog lines like "v1.8.0: ...".
+    assert not re.search(r"(?m)^v\d+\.\d+\.\d+:", out), "help text still carries a changelog block"
+    # The section headers no longer carry version parentheticals either.
+    assert "Batch parallelism:" in out
+    assert "Watch mode:" in out
+    # Flags are still documented.
+    assert "--git-commit" in out
+    assert "--template " in out
+
+
+def test_exit_codes_with_trailing_modifier_rejected(capsys) -> None:
+    """`--exit-codes --git-commit` must not silently ignore the modifier; the
+    fast path should defer to the parser + validators, which reject it (USAGE)."""
+    rc = main(["--exit-codes", "--git-commit"])
+    assert rc == 2
+
+
+def test_completion_with_trailing_modifier_rejected(capsys) -> None:
+    rc = main(["--completion", "bash", "--git-commit"])
+    assert rc == 2
+
+
+def test_explain_exit_code_with_trailing_modifier_rejected(capsys) -> None:
+    rc = main(["--explain-exit-code", "0", "--git-commit"])
+    assert rc == 2
+
+
+def test_exit_codes_standalone_still_fast_paths(capsys) -> None:
+    """The common standalone form is unaffected."""
+    rc = main(["--exit-codes"])
+    assert rc == 0
+    assert capsys.readouterr().out.strip()

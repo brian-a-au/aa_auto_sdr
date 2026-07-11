@@ -144,8 +144,10 @@ def load_snapshot(path: Path) -> dict[str, Any]:
 def list_snapshots(snapshot_dir: Path, *, rsid: str | None = None) -> list[Path]:
     """List snapshot files under `snapshot_dir`, optionally filtered to one RSID.
 
-    Returns paths sorted chronologically (oldest first). Returns [] if the
-    directory doesn't exist or has no matching snapshots."""
+    With `rsid`, paths sort chronologically (oldest first). Without, paths
+    group by RSID directory first, chronological within each group — NOT
+    globally chronological. Returns [] if the directory doesn't exist or has
+    no matching snapshots."""
     if rsid is not None:
         rs_dir = snapshot_dir / rsid
         if not rs_dir.exists():

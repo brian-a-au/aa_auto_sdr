@@ -92,3 +92,33 @@ class TestRunAuditsCache:
         stats = cache.stats()
         assert stats["hits"] == 0
         assert stats["misses"] == 0
+
+
+class TestCacheKeyNameSensitivity:
+    def test_rename_changes_key(self) -> None:
+        """The audits are name-based (stale keywords, case styles) — a renamed
+        component with the same id must not reuse a stale cached block."""
+        before = [_dim(1, stale=True)]
+        after = [_dim(1, stale=False)]  # same id, different name
+        k1 = _cache_key("rs1", "dimensions", before, _SEVERITY_TABLE_VERSION)
+        k2 = _cache_key("rs1", "dimensions", after, _SEVERITY_TABLE_VERSION)
+        assert k1 != k2
+
+    def test_rename_invalidates_run_audits_result(self) -> None:
+        cache = ValidationCache(max_size=100, ttl_seconds=3600)
+        stale = run_audits(_bundle(), audit_naming_enabled=True, flag_stale_enabled=True, cache=cache, rsid="rs1")
+        assert stale["summary"]["total"] >= 1
+        renamed = _bundle()
+        renamed = type(renamed)(
+            report_suite=renamed.report_suite,
+            dimensions=[_dim(1, stale=False)],
+            metrics=[],
+            segments=[],
+            calculated_metrics=[],
+            virtual_report_suites=[],
+            classifications=[],
+            captured_at=renamed.captured_at,
+            tool_version=renamed.tool_version,
+        )
+        clean = run_audits(renamed, audit_naming_enabled=True, flag_stale_enabled=True, cache=cache, rsid="rs1")
+        assert clean["summary"]["total"] == 0

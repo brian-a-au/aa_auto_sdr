@@ -110,7 +110,8 @@ def run_batch(
     workers=1 (default): existing sequential path, byte-equivalent to pre-v1.8.0.
     workers>=2: dispatches to pipeline.workers.run_parallel.
 
-    fail_fast applies only to the parallel path; ignored for workers=1.
+    fail_fast stops at the first failure on both paths; unattempted RSIDs are
+    recorded as cancelled failures so accounting matches across the two paths.
     cache is currently a placeholder for v1.12.0's quality engine; passed
     through to workers but unused by the SDR pipeline today.
 
@@ -166,6 +167,7 @@ def run_batch(
             failure_callback=failure_callback,
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
+            fail_fast=fail_fast,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
@@ -240,6 +242,7 @@ def _run_sequential(
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,
+    fail_fast: bool = False,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
@@ -259,12 +262,14 @@ def _run_sequential(
     # v1.20.0 — Notion registry company threading
     notion_company: str | None = None,
 ) -> BatchResult:
-    """Sequential per-RSID SDR generation. Continue on error.
+    """Sequential per-RSID SDR generation. Continue on error unless fail_fast.
 
     Args:
       rsids: canonical RSIDs (caller is responsible for resolution + dedup).
       progress_callback: optional `(i, total, rsid)` called before each run.
       failure_callback: optional `(i, total, rsid, message)` called on per-RSID failure.
+      fail_fast: stop at the first failure; the remaining RSIDs are recorded as
+        cancelled failures so accounting matches the parallel fail-fast path.
 
     Returns BatchResult with per-RSID successes, failures, total wall-clock seconds,
     and total output bytes (across successful runs only).
@@ -341,6 +346,17 @@ def _run_sequential(
                     exit_code=exit_code,
                 ),
             )
+            if fail_fast:
+                failures.extend(
+                    BatchFailure(
+                        rsid=skipped,
+                        error_type="CancelledError",
+                        message="cancelled",
+                        exit_code=ExitCode.GENERIC.value,
+                    )
+                    for skipped in rsids[index:]
+                )
+                break
             continue
         # Stamp the per-RSID wall-clock onto the RunResult (it's frozen, so
         # re-construct via dataclasses.replace). The banner ✓ row needs this.

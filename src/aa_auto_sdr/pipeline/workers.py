@@ -330,6 +330,59 @@ def run_parallel(
         future_to_ctx[future] = {"submission_index": idx, "rsid": rsid}
         return future
 
+    def _record_success(result: RunResult, *, submission_index: int, rsid: str) -> None:
+        """Record a completed RunResult: accumulate bytes, append, log rsid_complete.
+
+        Shared by the fail-fast done-set loop and the uncancellable-worker
+        drain so both go through the same structured-log path."""
+        nonlocal total_bytes
+        total_bytes += _bytes_for(result)
+        successes.append(result)
+        logger.info(
+            "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
+            rsid,
+            batch_id,
+            int(result.duration_seconds * 1000),
+            extra={
+                "rsid": rsid,
+                "batch_id": batch_id,
+                "duration_ms": int(result.duration_seconds * 1000),
+                "count": len(result.outputs),
+                "worker_id": submission_index,
+            },
+        )
+
+    def _record_failure(exc: AaAutoSdrError, *, submission_index: int, rsid: str) -> None:
+        """Record a worker failure: log rsid_failure, fire failure_callback, append.
+
+        Shared by the fail-fast done-set loop and the uncancellable-worker
+        drain so both emit the terminal record consumers expect."""
+        message = str(exc)
+        exit_code = _exit_code_for(exc)
+        logger.error(
+            "rsid_failure rsid=%s batch_id=%s error_class=%s",
+            rsid,
+            batch_id,
+            type(exc).__name__,
+            extra={
+                "rsid": rsid,
+                "batch_id": batch_id,
+                "exit_code": exit_code,
+                "error_class": type(exc).__name__,
+                "worker_id": submission_index,
+            },
+        )
+        if failure_callback is not None:
+            failure_callback(submission_index + 1, total, rsid, message)
+        failures.append(
+            BatchFailure(
+                rsid=rsid,
+                error_type=type(exc).__name__,
+                message=message,
+                exit_code=exit_code,
+            )
+        )
+
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="aa-worker") as executor:
         if fail_fast:
             # Lazy submission: only submit `workers` tasks at a time.
@@ -370,50 +423,12 @@ def run_parallel(
                                 )
                             )
                         except AaAutoSdrError as exc:
-                            message = str(exc)
-                            exit_code = _exit_code_for(exc)
-                            logger.error(
-                                "rsid_failure rsid=%s batch_id=%s error_class=%s",
-                                rsid,
-                                batch_id,
-                                type(exc).__name__,
-                                extra={
-                                    "rsid": rsid,
-                                    "batch_id": batch_id,
-                                    "exit_code": exit_code,
-                                    "error_class": type(exc).__name__,
-                                    "worker_id": submission_index,
-                                },
-                            )
-                            if failure_callback is not None:
-                                failure_callback(submission_index + 1, total, rsid, message)
-                            failures.append(
-                                BatchFailure(
-                                    rsid=rsid,
-                                    error_type=type(exc).__name__,
-                                    message=message,
-                                    exit_code=exit_code,
-                                )
-                            )
+                            _record_failure(exc, submission_index=submission_index, rsid=rsid)
                             # Mark failed but continue draining the rest of done_set
                             # so co-completed futures are not silently dropped.
                             failed = True
                         else:
-                            total_bytes += _bytes_for(result)
-                            successes.append(result)
-                            logger.info(
-                                "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
-                                rsid,
-                                batch_id,
-                                int(result.duration_seconds * 1000),
-                                extra={
-                                    "rsid": rsid,
-                                    "batch_id": batch_id,
-                                    "duration_ms": int(result.duration_seconds * 1000),
-                                    "count": len(result.outputs),
-                                    "worker_id": submission_index,
-                                },
-                            )
+                            _record_success(result, submission_index=submission_index, rsid=rsid)
                             # Submit the next task from the iterator only if no
                             # failure has been detected yet in this done_set batch.
                             if not failed:
@@ -424,14 +439,24 @@ def run_parallel(
                                 except StopIteration:
                                     pass
                     if failed:
-                        # Cancel all remaining pending futures now that the
-                        # entire done_set has been drained. Record each cancelled
-                        # future as a CancelledError BatchFailure so that
-                        # progress accounting matches BatchResult (Fix B / bug_020).
+                        # Two-phase drain now that the entire done_set is
+                        # processed. Phase 1: cancel EVERY pending future before
+                        # blocking on any result(). A not-yet-started future
+                        # cancels cleanly and is recorded as CancelledError so
+                        # progress accounting matches BatchResult (bug_020).
+                        # Cancelling the whole set up front matters when the set
+                        # holds both a running future and a not-yet-started one:
+                        # if we blocked on the running one's result() first, a
+                        # freed thread could start the queued future before its
+                        # own cancel() ran. This narrows (does not fully close)
+                        # the submit-to-cancel window. Every pending future was
+                        # registered by _make_future, so future_to_ctx[pf] is a
+                        # hard invariant — index directly and let a KeyError
+                        # surface a broken invariant instead of a silent record.
+                        running: list[Future[RunResult]] = []
                         for pf in pending_set:
-                            pf.cancel()
-                            pf_ctx = future_to_ctx.get(pf)
-                            if pf_ctx is not None:
+                            pf_ctx = future_to_ctx[pf]
+                            if pf.cancel():
                                 failures.append(
                                     BatchFailure(
                                         rsid=pf_ctx["rsid"],
@@ -440,7 +465,37 @@ def run_parallel(
                                         exit_code=ExitCode.GENERIC.value,
                                     )
                                 )
+                            else:
+                                running.append(pf)
+                        # Phase 2: a future that could not be cancelled is already
+                        # RUNNING; it completes and writes output regardless (the
+                        # executor's shutdown waits for it), so record its true
+                        # outcome through the same log + callback path as a
+                        # normally-completed future.
+                        for pf in running:
+                            pf_ctx = future_to_ctx[pf]
+                            try:
+                                late_result = pf.result()
+                            except AaAutoSdrError as exc:
+                                _record_failure(exc, submission_index=pf_ctx["submission_index"], rsid=pf_ctx["rsid"])
+                            else:
+                                _record_success(
+                                    late_result, submission_index=pf_ctx["submission_index"], rsid=pf_ctx["rsid"]
+                                )
                         pending_set = set()
+                        # RSIDs still in the lazy-submission iterator were never
+                        # submitted (fail-fast seeds only `workers` at a time).
+                        # Record them as cancelled too so BatchResult holds one
+                        # entry per input RSID, matching the sequential path.
+                        for _idx, rsid in rsid_iter:
+                            failures.append(
+                                BatchFailure(
+                                    rsid=rsid,
+                                    error_type="CancelledError",
+                                    message="cancelled",
+                                    exit_code=ExitCode.GENERIC.value,
+                                )
+                            )
             except KeyboardInterrupt:
                 for pf in pending_set:
                     pf.cancel()

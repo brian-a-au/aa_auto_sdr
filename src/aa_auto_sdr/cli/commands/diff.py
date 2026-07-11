@@ -58,6 +58,7 @@ def run(
         if fmt not in _VALID_FORMATS:
             print(
                 f"error: format '{fmt}' is not available for --diff (use console|json|markdown|pr-comment)",
+                file=sys.stderr,
                 flush=True,
             )
             exit_code = ExitCode.OUTPUT.value
@@ -65,6 +66,7 @@ def run(
         if fmt == "console" and output == "-":
             print(
                 "error: --format console cannot pipe to stdout (use --format json|markdown for pipes)",
+                file=sys.stderr,
                 flush=True,
             )
             exit_code = ExitCode.OUTPUT.value
@@ -88,12 +90,16 @@ def run(
                 repo_root=repo_root,
             )
         except SnapshotError as exc:
-            if fmt in ("json", "markdown") and output == "-":
+            # `output is None` also renders to stdout (see the write below), so
+            # machine formats get the JSON envelope for implicit stdout too —
+            # otherwise a human error line lands in the stream a jq consumer
+            # is parsing.
+            if fmt in ("json", "markdown") and (output is None or output == "-"):
                 from aa_auto_sdr.output.error_envelope import emit_error_envelope
 
                 emit_error_envelope(exc, ExitCode.SNAPSHOT.value)
             else:
-                print(f"snapshot error: {exc}", flush=True)
+                print(f"snapshot error: {exc}", file=sys.stderr, flush=True)
             exit_code = ExitCode.SNAPSHOT.value
             return exit_code
 

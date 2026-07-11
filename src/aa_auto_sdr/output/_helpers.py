@@ -28,6 +28,25 @@ def stringify_cell(value: Any) -> str:
     return str(value)
 
 
+# Leading characters Excel interprets as the start of a formula (or, for
+# tab/CR, as cell-splitting control characters) when importing a CSV.
+# Per OWASP CSV-injection guidance.
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def neutralize_formula(text: str) -> str:
+    """Defuse spreadsheet formula injection for CSV cells.
+
+    Component names are authored by arbitrary org users; a name like
+    `=HYPERLINK(...)` must not execute when the CSV is opened in Excel.
+    Prefixing a single quote is the OWASP-recommended neutralization — Excel
+    treats the cell as text. Applied only to cells that would otherwise be
+    interpreted as formulas, so ordinary values round-trip unchanged."""
+    if text.startswith(_FORMULA_TRIGGERS):
+        return "'" + text
+    return text
+
+
 def escape_pipe(text: str) -> str:
     """Escape Markdown-table-breaking characters in a cell value.
 

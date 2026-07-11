@@ -144,3 +144,15 @@ class TestSelectForDeletion:
         policy = RetentionPolicy(keep_since=timedelta(days=3))
         deleted = select_for_deletion(files, policy, now=now)
         assert deleted == [self._file("2026-04-20T10-00-00Z")]
+
+
+class TestParsePolicyBoundaries:
+    def test_keep_since_zero_rejected(self) -> None:
+        """`--keep-since 0h` would set the cutoff to now and delete every
+        snapshot; reject it like `--keep-last 0` is rejected."""
+        with pytest.raises(ConfigError, match="greater than zero"):
+            parse_policy(keep_last=None, keep_since="0h")
+
+    def test_keep_since_overflow_rejected_as_config_error(self) -> None:
+        with pytest.raises(ConfigError):
+            parse_policy(keep_last=None, keep_since="999999999999w")

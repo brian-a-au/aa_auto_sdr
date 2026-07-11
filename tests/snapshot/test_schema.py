@@ -130,3 +130,12 @@ def test_v4_envelope_round_trips() -> None:
     validate_envelope(env)
     assert env["quality"]["summary"]["verdict"] == "fail"
     assert env["quality"]["issues"][0]["severity"] == "MEDIUM"
+
+
+def test_validate_envelope_rejects_unparseable_timestamp_with_offset_shape() -> None:
+    """A captured_at that merely *ends* in an offset must still parse as a real
+    ISO-8601 timestamp — otherwise trending crashes later at fromisoformat."""
+    env = document_to_envelope(_stub_doc())
+    env["captured_at"] = "garbage+00:00"
+    with pytest.raises(SnapshotSchemaError, match=r"timezone-aware ISO-8601"):
+        validate_envelope(env)

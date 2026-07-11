@@ -44,6 +44,10 @@ def parse_policy(*, keep_last: int | None, keep_since: str | None) -> RetentionP
         raise ConfigError(
             f"--keep-since must be <int><h|d|w> (e.g. 30d, 12h, 4w); got '{keep_since}'",
         ) from exc
+    if delta <= timedelta(0):
+        # A zero window sets the cutoff to "now" and deletes every snapshot —
+        # reject it the same way keep_last < 1 is rejected above.
+        raise ConfigError(f"--keep-since must be greater than zero (got '{keep_since}')")
     return RetentionPolicy(keep_last=keep_last, keep_since=delta)
 
 

@@ -264,6 +264,7 @@ def _run_impl(
     if metrics_only and dimensions_only:
         print(
             "error: --metrics-only and --dimensions-only are mutually exclusive",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.USAGE.value
@@ -272,6 +273,7 @@ def _run_impl(
         print(
             "error: --metrics-only / --dimensions-only cannot be combined with "
             "--snapshot / --auto-snapshot — filtered snapshots produce misleading diffs",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.USAGE.value
@@ -286,7 +288,7 @@ def _run_impl(
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
-        print(f"error: {e}", flush=True)
+        print(f"error: {e}", file=sys.stderr, flush=True)
         return ExitCode.CONFIG.value
 
     save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
@@ -296,7 +298,7 @@ def _run_impl(
     try:
         formats = registry.resolve_formats(format_name or "excel")
     except KeyError as e:
-        print(f"error: {e}", flush=True)
+        print(f"error: {e}", file=sys.stderr, flush=True)
         return ExitCode.GENERIC.value
 
     if template_path is not None:
@@ -309,14 +311,14 @@ def _run_impl(
         try:
             registry.get_writer(fmt)
         except KeyError:
-            print(f"error: format '{fmt}' is not available in this build", flush=True)
+            print(f"error: format '{fmt}' is not available in this build", file=sys.stderr, flush=True)
             return ExitCode.OUTPUT.value
 
     try:
         with timings.Timer("auth"):
             client = AaClient.from_credentials(creds, retry_policy=retry_policy)
     except AuthError as e:
-        print(f"auth error: {e}", flush=True)
+        print(f"auth error: {e}", file=sys.stderr, flush=True)
         _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
 
@@ -332,7 +334,7 @@ def _run_impl(
             preloaded_suites = fetch.fetch_report_suites_raw(client)
         except Exception:  # best-effort; any failure falls back to per-identifier fetch
             preloaded_suites = None
-        for identifier in rsids:
+        for i, identifier in enumerate(rsids):
             try:
                 resolved, _was_name = fetch.resolve_rsid(
                     client, identifier, name_match=name_match, preloaded_suites=preloaded_suites
@@ -356,9 +358,8 @@ def _run_impl(
                         exit_code=ExitCode.NOT_FOUND.value,
                     ),
                 )
-                continue
             except ReportSuiteNotFoundError as exc:
-                print(f"error: {exc}", flush=True)
+                print(f"error: {exc}", file=sys.stderr, flush=True)
                 pre_failures.append(
                     BatchFailure(
                         rsid=identifier,
@@ -367,9 +368,8 @@ def _run_impl(
                         exit_code=ExitCode.NOT_FOUND.value,
                     ),
                 )
-                continue
             except ApiError as exc:
-                print(f"api error: {exc}", flush=True)
+                print(f"api error: {exc}", file=sys.stderr, flush=True)
                 pre_failures.append(
                     BatchFailure(
                         rsid=identifier,
@@ -378,12 +378,31 @@ def _run_impl(
                         exit_code=ExitCode.API.value,
                     ),
                 )
+            else:
+                for rs in resolved:
+                    if rs in seen:
+                        continue
+                    seen.add(rs)
+                    canonical.append(rs)
                 continue
-            for rs in resolved:
-                if rs in seen:
-                    continue
-                seen.add(rs)
-                canonical.append(rs)
+            # Reached only when resolve_rsid raised. Under --fail-fast, stop at
+            # the first resolution failure: cancel every remaining identifier so
+            # nothing after it generates, matching fail-fast in the generation
+            # phase. Without --fail-fast we continue so every bad identifier is
+            # reported in one run.
+            if fail_fast:
+                for skipped in rsids[i + 1 :]:
+                    if skipped in seen:
+                        continue  # a duplicate that already resolved before the failure
+                    pre_failures.append(
+                        BatchFailure(
+                            rsid=skipped,
+                            error_type="CancelledError",
+                            message="cancelled",
+                            exit_code=ExitCode.GENERIC.value,
+                        ),
+                    )
+                break
 
     captured_at = datetime.now(UTC)
 
@@ -397,6 +416,7 @@ def _run_impl(
         print("DRY RUN — would generate:", flush=True)
         ext_map = {
             "excel": "xlsx",
+            "excel-template": "xlsx",
             "json": "json",
             "html": "html",
             "markdown": "md",
@@ -406,6 +426,12 @@ def _run_impl(
             for fmt in formats:
                 if fmt == "csv":
                     print(f"  {output_dir / f'{canonical_rsid}.<component>.csv'}")
+                elif fmt == "notion":
+                    from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME
+
+                    print(
+                        f"  {output_dir / REGISTRY_FILENAME} (Notion page registry; pages are written to Notion, not disk)"
+                    )
                 else:
                     ext = ext_map.get(fmt, fmt)
                     print(f"  {output_dir / f'{canonical_rsid}.{ext}'}")
@@ -452,6 +478,10 @@ def _run_impl(
             show_timings=show_timings,
         )
         _emit_timings_if_enabled(show_timings=show_timings)
+        # Mirror the real run's exit-code policy: unresolvable identifiers are
+        # failures even in preview, so CI catches typos without executing.
+        if pre_failures:
+            return ExitCode.PARTIAL_SUCCESS.value if canonical else pre_failures[-1].exit_code
         return ExitCode.OK.value
 
     def _on_progress(i: int, total: int, rsid: str) -> None:
@@ -595,8 +625,16 @@ def _run_impl(
         return ExitCode.OK.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value
-    # All failed → exit code of the *last* failure
-    return final.failures[-1].exit_code
+    # All failed → exit code of the last *real* (non-cancelled) failure.
+    # Fail-fast and never-submitted RSIDs append synthetic CancelledError
+    # records (GENERIC); skipping them keeps the code an actionable
+    # API/auth/output/config code rather than GENERIC. This is the last real
+    # failure by list order — resolution pre_failures are appended last, and
+    # parallel completion order varies — so it is not necessarily the failure
+    # that triggered fail-fast.
+    real_failures = [f for f in final.failures if f.error_type != "CancelledError"]
+    relevant = real_failures or final.failures
+    return relevant[-1].exit_code
 
 
 def _apply_auto_prune(
@@ -617,11 +655,12 @@ def _apply_auto_prune(
     try:
         policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
     except ConfigError as exc:
-        print(f"error: {exc}", flush=True)
+        print(f"error: {exc}", file=sys.stderr, flush=True)
         return ExitCode.CONFIG.value
     if not policy.is_active():
         print(
             "error: --auto-prune requires --keep-last or --keep-since",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.CONFIG.value

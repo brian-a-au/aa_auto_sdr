@@ -9,13 +9,9 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Any, Protocol, TextIO
+from typing import Any, TextIO
 
 WATCH_EVENT_SCHEMA = "aa-watch-event/v1"
-
-
-class WatchEventEmitter(Protocol):
-    def emit(self, payload: dict[str, Any]) -> None: ...
 
 
 class StdoutEmitter:

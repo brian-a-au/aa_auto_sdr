@@ -404,12 +404,10 @@ def _promote_naming_to_issues(naming: dict[str, Any]) -> list[Issue]:
 
 
 def _id_of(item: object) -> str:
-    """Adapter — most aa component dataclasses use `.id`. ClassificationDataset
-    uses `.dataset_id` (verify in api/models.py); fall back gracefully."""
+    """Adapter — every aa component dataclass exposes `.id` (see api/models.py);
+    fall back to repr for foreign objects."""
     if hasattr(item, "id"):
         return str(item.id)
-    if hasattr(item, "dataset_id"):
-        return str(item.dataset_id)
     return repr(item)
 
 
@@ -419,12 +417,13 @@ def _cache_key(
     items: list[Any],
     severity_table_version: str,
 ) -> str:
-    """Stable per-bundle key. Hash sorted item ids + severity table version
-    so a policy/severity change invalidates."""
+    """Stable per-bundle key. Hashes sorted (id, name) pairs + severity table
+    version: the audits are name-based, so a rename (same id) must invalidate,
+    and a policy/severity-table change invalidates everything."""
     import hashlib
 
-    ids = sorted(_id_of(it) for it in items)
+    entries = sorted(f"{_id_of(it)}\x1f{getattr(it, 'name', '')}" for it in items)
     digest = hashlib.sha1(  # noqa: S324 (cache key, not security-sensitive)
-        (rsid + component_type + ",".join(ids) + severity_table_version).encode(),
+        (rsid + component_type + "\x1e".join(entries) + severity_table_version).encode(),
     ).hexdigest()[:16]
     return f"quality_v1:{rsid}:{component_type}:{digest}"

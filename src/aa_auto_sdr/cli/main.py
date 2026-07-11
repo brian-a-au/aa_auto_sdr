@@ -112,6 +112,57 @@ def _validate_watch_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _non_generating_action_selected(ns: argparse.Namespace) -> bool:
+    """True when the namespace selects a top-level action that never generates
+    an SDR: diff, discovery/inspection, trending, snapshot lifecycle,
+    profile/config management, interactive, or a Notion standalone mode.
+
+    Shared by the --git-commit and --template validators so a modifier that
+    only makes sense during generation is rejected loudly instead of being
+    silently ignored by whichever action wins dispatch. --watch is NOT in this
+    set — it generates snapshots; validators that also reject watch add that
+    check themselves.
+    """
+    return (
+        getattr(ns, "diff", None) is not None
+        or bool(getattr(ns, "stats", False))
+        or bool(getattr(ns, "list_reportsuites", False))
+        or bool(getattr(ns, "list_virtual_reportsuites", False))
+        or bool(getattr(ns, "describe_reportsuite", False))
+        or getattr(ns, "list_metrics", None) is not None
+        or getattr(ns, "list_dimensions", None) is not None
+        or getattr(ns, "list_segments", None) is not None
+        or getattr(ns, "list_calculated_metrics", None) is not None
+        or getattr(ns, "list_classification_datasets", None) is not None
+        or getattr(ns, "trending_window", None) is not None
+        or bool(getattr(ns, "compare_with_prev", False))
+        or bool(getattr(ns, "inventory_summary", False))
+        or bool(getattr(ns, "list_snapshots", False))
+        or bool(getattr(ns, "prune_snapshots", False))
+        or bool(getattr(ns, "profile_list", False))
+        or getattr(ns, "profile_add", None) is not None
+        or getattr(ns, "profile_test", None) is not None
+        or getattr(ns, "profile_show", None) is not None
+        or getattr(ns, "profile_import", None) is not None
+        or bool(getattr(ns, "show_config", False))
+        or bool(getattr(ns, "config_status", False))
+        or bool(getattr(ns, "validate_config", False))
+        or bool(getattr(ns, "sample_config", False))
+        or bool(getattr(ns, "interactive", False))
+        or getattr(ns, "push_to_notion", None) is not None
+        or bool(getattr(ns, "notion_prune_orphans", False))
+        or bool(getattr(ns, "notion_repair_database", False))
+        or bool(getattr(ns, "notion_create_database", False))
+        # Fast-path diagnostic actions. These short-circuit in __main__.py only
+        # when they are argv[0]; a generation modifier before one (e.g.
+        # `--git-commit --exit-codes`) reaches the slow path, so reject here too.
+        # explain_exit_code=0 is falsy but a valid request — test for None.
+        or bool(getattr(ns, "exit_codes", False))
+        or getattr(ns, "explain_exit_code", None) is not None
+        or getattr(ns, "completion", None) is not None
+    )
+
+
 def _validate_git_modifiers(ns: argparse.Namespace) -> int:
     """Reject --git-push / --git-message without --git-commit, and --git-commit
     with non-generating actions.
@@ -133,22 +184,7 @@ def _validate_git_modifiers(ns: argparse.Namespace) -> int:
     if not git_commit:
         return int(ExitCode.OK)
 
-    non_generating_action_set = (
-        getattr(ns, "diff", None) is not None
-        or bool(getattr(ns, "stats", False))
-        or bool(getattr(ns, "list_reportsuites", False))
-        or bool(getattr(ns, "list_virtual_reportsuites", False))
-        or bool(getattr(ns, "describe_reportsuite", False))
-        or getattr(ns, "list_metrics", None) is not None
-        or getattr(ns, "list_dimensions", None) is not None
-        or getattr(ns, "list_segments", None) is not None
-        or getattr(ns, "list_calculated_metrics", None) is not None
-        or getattr(ns, "list_classification_datasets", None) is not None
-        or getattr(ns, "trending_window", None) is not None
-        or bool(getattr(ns, "compare_with_prev", False))
-        or bool(getattr(ns, "inventory_summary", False))
-    )
-    if non_generating_action_set:
+    if _non_generating_action_selected(ns):
         print(
             "error: --git-commit requires an SDR-generating action (bare RSID, --batch, or --watch)",
             file=sys.stderr,
@@ -184,22 +220,7 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
         print(f"error: Template must be a .xlsx file: {template}", file=sys.stderr)
         return int(ExitCode.USAGE)
 
-    non_generating = (
-        getattr(ns, "diff", None) is not None
-        or bool(getattr(ns, "stats", False))
-        or bool(getattr(ns, "list_reportsuites", False))
-        or bool(getattr(ns, "list_virtual_reportsuites", False))
-        or bool(getattr(ns, "describe_reportsuite", False))
-        or getattr(ns, "list_metrics", None) is not None
-        or getattr(ns, "list_dimensions", None) is not None
-        or getattr(ns, "list_segments", None) is not None
-        or getattr(ns, "list_calculated_metrics", None) is not None
-        or getattr(ns, "list_classification_datasets", None) is not None
-        or getattr(ns, "trending_window", None) is not None
-        or bool(getattr(ns, "compare_with_prev", False))
-        or bool(getattr(ns, "inventory_summary", False))
-        or bool(getattr(ns, "watch", False))
-    )
+    non_generating = _non_generating_action_selected(ns) or bool(getattr(ns, "watch", False))
     if non_generating:
         print(
             "error: --template requires an SDR-generating action (single or --batch)",
@@ -670,12 +691,14 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         if getattr(ns, attr) and rsids:
             print(
                 f"error: {flag} takes its RSID inline; extra positional arguments are not supported",
+                file=sys.stderr,
                 flush=True,
             )
             return ExitCode.USAGE.value
     if ns.profile_import and rsids:
         print(
             "error: --profile-import takes <NAME> <FILE> inline; extra positional arguments are not supported",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.USAGE.value
@@ -689,7 +712,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         try:
             policy = load_policy(ns.quality_policy)
         except ConfigError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", file=sys.stderr, flush=True)
             return ExitCode.CONFIG.value
         explicit = {tok.lstrip("-").replace("-", "_") for tok in argv if tok.startswith("--")}
         apply_policy_defaults(cli_namespace=ns, policy=policy, explicitly_set=explicit)
@@ -728,6 +751,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         print(
             "error: --quality-report / --quality-policy / --fail-on-quality require "
             "single-RSID or --batch SDR generation; not valid with list/inspect/diff actions.",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.USAGE.value
@@ -846,6 +870,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         if len(rsids) > 1:
             print(
                 "error: --list-snapshots accepts at most one positional <RSID> filter",
+                file=sys.stderr,
                 flush=True,
             )
             return ExitCode.USAGE.value
@@ -864,6 +889,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         if len(rsids) > 1:
             print(
                 "error: --prune-snapshots accepts at most one positional <RSID> filter",
+                file=sys.stderr,
                 flush=True,
             )
             return ExitCode.USAGE.value
@@ -1007,7 +1033,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     # Diff (v0.7) — snapshot comparison
     if ns.diff:
         if rsids:
-            print("error: --diff cannot be combined with positional RSIDs", flush=True)
+            print("error: --diff cannot be combined with positional RSIDs", file=sys.stderr, flush=True)
             return ExitCode.USAGE.value
         from aa_auto_sdr.cli.commands import diff as diff_cmd
 
@@ -1055,6 +1081,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.run_summary_json == "-" and ns.output == "-":
         print(
             "error: --run-summary-json - and --output - both want stdout (use a path for one)",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.OUTPUT.value
@@ -1066,6 +1093,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if explicit_batch and rsids:
         print(
             "error: cannot combine --batch with positional RSIDs (use one form or the other)",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.USAGE.value
@@ -1092,6 +1120,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             print(
                 "error: --output - is ambiguous for batch runs "
                 "(multiple SDRs cannot share a single stream); use --output-dir instead",
+                file=sys.stderr,
                 flush=True,
             )
             return ExitCode.OUTPUT.value
@@ -1185,8 +1214,3 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         no_notion_registry=getattr(ns, "no_notion_registry", False),
         notion_company=getattr(ns, "notion_company", None),
     )
-
-
-def _stub_action(name: str) -> int:
-    print(f"error: {name} not yet implemented in this build", flush=True)
-    return ExitCode.GENERIC.value

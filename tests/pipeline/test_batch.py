@@ -228,3 +228,38 @@ def test_run_batch_stamps_per_rsid_duration(mock_client: AaClient, tmp_path: Pat
     # outer timer also covers the brief loop bookkeeping between runs.
     per_rsid_total = sum(r.duration_seconds for r in result.successes)
     assert per_rsid_total <= result.total_duration_seconds + 0.01
+
+
+def test_sequential_fail_fast_stops_after_first_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_client: AaClient,
+    tmp_path: Path,
+) -> None:
+    """workers=1 + fail_fast: stop at the first failure instead of silently
+    ignoring the flag; unattempted RSIDs are recorded as cancelled so the
+    accounting matches the parallel fail-fast path."""
+    calls: list[str] = []
+
+    def fake_run_single(**kwargs):
+        calls.append(kwargs["rsid"])
+        raise ApiError("rate limit exceeded")
+
+    monkeypatch.setattr(batch, "run_single", fake_run_single)
+
+    result = batch.run_batch(
+        client=mock_client,
+        rsids=["a.rs", "b.rs", "c.rs"],
+        formats=["json"],
+        output_dir=tmp_path,
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="1.21.6",
+        workers=1,
+        fail_fast=True,
+    )
+    assert calls == ["a.rs"]
+    assert result.successes == []
+    by_rsid = {f.rsid: f for f in result.failures}
+    assert set(by_rsid) == {"a.rs", "b.rs", "c.rs"}
+    assert by_rsid["a.rs"].error_type == "ApiError"
+    assert by_rsid["b.rs"].error_type == "CancelledError"
+    assert by_rsid["c.rs"].error_type == "CancelledError"

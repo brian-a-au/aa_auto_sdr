@@ -206,9 +206,19 @@ def resolution_chain(
         from aa_auto_sdr.core import profiles as profiles_mod
 
         path = (profiles_base or profiles_mod.default_base()) / "orgs" / chosen_profile / "config.json"
-        ok = path.exists() and not matched_yet
+        # Match only when the profile would actually resolve — existence alone
+        # is not enough (an incomplete config.json makes resolve() raise).
+        ok = False
+        if path.exists():
+            try:
+                ok = _is_complete(_from_profile(chosen_profile, profiles_base))
+            except Exception:
+                ok = False
         entries.append(ResolutionEntry(priority=1, source=f"--profile={chosen_profile}", matched=ok))
-        matched_yet = matched_yet or ok
+        # An explicit profile halts resolution: resolve() never falls back to
+        # env/.env/config.json, so later sources must not report matched=True
+        # even when the profile itself cannot resolve.
+        matched_yet = True
     else:
         entries.append(ResolutionEntry(priority=1, source="--profile (not set)", matched=False))
 

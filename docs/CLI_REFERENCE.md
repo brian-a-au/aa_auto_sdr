@@ -336,7 +336,7 @@ aa_auto_sdr --inventory-summary --format json
 | Flag | Behavior |
 |----|----|
 | `--workers N` | Parallel batch workers (1..16, default `1`). Implemented via `ThreadPoolExecutor`. JSON log records on parallel runs include `worker_id`. |
-| `--fail-fast` | In parallel batch, cancel pending workers on the first failure (opt-out of continue-on-error default). |
+| `--fail-fast` | Stop the batch at the first failure (opt-out of continue-on-error default). Covers both identifier resolution and generation: the first identifier that fails to resolve, or the first RSID that fails to generate, stops the batch. Sequential runs stop submitting; parallel runs cancel pending workers. Identifiers after the failure are recorded as cancelled failures. Without `--fail-fast`, every unresolvable identifier is reported in one run. |
 | `--sample N` | Subset N RSIDs from `--batch` before dispatch. `N >= len(batch)` is a no-op. Requires `--batch`. |
 | `--sample-seed N` | RNG seed for `--sample` (integer; default non-deterministic). |
 | `--sample-stratified` | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group. |
