@@ -1136,3 +1136,45 @@ class TestRunWatchLoopNotionPublisher:
         assert cycles == 2
         # Baseline cycle called the (failing) publisher.
         assert len(publisher.calls) >= 1
+
+
+class _SaveExplodingStore(_FakeStore):
+    def save(self, rsid: str, doc: _Any) -> tuple[Path, dict]:
+        raise OSError("disk full")
+
+
+class _LatestExplodingStore(_FakeStore):
+    def latest(self, rsid: str) -> dict | None:
+        raise ValueError("corrupt snapshot on disk")
+
+
+class TestCycleErrorsAreNonFatal:
+    """Per the module contract, per-cycle errors must not kill the loop —
+    that has to hold for store errors (save/latest), not just fetch errors."""
+
+    def test_save_error_returns_error_variant(self) -> None:
+        ctx = _ctx(snapshot_store=_SaveExplodingStore())
+        result = run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert result.kind == "fetch_error"
+        assert isinstance(result.error, OSError)
+
+    def test_latest_error_returns_error_variant(self) -> None:
+        ctx = _ctx(snapshot_store=_LatestExplodingStore())
+        result = run_one_cycle(rsid="rs_a", ctx=ctx)
+        assert result.kind == "fetch_error"
+        assert isinstance(result.error, ValueError)
+
+    def test_loop_survives_save_errors(self) -> None:
+        emitter = _FakeEmitter()
+        ctx = _ctx(snapshot_store=_SaveExplodingStore(), emitter=emitter)
+        stop = StopToken()
+        _rc, cycles = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a"],
+            interval=timedelta(seconds=1),
+            threshold=1,
+            stop=stop,
+            max_cycles=2,
+        )
+        assert cycles == 2
+        assert [e["event"] for e in emitter.events] == ["error", "error"]

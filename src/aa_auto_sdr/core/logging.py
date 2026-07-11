@@ -154,9 +154,9 @@ class WorkerIdFilter(logging.Filter):
         if "aa_auto_sdr.pipeline.workers" not in sys.modules:
             return True
         # Lazy import to avoid circular: pipeline.workers imports core.logging indirectly.
-        from aa_auto_sdr.pipeline.workers import _worker_local
+        from aa_auto_sdr.pipeline.workers import get_current_worker_id
 
-        wid = getattr(_worker_local, "worker_id", None)
+        wid = get_current_worker_id()
         if wid is not None:
             record.worker_id = wid
         return True

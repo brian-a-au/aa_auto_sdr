@@ -425,21 +425,41 @@ def run_parallel(
                                     pass
                     if failed:
                         # Cancel all remaining pending futures now that the
-                        # entire done_set has been drained. Record each cancelled
-                        # future as a CancelledError BatchFailure so that
-                        # progress accounting matches BatchResult (Fix B / bug_020).
+                        # entire done_set has been drained. Not-yet-started
+                        # futures cancel cleanly and are recorded as
+                        # CancelledError so progress accounting matches
+                        # BatchResult (Fix B / bug_020). A future that is
+                        # already RUNNING cannot be cancelled — it completes
+                        # and writes its outputs regardless (the executor's
+                        # shutdown waits for it), so record its true outcome
+                        # instead of a fictitious "cancelled".
                         for pf in pending_set:
-                            pf.cancel()
                             pf_ctx = future_to_ctx.get(pf)
-                            if pf_ctx is not None:
+                            if pf.cancel():
+                                if pf_ctx is not None:
+                                    failures.append(
+                                        BatchFailure(
+                                            rsid=pf_ctx["rsid"],
+                                            error_type="CancelledError",
+                                            message="cancelled",
+                                            exit_code=ExitCode.GENERIC.value,
+                                        )
+                                    )
+                                continue
+                            try:
+                                late_result = pf.result()
+                            except AaAutoSdrError as exc:
                                 failures.append(
                                     BatchFailure(
-                                        rsid=pf_ctx["rsid"],
-                                        error_type="CancelledError",
-                                        message="cancelled",
-                                        exit_code=ExitCode.GENERIC.value,
+                                        rsid=pf_ctx["rsid"] if pf_ctx else "?",
+                                        error_type=type(exc).__name__,
+                                        message=str(exc),
+                                        exit_code=_exit_code_for(exc),
                                     )
                                 )
+                            else:
+                                total_bytes += _bytes_for(late_result)
+                                successes.append(late_result)
                         pending_set = set()
             except KeyboardInterrupt:
                 for pf in pending_set:

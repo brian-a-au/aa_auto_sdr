@@ -454,3 +454,43 @@ def test_rsid_complete_log_records_carry_worker_id(
         assert hasattr(record, "worker_id"), (
             f"rsid_complete record for rsid={getattr(record, 'rsid', '?')} is missing worker_id"
         )
+
+
+def test_fail_fast_uncancellable_running_future_records_true_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A future that is already RUNNING when fail-fast cancellation kicks in
+    cannot be cancelled — it runs to completion and writes its outputs. It must
+    be recorded with its real outcome (here: success), not as 'cancelled',
+    otherwise the summary contradicts what is on disk."""
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    rb_started = threading.Event()
+    release_rb = threading.Event()
+
+    def runner(*, rsid: str, **_kw: object) -> RunResult:
+        if rsid == "rA":
+            rb_started.wait(timeout=5.0)  # rB is definitely RUNNING before rA fails
+            raise ApiError("forced failure")
+        rb_started.set()
+        release_rb.wait(timeout=5.0)  # held until rA's failure is processed
+        return _success_result(rsid)
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    result = run_parallel(
+        rsids=["rA", "rB"],
+        workers=2,
+        client=MagicMock(),
+        cache=None,
+        fail_fast=True,
+        failure_callback=lambda *_a: release_rb.set(),
+        formats=["json"],
+        output_dir=Path("/tmp"),
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="1.21.6",
+    )
+
+    assert [r.rsid for r in result.successes] == ["rB"]
+    assert {f.rsid for f in result.failures} == {"rA"}
