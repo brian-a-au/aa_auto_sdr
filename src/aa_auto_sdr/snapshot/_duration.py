@@ -26,4 +26,10 @@ def parse_duration(spec: str) -> timedelta:
             f"invalid duration: {spec!r} (expected format Nh|Nd|Nw, e.g. '30d')",
         )
     n_str, unit = match.groups()
-    return timedelta(hours=int(n_str) * _UNIT_TO_HOURS[unit])
+    try:
+        return timedelta(hours=int(n_str) * _UNIT_TO_HOURS[unit])
+    except OverflowError as exc:
+        # timedelta overflow raises OverflowError, which is not a ValueError;
+        # normalize so CLI boundaries that catch ValueError produce USAGE/CONFIG
+        # instead of a traceback.
+        raise ValueError(f"invalid duration: {spec!r} (value out of range)") from exc

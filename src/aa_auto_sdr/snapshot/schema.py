@@ -35,6 +35,7 @@ nested map)."""
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any
 
 from aa_auto_sdr.core.exceptions import SnapshotSchemaError
@@ -58,8 +59,18 @@ _REQUIRED_V1_KEYS = (
     "components",
 )
 _SUPPORTED_SCHEMA_RE = re.compile(r"^aa-sdr-snapshot/v[1234](\.\d+)?$")
-# Match aware ISO 8601: must end with Z or [+|-]HH:MM offset.
-_AWARE_TS_RE = re.compile(r".+(Z|[+-]\d{2}:\d{2})$")
+
+
+def _is_aware_iso_timestamp(value: str) -> bool:
+    """True iff `value` parses as ISO 8601 AND carries a timezone offset.
+
+    A suffix check alone (`...Z` / `...+HH:MM`) is not enough: a value like
+    `garbage+00:00` would pass and then crash trending's fromisoformat later."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
 
 
 def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -147,7 +158,7 @@ def validate_envelope(env: dict[str, Any]) -> None:
         if key not in env:
             raise SnapshotSchemaError(f"snapshot envelope missing required key '{key}'")
     captured_at = env["captured_at"]
-    if not isinstance(captured_at, str) or not _AWARE_TS_RE.match(captured_at):
+    if not isinstance(captured_at, str) or not _is_aware_iso_timestamp(captured_at):
         raise SnapshotSchemaError(
             f"snapshot captured_at must be a timezone-aware ISO-8601 timestamp, got {captured_at!r}",
         )

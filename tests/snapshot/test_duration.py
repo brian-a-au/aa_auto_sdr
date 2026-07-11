@@ -43,3 +43,9 @@ class TestParseDurationErrors:
     def test_invalid_durations_raise_valueerror(self, spec: str) -> None:
         with pytest.raises(ValueError, match="invalid duration"):
             parse_duration(spec)
+
+    def test_overflowing_duration_raises_valueerror(self) -> None:
+        """A duration too large for timedelta must raise ValueError, not
+        OverflowError — CLI boundaries catch ValueError to produce USAGE/CONFIG."""
+        with pytest.raises(ValueError, match="duration"):
+            parse_duration("999999999999w")
