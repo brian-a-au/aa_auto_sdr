@@ -519,3 +519,30 @@ class TestFailFastResolutionPhase:
         err = capsys.readouterr().err
         assert "missing1" in err
         assert "missing2" in err
+
+
+class TestFailFastResolutionDuplicateGuard:
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_duplicate_after_failure_not_double_counted(
+        self, mock_client_cls, env_creds, capsys, tmp_path: Path
+    ) -> None:
+        """`valid missing valid --fail-fast`: the trailing duplicate that already
+        resolved must not be recorded as cancelled on top of its success — it
+        stays a single success, not both a success and a cancelled failure."""
+        mock_client_cls.from_credentials.return_value = MagicMock(
+            handle=_build_multi_handle(["valid"]), company_id="testco"
+        )
+        rc = batch_cmd.run(
+            rsids=["valid", "missing", "valid"],
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            workers=1,
+            fail_fast=True,
+        )
+        assert rc == 14  # partial: valid succeeded, missing failed
+        out = capsys.readouterr().out
+        # The guard prevents the trailing duplicate from being recorded as a
+        # cancellation; with no other cancellations in this run, none appear.
+        assert "CancelledError" not in out
+        assert (tmp_path / "valid.json").exists()
