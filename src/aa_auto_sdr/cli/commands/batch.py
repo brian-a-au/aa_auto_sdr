@@ -608,10 +608,14 @@ def _run_impl(
         return ExitCode.OK.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value
-    # All failed → exit code of the last *real* failure. Fail-fast appends
-    # synthetic CancelledError records (GENERIC) after the triggering error;
-    # skip those so the exit code stays the actionable API/auth/output/config
-    # code that actually stopped the batch.
+    # All failed → exit code of the last *real* (non-cancelled) failure.
+    # Fail-fast and never-submitted RSIDs append synthetic CancelledError
+    # records (GENERIC); skipping them keeps the code an actionable
+    # API/auth/output/config code rather than GENERIC. This is the last real
+    # failure by list order — resolution pre_failures are appended last, and
+    # parallel completion order varies — so it is not necessarily the failure
+    # that triggered fail-fast. (fail-fast covers the generation phase only;
+    # resolution failures are collected separately before run_batch.)
     real_failures = [f for f in final.failures if f.error_type != "CancelledError"]
     relevant = real_failures or final.failures
     return relevant[-1].exit_code

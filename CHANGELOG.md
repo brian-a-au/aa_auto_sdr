@@ -42,6 +42,11 @@ change is called out under Changed.
   failure callback, matching a normally-completed worker. Such a worker still
   writes output and appears in the summary, so structured-log and progress
   consumers no longer miss its outcome.
+- Parallel `--fail-fast` now cancels every remaining future before it blocks on
+  any running worker's result. When the pending set held both a running future
+  and a not-yet-started one, blocking on the running one first left a window
+  where a freed thread could start the queued future before its own cancel ran.
+  Cancelling the whole set up front narrows that window.
 - An all-failed `--fail-fast` batch now exits with the code of the error that
   triggered the stop, e.g. 12 for an API error, instead of 1. The synthetic
   cancellation records are skipped when choosing the exit code.

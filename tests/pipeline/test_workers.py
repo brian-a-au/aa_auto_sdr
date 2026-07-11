@@ -627,3 +627,59 @@ def test_fail_fast_late_failure_logs_and_invokes_callback(
         r.rsid for r in caplog.records if r.getMessage().startswith("rsid_failure") and getattr(r, "rsid", None)
     }
     assert "rB" in failure_rsids
+
+
+def test_fail_fast_workers3_running_worker_and_queued_future_all_accounted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """workers=3 with a co-completed success+failure while a third worker is
+    still running exercises the two-phase drain (cancel the whole set first,
+    then drain only the uncancellable running futures). Every input RSID must
+    appear exactly once, the held running worker's true outcome must be
+    recorded, and no RSID may be double-counted."""
+    import aa_auto_sdr.pipeline.workers as workers_mod
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    r2_started = threading.Event()
+    r3_started = threading.Event()
+    release_r3 = threading.Event()
+
+    def runner(*, rsid: str, **_kw: object) -> RunResult:
+        if rsid == "r1":
+            return _success_result(rsid)
+        if rsid == "r2":
+            r2_started.set()
+            # Ensure r3 is running before r2 fails, so a third worker is still
+            # in flight when fail-fast triggers.
+            r3_started.wait(timeout=5.0)
+            raise ApiError("r2 failed")
+        if rsid == "r3":
+            r3_started.set()
+            release_r3.wait(timeout=5.0)
+            return _success_result(rsid)
+        # r4/r5: released once r2's failure is processed.
+        release_r3.wait(timeout=5.0)
+        return _success_result(rsid)
+
+    monkeypatch.setattr(workers_mod, "_run_single_for_batch", runner)
+
+    result = run_parallel(
+        rsids=["r1", "r2", "r3", "r4", "r5"],
+        workers=3,
+        client=MagicMock(),
+        cache=None,
+        fail_fast=True,
+        failure_callback=lambda *_a: release_r3.set(),
+        formats=["json"],
+        output_dir=Path("/tmp"),
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="1.21.6",
+    )
+
+    accounted = [r.rsid for r in result.successes] + [f.rsid for f in result.failures]
+    assert sorted(accounted) == ["r1", "r2", "r3", "r4", "r5"]  # each exactly once
+    assert len(accounted) == len(set(accounted))  # no double-count
+    by_rsid = {f.rsid: f for f in result.failures}
+    assert by_rsid["r2"].error_type == "ApiError"
+    # r3 was genuinely running when fail-fast fired; it drains to its true outcome.
+    assert "r3" in {r.rsid for r in result.successes}

@@ -439,39 +439,49 @@ def run_parallel(
                                 except StopIteration:
                                     pass
                     if failed:
-                        # Cancel all remaining pending futures now that the
-                        # entire done_set has been drained. Not-yet-started
-                        # futures cancel cleanly and are recorded as
-                        # CancelledError so progress accounting matches
-                        # BatchResult (Fix B / bug_020). A future that is
-                        # already RUNNING cannot be cancelled — it completes
-                        # and writes its outputs regardless (the executor's
-                        # shutdown waits for it), so record its true outcome
-                        # instead of a fictitious "cancelled".
+                        # Two-phase drain now that the entire done_set is
+                        # processed. Phase 1: cancel EVERY pending future before
+                        # blocking on any result(). A not-yet-started future
+                        # cancels cleanly and is recorded as CancelledError so
+                        # progress accounting matches BatchResult (bug_020).
+                        # Cancelling the whole set up front matters when the set
+                        # holds both a running future and a not-yet-started one:
+                        # if we blocked on the running one's result() first, a
+                        # freed thread could start the queued future before its
+                        # own cancel() ran. This narrows (does not fully close)
+                        # the submit-to-cancel window. Every pending future was
+                        # registered by _make_future, so future_to_ctx[pf] is a
+                        # hard invariant — index directly and let a KeyError
+                        # surface a broken invariant instead of a silent record.
+                        running: list[Future[RunResult]] = []
                         for pf in pending_set:
-                            pf_ctx = future_to_ctx.get(pf)
+                            pf_ctx = future_to_ctx[pf]
                             if pf.cancel():
-                                if pf_ctx is not None:
-                                    failures.append(
-                                        BatchFailure(
-                                            rsid=pf_ctx["rsid"],
-                                            error_type="CancelledError",
-                                            message="cancelled",
-                                            exit_code=ExitCode.GENERIC.value,
-                                        )
+                                failures.append(
+                                    BatchFailure(
+                                        rsid=pf_ctx["rsid"],
+                                        error_type="CancelledError",
+                                        message="cancelled",
+                                        exit_code=ExitCode.GENERIC.value,
                                     )
-                                continue
-                            # Already running; record its true outcome through the
-                            # same log + callback path as a normally-completed
-                            # future so consumers see the terminal record.
-                            late_index = pf_ctx["submission_index"] if pf_ctx else -1
-                            late_rsid = pf_ctx["rsid"] if pf_ctx else "?"
+                                )
+                            else:
+                                running.append(pf)
+                        # Phase 2: a future that could not be cancelled is already
+                        # RUNNING; it completes and writes output regardless (the
+                        # executor's shutdown waits for it), so record its true
+                        # outcome through the same log + callback path as a
+                        # normally-completed future.
+                        for pf in running:
+                            pf_ctx = future_to_ctx[pf]
                             try:
                                 late_result = pf.result()
                             except AaAutoSdrError as exc:
-                                _record_failure(exc, submission_index=late_index, rsid=late_rsid)
+                                _record_failure(exc, submission_index=pf_ctx["submission_index"], rsid=pf_ctx["rsid"])
                             else:
-                                _record_success(late_result, submission_index=late_index, rsid=late_rsid)
+                                _record_success(
+                                    late_result, submission_index=pf_ctx["submission_index"], rsid=pf_ctx["rsid"]
+                                )
                         pending_set = set()
                         # RSIDs still in the lazy-submission iterator were never
                         # submitted (fail-fast seeds only `workers` at a time).
