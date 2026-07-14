@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.7] — 2026-07-13
+
+Distribution release. The package is now available on PyPI. There are no
+functional changes from 1.21.6.
+
+### Added
+- Published to PyPI as `aa-auto-sdr`, installable with `pip install aa-auto-sdr`
+  or `uv add aa-auto-sdr`. Releases publish automatically from a published
+  GitHub Release using OIDC trusted publishing, so no API token is stored in the
+  repository.
+
 ## [1.21.6] — 2026-07-11
 
 Correctness patch from a repo-wide defect sweep. No new flags. One behavior
