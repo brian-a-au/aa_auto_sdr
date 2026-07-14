@@ -1,0 +1,70 @@
+name: release
+
+# Publish aa-auto-sdr to PyPI via OIDC Trusted Publishing — no API token lives
+# in this repo. PyPI mints a short-lived credential at upload time, scoped to a
+# publisher it already trusts. That publisher is registered on PyPI as:
+#
+#   owner=brian-a-au  repo=aa_auto_sdr  workflow=release.yml  environment=pypi
+#
+# Keep those four facts in sync with this file. In particular the *filename*
+# must stay `release.yml` and the job must run in `environment: pypi`, or the
+# upload is rejected with a mismatched-publisher error.
+#
+# Trigger: a *published* GitHub Release, which is the final step of the existing
+# manual flow (bump core/version.py + CHANGELOG on main, tag vX.Y.Z, publish the
+# Release). Draft releases fire nothing, so tagging alone never uploads; the
+# upload happens only when you deliberately publish the Release.
+on:
+  release:
+    types: [published]
+
+# A permissions block resets every scope not listed to `none`, so both needed
+# scopes are spelled out. `id-token: write` is the load-bearing one — it lets
+# the runner request the OIDC token PyPI trusts. `contents: read` is just for
+# checkout.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Binds to the GitHub Environment named `pypi` (Settings -> Environments)
+    # and matches the environment the PyPI publisher is scoped to. Add a
+    # required reviewer on that environment for a manual approval gate before
+    # any upload reaches PyPI.
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+
+      # Guard against a mistyped tag publishing a mislabeled artifact. version.py
+      # is the single source of truth; check_version_sync.py already keeps
+      # pyproject/CHANGELOG aligned with it on every push, so here we only need
+      # to confirm the Release tag equals `v<that version>`.
+      - name: Verify tag matches package version
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="$(sed -nE 's/^__version__ *= *"([^"]+)".*/\1/p' src/aa_auto_sdr/core/version.py)"
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not parse __version__ from src/aa_auto_sdr/core/version.py"
+            exit 1
+          fi
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Release tag '$TAG' does not match package version 'v$VERSION'"
+            exit 1
+          fi
+          echo "tag/version match: $TAG"
+
+      # Builds sdist + wheel into dist/. uv provisions Python per requires-python
+      # (>=3.14) and runs hatchling in an isolated build env.
+      - name: Build sdist + wheel
+        run: uv build
+
+      # Uploads everything in dist/ using the OIDC credential. `release/v1` is the
+      # maintained moving tag pypa recommends; pin to a commit SHA instead if you
+      # want to lock the action against supply-chain drift.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
