@@ -28,9 +28,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --all-extras
@@ -94,7 +94,7 @@ jobs:
           PY
 
       - name: Open PR if badges changed
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           # Default GITHUB_TOKEN works because the repo grants `pull-requests: write`
           # at the workflow level (see permissions block above).

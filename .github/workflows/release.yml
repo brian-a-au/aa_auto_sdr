@@ -35,9 +35,9 @@ jobs:
     # any upload reaches PyPI.
     environment: pypi
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v7
 
       # Guard against a mistyped tag publishing a mislabeled artifact. version.py
       # is the single source of truth; check_version_sync.py already keeps
