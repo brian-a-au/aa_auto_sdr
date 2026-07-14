@@ -521,4 +521,4 @@ aa_auto_sdr/
 - [Adobe Analytics 2.0 API documentation](https://developer.adobe.com/analytics-apis/docs/2.0/)
 - [`aanalytics2` Python wrapper](https://github.com/pitchmuc/adobe-analytics-api-2.0) — the underlying SDK
 - [`uv` package manager](https://github.com/astral-sh/uv)
-- [Sister project: `cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr) — Customer Journey Analytics equivalent
+- [Counterpart project: `cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr) — Customer Journey Analytics equivalent
