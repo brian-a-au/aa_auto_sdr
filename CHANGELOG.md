@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.8] — 2026-07-13
+
+Documentation release. Fixes how the PyPI project page renders the README
+banner image and aligns the install guidance with `cja_auto_sdr`. There are no
+functional changes. A release is required because PyPI only re-renders a
+project's README when a new version is published.
+
+### Fixed
+- The README banner image no longer renders stretched on the PyPI project page.
+  The `<img>` tag carried an explicit `height` attribute, which PyPI honors
+  literally while scaling the width down to the description column, so the image
+  was drawn into a box whose proportions no longer matched. Dropping the fixed
+  height lets the browser keep the aspect ratio on both PyPI and GitHub. The
+  sister project `cja_auto_sdr` avoided the issue only because its banner's
+  declared dimensions were close to the column width.
+
+### Changed
+- The "Install from PyPI" section now mirrors the wording and layout of
+  `cja_auto_sdr` so users moving between the two tools see a consistent surface.
+
 ## [1.21.7] — 2026-07-13
 
 Distribution release. The package is now available on PyPI. There are no

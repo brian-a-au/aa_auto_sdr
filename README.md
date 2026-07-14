@@ -1,6 +1,6 @@
 # Adobe Analytics Solution Design Reference Generator
 
-<img width="2750" height="1536" alt="Gemini_Generated_Image_fmlfuefmlfuefmlf" src="https://github.com/user-attachments/assets/28bea7c7-918b-4402-802b-b4a34f4cd77f" />
+<img width="900" alt="Adobe Analytics Solution Design Reference Generator" src="https://github.com/user-attachments/assets/28bea7c7-918b-4402-802b-b4a34f4cd77f" />
 
 [![PyPI version](https://img.shields.io/pypi/v/aa-auto-sdr.svg)](https://pypi.org/project/aa-auto-sdr/)
 [![Tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)
@@ -104,23 +104,27 @@ A **Solution Design Reference** is the documentation that bridges your business 
 > **macOS/Linux:** prefix commands with `uv run` (e.g. `uv run aa_auto_sdr --list-reportsuites`).
 > **Windows:** activate the venv first (`.venv\Scripts\activate`), then run commands directly.
 
-### Install
+### Install from PyPI (recommended)
 
-**From PyPI (quickest — for running the tool):**
+The tool is published on [PyPI](https://pypi.org/project/aa-auto-sdr/), so most users can install it without cloning. `uv` is recommended:
 
 ```bash
-uv tool install aa-auto-sdr          # isolated install; puts `aa_auto_sdr` on your PATH
+uv tool install aa-auto-sdr          # isolated install; puts `aa-auto-sdr` on your PATH
 # or run once without installing:
 uvx aa-auto-sdr --list-reportsuites
 # or with plain pip:
 pip install aa-auto-sdr
 ```
 
-Optional extras: `env` (`.env` support), `completion` (shell completion), `notion` (Notion export) — e.g. `uv tool install "aa-auto-sdr[env,completion]"`.
+Optional features ship as extras:
 
-Installed from PyPI, run `aa_auto_sdr` directly and skip to **step 3 (Configure Credentials)** below — the `uv run` prefix in the numbered steps is only needed for the from-source setup.
+```bash
+uv tool install "aa-auto-sdr[env,completion,notion]"   # .env support + shell completion + Notion export
+```
 
-**From source (for development):** follow steps 1–5 below.
+Verify with `aa-auto-sdr --version`, then skip ahead to [Configure Credentials](#3-configure-credentials-adobe-analytics-api-20-oauth-server-to-server) — installed from PyPI you run `aa-auto-sdr` directly, so the `uv run` prefix in the numbered steps below is only for the from-source path.
+
+To set up a development checkout from source instead, follow the numbered steps below.
 
 ### 1. Clone the Repository
 
