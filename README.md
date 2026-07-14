@@ -103,6 +103,24 @@ A **Solution Design Reference** is the documentation that bridges your business 
 > **macOS/Linux:** prefix commands with `uv run` (e.g. `uv run aa_auto_sdr --list-reportsuites`).
 > **Windows:** activate the venv first (`.venv\Scripts\activate`), then run commands directly.
 
+### Install
+
+**From PyPI (quickest — for running the tool):**
+
+```bash
+uv tool install aa-auto-sdr          # isolated install; puts `aa_auto_sdr` on your PATH
+# or run once without installing:
+uvx aa-auto-sdr --list-reportsuites
+# or with plain pip:
+pip install aa-auto-sdr
+```
+
+Optional extras: `env` (`.env` support), `completion` (shell completion), `notion` (Notion export) — e.g. `uv tool install "aa-auto-sdr[env,completion]"`.
+
+Installed from PyPI, run `aa_auto_sdr` directly and skip to **step 3 (Configure Credentials)** below — the `uv run` prefix in the numbered steps is only needed for the from-source setup.
+
+**From source (for development):** follow steps 1–5 below.
+
 ### 1. Clone the Repository
 
 ```bash
