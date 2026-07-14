@@ -112,6 +112,7 @@ Snapshots are first-class, not an afterthought:
   - **Snapshot envelope schema** → `docs/SNAPSHOT_DIFF.md` with current `vN`. `CHANGELOG.md` for history.
   - **Output format aliases** → `docs/OUTPUT_FORMATS.md`.
   - **Logging events & frequency** → `docs/LOGGING_STYLE.md`.
+  - **Release process** → `RELEASING.md`. `CHANGELOG.md` still owns the *when*.
 
 ## Common Commands
 
@@ -125,6 +126,10 @@ uv run aa_auto_sdr <RSID>                # Generate SDR for one report suite
 uv run aa_auto_sdr --batch <RSID...>     # Generate SDRs for multiple report suites
 uv run aa_auto_sdr --diff <a> <b>        # Compare snapshots
 ```
+
+## Releasing
+
+Full runbook: [`RELEASING.md`](RELEASING.md). In short: bump `src/aa_auto_sdr/core/version.py` and add a `CHANGELOG.md` entry, merge to `main`, then push a `vX.Y.Z` tag and publish a GitHub Release. `.github/workflows/release.yml` builds and uploads to PyPI over OIDC trusted publishing — no token. The tag must match `version.py` or the workflow's guard fails the publish. Docs-only and CI-only changes ship without a version bump or a release.
 
 ## When in Doubt
 
