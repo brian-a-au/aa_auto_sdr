@@ -675,8 +675,13 @@ uv run aa_auto_sdr $RSIDS --agent-mode --output-dir /reports
 
 ---
 
+## Releasing
+
+Releasing is a human-initiated action; agent-mode and unattended runs never publish. The tool is read-only against Adobe Analytics, and cutting a release is the one workflow that writes outside the repo (it uploads to PyPI). See [`RELEASING.md`](RELEASING.md) for the runbook: bump `src/aa_auto_sdr/core/version.py` and `CHANGELOG.md`, merge to `main`, tag `vX.Y.Z`, and publish a GitHub Release — [`.github/workflows/release.yml`](.github/workflows/release.yml) then builds and uploads to PyPI over OIDC, with no token and no manual upload step.
+
 ## See Also
 
+- [`RELEASING.md`](RELEASING.md) — how to cut a release and publish to PyPI (human-initiated)
 - [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — credential resolution chain, profile layout, scopes
 - [`README.md`](README.md) — human-facing CLI tour
 - [`docs/LOGGING_STYLE.md`](docs/LOGGING_STYLE.md) — structured-fields vocabulary used by `--log-format json`
