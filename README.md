@@ -2,6 +2,7 @@
 
 <img width="2750" height="1536" alt="Gemini_Generated_Image_fmlfuefmlfuefmlf" src="https://github.com/user-attachments/assets/28bea7c7-918b-4402-802b-b4a34f4cd77f" />
 
+[![PyPI version](https://img.shields.io/pypi/v/aa-auto-sdr.svg)](https://pypi.org/project/aa-auto-sdr/)
 [![Tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)
 [![Lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)
 [![Version Sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)
