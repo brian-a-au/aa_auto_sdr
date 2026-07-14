@@ -28,7 +28,12 @@ classifiers = [
     "Topic :: Office/Business",
 ]
 dependencies = [
-    "aanalytics2>=0.4.0",
+    # Upper bound excludes aanalytics2 0.5.3: it dropped the `pyjwt` dependency
+    # declaration but its `token_provider` module still runs `import jwt` at load
+    # time, so a fresh install resolving to 0.5.3 fails with
+    # `ModuleNotFoundError: No module named 'jwt'`. 0.5.1/0.5.2 declare the dep
+    # correctly. Lift the cap deliberately once a fixed SDK release is vetted.
+    "aanalytics2>=0.4.0,<0.5.3",
     "openpyxl>=3.1.0",
     "pandas>=2.3.3,<3",
     # `requests` is imported directly by api/resilience.py (`is_retryable`

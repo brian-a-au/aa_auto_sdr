@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.9] — 2026-07-13
+
+Security and dependency patch. It clears every finding reported by `uv audit`
+and stops a broken upstream SDK release from reaching new installs. There are no
+functional or CLI changes. One adverse status remains, `pathlib is archived`,
+which comes from a backport dependency that `aanalytics2` still declares and
+cannot be resolved without an upstream change.
+
+### Security
+- Refreshed `uv.lock` to the fixed versions of the transitive packages that
+  `uv audit` flagged: `pyjwt` 2.12.1 to 2.13.0, `cryptography` 47.0.0 to 49.0.0,
+  `idna` 3.13 to 3.18, and `urllib3` 2.6.3 to 2.7.0. All four arrive through
+  `aanalytics2` and `requests`, neither of which sets an upper bound on them, so
+  the fixed versions resolve without any other change. This clears all sixteen
+  advisories across the four packages.
+
+### Fixed
+- Capped `aanalytics2` to `<0.5.3` in `pyproject.toml`. Version 0.5.3 dropped the
+  `pyjwt` dependency from its metadata but its `token_provider` module still runs
+  `import jwt` at load time, so a fresh install that resolved to 0.5.3 failed
+  immediately with `ModuleNotFoundError: No module named 'jwt'`. The previous
+  floor of `>=0.4.0` let new installs pick up that broken release. The cap holds
+  installs on 0.5.1 or 0.5.2, which declare the dependency correctly. Lift the
+  cap once a fixed SDK release is vetted.
+
 ## [1.21.8] — 2026-07-13
 
 Documentation release. Fixes how the PyPI project page renders the README
