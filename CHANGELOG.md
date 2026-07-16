@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.10] — 2026-07-16
+
+Dependency patch. It lifts the block on the upstream SDK so new installs get
+the fixed release, and it removes the JWT packages from the lock. There are no
+functional or CLI changes.
+
+### Changed
+- Changed the `aanalytics2` constraint from `<0.5.3` to `!=0.5.3`. The old cap
+  blocked the broken `0.5.3` release, which failed at import time because it
+  dropped the `pyjwt` dependency while still importing it. Upstream fixed this
+  in release `0.5.3.post1` and closed
+  [issue #116](https://github.com/pitchmuc/adobe-analytics-api-2.0/issues/116).
+  The fix removes JWT authentication from the SDK entirely rather than
+  restoring the `pyjwt` dependency. This tool only uses OAuth Server-to-Server
+  authentication, so losing JWT support has no effect here. We vetted the fixed
+  release before lifting the cap. In a clean environment without `pyjwt`, the
+  import succeeds, and every SDK call this tool makes (`configure`, `Login`,
+  `Analytics`, and the seven `get` fetch methods) is still present with
+  compatible arguments. The new constraint still excludes the broken `0.5.3`
+  exactly, so a resolver can never pick it.
+- Refreshed `uv.lock` to `aanalytics2 0.5.3.post1`. Because upstream removed
+  JWT support, the lock no longer contains `pyjwt`, `cryptography`, `cffi`, or
+  `pycparser`. The lock now contains `deprecation`, which upstream added as a
+  dependency. `uv audit` reports the same result as before. There are no known
+  vulnerabilities, and the one known `pathlib is archived` adverse status
+  remains, which only upstream can resolve.
+
 ## [1.21.9] — 2026-07-13
 
 Security and dependency patch. It clears every finding reported by `uv audit`
