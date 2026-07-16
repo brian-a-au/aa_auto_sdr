@@ -28,12 +28,12 @@ classifiers = [
     "Topic :: Office/Business",
 ]
 dependencies = [
-    # Upper bound excludes aanalytics2 0.5.3: it dropped the `pyjwt` dependency
-    # declaration but its `token_provider` module still runs `import jwt` at load
-    # time, so a fresh install resolving to 0.5.3 fails with
-    # `ModuleNotFoundError: No module named 'jwt'`. 0.5.1/0.5.2 declare the dep
-    # correctly. Lift the cap deliberately once a fixed SDK release is vetted.
-    "aanalytics2>=0.4.0,<0.5.3",
+    # 0.5.3 is excluded: it dropped the `pyjwt` dependency declaration while its
+    # `token_provider` module still ran `import jwt` at load time, so a fresh
+    # install resolving to 0.5.3 failed with `ModuleNotFoundError: No module
+    # named 'jwt'` (upstream issue #116). 0.5.3.post1 fixed it by removing the
+    # JWT auth path entirely, which this tool never used (OAuth S2S only).
+    "aanalytics2>=0.4.0,!=0.5.3",
     "openpyxl>=3.1.0",
     "pandas>=2.3.3,<3",
     # `requests` is imported directly by api/resilience.py (`is_retryable`
