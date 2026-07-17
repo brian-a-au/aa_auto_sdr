@@ -1,0 +1,9 @@
+# setup-uv is pinned by commit SHA (its v8 line stopped publishing floating
+# major tags), so without Dependabot the pin would silently go stale.
+# Dependabot bumps the SHA and the trailing version comment together.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
