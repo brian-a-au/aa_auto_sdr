@@ -231,11 +231,11 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     )
     summaries = [
         models.ReportSuiteSummary(
-            rsid=str(r.get("rsid", "")),
+            rsid=rsid,
             name=_str_or_none(r, "name"),
         )
         for r in raw
-        if r.get("rsid")
+        if (rsid := _str_or_none(r, "rsid")) is not None
     ]
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.debug(
