@@ -7,11 +7,11 @@
 [![Lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)
 [![Version Sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/downloads/)
-[![Coverage](https://img.shields.io/badge/coverage-99%25-brightgreen.svg)](tests/)
-[![Tests](https://img.shields.io/badge/tests-2331-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-99%25-brightgreen.svg)](https://github.com/brian-a-au/aa_auto_sdr/tree/main/tests)
+[![Tests](https://img.shields.io/badge/tests-2337-brightgreen.svg)](https://github.com/brian-a-au/aa_auto_sdr/tree/main/tests)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/brian-a-au/aa_auto_sdr/blob/main/LICENSE)
 
 A production-ready Python CLI that automates the creation of Solution Design Reference (SDR) documentation from your Adobe Analytics implementation. Read-only against Adobe Analytics. API 2.0 only.
 
@@ -37,7 +37,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | Category | Feature |
 |----------|---------|
 | **Generation** | Single-RSID generation by ID or name (case-insensitive exact match) |
-| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. See the [Template-Fill Workflow guide](docs/TEMPLATE_WORKFLOW.md) for first-run + batch + troubleshooting walkthroughs. Direct download: [`aa_en_BRD_SDR_template.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx). |
+| | **Template-fill Excel** — point `--template aa_en_BRD_SDR_template.xlsx` at Adobe's BRD/SDR template (or your own customized copy) to fill component data into the official styled workbook while preserving formulas, styles, and untouched cells. See the [Template-Fill Workflow guide](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/TEMPLATE_WORKFLOW.md) for first-run + batch + troubleshooting walkthroughs. Direct download: [`aa_en_BRD_SDR_template.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx). |
 | | Auto-batch when 2+ identifiers are given on the command line; `--batch` flag still supported |
 | | RSIDs and names may be mixed freely in one invocation |
 | | `--metrics-only` / `--dimensions-only` slim the SDR; skip API calls for excluded types |
@@ -192,7 +192,7 @@ If your org's IMS rules require either of the recommended scopes for the endpoin
 
 In the **Adobe Admin Console**, add the integration to an Adobe Analytics **Product Profile**. Without this, authentication can succeed while no Analytics companies or report suites are visible. In the underlying SDK flow, `Login().getCompanyId()` may return no companies and subsequent `Analytics()` calls may return empty data. `aa_auto_sdr --show-config` cannot detect this — the first generation attempt is what surfaces the problem.
 
-> RSID is not the same as the Analytics global company ID. The CLI is RSID-first for the user, but Adobe Analytics 2.0 API requests are made in the context of an Analytics **global company ID** (sent as `x-proxy-global-company-id`); the tool resolves it from your Product Profile context internally. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md#analytics-company-context-rsid-vs-global-company-id) for the full explanation.
+> RSID is not the same as the Analytics global company ID. The CLI is RSID-first for the user, but Adobe Analytics 2.0 API requests are made in the context of an Analytics **global company ID** (sent as `x-proxy-global-company-id`); the tool resolves it from your Product Profile context internally. See [`docs/CONFIGURATION.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CONFIGURATION.md#analytics-company-context-rsid-vs-global-company-id) for the full explanation.
 
 #### d. Save credentials
 
@@ -270,7 +270,7 @@ $ uv run aa_auto_sdr <RSID> --format all     # all five formats at once
 $ uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
 ```
 
-Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format looks like before running anything.
+Browse [`sample_outputs/`](https://github.com/brian-a-au/aa_auto_sdr/tree/main/sample_outputs) in this repo to see what each format looks like before running anything.
 
 ## Common Use Cases
 
@@ -309,7 +309,7 @@ Browse [`sample_outputs/`](sample_outputs/) in this repo to see what each format
 | Pipe JSON to jq | `aa_auto_sdr <RSID> --format json --output - \| jq '.report_suite'` |
 | Aliases (excel + markdown) | `aa_auto_sdr <RSID> --format reports` |
 | Template-fill Excel ([download `.xlsx`](https://cdn.experienceleague.adobe.com/assets/Adobe-Enterprise-Docs/analytics-learn.en/main/help/implementation/implementation-basics/assets/aa_en_BRD_SDR_template.xlsx) · [tutorial](https://experienceleague.adobe.com/en/docs/analytics-learn/tutorials/implementation/implementation-basics/creating-and-maintaining-an-sdr)) | `aa_auto_sdr <RSID> --template ~/aa_en_BRD_SDR_template.xlsx` |
-| Notion publishing + optional registry database + maintenance modes ([setup guide](docs/NOTION_SETUP.md) · [command reference](docs/CLI_REFERENCE.md#notion-integration)) | `aa_auto_sdr <RSID> --format notion` |
+| Notion publishing + optional registry database + maintenance modes ([setup guide](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/NOTION_SETUP.md) · [command reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md#notion-integration)) | `aa_auto_sdr <RSID> --format notion` |
 | **Discovery & Inspection** | |
 | List metrics for one RS | `aa_auto_sdr --list-metrics <RSID>` |
 | Filter + sort + limit | `aa_auto_sdr --list-metrics <RSID> --filter page --sort name --limit 10` |
@@ -398,7 +398,7 @@ When `--diff` compares two snapshots and either side has a degraded or
 partial-with-mismatched-level fetch for a component type, that section's
 diff is suppressed with a single annotation rather than rendering false
 "modified" rows. Older majors (`v1`–`v3`) load forward-compat with missing
-fields defaulted. See [`docs/SNAPSHOT_DIFF.md`](docs/SNAPSHOT_DIFF.md) for the full schema and `CHANGELOG.md` for version history.
+fields defaulted. See [`docs/SNAPSHOT_DIFF.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/SNAPSHOT_DIFF.md) for the full schema and `CHANGELOG.md` for version history.
 
 ### Fetch-quality signal
 
@@ -429,20 +429,20 @@ when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
 
 | Guide | Description |
 |-------|-------------|
-| [Quick Reference](docs/QUICK_REFERENCE.md) | Single-page command cheat sheet, grouped by mode |
-| [Quickstart](docs/QUICKSTART.md) | Step-by-step walkthrough from clone to first SDR |
-| [Installation](docs/INSTALLATION.md) | Platform setup, install methods, optional extras, dependency reference |
-| [Configuration](docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, diagnostics, troubleshooting |
-| [Notion Setup](docs/NOTION_SETUP.md) | Step-by-step Notion publishing and SDR Registry setup |
-| [CLI Reference](docs/CLI_REFERENCE.md) | Every flag organized by capability, exit codes, machine-readable error envelope |
-| [Use Cases & Best Practices](docs/USE_CASES.md) | Scenario playbooks, automation, scheduling, CI/CD |
-| [Snapshot & Diff](docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, trending, watch, common workflows |
-| [Output Formats](docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
-| [Template-Fill Workflow](docs/TEMPLATE_WORKFLOW.md) | Hands-on guide for `--template` — getting Adobe's template, first run, batch, composition with snapshot/git, coverage map, troubleshooting |
-| [Logging](docs/LOGGING.md) | Log flags, file naming, redaction, canonical events |
-| [Logging Style Guide](docs/LOGGING_STYLE.md) | Internal logger-call contract — canonical vocabulary, required extras (binds `tests/core/test_logging_vocabulary.py`) |
-| [Sample Outputs](sample_outputs/) | Browse representative outputs without installing |
-| [`AGENTS.md`](AGENTS.md) | Machine-readable contract for unattended / agent-driven runs (`--agent-mode`) |
+| [Quick Reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/QUICK_REFERENCE.md) | Single-page command cheat sheet, grouped by mode |
+| [Quickstart](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/QUICKSTART.md) | Step-by-step walkthrough from clone to first SDR |
+| [Installation](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/INSTALLATION.md) | Platform setup, install methods, optional extras, dependency reference |
+| [Configuration](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CONFIGURATION.md) | Credential sources, OAuth scopes, profile management, diagnostics, troubleshooting |
+| [Notion Setup](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/NOTION_SETUP.md) | Step-by-step Notion publishing and SDR Registry setup |
+| [CLI Reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md) | Every flag organized by capability, exit codes, machine-readable error envelope |
+| [Use Cases & Best Practices](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/USE_CASES.md) | Scenario playbooks, automation, scheduling, CI/CD |
+| [Snapshot & Diff](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/SNAPSHOT_DIFF.md) | Snapshot file format, resolver token grammar, diff semantics, trending, watch, common workflows |
+| [Output Formats](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/OUTPUT_FORMATS.md) | Five formats + four aliases, when to use each, file layouts |
+| [Template-Fill Workflow](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/TEMPLATE_WORKFLOW.md) | Hands-on guide for `--template` — getting Adobe's template, first run, batch, composition with snapshot/git, coverage map, troubleshooting |
+| [Logging](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/LOGGING.md) | Log flags, file naming, redaction, canonical events |
+| [Logging Style Guide](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/LOGGING_STYLE.md) | Internal logger-call contract — canonical vocabulary, required extras (binds `tests/core/test_logging_vocabulary.py`) |
+| [Sample Outputs](https://github.com/brian-a-au/aa_auto_sdr/tree/main/sample_outputs) | Browse representative outputs without installing |
+| [`AGENTS.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/AGENTS.md) | Machine-readable contract for unattended / agent-driven runs (`--agent-mode`) |
 
 ## Requirements
 

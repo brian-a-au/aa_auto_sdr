@@ -68,6 +68,11 @@ jobs:
       - name: Build sdist + wheel
         run: uv build
 
+      # PyPI renders the long description outside the repository, so relative
+      # README targets would silently point at pypi.org instead of GitHub.
+      - name: Verify packaged README links
+        run: uv run --no-project --python 3.14 python scripts/check_distribution_readme_links.py dist/*.whl dist/*.tar.gz
+
       # Uploads everything in dist/ using the OIDC credential. `release/v1` is the
       # maintained moving tag pypa recommends; pin to a commit SHA instead if you
       # want to lock the action against supply-chain drift.
