@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.11] — 2026-08-03
+
+Documentation integrity patch. Repository links in the packaged README now
+resolve correctly from the PyPI project page, and the release pipeline prevents
+relative documentation links from recurring.
+
+### Fixed
+- Replaced repository-relative README links with absolute GitHub targets so
+  documentation, sample-output, test, and license links work when the same
+  README is rendered as the package description on PyPI.
+
+### Added
+- Added an artifact-level release check that reads the long description from
+  both the built wheel and sdist, rejects unsafe or repository-relative
+  Markdown and HTML targets, and verifies that both artifacts carry the same
+  UTF-8 description.
+- Added the packaged-README check to the pull-request release gate and the
+  trusted-publishing workflow before smoke installation or upload.
+
 ## [1.21.10] — 2026-07-16
 
 Dependency patch. It lifts the block on the upstream SDK so new installs get
