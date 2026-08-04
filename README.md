@@ -17,6 +17,8 @@ A production-ready Python CLI that automates the creation of Solution Design Ref
 
 Counterpart to [`cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr); shares UX conventions, does not share code.
 
+Companion projects: [`sdr-visualizer`](https://github.com/brian-a-au/sdr-visualizer) turns generated JSON snapshots into self-contained visual catalogs, while [`sdr-grader`](https://github.com/brian-a-au/sdr-grader) provides deterministic, rule-based quality grading.
+
 ## What It Is
 
 A **Solution Design Reference** is the documentation that bridges your business requirements and your analytics implementation. It catalogs every dimension, metric, segment, calculated metric, virtual report suite, and classification dataset in your Adobe Analytics report suite — the single source of truth for what you collect and how it's configured.
