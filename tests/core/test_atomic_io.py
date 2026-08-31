@@ -20,7 +20,7 @@ def test_atomic_write_text_replaces_absent_destination(tmp_path: Path) -> None:
 
     atomic_write_text(target, "complete\n", encoding="utf-8")
 
-    assert target.read_bytes() == b"complete\n"
+    assert target.read_text() == "complete\n"
     assert _staging_files(tmp_path) == []
 
 

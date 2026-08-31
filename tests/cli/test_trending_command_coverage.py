@@ -129,9 +129,11 @@ class TestFileOutput:
                 output=str(out_file),
             )
         assert exit_code == ExitCode.OK.value
-        expected = trending_cmd._render([report], fmt="console").encode("utf-8")
-        assert out_file.read_bytes() == expected
-        content = expected.decode("utf-8")
+        rendered = trending_cmd._render([report], fmt="console")
+        expected = tmp_path / "expected.txt"
+        expected.write_text(rendered, encoding="utf-8")
+        assert out_file.read_bytes() == expected.read_bytes()
+        content = out_file.read_text(encoding="utf-8")
         assert "TRENDING WINDOW (rs1" in content
 
     def test_replace_failure_preserves_existing_file(self, tmp_path: Path, monkeypatch) -> None:

@@ -175,7 +175,9 @@ def test_diff_format_markdown_to_file(tmp_path: Path, capsys: pytest.CaptureFixt
     )
 
     assert rc == 0
-    assert out_path.read_bytes() == capsys.readouterr().out.encode()
+    expected = tmp_path / "expected.md"
+    expected.write_text(capsys.readouterr().out)
+    assert out_path.read_bytes() == expected.read_bytes()
 
 
 def test_diff_stdout_bypasses_atomic_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

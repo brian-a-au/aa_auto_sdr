@@ -119,8 +119,9 @@ class TestWriteQualityReport:
         payload = json.loads(target.read_text())
         assert payload["summary"]["total"] == 1
         assert payload["issues"][0]["severity"] == "HIGH"
-        expected = json.dumps(payload, sort_keys=True, indent=2) + "\n"
-        assert target.read_bytes() == expected.encode()
+        expected = tmp_path / "expected-report.json"
+        expected.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n")
+        assert target.read_bytes() == expected.read_bytes()
 
     def test_csv_writes_header_and_rows(self, tmp_path: Path) -> None:
         from aa_auto_sdr.sdr.quality_policy import write_quality_report

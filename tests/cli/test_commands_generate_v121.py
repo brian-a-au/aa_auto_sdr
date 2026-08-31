@@ -175,7 +175,9 @@ def test_run_summary_json_to_file(
     assert payload["rsids"][0]["rsid"] == "demo.prod"
     assert payload["rsids"][0]["succeeded"] is True
     assert payload["timings"] == []  # show_timings was unset
-    assert summary_path.read_bytes() == (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode()
+    expected = tmp_path / "expected-summary.json"
+    expected.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n")
+    assert summary_path.read_bytes() == expected.read_bytes()
 
 
 def test_run_summary_replace_failure_preserves_existing_file(
