@@ -145,7 +145,7 @@ def test_diff_format_json_to_stdout_pipe(tmp_path: Path, capsys) -> None:
     assert payload["a_rsid"] == "demo.prod"
 
 
-def test_diff_format_markdown_to_file(tmp_path: Path) -> None:
+def test_diff_format_markdown_to_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from aa_auto_sdr.cli.commands import diff as diff_cmd
 
     a = tmp_path / "a.json"
@@ -164,6 +164,18 @@ def test_diff_format_markdown_to_file(tmp_path: Path) -> None:
     assert rc == 0
     text = out_path.read_text()
     assert text.startswith("# SDR Diff")
+    capsys.readouterr()
+
+    rc = diff_cmd.run(
+        a=str(a),
+        b=str(b),
+        format_name="markdown",
+        output="-",
+        profile=None,
+    )
+
+    assert rc == 0
+    assert out_path.read_bytes() == capsys.readouterr().out.encode()
 
 
 def test_diff_stdout_bypasses_atomic_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

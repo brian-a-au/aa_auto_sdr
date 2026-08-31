@@ -118,7 +118,8 @@ class TestRenderDispatch:
 class TestFileOutput:
     def test_console_output_to_file_writes_and_returns_ok(self, tmp_path: Path) -> None:
         out_file = tmp_path / "trend.txt"
-        with patch.object(trending_cmd, "compute_trending", return_value=_make_report("rs1")):
+        report = _make_report("rs1")
+        with patch.object(trending_cmd, "compute_trending", return_value=report):
             exit_code = trending_cmd.run(
                 rsids=["rs1"],
                 duration="30d",
@@ -128,7 +129,9 @@ class TestFileOutput:
                 output=str(out_file),
             )
         assert exit_code == ExitCode.OK.value
-        content = out_file.read_text(encoding="utf-8")
+        expected = trending_cmd._render([report], fmt="console").encode("utf-8")
+        assert out_file.read_bytes() == expected
+        content = expected.decode("utf-8")
         assert "TRENDING WINDOW (rs1" in content
 
     def test_replace_failure_preserves_existing_file(self, tmp_path: Path, monkeypatch) -> None:

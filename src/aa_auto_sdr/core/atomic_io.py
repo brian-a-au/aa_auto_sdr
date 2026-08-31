@@ -58,10 +58,14 @@ def atomic_write_path(destination: Path, serializer: Callable[[Path], None]) -> 
     The destination's parent must already exist. The staging path retains the
     destination suffix and is closed before ``serializer`` receives it.
     """
-    staged = _create_staging_path(destination)
+    # Direct writes historically followed output symlinks. Preserve that
+    # successful-write behavior while staging beside the linked target so the
+    # final replacement remains on the same filesystem.
+    replacement = destination.resolve(strict=False) if destination.is_symlink() else destination
+    staged = _create_staging_path(replacement)
     try:
         serializer(staged)
-        os.replace(staged, destination)
+        os.replace(staged, replacement)
     except BaseException:
         _remove_staging_file(staged)
         raise

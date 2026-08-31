@@ -216,17 +216,67 @@ def test_atomic_write_path_uses_distinct_stages_for_concurrent_writes(tmp_path: 
             staged.write_bytes(content)
             with paths_lock:
                 paths.append(staged)
-            barrier.wait()
+            barrier.wait(timeout=5)
 
         atomic_write_path(target, serialize)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(write, content) for content in (b"first", b"second")]
         for future in futures:
-            future.result()
+            future.result(timeout=10)
 
     assert len(set(paths)) == 2
     assert target.read_bytes() in {b"first", b"second"}
+    assert _staging_files(tmp_path) == []
+
+
+def test_atomic_write_path_follows_destination_symlink(tmp_path: Path) -> None:
+    target_dir = tmp_path / "target"
+    link_dir = tmp_path / "link"
+    target_dir.mkdir()
+    link_dir.mkdir()
+    target = target_dir / "report.md"
+    target.write_text("original")
+    link = link_dir / "report.md"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    staged_paths: list[Path] = []
+
+    def serialize(staged: Path) -> None:
+        staged_paths.append(staged)
+        staged.write_text("replacement")
+
+    atomic_write_path(link, serialize)
+
+    assert link.is_symlink()
+    assert link.read_text() == "replacement"
+    assert target.read_text() == "replacement"
+    assert staged_paths[0].parent == target_dir
+    assert _staging_files(target_dir) == []
+
+
+def test_atomic_write_path_preserves_symlink_target_on_failure(tmp_path: Path) -> None:
+    target = tmp_path / "target.md"
+    target.write_text("original")
+    link = tmp_path / "report.md"
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+    failure = RuntimeError("serializer failed")
+
+    def fail(staged: Path) -> None:
+        staged.write_text("partial")
+        raise failure
+
+    with pytest.raises(RuntimeError) as exc_info:
+        atomic_write_path(link, fail)
+
+    assert exc_info.value is failure
+    assert link.is_symlink()
+    assert target.read_text() == "original"
     assert _staging_files(tmp_path) == []
 
 
