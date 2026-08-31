@@ -222,10 +222,19 @@ def test_atomic_write_path_uses_distinct_stages_for_concurrent_writes(tmp_path: 
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(write, content) for content in (b"first", b"second")]
+        failures: list[PermissionError] = []
         for future in futures:
-            future.result(timeout=10)
+            try:
+                future.result(timeout=10)
+            except PermissionError as exc:
+                failures.append(exc)
 
     assert len(set(paths)) == 2
+    # Windows can reject one simultaneous replacement of the same destination.
+    # The per-file contract propagates that filesystem error while guaranteeing
+    # that any successful replacement is whole and the losing stage is cleaned.
+    assert not failures or os.name == "nt"
+    assert len(failures) <= 1
     assert target.read_bytes() in {b"first", b"second"}
     assert _staging_files(tmp_path) == []
 
