@@ -93,6 +93,34 @@ def test_atomic_write_path_cleans_up_for_base_exception(tmp_path: Path) -> None:
     assert _staging_files(tmp_path) == []
 
 
+def test_cleanup_failure_does_not_mask_serializer_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "report.txt"
+    failure = RuntimeError("serializer failed")
+    real_unlink = Path.unlink
+
+    def fail_staging_unlink(path: Path, *, missing_ok: bool = False) -> None:
+        if path.name.startswith("."):
+            raise PermissionError("cleanup denied")
+        real_unlink(path, missing_ok=missing_ok)
+
+    def fail_serializer(staged: Path) -> None:
+        staged.write_text("partial")
+        raise failure
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "unlink", fail_staging_unlink)
+        with pytest.raises(RuntimeError) as exc_info:
+            atomic_write_path(target, fail_serializer)
+
+    assert exc_info.value is failure
+    assert not target.exists()
+    for staged in _staging_files(tmp_path):
+        staged.unlink()
+
+
 def test_atomic_write_path_uses_closed_sibling_with_destination_suffix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

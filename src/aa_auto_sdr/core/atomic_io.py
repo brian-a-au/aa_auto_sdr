@@ -12,6 +12,12 @@ from pathlib import Path
 _STAGING_ATTEMPTS = 100
 
 
+def _remove_staging_file(staged: Path) -> None:
+    """Best-effort cleanup that never masks the write failure."""
+    with suppress(OSError):
+        staged.unlink(missing_ok=True)
+
+
 def _create_staging_path(destination: Path) -> Path:
     """Create and close a unique sibling file suitable for serialization."""
     existing_mode: int | None = None
@@ -39,14 +45,14 @@ def _create_staging_path(destination: Path) -> Path:
         except BaseException:
             with suppress(OSError):
                 os.close(fd)
-            staged.unlink(missing_ok=True)
+            _remove_staging_file(staged)
             raise
         return staged
 
     raise FileExistsError(f"Unable to allocate staging file for {destination}")
 
 
-def atomic_write_path[T](destination: Path, serializer: Callable[[Path], T]) -> T:
+def atomic_write_path(destination: Path, serializer: Callable[[Path], None]) -> None:
     """Serialize to a sibling staging path, then atomically replace destination.
 
     The destination's parent must already exist. The staging path retains the
@@ -54,12 +60,11 @@ def atomic_write_path[T](destination: Path, serializer: Callable[[Path], T]) -> 
     """
     staged = _create_staging_path(destination)
     try:
-        result = serializer(staged)
+        serializer(staged)
         os.replace(staged, destination)
     except BaseException:
-        staged.unlink(missing_ok=True)
+        _remove_staging_file(staged)
         raise
-    return result
 
 
 def atomic_write_text(
