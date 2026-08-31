@@ -18,7 +18,7 @@ def _remove_staging_file(staged: Path) -> None:
         staged.unlink(missing_ok=True)
 
 
-def _create_staging_path(destination: Path) -> Path:
+def _create_staging_path(destination: Path, *, suffix: str | None = None) -> Path:
     """Create and close a unique sibling file suitable for serialization."""
     existing_mode: int | None = None
     try:
@@ -29,7 +29,7 @@ def _create_staging_path(destination: Path) -> Path:
         if stat.S_ISREG(destination_stat.st_mode):
             existing_mode = stat.S_IMODE(destination_stat.st_mode)
 
-    suffix = destination.suffix or ".tmp"
+    suffix = suffix or destination.suffix or ".tmp"
     prefix = f".{destination.stem}."
     for _ in range(_STAGING_ATTEMPTS):
         staged = destination.parent / f"{prefix}{secrets.token_hex(8)}{suffix}"
@@ -62,7 +62,7 @@ def atomic_write_path(destination: Path, serializer: Callable[[Path], None]) -> 
     # successful-write behavior while staging beside the linked target so the
     # final replacement remains on the same filesystem.
     replacement = destination.resolve(strict=False) if destination.is_symlink() else destination
-    staged = _create_staging_path(replacement)
+    staged = _create_staging_path(replacement, suffix=destination.suffix or ".tmp")
     try:
         serializer(staged)
         os.replace(staged, replacement)

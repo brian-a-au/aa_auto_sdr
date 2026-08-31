@@ -235,9 +235,9 @@ def test_atomic_write_path_follows_destination_symlink(tmp_path: Path) -> None:
     link_dir = tmp_path / "link"
     target_dir.mkdir()
     link_dir.mkdir()
-    target = target_dir / "report.md"
+    target = target_dir / "report-target"
     target.write_text("original")
-    link = link_dir / "report.md"
+    link = link_dir / "report.xlsx"
     try:
         link.symlink_to(target)
     except OSError as exc:
@@ -254,6 +254,7 @@ def test_atomic_write_path_follows_destination_symlink(tmp_path: Path) -> None:
     assert link.read_text() == "replacement"
     assert target.read_text() == "replacement"
     assert staged_paths[0].parent == target_dir
+    assert staged_paths[0].suffix == ".xlsx"
     assert _staging_files(target_dir) == []
 
 
