@@ -147,6 +147,64 @@ def test_atomic_write_path_uses_closed_sibling_with_destination_suffix(
     assert _staging_files(tmp_path) == []
 
 
+def test_atomic_write_path_retries_staging_name_collision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "report.json"
+    collision = tmp_path / ".report.collision.json"
+    collision.write_bytes(b"belongs to another writer")
+    tokens = iter(("collision", "available"))
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.secrets.token_hex", lambda _length: next(tokens))
+
+    atomic_write_text(target, "complete")
+
+    assert target.read_text() == "complete"
+    assert collision.read_bytes() == b"belongs to another writer"
+
+
+def test_atomic_write_path_reports_exhausted_staging_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "report.json"
+    collision = tmp_path / ".report.collision.json"
+    collision.touch()
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io._STAGING_ATTEMPTS", 2)
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.secrets.token_hex", lambda _length: "collision")
+
+    with pytest.raises(FileExistsError, match="Unable to allocate staging file"):
+        atomic_write_text(target, "complete")
+
+    assert not target.exists()
+
+
+def test_atomic_write_path_cleans_stage_when_descriptor_close_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "report.txt"
+    failure = OSError("close failed")
+    real_close = os.close
+    first_call = True
+
+    def fail_first_close(fd: int) -> None:
+        nonlocal first_call
+        if first_call:
+            first_call = False
+            raise failure
+        real_close(fd)
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.close", fail_first_close)
+
+    with pytest.raises(OSError) as exc_info:
+        atomic_write_text(target, "complete")
+
+    assert exc_info.value is failure
+    assert not target.exists()
+    assert _staging_files(tmp_path) == []
+
+
 def test_atomic_write_path_uses_distinct_stages_for_concurrent_writes(tmp_path: Path) -> None:
     target = tmp_path / "report.json"
     barrier = Barrier(2)
