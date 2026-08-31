@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -176,18 +177,51 @@ def test_run_summary_json_to_file(
     assert payload["timings"] == []  # show_timings was unset
 
 
+def test_run_summary_replace_failure_preserves_existing_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary_path = tmp_path / "summary.json"
+    summary_path.write_bytes(b"original summary")
+    now = datetime(2026, 8, 30, tzinfo=UTC)
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="destination locked"):
+        cmd._emit_run_summary(
+            run_summary_json=str(summary_path),
+            started_at=now,
+            finished_at=now,
+            profile=None,
+            per_rsid=[],
+            show_timings=False,
+        )
+
+    assert summary_path.read_bytes() == b"original summary"
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")
 def test_run_summary_json_to_stdout(
     mock_client_cls,
     env_creds,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     raw = json.loads(FIXTURE.read_text())
     mock_client_cls.from_credentials.return_value = MagicMock(
         handle=_build_handle(raw),
         company_id="testco",
     )
+
+    def fail_atomic_write(*args, **kwargs) -> None:
+        raise AssertionError("stdout must not use atomic file output")
+
+    monkeypatch.setattr(cmd, "atomic_write_text", fail_atomic_write)
     rc = cmd.run(
         rsid="demo.prod",
         output_dir=tmp_path,

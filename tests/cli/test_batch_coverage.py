@@ -61,9 +61,15 @@ def test_batch_run_summary_json_to_stdout(
     authed_env,
     tmp_path: Path,
     capsys,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """--run-summary-json - writes a compact single-line summary to stdout."""
     mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+
+    def fail_atomic_write(*args, **kwargs) -> None:
+        raise AssertionError("stdout must not use atomic file output")
+
+    monkeypatch.setattr(batch_cmd, "atomic_write_text", fail_atomic_write)
     rc = batch_cmd.run(
         rsids=["demo.prod"],
         output_dir=tmp_path,

@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from aa_auto_sdr.cli.commands import trending as trending_cmd
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.snapshot.trending import (
@@ -95,7 +97,11 @@ class TestRenderDispatch:
         assert payload["schema"] == "aa-trending/v1"
         assert payload["rsid"] == "rs1"
 
-    def test_markdown_format_renders_to_stdout(self, tmp_path: Path, capsys) -> None:
+    def test_markdown_format_renders_to_stdout(self, tmp_path: Path, capsys, monkeypatch) -> None:
+        def fail_atomic_write(*args, **kwargs) -> None:
+            raise AssertionError("stdout must not use atomic file output")
+
+        monkeypatch.setattr(trending_cmd, "atomic_write_text", fail_atomic_write)
         with patch.object(trending_cmd, "compute_trending", return_value=_make_report("rs1")):
             exit_code = trending_cmd.run(
                 rsids=["rs1"],
@@ -124,6 +130,31 @@ class TestFileOutput:
         assert exit_code == ExitCode.OK.value
         content = out_file.read_text(encoding="utf-8")
         assert "TRENDING WINDOW (rs1" in content
+
+    def test_replace_failure_preserves_existing_file(self, tmp_path: Path, monkeypatch) -> None:
+        out_file = tmp_path / "trend.txt"
+        out_file.write_bytes(b"original trend")
+
+        def fail_replace(source: Path, destination: Path) -> None:
+            raise PermissionError("destination locked")
+
+        monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+        with (
+            patch.object(trending_cmd, "compute_trending", return_value=_make_report("rs1")),
+            pytest.raises(PermissionError, match="destination locked"),
+        ):
+            trending_cmd.run(
+                rsids=["rs1"],
+                duration="30d",
+                snapshot_dir=tmp_path,
+                profile=None,
+                format_name="console",
+                output=str(out_file),
+            )
+
+        assert out_file.read_bytes() == b"original trend"
+        assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
 
 
 class TestResolveSnapshotDir:

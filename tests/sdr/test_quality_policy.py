@@ -158,9 +158,39 @@ class TestWriteQualityReport:
         assert rows[1].startswith("LOW,naming,")
         assert rows[2].startswith("HIGH,stale,")
 
-    def test_stdout_target(self, capsys: pytest.CaptureFixture[str]) -> None:
-        from aa_auto_sdr.sdr.quality_policy import write_quality_report
+    def test_stdout_target(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.sdr import quality_policy
 
-        write_quality_report(issues=[], summary={"total": 0}, target="-", fmt="json")
+        def fail_atomic_write(*args, **kwargs) -> None:
+            raise AssertionError("stdout must not use atomic file output")
+
+        monkeypatch.setattr(quality_policy, "atomic_write_text", fail_atomic_write)
+
+        quality_policy.write_quality_report(issues=[], summary={"total": 0}, target="-", fmt="json")
         out = capsys.readouterr().out
         assert json.loads(out)["summary"]["total"] == 0
+
+    def test_replace_failure_preserves_existing_report(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from aa_auto_sdr.sdr.quality_policy import write_quality_report
+
+        target = tmp_path / "report.json"
+        target.write_bytes(b"original quality report")
+
+        def fail_replace(source: Path, destination: Path) -> None:
+            raise PermissionError("destination locked")
+
+        monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+        with pytest.raises(PermissionError, match="destination locked"):
+            write_quality_report(issues=[], summary={"total": 0}, target=target, fmt="json")
+
+        assert target.read_bytes() == b"original quality report"
+        assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []

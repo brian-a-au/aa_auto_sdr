@@ -27,6 +27,7 @@ from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import colors, credentials, timings
+from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.constants import BANNER_WIDTH
 from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
@@ -91,7 +92,7 @@ def _emit_run_summary(
         _sys.stdout.flush()
     else:
         payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
-        Path(run_summary_json).write_text(payload + "\n")
+        atomic_write_text(Path(run_summary_json), payload + "\n")
         print(f"wrote run summary: {run_summary_json}", flush=True)
 
 

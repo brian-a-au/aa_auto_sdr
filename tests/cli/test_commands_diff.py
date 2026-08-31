@@ -166,6 +166,61 @@ def test_diff_format_markdown_to_file(tmp_path: Path) -> None:
     assert text.startswith("# SDR Diff")
 
 
+def test_diff_stdout_bypasses_atomic_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    _write_envelope(a, "demo.prod", "2026-04-20T10:00:00+00:00")
+    _write_envelope(b, "demo.prod", "2026-04-26T17:29:01+00:00")
+
+    def fail_atomic_write(*args, **kwargs) -> None:
+        raise AssertionError("stdout must not use atomic file output")
+
+    monkeypatch.setattr(diff_cmd, "atomic_write_text", fail_atomic_write)
+
+    rc = diff_cmd.run(
+        a=str(a),
+        b=str(b),
+        format_name="json",
+        output="-",
+        profile=None,
+    )
+
+    assert rc == 0
+
+
+def test_diff_replace_failure_preserves_existing_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    _write_envelope(a, "demo.prod", "2026-04-20T10:00:00+00:00")
+    _write_envelope(b, "demo.prod", "2026-04-26T17:29:01+00:00")
+    out_path = tmp_path / "diff.md"
+    out_path.write_bytes(b"original diff")
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="destination locked"):
+        diff_cmd.run(
+            a=str(a),
+            b=str(b),
+            format_name="markdown",
+            output=str(out_path),
+            profile=None,
+        )
+
+    assert out_path.read_bytes() == b"original diff"
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
 def test_diff_console_with_output_dash_returns_15(tmp_path: Path) -> None:
     """Console format to stdout pipe is rejected (use json/markdown for piping)."""
     from aa_auto_sdr.cli.commands import diff as diff_cmd

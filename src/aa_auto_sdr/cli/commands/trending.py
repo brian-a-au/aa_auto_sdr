@@ -13,6 +13,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
+from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.snapshot._duration import parse_duration
 from aa_auto_sdr.snapshot.trending import TrendingReport, WindowSpec, compute_trending
@@ -118,7 +119,7 @@ def run(
             # Console + markdown renderers emit em-dashes / unicode glyphs;
             # explicit utf-8 prevents the Windows cp1252 default from corrupting
             # them. Same fix as v1.12.0's quality_policy CSV path.
-            Path(output).write_text(rendered, encoding="utf-8")
+            atomic_write_text(Path(output), rendered, encoding="utf-8")
 
         # Decide exit code based on per-RSID series presence.
         if len(empty_rsids) == len(rsids) and rsids:
