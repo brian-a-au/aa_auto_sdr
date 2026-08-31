@@ -159,7 +159,16 @@ See [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md) for full diff semantics.
 
 ## Atomic writes
 
-All file outputs use atomic writes (temp file + `os.replace`). An interrupted run never leaves a half-written file.
+User-requested local file outputs are staged beside their destination and
+published with `os.replace` only after serialization succeeds. A handled write
+or replacement failure therefore preserves an existing destination and removes
+the incomplete staging file.
+
+Atomicity applies per destination file, not to the command as a whole. If a
+multi-format run publishes JSON and then fails while writing Markdown, the JSON
+update remains in place while the prior Markdown file is preserved. Standard
+output remains a direct stream, and the append-only `$GITHUB_STEP_SUMMARY` sink
+keeps its append semantics.
 
 ## Machine-readable error envelope
 

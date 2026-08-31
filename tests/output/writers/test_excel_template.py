@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -66,6 +67,32 @@ def test_write_round_trip_preserves_untouched_cells(
     assert wb["eVars"]["C1"].value == "Adobe Analytics"
     assert wb["eVars"]["C2"].value == "=Glossary!C2"
     assert wb["eVars"]["B4"].value == "eVars"
+
+
+def test_write_replace_failure_preserves_readable_workbook(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out = tmp_path / "out.xlsx"
+    shutil.copyfile(synthetic_template_path, out)
+    original_bytes = out.read_bytes()
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="destination locked"):
+        writer.write(_doc(), out)
+
+    assert out.read_bytes() == original_bytes
+    preserved = load_workbook(out, read_only=True)
+    assert preserved["eVars"]["C1"].value == "Adobe Analytics"
+    preserved.close()
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
 
 
 def test_glossary_c2_defaults_to_report_suite_name(

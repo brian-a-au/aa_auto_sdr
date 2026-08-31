@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.exceptions import SnapshotError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.profiles import default_base
@@ -147,7 +148,7 @@ def run(
         else:
             target = Path(output)
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(rendered)
+            atomic_write_text(target, rendered)
             print(f"wrote: {target}", flush=True)
 
         # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view

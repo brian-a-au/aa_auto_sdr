@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.output.writers.excel import ExcelWriter
@@ -44,6 +44,33 @@ def test_excel_writer_creates_file(doc, tmp_path: Path) -> None:
     actual = ExcelWriter().write(doc, target)
     assert actual == [target]
     assert target.exists()
+
+
+def test_excel_replace_failure_preserves_readable_workbook(
+    doc,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "sdr.xlsx"
+    original = Workbook()
+    original.active["A1"] = "original"
+    original.save(target)
+    original.close()
+    original_bytes = target.read_bytes()
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="destination locked"):
+        ExcelWriter().write(doc, target)
+
+    assert target.read_bytes() == original_bytes
+    preserved = load_workbook(target, read_only=True)
+    assert preserved.active["A1"].value == "original"
+    preserved.close()
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
 
 
 def test_excel_has_summary_and_one_sheet_per_component(doc, tmp_path: Path) -> None:

@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.core.atomic_io import atomic_write_path
 from aa_auto_sdr.output._template_anchors import ANCHORS, SheetAnchor, resolve_sheet
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -375,7 +376,7 @@ class ExcelTemplateWriter:
         self._fill_metrics_segments(wb, doc)
 
         target.parent.mkdir(parents=True, exist_ok=True)
-        wb.save(target)
+        atomic_write_path(target, wb.save)
 
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(

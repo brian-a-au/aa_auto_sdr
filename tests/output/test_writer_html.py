@@ -106,3 +106,22 @@ def test_html_dimensions_rows_match_doc_count(doc, tmp_path: Path) -> None:
     # We don't parse HTML; just check the dimension IDs appear.
     for dim_id in ("variables/evar1", "variables/evar2", "variables/prop1", "variables/events"):
         assert dim_id in content
+
+
+def test_html_replace_failure_leaves_absent_destination_absent(
+    doc,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "sdr.html"
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="destination locked"):
+        HtmlWriter().write(doc, target)
+
+    assert not target.exists()
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []

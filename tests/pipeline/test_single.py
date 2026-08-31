@@ -1,6 +1,7 @@
 """Pipeline orchestration for single-RSID generation."""
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -76,3 +77,36 @@ def test_run_single_populates_report_suite_name(mock_client: AaClient, tmp_path:
     )
     # The fixture's report_suite has name="Demo Production".
     assert result.report_suite_name == "Demo Production"
+
+
+def test_run_single_keeps_prior_success_when_later_format_fails(
+    mock_client: AaClient,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    json_target = tmp_path / "demo.prod.json"
+    markdown_target = tmp_path / "demo.prod.md"
+    json_target.write_bytes(b"old json")
+    markdown_target.write_bytes(b"old markdown")
+    real_replace = os.replace
+
+    def fail_markdown_replace(source: Path, destination: Path) -> None:
+        if destination.suffix == ".md":
+            raise PermissionError("markdown destination locked")
+        real_replace(source, destination)
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_markdown_replace)
+
+    with pytest.raises(PermissionError, match="markdown destination locked"):
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["json", "markdown"],
+            output_dir=tmp_path,
+            captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+            tool_version="1.21.12",
+        )
+
+    assert json.loads(json_target.read_text())["tool_version"] == "1.21.12"
+    assert markdown_target.read_bytes() == b"old markdown"
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []

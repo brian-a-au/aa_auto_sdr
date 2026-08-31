@@ -294,6 +294,7 @@ class TestStepSummary:
         a = _write(tmp_path / "a.json", _envelope("RS1"))
         b = _write(tmp_path / "b.json", _envelope("RS1"))
         summary_path = tmp_path / "summary.md"
+        summary_path.write_text("prior step\n")
         monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
         rc = run(
             a=str(a),
@@ -316,6 +317,7 @@ class TestStepSummary:
         # Summary file was created and contains markdown
         assert summary_path.exists()
         content = summary_path.read_text()
+        assert content.startswith("prior step\n")
         assert "RS1" in content
 
     def test_no_append_when_env_unset(

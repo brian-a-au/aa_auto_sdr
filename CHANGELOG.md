@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.12] — 2026-08-30
+
+Local-output integrity patch. User-requested report and analysis files now
+publish only after their complete replacement has been serialized beside the
+destination. Successful output bytes, paths, stream behavior, and exit
+semantics remain unchanged.
+
+### Fixed
+- Made Markdown, HTML, standard Excel, template-fill Excel, standalone quality
+  reports, file-destination run summaries, diffs, and trending reports atomic
+  per destination file. Failed serialization or replacement preserves an
+  existing artifact and removes the incomplete staging file.
+- Preserved existing destination permission bits and normal process-umask
+  behavior for first-time outputs instead of inheriting restrictive temporary
+  file permissions.
+
+### Added
+- Added shared atomic text and path-serializer primitives with same-directory
+  staging, destination-suffix retention, Windows-safe descriptor handling, and
+  cleanup for serializer and replacement failures.
+- Added regression coverage for failed first writes, preservation of readable
+  workbooks, stdout isolation, append-only GitHub summaries, concurrent staging,
+  and per-file behavior in multi-format runs.
+
 ## [1.21.11] — 2026-08-03
 
 Documentation integrity patch. Repository links in the packaged README now

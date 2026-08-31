@@ -18,6 +18,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Literal
 
+from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.exceptions import ConfigError
 from aa_auto_sdr.sdr.quality import Issue, SeverityLevel
 
@@ -147,7 +148,7 @@ def write_quality_report(
         if target == "-":
             sys.stdout.write(rendered)
         else:
-            Path(target).write_text(rendered)
+            atomic_write_text(Path(target), rendered)
         return
 
     if fmt == "csv":
@@ -165,7 +166,7 @@ def write_quality_report(
             # the "\n" to "\r\n" again, producing "\r\r\n" in the file and a
             # spurious empty line between every row. newline="" disables the
             # translation and matches the standard csv-on-Windows recipe.
-            Path(target).write_text(rendered, newline="")
+            atomic_write_text(Path(target), rendered, newline="")
         return
 
     raise ConfigError(f"unsupported quality-report format: {fmt}")

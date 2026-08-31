@@ -167,3 +167,23 @@ def test_markdown_appends_extension_if_missing(doc, tmp_path: Path) -> None:
     assert len(paths) == 1
     assert paths[0].suffix == ".md"
     assert paths[0].exists()
+
+
+def test_markdown_replace_failure_preserves_existing_report(
+    doc,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = tmp_path / "sdr.md"
+    target.write_bytes(b"original markdown")
+
+    def fail_replace(source: Path, destination: Path) -> None:
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+
+    with pytest.raises(PermissionError, match="destination locked"):
+        MarkdownWriter().write(doc, target)
+
+    assert target.read_bytes() == b"original markdown"
+    assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
