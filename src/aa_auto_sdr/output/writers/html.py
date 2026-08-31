@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.api import models
+from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.output._helpers import escape_html, stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -135,7 +136,7 @@ class HtmlWriter:
         started = time.monotonic()
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(_document_html(doc), encoding="utf-8")
+        atomic_write_text(target, _document_html(doc), encoding="utf-8")
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
             "output_write format=html output_path=%s count=1 duration_ms=%s",

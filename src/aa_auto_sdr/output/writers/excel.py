@@ -13,6 +13,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.core.atomic_io import atomic_write_path
 from aa_auto_sdr.output._helpers import stringify_cell
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -59,20 +60,24 @@ class ExcelWriter:
         # leading-`=` string (user-authored component names) into a LIVE
         # formula cell, and URL-looking strings into hyperlinks.
         engine_kwargs = {"options": {"strings_to_formulas": False, "strings_to_urls": False}}
-        with pd.ExcelWriter(target, engine="xlsxwriter", engine_kwargs=engine_kwargs) as xl:
-            for name, df in sheets.items():
-                df.to_excel(xl, sheet_name=name, index=False)
-                ws = xl.sheets[name]
-                ws.freeze_panes(1, 0)
-                if df.shape[1] > 0 and df.shape[0] > 0:
-                    ws.autofilter(0, 0, df.shape[0], df.shape[1] - 1)
-                for col_idx, col in enumerate(df.columns):
-                    # Component-sheet cells are already strings (stringify_cell);
-                    # str() on the Summary sheet's mixed values matches what
-                    # astype(str) produced, without a full column re-conversion.
-                    longest = max((len(v) if isinstance(v, str) else len(str(v)) for v in df[col]), default=0)
-                    width = max(len(str(col)), longest or 10)
-                    ws.set_column(col_idx, col_idx, min(width + 2, 60))
+
+        def serialize(staged: Path) -> None:
+            with pd.ExcelWriter(staged, engine="xlsxwriter", engine_kwargs=engine_kwargs) as xl:
+                for name, df in sheets.items():
+                    df.to_excel(xl, sheet_name=name, index=False)
+                    ws = xl.sheets[name]
+                    ws.freeze_panes(1, 0)
+                    if df.shape[1] > 0 and df.shape[0] > 0:
+                        ws.autofilter(0, 0, df.shape[0], df.shape[1] - 1)
+                    for col_idx, col in enumerate(df.columns):
+                        # Component-sheet cells are already strings (stringify_cell);
+                        # str() on the Summary sheet's mixed values matches what
+                        # astype(str) produced, without a full column re-conversion.
+                        longest = max((len(v) if isinstance(v, str) else len(str(v)) for v in df[col]), default=0)
+                        width = max(len(str(col)), longest or 10)
+                        ws.set_column(col_idx, col_idx, min(width + 2, 60))
+
+        atomic_write_path(target, serialize)
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
             "output_write format=excel output_path=%s count=1 duration_ms=%s",
