@@ -96,12 +96,6 @@ def _severity_for_stale_reason(reason: str) -> SeverityLevel:
     kind, _, value = reason.partition(":")
     if kind == "stale_keyword":
         return _STALE_KEYWORD_SEVERITY.get(value, SeverityLevel.LOW)
-    if kind in ("version_suffix", "date_pattern"):
-        return SeverityLevel.LOW
-    return SeverityLevel.LOW
-
-
-def _severity_for_case_inconsistency() -> SeverityLevel:
     return SeverityLevel.LOW
 
 
@@ -279,18 +273,16 @@ def run_audits(
 
     # Cache lookup before any audit work.
     cache_key = ""
-    if cache is not None and rsid:
-        flat: list[Any] = []
-        for ctype in ("dimensions", "metrics", "segments", "calculated_metrics", "classifications"):
-            flat.extend(getattr(bundle, ctype, []) or [])
-        cache_key = _cache_key(
-            rsid=rsid,
-            component_type=(
-                f"all:{audit_naming_enabled}:{flag_stale_enabled}:"
-                f"{fail_on_quality.value if fail_on_quality else 'NONE'}"
-            ),
-            items=flat,
-            severity_table_version=_SEVERITY_TABLE_VERSION,
+    if cache is not None:
+        # Keep component types separate: identical IDs/names in different
+        # sections produce different stale-component labels.
+        section_keys = ":".join(
+            _cache_key(rsid, ctype, getattr(bundle, ctype, []) or [], _SEVERITY_TABLE_VERSION)
+            for ctype in _COMPONENT_TYPE_LABEL
+        )
+        cache_key = (
+            f"{audit_naming_enabled}:{flag_stale_enabled}:"
+            f"{fail_on_quality.value if fail_on_quality else 'NONE'}:{section_keys}"
         )
         hit = cache.get(cache_key)
         if hit is not None:
@@ -354,7 +346,7 @@ def run_audits(
             },
         )
 
-    if cache is not None and rsid and cache_key:
+    if cache is not None:
         cache.put(cache_key, quality_block)
     return quality_block
 
@@ -391,7 +383,7 @@ def _promote_stale_to_issues(stale: list[dict[str, Any]]) -> list[Issue]:
 def _promote_naming_to_issues(naming: dict[str, Any]) -> list[Issue]:
     return [
         Issue(
-            severity=_severity_for_case_inconsistency(),
+            severity=SeverityLevel.LOW,
             category="naming",
             type="case_inconsistency",
             item_id="naming_audit",
@@ -417,13 +409,16 @@ def _cache_key(
     items: list[Any],
     severity_table_version: str,
 ) -> str:
-    """Stable per-bundle key. Hashes sorted (id, name) pairs + severity table
-    version: the audits are name-based, so a rename (same id) must invalidate,
-    and a policy/severity-table change invalidates everything."""
-    import hashlib
+    """Hash a section's ordered identities/names and severity-table version.
 
-    entries = sorted(f"{_id_of(it)}\x1f{getattr(it, 'name', '')}" for it in items)
+    Order affects issue ordering. JSON framing avoids collisions when a name
+    or ID contains separators. A rename or severity-table change invalidates.
+    """
+    import hashlib
+    import json
+
+    entries = [(_id_of(it), getattr(it, "name", "")) for it in items]
     digest = hashlib.sha1(  # noqa: S324 (cache key, not security-sensitive)
-        (rsid + component_type + "\x1e".join(entries) + severity_table_version).encode(),
+        json.dumps([rsid, component_type, entries, severity_table_version], separators=(",", ":")).encode(),
     ).hexdigest()[:16]
     return f"quality_v1:{rsid}:{component_type}:{digest}"

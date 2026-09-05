@@ -15,7 +15,6 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import logging
-import os
 import threading
 import time
 import uuid
@@ -25,15 +24,9 @@ from datetime import datetime
 from pathlib import Path
 
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core.exceptions import (
-    AaAutoSdrError,
-    ApiError,
-    AuthError,
-    ConfigError,
-    OutputError,
-    ReportSuiteNotFoundError,
-)
+from aa_auto_sdr.core.exceptions import AaAutoSdrError
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.pipeline._results import error_exit_code, output_bytes
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter
 
@@ -47,41 +40,6 @@ _worker_local: threading.local = threading.local()
 def get_current_worker_id() -> int | None:
     """Return the worker_id of the current thread, or None if not in a worker."""
     return getattr(_worker_local, "worker_id", None)
-
-
-# ---------------------------------------------------------------------------
-# Exit-code map — duplicated from batch.py to avoid future circular import
-# (Task 4 will make batch.py import run_parallel from this module).
-# Module-level constant: no lazy init or lock needed.
-# ---------------------------------------------------------------------------
-
-_EXIT_CODE_BY_TYPE: dict[type[AaAutoSdrError], int] = {
-    ConfigError: ExitCode.CONFIG.value,
-    AuthError: ExitCode.AUTH.value,
-    ApiError: ExitCode.API.value,
-    ReportSuiteNotFoundError: ExitCode.NOT_FOUND.value,
-    OutputError: ExitCode.OUTPUT.value,
-}
-
-
-def _exit_code_for(exc: AaAutoSdrError) -> int:
-    """Match generate.py's exit-code policy. Most-specific class wins; fallback = GENERIC."""
-    for cls in type(exc).__mro__:
-        if cls in _EXIT_CODE_BY_TYPE:
-            return _EXIT_CODE_BY_TYPE[cls]
-    return ExitCode.GENERIC.value
-
-
-def _bytes_for(result: RunResult) -> int:
-    """Sum bytes across all output files in a RunResult. Duplicate of batch._bytes_for
-    to avoid a circular import (batch.py will import workers.py in Task 4)."""
-    total = 0
-    for path in result.outputs:
-        try:
-            total += os.path.getsize(path)
-        except OSError:
-            continue
-    return total
 
 
 # ---------------------------------------------------------------------------
@@ -333,10 +291,10 @@ def run_parallel(
     def _record_success(result: RunResult, *, submission_index: int, rsid: str) -> None:
         """Record a completed RunResult: accumulate bytes, append, log rsid_complete.
 
-        Shared by the fail-fast done-set loop and the uncancellable-worker
+        Shared by both collection modes and the uncancellable-worker
         drain so both go through the same structured-log path."""
         nonlocal total_bytes
-        total_bytes += _bytes_for(result)
+        total_bytes += output_bytes(result)
         successes.append(result)
         logger.info(
             "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
@@ -355,10 +313,10 @@ def run_parallel(
     def _record_failure(exc: AaAutoSdrError, *, submission_index: int, rsid: str) -> None:
         """Record a worker failure: log rsid_failure, fire failure_callback, append.
 
-        Shared by the fail-fast done-set loop and the uncancellable-worker
+        Shared by both collection modes and the uncancellable-worker
         drain so both emit the terminal record consumers expect."""
         message = str(exc)
-        exit_code = _exit_code_for(exc)
+        exit_code = error_exit_code(exc)
         logger.error(
             "rsid_failure rsid=%s batch_id=%s error_class=%s",
             rsid,
@@ -532,47 +490,9 @@ def run_parallel(
                             )
                         )
                     except AaAutoSdrError as exc:
-                        message = str(exc)
-                        exit_code = _exit_code_for(exc)
-                        logger.error(
-                            "rsid_failure rsid=%s batch_id=%s error_class=%s",
-                            rsid,
-                            batch_id,
-                            type(exc).__name__,
-                            extra={
-                                "rsid": rsid,
-                                "batch_id": batch_id,
-                                "exit_code": exit_code,
-                                "error_class": type(exc).__name__,
-                                "worker_id": submission_index,
-                            },
-                        )
-                        if failure_callback is not None:
-                            failure_callback(submission_index + 1, total, rsid, message)
-                        failures.append(
-                            BatchFailure(
-                                rsid=rsid,
-                                error_type=type(exc).__name__,
-                                message=message,
-                                exit_code=exit_code,
-                            )
-                        )
+                        _record_failure(exc, submission_index=submission_index, rsid=rsid)
                     else:
-                        total_bytes += _bytes_for(result)
-                        successes.append(result)
-                        logger.info(
-                            "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
-                            rsid,
-                            batch_id,
-                            int(result.duration_seconds * 1000),
-                            extra={
-                                "rsid": rsid,
-                                "batch_id": batch_id,
-                                "duration_ms": int(result.duration_seconds * 1000),
-                                "count": len(result.outputs),
-                                "worker_id": submission_index,
-                            },
-                        )
+                        _record_success(result, submission_index=submission_index, rsid=rsid)
             except KeyboardInterrupt:
                 # Cancel all remaining pending futures and re-raise.
                 for pending_future in future_to_ctx:

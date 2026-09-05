@@ -1,6 +1,7 @@
 """HTML writer: single self-contained file with embedded CSS, one section per component."""
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -37,10 +38,6 @@ def doc():
         captured_at=datetime(2026, 4, 25, tzinfo=UTC),
         tool_version="0.2.0",
     )
-
-
-def test_html_extension() -> None:
-    assert HtmlWriter().extension == ".html"
 
 
 def test_html_writer_creates_single_file(doc, tmp_path: Path) -> None:
@@ -83,11 +80,13 @@ def test_html_contains_embedded_css(doc, tmp_path: Path) -> None:
 
 
 def test_html_escapes_dimension_names(doc, tmp_path: Path) -> None:
+    unsafe_name = '<script>alert("example")</script> & more'
+    doc = replace(doc, dimensions=[replace(doc.dimensions[0], name=unsafe_name)])
     target = tmp_path / "sdr.html"
     HtmlWriter().write(doc, target)
     content = target.read_text(encoding="utf-8")
-    # 'User ID' rendered as text — check no raw < or > leaked from any value
-    assert "Demo Production" in content
+    assert "&lt;script&gt;alert(&quot;example&quot;)&lt;/script&gt; &amp; more" in content
+    assert unsafe_name not in content
 
 
 def test_html_appends_extension_if_missing(doc, tmp_path: Path) -> None:

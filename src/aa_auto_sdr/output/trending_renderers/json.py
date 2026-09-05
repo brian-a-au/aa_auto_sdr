@@ -19,19 +19,10 @@ def render_json(reports: list[TrendingReport]) -> str:
     Multi-RSID: {"schema": ..., "reports": [{...rsid 1...}, {...rsid 2...}]}.
     """
     if len(reports) == 1:
-        payload: dict[str, Any] = {"schema": _SCHEMA, **_to_dict(reports[0])}
+        payload: dict[str, Any] = {"schema": _SCHEMA, **asdict(reports[0])}
     else:
-        payload = {"schema": _SCHEMA, "reports": [_to_dict(r) for r in reports]}
+        payload = {"schema": _SCHEMA, "reports": [asdict(r) for r in reports]}
     return json.dumps(payload, sort_keys=True, indent=2, default=_json_default) + "\n"
-
-
-def _to_dict(report: TrendingReport) -> dict[str, Any]:
-    """Convert TrendingReport to a JSON-serializable dict.
-
-    `asdict` handles nested dataclasses; datetime fields go through
-    `_json_default`.
-    """
-    return asdict(report)
 
 
 def _json_default(obj: object) -> str:

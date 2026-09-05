@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
+
+import pytest
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.api.cache import ValidationCache
@@ -69,6 +72,31 @@ class TestCacheKey:
 
 
 class TestRunAuditsCache:
+    @pytest.mark.parametrize("change", ["component_type", "order", "separator"])
+    def test_changed_bundle_matches_uncached_audit(self, change: str) -> None:
+        original = _bundle(stale_count=2)
+        if change == "component_type":
+            moved = models.Segment(
+                id=original.dimensions[0].id,
+                name=original.dimensions[0].name,
+                description=None,
+                rsid="rs1",
+                owner_id=None,
+                definition={},
+            )
+            changed = replace(original, dimensions=original.dimensions[1:], segments=[moved])
+        elif change == "order":
+            changed = replace(original, dimensions=list(reversed(original.dimensions)))
+        else:
+            original = replace(original, dimensions=[replace(original.dimensions[0], id="a", name="b\x1fv_test")])
+            changed = replace(original, dimensions=[replace(original.dimensions[0], id="a\x1fb", name="v_test")])
+        cache = ValidationCache()
+        kwargs = {"audit_naming_enabled": True, "flag_stale_enabled": True, "rsid": "rs1"}
+        run_audits(original, cache=cache, **kwargs)
+        expected = run_audits(changed, **kwargs)
+        assert run_audits(changed, cache=cache, **kwargs) == expected
+        assert cache.stats()["hits"] == 0
+
     def test_no_cache_passes_through_unchanged(self) -> None:
         result = run_audits(_bundle(), audit_naming_enabled=True, flag_stale_enabled=True, cache=None)
         assert result["summary"]["total"] >= 1

@@ -6,10 +6,8 @@ import pytest
 
 from aa_auto_sdr.sdr.quality import (
     _SEVERITY_RANK,
-    _SEVERITY_TABLE_VERSION,
     Issue,
     SeverityLevel,
-    _severity_for_case_inconsistency,
     _severity_for_stale_reason,
     has_quality_issues_at_or_above,
 )
@@ -32,10 +30,6 @@ class TestSeverityLevel:
 
     def test_string_value_uppercase(self) -> None:
         assert SeverityLevel.HIGH.value == "HIGH"
-
-    def test_severity_table_version_format(self) -> None:
-        # Bumped any time §3.4 mapping changes.
-        assert _SEVERITY_TABLE_VERSION.startswith("v")
 
 
 class TestHasIssuesAtOrAbove:
@@ -79,9 +73,6 @@ class TestSeverityPromotion:
     def test_unknown_reason_defaults_to_low(self) -> None:
         # Defensive default — never raise; unknown reasons get LOW.
         assert _severity_for_stale_reason("future_kind:something") == SeverityLevel.LOW
-
-    def test_case_inconsistency_is_low(self) -> None:
-        assert _severity_for_case_inconsistency() == SeverityLevel.LOW
 
 
 class TestRunAuditsShape:
@@ -179,3 +170,18 @@ class TestRunAuditsShape:
         )
         assert result["issues"] == []
         assert result["summary"]["total"] == 0
+
+    def test_mixed_case_names_fail_low_quality_gate(self) -> None:
+        from dataclasses import replace
+
+        from aa_auto_sdr.sdr.quality import run_audits
+
+        bundle = self._bundle(with_stale=False)
+        bundle = replace(
+            bundle, dimensions=[*bundle.dimensions, replace(bundle.dimensions[0], id="evar2", name="pageName")]
+        )
+        result = run_audits(
+            bundle, audit_naming_enabled=True, flag_stale_enabled=False, fail_on_quality=SeverityLevel.LOW
+        )
+        assert [(i["type"], i["severity"]) for i in result["issues"]] == [("case_inconsistency", "LOW")]
+        assert result["summary"]["verdict"] == "fail"

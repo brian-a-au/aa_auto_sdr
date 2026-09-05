@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-import os
 import time
 import uuid
 from collections.abc import Callable
@@ -22,15 +21,9 @@ from pathlib import Path
 
 from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.core.exceptions import (
-    AaAutoSdrError,
-    ApiError,
-    AuthError,
-    ConfigError,
-    OutputError,
-    ReportSuiteNotFoundError,
-)
+from aa_auto_sdr.core.exceptions import AaAutoSdrError
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.pipeline._results import error_exit_code, output_bytes
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
 from aa_auto_sdr.pipeline.sampling import sample_rsids
 from aa_auto_sdr.pipeline.single import run_single
@@ -38,35 +31,6 @@ from aa_auto_sdr.pipeline.workers import run_parallel
 from aa_auto_sdr.sdr.builder import ComponentFilter
 
 logger = logging.getLogger(__name__)
-
-# Mirrors the per-exception exit codes in cli/commands/generate.py so a single-
-# RSID equivalent invocation would have returned the same code.
-_EXIT_CODE_BY_TYPE: dict[type[AaAutoSdrError], int] = {
-    ConfigError: ExitCode.CONFIG.value,
-    AuthError: ExitCode.AUTH.value,
-    ApiError: ExitCode.API.value,
-    ReportSuiteNotFoundError: ExitCode.NOT_FOUND.value,
-    OutputError: ExitCode.OUTPUT.value,
-}
-
-
-def _exit_code_for(exc: AaAutoSdrError) -> int:
-    """Match generate.py's exit-code policy. Most-specific class wins; fallback = GENERIC."""
-    for cls in type(exc).__mro__:
-        if cls in _EXIT_CODE_BY_TYPE:
-            return _EXIT_CODE_BY_TYPE[cls]
-    return ExitCode.GENERIC.value
-
-
-def _bytes_for(result: RunResult) -> int:
-    total = 0
-    for path in result.outputs:
-        try:
-            total += os.path.getsize(path)
-        except OSError:
-            # Output file disappeared between write and size-stat; skip.
-            continue
-    return total
 
 
 def run_batch(
@@ -112,8 +76,7 @@ def run_batch(
 
     fail_fast stops at the first failure on both paths; unattempted RSIDs are
     recorded as cancelled failures so accounting matches across the two paths.
-    cache is currently a placeholder for v1.12.0's quality engine; passed
-    through to workers but unused by the SDR pipeline today.
+    cache is shared with the quality engine on sequential and parallel paths.
 
     v1.10.0: when ``sample_size`` is provided and strictly less than
     ``len(rsids)``, the input list is replaced by a sampled subset (random or
@@ -323,7 +286,7 @@ def _run_sequential(
             )
         except AaAutoSdrError as exc:
             message = str(exc)
-            exit_code = _exit_code_for(exc)
+            exit_code = error_exit_code(exc)
             logger.error(
                 "rsid_failure rsid=%s batch_id=%s error_class=%s",
                 rsid,
@@ -362,7 +325,7 @@ def _run_sequential(
         # re-construct via dataclasses.replace). The banner ✓ row needs this.
         result = dataclasses.replace(result, duration_seconds=time.monotonic() - run_started)
         successes.append(result)
-        total_bytes += _bytes_for(result)
+        total_bytes += output_bytes(result)
         logger.info(
             "rsid_complete rsid=%s batch_id=%s duration_ms=%s count=%s",
             rsid,

@@ -11,8 +11,9 @@ import pytest
 
 from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.pipeline._results import error_exit_code
 from aa_auto_sdr.pipeline.models import RunResult
-from aa_auto_sdr.pipeline.workers import _exit_code_for, run_parallel
+from aa_auto_sdr.pipeline.workers import run_parallel
 
 
 def _success_result(rsid: str) -> RunResult:
@@ -53,7 +54,7 @@ def base_kwargs(tmp_path: Path, mock_client: MagicMock) -> dict:
 
 def test_exit_code_for_unmapped_error_falls_back_to_generic() -> None:
     """A bare AaAutoSdrError matches no mapped subclass; fallback is GENERIC."""
-    assert _exit_code_for(AaAutoSdrError("boom")) == ExitCode.GENERIC.value
+    assert error_exit_code(AaAutoSdrError("boom")) == ExitCode.GENERIC.value
 
 
 # ---------------------------------------------------------------------------

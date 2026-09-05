@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.13] — 2026-09-04
+
+### Fixed
+- Prevent quality-cache collisions between component types, reordered inputs,
+  and names or IDs containing separators.
+
+### Changed
+- Replace quadratic membership checks in stratified sampling with set lookups,
+  preserving seeded sample results and input order.
+- Avoid deep-copying normalized component data in CSV, Markdown, and HTML
+  writers while preserving output bytes.
+- Consolidate batch result handling and simplify retry, severity, and trending
+  helpers without changing supported behavior.
+- Remove low-value tests, strengthen cache and writer regression coverage, and
+  isolate temporary Git fixtures from inherited commit-signing configuration.
+- Update the development Ruff dependency to 0.16.5 (Dependabot #104).
+
 ## [1.21.12] — 2026-08-30
 
 Local-output integrity patch. User-requested report and analysis files now

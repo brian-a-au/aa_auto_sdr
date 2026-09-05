@@ -24,7 +24,7 @@ tuning --max-retries aren't surprised by minute-long stalls.
 
 Exception (v1.16.1): ``KeyError('content')`` on the VRS path is
 classified permanent by ``classify_permanent_vrs_shape_error`` and
-fast-fails in exactly 1 SDK call per rung (2 total) regardless of
+fast-fails in exactly 1 SDK call regardless of
 ``--max-retries``. The full retry budget above applies only to
 genuinely transient errors on the VRS endpoint.
 
@@ -114,12 +114,11 @@ def with_retries[T](
     caller.
     """
     max_attempts = policy.max_retries + 1
-    last_exc: Exception | None = None
-    for attempt in range(max_attempts):
+    attempt = 0
+    while True:
         try:
             return fn()
         except Exception as exc:
-            last_exc = exc
             if not is_retryable(exc) or attempt >= policy.max_retries:
                 raise
             backoff = policy.base_delay * (2**attempt)
@@ -128,9 +127,7 @@ def with_retries[T](
             if on_attempt is not None:
                 on_attempt(attempt + 1, max_attempts, delay, exc)
             time.sleep(delay)
-    # Unreachable — the loop either returns or raises. Defensive:
-    assert last_exc is not None
-    raise last_exc
+            attempt += 1
 
 
 def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str | None = None) -> T:
