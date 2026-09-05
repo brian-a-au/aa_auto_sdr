@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -80,10 +80,7 @@ def _section_html(heading: str, items: list[Any], cls_name: str) -> str:
     headers = [f.name for f in fields(cls)]
     if not items:
         return f'<section><h2>{escape_html(heading)} <span class="count">0</span></h2><p><em>(none)</em></p></section>'
-    rows = []
-    for item in items:
-        d = asdict(item)
-        rows.append([stringify_cell(d.get(h)) for h in headers])
+    rows = [[stringify_cell(getattr(item, h)) for h in headers] for item in items]
     return (
         f'<section><h2>{escape_html(heading)} <span class="count">{len(items)}</span></h2>'
         f"{_table_html(headers, rows)}</section>"

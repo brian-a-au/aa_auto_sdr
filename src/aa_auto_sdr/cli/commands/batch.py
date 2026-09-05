@@ -16,7 +16,6 @@ from __future__ import annotations
 import dataclasses
 import json as _json
 import logging
-import os
 import sys
 import time
 from datetime import UTC, datetime
@@ -41,7 +40,8 @@ from aa_auto_sdr.core.run_summary import PerRsidResult, RunSummary
 from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
-from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
+from aa_auto_sdr.pipeline._results import output_bytes
+from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult
 
 logger = logging.getLogger(__name__)
 
@@ -714,7 +714,7 @@ def _print_summary(result: BatchResult) -> None:
             if ok.report_suite_name and ok.report_suite_name != ok.rsid:
                 label = f"{ok.rsid} ({ok.report_suite_name})"
             file_count = len(ok.outputs)
-            size = _bytes_for_run(ok)
+            size = output_bytes(ok)
             print(
                 f"  {colors.success('✓')} {label} → "
                 f"{file_count} files, {_humanize_bytes(size)}, {ok.duration_seconds:.1f}s",
@@ -728,16 +728,6 @@ def _print_summary(result: BatchResult) -> None:
 
     print()
     print("=" * BANNER_WIDTH)
-
-
-def _bytes_for_run(result: RunResult) -> int:
-    total = 0
-    for path in result.outputs:
-        try:
-            total += os.path.getsize(path)
-        except OSError:
-            continue
-    return total
 
 
 def _humanize_bytes(n: int) -> str:

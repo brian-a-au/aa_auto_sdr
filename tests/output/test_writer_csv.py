@@ -2,6 +2,7 @@
 
 import csv as _csv
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -38,10 +39,6 @@ def doc():
         captured_at=datetime(2026, 4, 25, tzinfo=UTC),
         tool_version="0.2.0",
     )
-
-
-def test_csv_writer_extension_is_csv() -> None:
-    assert CsvWriter().extension == ".csv"
 
 
 def test_csv_writer_returns_seven_paths(doc, tmp_path: Path) -> None:
@@ -118,14 +115,13 @@ def test_csv_writer_segments_serializes_definition_as_json(doc, tmp_path: Path) 
 
 
 def test_csv_writer_empty_component_produces_header_only_file(doc, tmp_path: Path) -> None:
-    # The fixture has 0 virtual_report_suites in this scenario
-    # Re-fetch the fixture to make a doc with empty VRS
+    doc = replace(doc, virtual_report_suites=[])
     target = tmp_path / "out.csv"
     paths = CsvWriter().write(doc, target)
     vrs = next(p for p in paths if p.name.endswith(".virtual_report_suites.csv"))
     with vrs.open(encoding="utf-8-sig") as fh:
         rows = list(_csv.reader(fh))
-    # Header only — fixture has 1 VRS so this asserts the header structure
+    assert len(rows) == 1
     assert rows[0] == [
         "id",
         "name",

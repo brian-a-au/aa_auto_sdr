@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -70,10 +70,7 @@ def _section(heading: str, items: list[Any], cls_name: str) -> str:
         return f"## {heading}\n\n_(none)_\n"
     cls = getattr(models, cls_name)
     headers = [f.name for f in fields(cls)]
-    rows = []
-    for item in items:
-        d = asdict(item)
-        rows.append([_cell(d.get(h)) for h in headers])
+    rows = [[_cell(getattr(item, h)) for h in headers] for item in items]
     return f"## {heading}\n\n{_table(headers, rows)}"
 
 

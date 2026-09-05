@@ -98,6 +98,7 @@ def test_resolve_git_token(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
     snap = tmp_path / "snap.json"
     _write_snapshot(snap, "demo.prod", "2026-04-26T17:29:01+00:00")
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)

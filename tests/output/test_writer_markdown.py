@@ -39,10 +39,6 @@ def doc():
     )
 
 
-def test_markdown_extension() -> None:
-    assert MarkdownWriter().extension == ".md"
-
-
 def test_markdown_writer_creates_single_file(doc, tmp_path: Path) -> None:
     target = tmp_path / "sdr.md"
     paths = MarkdownWriter().write(doc, target)

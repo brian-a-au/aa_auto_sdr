@@ -4,9 +4,7 @@ Mirrors cja_auto_sdr/api/cache.py::ValidationCache. Skips cja's
 SharedValidationCache (Manager-backed) — aa uses ThreadPoolExecutor;
 threads share memory natively; no Manager needed.
 
-Cache target deliberately empty in v1.8.0. The class ships now to lock
-the API + flag surface; v1.12.0's quality engine will be the first
-caller to populate entries. See docs/superpowers/specs/2026-05-09-aa-auto-sdr-v1.8.0-design.md §3.3.
+The quality engine caches completed audits when --enable-cache is set.
 """
 
 from __future__ import annotations

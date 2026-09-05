@@ -81,7 +81,8 @@ def sample_rsids(
     # CJA also tested `len(sampled) < len(rsids)` here; we omit it because the
     # `if needed:` guard below makes the path a no-op when `remaining` is empty.
     elif len(sampled) < sample_size:
-        remaining = [r for r in rsids if r not in sampled]
+        sampled_set = set(sampled)
+        remaining = [r for r in rsids if r not in sampled_set]
         needed = min(sample_size - len(sampled), len(remaining))
         if needed:
             sampled.extend(rng.sample(remaining, needed))

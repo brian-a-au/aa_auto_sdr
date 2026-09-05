@@ -17,6 +17,7 @@ def tiny_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=tmp_path, check=True)
     snap = tmp_path / "snapshots" / "demo.prod" / "2026-04-26T10-00-00+00-00.json"
     snap.parent.mkdir(parents=True)
     snap.write_text('{"schema": "aa-sdr-snapshot/v1", "marker": "v1"}\n')

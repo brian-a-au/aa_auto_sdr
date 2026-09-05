@@ -11,7 +11,7 @@ import logging
 import os
 import tempfile
 import time
-from dataclasses import asdict, fields
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -73,10 +73,7 @@ def _component_rows(items: list[Any]) -> tuple[list[str], list[list[str]]]:
         return [], []
     cls = type(items[0])
     headers = [f.name for f in fields(cls)]
-    rows = []
-    for item in items:
-        d = asdict(item)
-        rows.append([stringify_cell(d.get(h)) for h in headers])
+    rows = [[stringify_cell(getattr(item, h)) for h in headers] for item in items]
     return headers, rows
 
 
