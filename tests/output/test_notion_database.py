@@ -653,6 +653,79 @@ def test_repair_dry_run_no_update():
     assert client.update_calls == []
 
 
+@pytest.mark.parametrize("dry_run", [True, False])
+def test_repair_refreshes_cached_schema_before_planning(dry_run):
+    """An externally added property must be treated as a conflict, never overwritten."""
+    client = MagicMock()
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-repair"}]}
+    current = {name: {"type": schema["type"]} for name, schema in db.PROPERTY_SCHEMA.items()}
+    cached = {name: value for name, value in current.items() if name != "Company"}
+    current["Company"] = {"type": "number"}
+    client.data_sources.retrieve.side_effect = [{"properties": cached}, {"properties": current}]
+    db._resolve_data_source(client, "db-repair")
+
+    result = db.repair_database(client, database_id="db-repair", dry_run=dry_run)
+
+    assert result.to_add == []
+    assert result.conflicts == [("Company", "rich_text", "number")]
+    assert result.applied is False
+    client.data_sources.update.assert_not_called()
+
+
+@pytest.mark.parametrize("missing", ["Company", "RSID"])
+@pytest.mark.parametrize("update_fails", [False, True])
+def test_upsert_after_repair_reloads_schema(missing, update_fails):
+    """Repaired fields reach rows even if the update response was lost."""
+    client = MagicMock()
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-repair"}]}
+    current = {name: {"type": schema["type"]} for name, schema in db.PROPERTY_SCHEMA.items()}
+    before = {name: value for name, value in current.items() if name != missing}
+    client.data_sources.retrieve.side_effect = [{"properties": before}, {"properties": current}]
+    client.data_sources.query.return_value = {"results": []}
+    client.pages.create.return_value = {"id": "row"}
+    if update_fails:
+        client.data_sources.update.side_effect = TimeoutError("response lost")
+        with pytest.raises(TimeoutError, match="response lost"):
+            db.repair_database(client, database_id="db-repair", dry_run=False)
+    else:
+        result = db.repair_database(client, database_id="db-repair", dry_run=False)
+        assert result.applied is True
+        assert result.to_add == [missing]
+
+    # Exercise both callers of the shared schema resolver, including warm-cache reuse.
+    doc = _make_doc()
+    db.upsert_row(
+        client, database_id="db-repair", rsid=doc.report_suite.rsid, detail_page_id="detail", doc=doc, company="Acme"
+    )
+    db.upsert_row_from_dict(
+        client,
+        database_id="db-repair",
+        rsid=doc.report_suite.rsid,
+        detail_page_id="detail",
+        payload_dict={"report_suite": {"rsid": doc.report_suite.rsid}},
+        company="Acme",
+    )
+    assert client.data_sources.retrieve.call_count == 2
+    for call in client.pages.create.call_args_list:
+        assert call.kwargs["properties"]["Company"] == db._rich_text("Acme")
+        assert "RSID" in call.kwargs["properties"]
+    for call in client.data_sources.query.call_args_list:
+        assert call.kwargs["filter"]["and"][1] == {"property": "Company", "rich_text": {"equals": "Acme"}}
+
+
+def test_repair_preserves_other_database_cache():
+    client = MagicMock()
+    client.databases.retrieve.return_value = {"data_sources": [{"id": "ds-other"}]}
+    client.data_sources.retrieve.return_value = {"properties": {"Name": {"type": "title"}}}
+    other = db._resolve_data_source(client, "db-other")
+
+    db.repair_database(_RepairClient(missing_prop="Company"), database_id="db-repair", dry_run=False)
+
+    assert db._resolve_data_source(client, "db-other") == other
+    client.databases.retrieve.assert_called_once()
+    client.data_sources.retrieve.assert_called_once()
+
+
 def test_build_create_properties_covers_full_schema():
     from aa_auto_sdr.output.notion_database import PROPERTY_SCHEMA, build_create_properties
 

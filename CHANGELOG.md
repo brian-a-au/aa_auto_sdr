@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.15] — 2026-09-20
+
+### Fixed
+- Refresh the Notion registry schema before planning database repairs so stale
+  cache entries cannot hide externally introduced type conflicts or report
+  already-added properties as missing.
+- Invalidate repaired database schema entries after every update attempt so
+  subsequent registry writes include newly added properties, including when
+  the update response fails after Notion applied the change.
+
 ## [1.21.14] — 2026-09-20
 
 ### Fixed
