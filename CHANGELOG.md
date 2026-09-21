@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.14] — 2026-09-20
+
+### Fixed
+- Detect nested `id` and `rsid` definition-reference changes in snapshot diffs,
+  including comparisons used by watch and trending. Preserve root component
+  identity handling and explicit ignored fields.
+- Preserve the actual resolution error code in fail-fast batch dry runs when
+  later identifiers are cancelled. Partial success continues to return 14.
+
 ## [1.21.13] — 2026-09-04
 
 ### Fixed
