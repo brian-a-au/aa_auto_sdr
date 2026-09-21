@@ -482,7 +482,11 @@ def _run_impl(
         # Mirror the real run's exit-code policy: unresolvable identifiers are
         # failures even in preview, so CI catches typos without executing.
         if pre_failures:
-            return ExitCode.PARTIAL_SUCCESS.value if canonical else pre_failures[-1].exit_code
+            if canonical:
+                return ExitCode.PARTIAL_SUCCESS.value
+            # Synthetic cancellations must not mask the actual resolution error.
+            real_failures = [f for f in pre_failures if f.error_type != "CancelledError"]
+            return (real_failures or pre_failures)[-1].exit_code
         return ExitCode.OK.value
 
     def _on_progress(i: int, total: int, rsid: str) -> None:
