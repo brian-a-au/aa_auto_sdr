@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.models import DiffReport
 
@@ -119,6 +121,27 @@ def test_compare_identity_by_id_not_name() -> None:
     assert dim_diff.added == []
     assert dim_diff.removed == []
     assert len(dim_diff.modified) == 1
+
+
+@pytest.mark.parametrize("component_type", ["segments", "calculated_metrics"])
+@pytest.mark.parametrize("field", ["id", "rsid"])
+def test_compare_detects_nested_definition_reference_changes(component_type: str, field: str) -> None:
+    def envelope(reference: str) -> dict[str, Any]:
+        return _envelope(
+            **{component_type: [{"id": "stable", "name": "Example", "definition": {"reference": {field: reference}}}]}
+        )
+
+    a, b = envelope("before"), envelope("after")
+    report = compare(a, b)
+    changed = next(c for c in report.components if c.component_type == component_type)
+    assert changed.added == changed.removed == []
+    assert changed.unchanged_count == 0
+    assert len(changed.modified) == 1
+    delta = changed.modified[0].deltas[0]
+    assert (delta.field, delta.before, delta.after) == (f"definition.reference.{field}", "before", "after")
+
+    ignored = compare(a, b, ignore_fields=frozenset({field}))
+    assert all(not c.modified for c in ignored.components)
 
 
 def test_compare_normalization_treats_none_and_empty_string_as_equal() -> None:

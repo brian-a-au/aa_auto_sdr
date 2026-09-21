@@ -205,13 +205,14 @@ def _diff_dict(
 ) -> list[FieldDelta]:
     """Walk two dicts and emit FieldDelta for each leaf inequality, after normalization.
 
-    `id` and `rsid` are identity fields; mismatches surface via the parent
+    Root-level `id` and `rsid` are identity fields; mismatches surface via the parent
     DiffReport's added/removed lists or `rsid_mismatch` flag, so we skip them
-    here to avoid emitting redundant deltas."""
+    here to avoid emitting redundant deltas. Nested references with those names
+    are definition data and must still be compared."""
     deltas: list[FieldDelta] = []
     keys = sorted(a.keys() | b.keys())
     for key in keys:
-        if key in ("id", "rsid"):
+        if not parent_field and key in ("id", "rsid"):
             continue
         if key in ignore_fields:
             continue

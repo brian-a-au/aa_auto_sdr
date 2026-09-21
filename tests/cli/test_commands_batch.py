@@ -465,6 +465,45 @@ class TestBatchAutoSnapshot:
 
 
 class TestBatchDryRun:
+    @pytest.mark.parametrize(("failure_type", "expected_code"), [("not_found", 13), ("api", 12)])
+    @pytest.mark.parametrize("resolved_first", [False, True])
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_fail_fast_preserves_real_failure_code(
+        self,
+        mock_client_cls,
+        mock_handle,
+        authed_env,
+        tmp_path,
+        monkeypatch,
+        failure_type,
+        expected_code,
+        resolved_first,
+    ) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        failure = ReportSuiteNotFoundError("missing") if failure_type == "not_found" else ApiError("unavailable")
+        resolve = MagicMock(side_effect=[(["demo.prod"], False), failure] if resolved_first else [failure])
+        monkeypatch.setattr(batch_cmd.fetch, "resolve_rsid", resolve)
+        summary_path = tmp_path / "summary.json"
+        identifiers = (["demo.prod"] if resolved_first else []) + ["missing", "demo.staging"]
+        rc = batch_cmd.run(
+            rsids=identifiers,
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            dry_run=True,
+            fail_fast=True,
+            run_summary_json=str(summary_path),
+        )
+        assert rc == (14 if resolved_first else expected_code)
+        assert resolve.call_count == (2 if resolved_first else 1)
+        summary = json.loads(summary_path.read_text())
+        assert summary["rsids"][-1]["error"] == "CancelledError: cancelled"
+        assert not (tmp_path / "demo.prod.json").exists()
+        mock_handle.getDimensions.assert_not_called()
+
     @patch("aa_auto_sdr.cli.commands.batch.AaClient")
     def test_dry_run_writes_no_files_in_batch(
         self,
