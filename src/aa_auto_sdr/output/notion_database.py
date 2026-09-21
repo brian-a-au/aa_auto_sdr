@@ -366,9 +366,14 @@ def repair_database(
     call.  Properties present but with the wrong type are recorded as
     ``conflicts`` and never touched.
 
+    Always read fresh schema before planning a repair. Invalidate the target
+    database's cached schema after an update attempt, even if the response
+    fails: the server may already have applied the change.
+
     Returns a :class:`RepairResult` describing what was (or would be) changed.
     Raises :class:`NotionRegistryError` if the database has no data source.
     """
+    _DATA_SOURCE_CACHE.pop(database_id, None)
     data_source_id, db_properties = _resolve_data_source(client, database_id)
 
     to_add: list[str] = []
@@ -384,7 +389,10 @@ def repair_database(
 
     applied = False
     if to_add and not dry_run:
-        client.data_sources.update(data_source_id=data_source_id, properties=payload)
+        try:
+            client.data_sources.update(data_source_id=data_source_id, properties=payload)
+        finally:
+            _DATA_SOURCE_CACHE.pop(database_id, None)
         applied = True
 
     return RepairResult(to_add=to_add, conflicts=conflicts, applied=applied)
