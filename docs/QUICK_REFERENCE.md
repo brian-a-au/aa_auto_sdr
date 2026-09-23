@@ -107,7 +107,7 @@ RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-s
 ## Snapshot & diff
 
 ```bash
-# Capture a snapshot alongside generation (requires --profile)
+# Capture a snapshot alongside generation (profile-scoped; falls back to the default store without --profile)
 aa_auto_sdr demo.prod --snapshot --profile prod
 
 # Capture on every run
@@ -138,7 +138,7 @@ aa_auto_sdr --diff a.json b.json --format markdown --output diff.md
 aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod --format pr-comment | pbcopy
 ```
 
-**Diff token grammar:** bare path · `<rsid>@<timestamp>` · `<rsid>@latest` · `<rsid>@previous` · `git:<ref>:<path>`. Profile-form tokens need `--profile` or `--snapshot-dir`.
+**Diff token grammar:** bare path · `<rsid>@<timestamp>` · `<rsid>@latest` · `<rsid>@previous` · `git:<ref>:<path>`. Profile-form tokens resolve against the active snapshot dir (`--snapshot-dir`, else `--profile`, else the `default` store).
 
 ### Diff modifiers
 
@@ -256,7 +256,7 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 | `--workers N` | Parallel batch workers (1..16, default 1) | Batch |
 | `--fail-fast` | Cancel pending workers on first failure | Batch |
 | `--sample N`, `--sample-seed N`, `--sample-stratified` | Subset RSIDs before dispatch | Batch |
-| `--snapshot` / `--auto-snapshot` | Persist a snapshot (requires `--profile`) | Generate |
+| `--snapshot` / `--auto-snapshot` | Persist a snapshot (profile-scoped; `default` store without `--profile`) | Generate |
 | `--auto-prune` + `--keep-last N` / `--keep-since DUR` | Retention policy | Snapshot |
 | `--snapshot-dir PATH` | Override the active snapshot directory | Snapshot/Diff |
 | `--name-match {exact,insensitive,fuzzy}` | Name-resolution strategy (default `insensitive`) | All |
@@ -280,7 +280,7 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 | `console` / `table` | ❌ | ✅ (default) | ✅ (default) | ✅ (default) | Terminal output |
 | `pr-comment` | ❌ | ✅ | ❌ | ❌ | Compact GFM with collapsible `<details>` for GitHub PRs |
 
-> The List/Inspect column covers `--describe-reportsuite` and the `--list-*` commands (table/json/csv). `--stats` is the exception: it supports `table` and `json` only.
+> The List/Inspect column covers `--describe-reportsuite` and the `--list-*` commands. For these, `table` is the implicit default only — it **cannot** be passed via `--format`; only `json` and `csv` are accepted values. An unsupported `--format` value here exits 15 (OUTPUT, "format mismatch"), not 2. `table` is also accepted as an explicit `--format` value for `--inventory-summary` (`table`/`json`/`csv`), `--stats` (`table`/`json`), `--list-snapshots` (`table`/`json`), and `--profile-list` (`table`/`json`).
 
 ### Format aliases (generation)
 

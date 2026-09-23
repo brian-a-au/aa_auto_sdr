@@ -180,7 +180,7 @@ Per-RSID SDR documents and snapshots are unaffected by sampling — it only chan
 
 ### Inventory summary
 
-`aa_auto_sdr [<RSID>...] --inventory-summary` emits a cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. With no positional RSIDs, summarizes every visible report suite (mirrors `--stats`). Uses the `count_only` fetcher path — no full SDR build.
+`aa_auto_sdr [<RSID>...] --inventory-summary` emits a cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. The `--format json` output also carries a top-level `report_suites_count`. With no positional RSIDs, summarizes every visible report suite (mirrors `--stats`). Uses the `count_only` fetcher path — no full SDR build.
 
 | Flag combination | Effect |
 |------------------|--------|
@@ -445,19 +445,19 @@ Key flags: `--changes-only`, `--summary`, `--show-only TYPES`, `--max-issues N`,
 ### Snapshots
 
 ```bash
-# Save a snapshot alongside generation (requires --profile)
+# Save a snapshot alongside generation (profile-scoped; default store without --profile)
 uv run aa_auto_sdr <RSID> --profile <name> --snapshot
 
-# Auto-snapshot + retention (per-RSID; requires --profile)
+# Auto-snapshot + retention (per-RSID; profile-scoped, default store without --profile)
 uv run aa_auto_sdr <RSID> --profile <name> --auto-snapshot --auto-prune --keep-last 20 --keep-since 30d
 
-# List / prune snapshots (both require --profile)
+# List / prune snapshots (both require --profile or --snapshot-dir)
 uv run aa_auto_sdr --profile <name> --list-snapshots [<RSID>]
 uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-last 20 --dry-run
 uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-since 30d --yes
 ```
 
-Snapshot lifecycle commands all require `--profile` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise.
+Standalone snapshot lifecycle commands (`--list-snapshots`, `--prune-snapshots`) require `--profile` or `--snapshot-dir` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. (Capture via `--snapshot` / `--auto-snapshot` differs: it falls back to the `default` store when neither is given.) Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise.
 
 ### Diagnostics
 
@@ -496,12 +496,14 @@ uv run aa_auto_sdr <RSID> --dry-run
 | `12` | Adobe Analytics API request failed                          | Retry if transient                                 |
 | `13` | Report suite or other resource not found                    | Abort; verify RSID                                 |
 | `14` | Batch ran with mixed success and failure                    | Flag for review; consume per-RSID summary          |
-| `15` | Output writer failure (filesystem / format mismatch / mutex)| Abort; check `--output-dir` perms, `--output -` mutex with `--run-summary-json -` |
+| `15` | Output writer failure (filesystem / format mismatch)        | Abort; check `--output-dir` perms, `--output -` mutex with `--run-summary-json -` |
 | `16` | Snapshot resolve / schema / git failure                     | Abort; verify snapshot path / git ref              |
 | `17` | Quality gate breached: `--fail-on-quality` threshold exceeded | SDR + snapshot still emitted; consume `quality.summary` from output |
-| `130`| KeyboardInterrupt (SIGINT)                                  | Treat as cancelled; retry if appropriate           |
+| `130`| KeyboardInterrupt (SIGINT) — OS/shell convention           | Treat as cancelled; retry if appropriate           |
 
 Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE` for runtime lookup.
+
+> Code `130` is the conventional "cancelled" exit — the shell's SIGINT (Ctrl-C) convention, and also what interactive mode returns on EOF (Ctrl-D). It is **not** part of the tool's own registry: it is not listed by `--exit-codes`, and `--explain-exit-code 130` returns a usage error (exit 2). The tool's registered codes are `0`, `1`, `2`, `3`, and `10`–`17`.
 
 ---
 
@@ -654,7 +656,7 @@ uv run aa_auto_sdr --config-status                       # full credential resol
 | Stats                     | ✅              | JSON on stdout (`--format json`). |
 | Validation / Preflight    | Partial        | Both `--config-status` (text) and `--validate-config` are exit-code driven. No JSON output mode today; use exit codes for branching. |
 | Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, `--completion {bash,zsh,fish}` are detected positionally (must be first on argv). Place them before `--agent-mode`, e.g. `aa_auto_sdr --version` or `aa_auto_sdr --exit-codes`. Forms like `aa_auto_sdr --agent-mode --version` fall through to argparse and error with `unrecognized arguments`. The agent-mode preset is intentionally not applied for fast-path flags — they exit before logging or output resolution. |
-| Snapshots (list / prune)  | Partial        | `--profile <name> --list-snapshots --format json --output -` supported (lifecycle commands require `--profile`). `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
+| Snapshots (list / prune)  | Partial        | `--profile <name> --list-snapshots --format json --output -` supported (standalone lifecycle commands require `--profile` or `--snapshot-dir`). `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
 
 ### Exact-ID Guidance
 

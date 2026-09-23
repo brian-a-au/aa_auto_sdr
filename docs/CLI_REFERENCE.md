@@ -35,7 +35,7 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 | `--exclude STR` | list/inspect | Case-insensitive substring exclusion on `name`. |
 | `--sort FIELD` | list/inspect | Sort by allowlisted field per command. |
 | `--limit N` | list/inspect | Cap output to N records. |
-| `--profile NAME` | all (when needed) | Use named profile for credentials. Required for `<rsid>@<spec>` diff tokens and `--snapshot`. |
+| `--profile NAME` | all (when needed) | Use named profile for credentials. Also selects the snapshot store for `--snapshot` and `<rsid>@<spec>` diff tokens (both fall back to the `default` store without it); standalone `--list-snapshots` / `--prune-snapshots` require it or `--snapshot-dir`. |
 | `--yes` / `-y` | destructive actions | Skip confirmation prompts. Non-tty stdin refuses to prompt and aborts safely without `--yes`. |
 
 ## Exit codes
@@ -164,17 +164,17 @@ For deeper coverage of snapshot semantics, file format, retention, and the diff 
 
 ### `<RSID> --snapshot --profile <name>`
 
-Persist the built SDR to `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json` alongside the format outputs. Requires `--profile`. Works on `<RSID>` and `--batch`.
+Persist the built SDR to `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json` alongside the format outputs. Profile-scoped, but `--profile` is not required: without `--profile` or `--snapshot-dir` the snapshot lands in the `~/.aa/orgs/default/snapshots/` store. Works on `<RSID>` and `--batch`.
 
 `--snapshot --output -` works — the snapshot is an out-of-band side effect.
 
 ### `<RSID> --auto-snapshot --profile <name>`
 
-Like `--snapshot` but designed to be set as a default for every run. Combines with `--snapshot` to a single save (no double-write). Requires `--profile`.
+Like `--snapshot` but designed to be set as a default for every run. Combines with `--snapshot` to a single save (no double-write). Profile-scoped like `--snapshot` — without `--profile` or `--snapshot-dir` it uses the `default` store.
 
 ### `<RSID> --auto-prune --keep-last N | --keep-since DURATION`
 
-After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires `--profile` and exactly one of `--keep-last` or `--keep-since`. Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set.
+After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires exactly one of `--keep-last` or `--keep-since`; it prunes the same store the run snapshots to (profile store, or the `default` fallback). Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set.
 
 - `--keep-last N` — keep the N most recent snapshots **per RSID**.
 - `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10.
@@ -233,7 +233,7 @@ Compute a structured diff between two snapshot envelopes. Each token is one of:
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file. |
 | `git:<ref>:<path>` | `git:HEAD~1:snapshots/x.json` | `git show <ref>:<path>` from cwd. |
 
-Profile-form tokens (`<rsid>@<spec>`) require `--profile` or `--snapshot-dir`. The active snapshot dir is `--snapshot-dir` if set, otherwise `~/.aa/orgs/<profile>/snapshots/`.
+Profile-form tokens (`<rsid>@<spec>`) resolve against the active snapshot dir: `--snapshot-dir` if set, else `~/.aa/orgs/<profile>/snapshots/` when `--profile` is set, else the `~/.aa/orgs/default/snapshots/` fallback (so `--profile` is not strictly required).
 
 `--format console|json|markdown|pr-comment` (default `console`). `--output -` for json/markdown/pr-comment pipes; rejected for console (use `--format json|markdown` for pipes).
 
@@ -323,7 +323,7 @@ The policy-file key `max_issues` is NOT supported (rejected by the loader with `
 | Flag | Behavior |
 |----|----|
 | `--stats [<RSID>...]` | Quick component counts per RSID. With no positional args, lists every visible report suite. See [Discovery and inspection](#discovery-and-inspection) for full description. |
-| `--inventory-summary` | Cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. Mutex with other actions. Format allowlist: `table`, `json`, `csv`. |
+| `--inventory-summary` | Cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. The `json` output also carries a top-level `report_suites_count`. Mutex with other actions. Format allowlist: `table`, `json`, `csv`. |
 
 ```bash
 aa_auto_sdr --inventory-summary
@@ -528,7 +528,7 @@ These complete in <100ms with no `pandas` / `aanalytics2` import:
 | Command | Purpose |
 |---|---|
 | `aa_auto_sdr -V` / `--version` | Print the version. |
-| `aa_auto_sdr -h` / `--help` | Print usage summary. |
+| `aa_auto_sdr -h` / `--help` | Print a curated usage summary. It highlights common flags and does not list every option (e.g. `--format`, `--output`, `--output-dir`, `--dry-run`, `--open` are omitted) — this reference is the complete flag inventory. |
 | `aa_auto_sdr --exit-codes` | List every exit code with a one-line meaning. |
 | `aa_auto_sdr --explain-exit-code <CODE>` | Paragraph explanation: meaning, likely causes, "What to try". |
 | `aa_auto_sdr --completion {bash,zsh,fish}` | Emit a static shell-completion script. Redirect to your shell's completion dir. |
