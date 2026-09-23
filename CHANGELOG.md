@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.16] — 2026-09-23
+
+### Fixed
+- Return `OUTPUT` (15) instead of `GENERIC` (1) when a `--format` value is
+  unknown during single or batch generation, matching the list/inspect/diff
+  behavior for the same error.
+- Render resolved scopes in `--config-status` using the canonical no-space
+  comma form (matching `docs/CONFIGURATION.md`); display only, the value used
+  for auth is unchanged.
+
 ## [1.21.15] — 2026-09-20
 
 ### Fixed

@@ -43,10 +43,11 @@ def _build_handle(raw: dict) -> MagicMock:
 # ---------------------------------------------------------------------------
 
 
-def test_generate_unknown_format_returns_generic(env_creds, tmp_path: Path, capsys) -> None:
-    """resolve_formats raises KeyError for an unknown alias → GENERIC (1)."""
+def test_generate_unknown_format_returns_output(env_creds, tmp_path: Path, capsys) -> None:
+    """resolve_formats raises KeyError for an unknown alias → OUTPUT (15),
+    matching the list/inspect/diff behavior for the same error."""
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="bogus", profile=None)
-    assert rc == ExitCode.GENERIC.value
+    assert rc == ExitCode.OUTPUT.value
     assert "error:" in capsys.readouterr().err
 
 

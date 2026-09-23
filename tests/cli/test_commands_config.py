@@ -39,6 +39,23 @@ def test_show_config_prints_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     assert "env" in captured.out
 
 
+def test_config_status_renders_canonical_scopes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """--config-status renders resolved scopes in the canonical no-space
+    comma form, regardless of how they were entered."""
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "Cid12345")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "openid, AdobeID, additional_info.projectedProductContext")
+    monkeypatch.chdir(tmp_path)
+    rc = cmd.config_status(profile=None)
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "openid,AdobeID,additional_info.projectedProductContext" in out
+    assert "openid, AdobeID" not in out
+
+
 def test_show_config_returns_config_error_when_no_creds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
         monkeypatch.delenv(v, raising=False)

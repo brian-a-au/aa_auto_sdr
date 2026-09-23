@@ -299,8 +299,9 @@ def _run_impl(
     try:
         formats = registry.resolve_formats(format_name or "excel")
     except KeyError as e:
+        # An unknown --format value is a format error, not a generic failure.
         print(f"error: {e}", file=sys.stderr, flush=True)
-        return ExitCode.GENERIC.value
+        return ExitCode.OUTPUT.value
 
     if template_path is not None:
         from aa_auto_sdr.output.registry import swap_excel_for_template
