@@ -101,15 +101,16 @@ def test_batch_metrics_and_dimensions_only_mutex(authed_env, tmp_path: Path, cap
     assert "mutually exclusive" in capsys.readouterr().err
 
 
-def test_batch_unknown_format_returns_generic(authed_env, tmp_path: Path, capsys) -> None:
-    """resolve_formats raises KeyError for an unknown alias → GENERIC (1)."""
+def test_batch_unknown_format_returns_output(authed_env, tmp_path: Path, capsys) -> None:
+    """resolve_formats raises KeyError for an unknown alias → OUTPUT (15),
+    matching the single-generate and list/inspect/diff behavior."""
     rc = batch_cmd.run(
         rsids=["demo.prod"],
         output_dir=tmp_path,
         format_name="bogus",
         profile=None,
     )
-    assert rc == ExitCode.GENERIC.value
+    assert rc == ExitCode.OUTPUT.value
     assert "error:" in capsys.readouterr().err
 
 

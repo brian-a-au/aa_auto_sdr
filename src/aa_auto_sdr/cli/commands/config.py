@@ -165,7 +165,10 @@ def config_status(*, profile: str | None) -> int:
         masked = f"{cid[:4]}…{cid[-4:]}" if len(cid) > 8 else cid
         print(f"  org_id:    {creds.org_id}")
         print(f"  client_id: {masked}")
-        print(f"  scopes:    {creds.scopes}")
+        # Render scopes in the canonical no-space comma form (see docs/CONFIGURATION.md),
+        # regardless of how they were entered.
+        canonical_scopes = ",".join(s.strip() for s in creds.scopes.split(",") if s.strip())
+        print(f"  scopes:    {canonical_scopes}")
         exit_code = ExitCode.OK.value
         return exit_code
     finally:
