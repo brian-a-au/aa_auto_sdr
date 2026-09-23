@@ -68,14 +68,14 @@ uv run aa_auto_sdr <RSID> --snapshot --profile prod
 uv run aa_auto_sdr --batch RS1 RS2 --snapshot --profile prod
 ```
 
-Snapshots need a destination: pass `--profile <name>` (path embeds the profile name), pass `--snapshot-dir <path>` explicitly, or rely on a resolvable default profile — when credentials come from `config.json`, `.env`, or env vars and a `default` profile exists, the snapshot lands in `~/.aa/orgs/default/snapshots/`. Only when no destination can be resolved does the command exit 10 with a clear error. Run `--profile-add` once to create a named profile for your org.
+Snapshots are profile-scoped, and the directory is chosen by precedence: `--snapshot-dir <path>` if given, else `~/.aa/orgs/<profile>/snapshots/` when `--profile` is set, else the `~/.aa/orgs/default/snapshots/` fallback. That final fallback is **unconditional** — it does not depend on the credential source or on a `default` profile already existing — so `--snapshot` works without `--profile` and simply lands in the `default` store. (Generation still needs resolvable credentials, as any run does; that is separate from the snapshot directory.) Run `--profile-add` once if you want a named profile store instead of the default.
 
 The snapshot file is appended to `RunResult.outputs`, so the `wrote: <path>` trail and batch banner bytes-count both include it.
 
 ## The `--diff` action
 
 ```text
-aa_auto_sdr --diff <a> <b> [--format console|json|markdown|pr-comment] [--output -|<path>] (--profile <name> | --snapshot-dir <path>)
+aa_auto_sdr --diff <a> <b> [--format console|json|markdown|pr-comment] [--output -|<path>] [--profile <name> | --snapshot-dir <path>]
 ```
 
 Each token is one of five forms:
@@ -88,7 +88,7 @@ Each token is one of five forms:
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file (errors if only one exists). |
 | `git:<ref>:<path>` | `git:HEAD~1:snapshots/demo.prod.json` | `git show <ref>:<path>` from cwd. |
 
-Profile-form tokens (`<rsid>@<spec>`) resolve against the active snapshot dir, so they need one to be resolvable: pass `--snapshot-dir`, pass `--profile`, or rely on a resolvable default profile (when creds come from `config.json`/`.env`/env and a `default` profile exists, they resolve against `~/.aa/orgs/default/snapshots/`). Path-only and git-only tokens don't need any of this. The active snapshot dir is `--snapshot-dir` if set, otherwise `~/.aa/orgs/<profile>/snapshots/`.
+Profile-form tokens (`<rsid>@<spec>`) resolve against the active snapshot dir, chosen by the same precedence as capture: `--snapshot-dir` if set, else `~/.aa/orgs/<profile>/snapshots/` when `--profile` is set, else the `~/.aa/orgs/default/snapshots/` fallback. Because that fallback is unconditional, `@spec` tokens resolve even without `--profile` or `--snapshot-dir` (against the `default` store). Path-only and git-only tokens don't touch the snapshot dir at all.
 
 ### Examples
 

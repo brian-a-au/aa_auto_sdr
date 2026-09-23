@@ -593,7 +593,7 @@ Snapshots are the "version control for SDR" feature. A snapshot is a normalized 
 uv run aa_auto_sdr demo.prod --profile prod --auto-snapshot --output-dir /tmp/sdr
 ```
 
-`--auto-snapshot` is the recommended default: every generate run lands a snapshot under `~/.aa/orgs/prod/snapshots/<RSID>/<ISO-timestamp>.json` (sorted keys, git-diff-friendly). It requires `--profile`. Pair it with retention to bound the store:
+`--auto-snapshot` is the recommended default: every generate run lands a snapshot under `~/.aa/orgs/<profile>/snapshots/<RSID>/<ISO-timestamp>.json` (sorted keys, git-diff-friendly). It is profile-scoped, but `--profile` is not required — without `--profile` or `--snapshot-dir` the snapshot falls back to the `~/.aa/orgs/default/snapshots/` store. Pair it with retention to bound the store:
 
 ```bash
 uv run aa_auto_sdr demo.prod --profile prod --auto-snapshot --auto-prune --keep-last 10
