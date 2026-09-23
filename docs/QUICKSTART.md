@@ -347,10 +347,10 @@ dgeo1xxpnwcidadobestore       Adobe Store
 
 > **Empty list despite successful auth?** This almost always means the integration isn't on a Product Profile yet — go back to [Step 1.5](#15-add-the-integration-to-a-product-profile). Less commonly, your org requires the `read_organizations` scope.
 
-> **Tip:** For scripting, use `--format json` or `--output -` to get machine-readable output:
+> **Tip:** For scripting, use `--format json` (optionally with `--output -` to pipe to stdout) to get machine-readable output. Note that `--output -` on its own streams the default fixed-width table, not JSON, so always pair it with `--format json` before piping to `jq`:
 > ```bash
 > uv run aa_auto_sdr --list-reportsuites --format json
-> uv run aa_auto_sdr --list-reportsuites --output - | jq '.[].rsid'
+> uv run aa_auto_sdr --list-reportsuites --format json --output - | jq '.[].rsid'
 > ```
 
 ### 4.3 Explore Before You Generate (Optional)

@@ -68,7 +68,7 @@ uv run aa_auto_sdr <RSID> --snapshot --profile prod
 uv run aa_auto_sdr --batch RS1 RS2 --snapshot --profile prod
 ```
 
-Snapshots are profile-scoped (the path embeds the profile name), so `--snapshot` requires `--profile`. Without a profile, the command exits 10 with a clear error. To bypass that requirement, run `--profile-add` once to create a profile for your default org.
+Snapshots need a destination: pass `--profile <name>` (path embeds the profile name), pass `--snapshot-dir <path>` explicitly, or rely on a resolvable default profile — when credentials come from `config.json`, `.env`, or env vars and a `default` profile exists, the snapshot lands in `~/.aa/orgs/default/snapshots/`. Only when no destination can be resolved does the command exit 10 with a clear error. Run `--profile-add` once to create a named profile for your org.
 
 The snapshot file is appended to `RunResult.outputs`, so the `wrote: <path>` trail and batch banner bytes-count both include it.
 
@@ -88,7 +88,7 @@ Each token is one of five forms:
 | `<rsid>@previous` | `demo.prod@previous` | Second-most-recent file (errors if only one exists). |
 | `git:<ref>:<path>` | `git:HEAD~1:snapshots/demo.prod.json` | `git show <ref>:<path>` from cwd. |
 
-Profile-form tokens (`<rsid>@<spec>`) require `--profile` or `--snapshot-dir`. Path-only and git-only tokens don't. The active snapshot dir is `--snapshot-dir` if set, otherwise `~/.aa/orgs/<profile>/snapshots/`.
+Profile-form tokens (`<rsid>@<spec>`) resolve against the active snapshot dir, so they need one to be resolvable: pass `--snapshot-dir`, pass `--profile`, or rely on a resolvable default profile (when creds come from `config.json`/`.env`/env and a `default` profile exists, they resolve against `~/.aa/orgs/default/snapshots/`). Path-only and git-only tokens don't need any of this. The active snapshot dir is `--snapshot-dir` if set, otherwise `~/.aa/orgs/<profile>/snapshots/`.
 
 ### Examples
 
@@ -184,13 +184,20 @@ Metrics: +0 added, -1 removed, ~0 modified, 32 unchanged
   "b_rsid": "demo.prod",
   "a_captured_at": "2026-04-20T10:00:00+00:00",
   "b_captured_at": "2026-04-26T17:29:01+00:00",
+  "a_tool_version": "1.21.0",
+  "b_tool_version": "1.21.15",
+  "report_suite_deltas": [
+    {"field": "timezone", "before": "US/Pacific", "after": "US/Mountain"}
+  ],
   "components": [
     {
       "component_type": "dimensions",
       "added": [{"id": "evar99", "name": "Mobile Operator"}, ...],
       "removed": [],
       "modified": [{"id": "evar15", "name": "Page Type", "deltas": [...]}],
-      "unchanged_count": 124
+      "unchanged_count": 124,
+      "suppressed": false,
+      "suppression_reason": null
     },
     ...
   ],
@@ -198,7 +205,7 @@ Metrics: +0 added, -1 removed, ~0 modified, 32 unchanged
 }
 ```
 
-Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`.
+Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`. Keys are emitted alphabetically sorted (shown grouped above for readability). `report_suite_deltas` carries the report-suite header changes (timezone, currency, etc.) and is an empty list when the header is unchanged; it is also emptied in `--summary` mode. Each component carries `suppressed` / `suppression_reason` — non-null only when the §4.7 suppression rules skip that component's per-item diff.
 
 ### `markdown`
 

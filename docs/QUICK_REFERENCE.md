@@ -280,7 +280,7 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 | `console` / `table` | ❌ | ✅ (default) | ✅ (default) | ✅ (default) | Terminal output |
 | `pr-comment` | ❌ | ✅ | ❌ | ❌ | Compact GFM with collapsible `<details>` for GitHub PRs |
 
-> The List/Inspect column covers `--describe-reportsuite` and the `--list-*` commands (table/json/csv). `--stats` is the exception: it supports `table` and `json` only.
+> The List/Inspect column covers `--describe-reportsuite` and the `--list-*` commands. For these, `table` is the implicit default only — it **cannot** be passed via `--format`; only `json` and `csv` are accepted values. An unsupported `--format` value here exits 15 (OUTPUT, "format mismatch"), not 2. `table` is accepted as an explicit `--format` value only for `--inventory-summary` (`table`/`json`/`csv`) and `--stats` (`table`/`json` only).
 
 ### Format aliases (generation)
 

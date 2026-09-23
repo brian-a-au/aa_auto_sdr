@@ -323,7 +323,7 @@ The policy-file key `max_issues` is NOT supported (rejected by the loader with `
 | Flag | Behavior |
 |----|----|
 | `--stats [<RSID>...]` | Quick component counts per RSID. With no positional args, lists every visible report suite. See [Discovery and inspection](#discovery-and-inspection) for full description. |
-| `--inventory-summary` | Cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. Mutex with other actions. Format allowlist: `table`, `json`, `csv`. |
+| `--inventory-summary` | Cross-RSID aggregate rollup of component counts (totals, min, max, avg per component type) plus a per-RSID detail block. The `json` output also carries a top-level `report_suites_count`. Mutex with other actions. Format allowlist: `table`, `json`, `csv`. |
 
 ```bash
 aa_auto_sdr --inventory-summary
@@ -528,7 +528,7 @@ These complete in <100ms with no `pandas` / `aanalytics2` import:
 | Command | Purpose |
 |---|---|
 | `aa_auto_sdr -V` / `--version` | Print the version. |
-| `aa_auto_sdr -h` / `--help` | Print usage summary. |
+| `aa_auto_sdr -h` / `--help` | Print a curated usage summary. It highlights common flags and does not list every option (e.g. `--format`, `--output`, `--output-dir`, `--dry-run`, `--open` are omitted) — this reference is the complete flag inventory. |
 | `aa_auto_sdr --exit-codes` | List every exit code with a one-line meaning. |
 | `aa_auto_sdr --explain-exit-code <CODE>` | Paragraph explanation: meaning, likely causes, "What to try". |
 | `aa_auto_sdr --completion {bash,zsh,fish}` | Emit a static shell-completion script. Redirect to your shell's completion dir. |
