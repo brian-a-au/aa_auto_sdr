@@ -56,6 +56,28 @@ def test_config_status_renders_canonical_scopes(
     assert "openid, AdobeID" not in out
 
 
+def test_config_status_does_not_mutate_auth_scopes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The canonical render is display-only: the resolved Credentials.scopes
+    used for auth keeps the value as entered (spaces included)."""
+    from aa_auto_sdr.core import credentials
+
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "Cid12345")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "openid, AdobeID, additional_info.projectedProductContext")
+    monkeypatch.chdir(tmp_path)
+    rc = cmd.config_status(profile=None)
+    assert rc == 0
+    out = capsys.readouterr().out
+    # Display normalized to canonical no-space form ...
+    assert "openid,AdobeID,additional_info.projectedProductContext" in out
+    # ... but the value used for auth is unchanged (spaces preserved).
+    creds = credentials.resolve(profile=None)
+    assert creds.scopes == "openid, AdobeID, additional_info.projectedProductContext"
+
+
 def test_show_config_returns_config_error_when_no_creds(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
         monkeypatch.delenv(v, raising=False)

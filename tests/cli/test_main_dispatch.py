@@ -606,3 +606,26 @@ def test_run_summary_json_dash_with_output_dash_returns_output_error(
         ],
     )
     assert rc == 15  # ExitCode.OUTPUT
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["demo.prod", "--format", "bogus"],  # single positional
+        ["demo.prod", "demo.staging", "--format", "bogus"],  # auto-batch (multi positional)
+        ["--batch", "demo.prod", "demo.staging", "--format", "bogus"],  # explicit batch
+    ],
+    ids=["single", "auto-batch", "explicit-batch"],
+)
+def test_unknown_format_returns_output_via_dispatch(
+    argv, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Top-level dispatch: an unknown --format returns OUTPUT (15) for single,
+    auto-batch, and explicit --batch generation (not GENERIC 1)."""
+    monkeypatch.setenv("ORG_ID", "O")
+    monkeypatch.setenv("CLIENT_ID", "C")
+    monkeypatch.setenv("SECRET", "S")
+    monkeypatch.setenv("SCOPES", "X")
+    monkeypatch.chdir(tmp_path)
+    rc = run([*argv, "--output-dir", str(tmp_path)])
+    assert rc == 15  # ExitCode.OUTPUT
