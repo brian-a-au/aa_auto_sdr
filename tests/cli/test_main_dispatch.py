@@ -617,9 +617,7 @@ def test_run_summary_json_dash_with_output_dash_returns_output_error(
     ],
     ids=["single", "auto-batch", "explicit-batch"],
 )
-def test_unknown_format_returns_output_via_dispatch(
-    argv, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_unknown_format_returns_output_via_dispatch(argv, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Top-level dispatch: an unknown --format returns OUTPUT (15) for single,
     auto-batch, and explicit --batch generation (not GENERIC 1)."""
     monkeypatch.setenv("ORG_ID", "O")
