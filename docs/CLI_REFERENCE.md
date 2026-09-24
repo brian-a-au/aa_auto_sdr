@@ -28,8 +28,8 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 
 | Flag | Applies to | Behavior |
 |----|----|----|
-| `--format FMT` | generate, list/inspect, diff | Per-action allowlist (excel/csv/json/html/markdown plus aliases all/reports/data/ci for generate; json/csv for list/inspect; console/json/markdown/pr-comment for diff). |
-| `--output PATH \| -` | list/inspect, diff, generate JSON pipe | File path, or `-` for stdout pipe (where supported). |
+| `--format FMT` | generate, discovery/inspection, diff, stats, inventory, snapshot listing, trending, watch, profile list | Each command has its own allowlist: generation formats and aliases; json/csv for list/inspect; console/json/markdown/pr-comment for diff; table/json for stats, snapshots, and profile list; table/json/csv for inventory; console/json/markdown for trending; json/notion for watch. |
+| `--output PATH \| -` | list/inspect, diff, trending, single-SDR JSON pipe | File paths are used by list/inspect, diff, and trending. For single-SDR JSON stdout, use `--output -`; generation files go under `--output-dir` (default: cwd), and `--output PATH` does not choose their destination. |
 | `--output-dir DIR` | generate, batch | Output directory for SDR file(s). Default: cwd. |
 | `--filter STR` | list/inspect | Case-insensitive substring on `name`. |
 | `--exclude STR` | list/inspect | Case-insensitive substring exclusion on `name`. |
@@ -279,7 +279,7 @@ For deeper coverage see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md).
 |----|----|
 | `--trending-window DURATION` | Rollup across snapshots in a profile-scoped window (`Nh\|Nd\|Nw`). Reads existing snapshots; no API contact. |
 | `--compare-with-prev` | Sugar for `--diff <RSID>@previous <RSID>@latest`, scoped by `--profile` or `--snapshot-dir`. |
-| `--snapshot-dir PATH` | Override the active profile's snapshot directory. Honored by `--snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, `--watch`. |
+| `--snapshot-dir PATH` | Override the active snapshot directory. Honored by `--snapshot`, `--auto-snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, and `--watch`. |
 
 ```bash
 aa_auto_sdr <RSID> --trending-window 30d --profile prod
@@ -316,7 +316,7 @@ Naming audits are severity-tagged and machine-readable. Three flags promote them
 
 `--quality-report` or `--fail-on-quality` without `--audit-naming` / `--flag-stale` auto-enables both audits. Quality flags outside SDR generation (`--stats`, the list-actions, `--inventory-summary`, `--diff`) exit `USAGE` (2). In batch, `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
 
-The policy-file key `max_issues` is NOT supported (rejected by the loader with `ConfigError`); the unrelated CLI flag `--max-issues` for `--diff` rendering still exists.
+The policy-file keys `max_issues` and `allow_partial` are not supported (the loader rejects them with `ConfigError`); the unrelated CLI flag `--max-issues` for `--diff` rendering still exists. `--quality-report` cannot be combined with generation's `--output -` JSON pipe (exit 15); use file output so both artifacts have destinations.
 
 ## Inventory and stats
 
@@ -337,9 +337,9 @@ aa_auto_sdr --inventory-summary --format json
 |----|----|
 | `--workers N` | Parallel batch workers (1..16, default `1`). Implemented via `ThreadPoolExecutor`. JSON log records on parallel runs include `worker_id`. |
 | `--fail-fast` | Stop the batch at the first failure (opt-out of continue-on-error default). Covers both identifier resolution and generation: the first identifier that fails to resolve, or the first RSID that fails to generate, stops the batch. Sequential runs stop submitting; parallel runs cancel pending workers. Identifiers after the failure are recorded as cancelled failures. Without `--fail-fast`, every unresolvable identifier is reported in one run. |
-| `--sample N` | Subset N RSIDs from `--batch` before dispatch. `N >= len(batch)` is a no-op. Requires `--batch`. |
-| `--sample-seed N` | RNG seed for `--sample` (integer; default non-deterministic). |
-| `--sample-stratified` | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group. |
+| `--sample N` | Subset N RSIDs before dispatch in an explicit `--batch` or auto-batch (two or more positional identifiers). `N >= len(batch)` is a no-op. A single-RSID run is rejected. |
+| `--sample-seed N` | Integer RNG seed for `--sample` (default non-deterministic); requires `--sample`. |
+| `--sample-stratified` | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group; requires `--sample`. |
 
 When sampling actually applies, the summary banner prints `Sampled X of Y RSIDs (strategy=random[, seed=N])` and the run emits a `batch_sampled` INFO log record.
 
@@ -401,7 +401,7 @@ For the user-facing logging reference (events, log file naming, redaction), see 
 | `--log-format {text,json}` | Output format for both console and file. `json` emits NDJSON. |
 | `--quiet` / `-q` | Suppress progress banners and INFO console output. Errors and final paths still print. Log file is unaffected. |
 | `--show-timings` | Print a per-stage timings block to stderr at end of run. Stages: `auth`, `resolve`, per-RSID `build:<rsid>`, per-format `write:<fmt>:<rsid>`, optional `snapshot:<rsid>`. |
-| `--run-summary-json PATH \| -` | Emit a structured JSON run summary (started_at, finished_at, duration_seconds, tool_version, profile, per-RSID rsids, timings). Conflict: `--run-summary-json -` with `--output -` returns `OUTPUT` (15). |
+| `--run-summary-json PATH \| -` | Generate/batch only. Emit a structured JSON run summary (started_at, finished_at, duration_seconds, tool_version, profile, per-RSID rsids, timings). Conflict: `--run-summary-json -` with `--output -` returns `OUTPUT` (15). |
 | `--agent-mode` | Agent-friendly preset: defaults to `--format json --output - --log-format json` for options the user did not explicitly pass. `--output -` implies `--quiet`. |
 
 ```bash

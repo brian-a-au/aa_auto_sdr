@@ -20,9 +20,9 @@ repository, the `release.yml` workflow, and the `pypi` GitHub Environment.
      `version.py`, the `pyproject.toml` dynamic-version wiring, and the top
      `CHANGELOG.md` heading all agree.
 
-2. **Merge to `main`.** Open a PR and let the required checks pass (`lint`, `test`,
-   `check`, `gate`), then merge. `main` is protected, so this goes through a PR like
-   any other change.
+2. **Merge to `main`.** Open a PR and let the repository's required checks pass.
+   The current workflows expose `lint`, `test`, `check`, and `gate` jobs; repository
+   settings determine which checks are required before merge.
 
 3. **Tag and publish the Release:**
    ```bash

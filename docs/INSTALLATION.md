@@ -37,7 +37,28 @@ uv --version
 
 ## Install the tool
 
-### Option 1 — Clone + uv sync (recommended)
+### Option 1 — Install from PyPI (recommended for most users)
+
+Install an isolated command with `uv`:
+
+```bash
+uv tool install aa-auto-sdr
+aa-auto-sdr --version
+```
+
+To run it once without installing, use `uvx aa-auto-sdr --list-reportsuites`.
+With pip, install with `pip install aa-auto-sdr`, then run `aa_auto_sdr`.
+Optional features are available as extras, for example:
+
+```bash
+uv tool install "aa-auto-sdr[env,completion,notion]"
+```
+
+After installation, continue to [`CONFIGURATION.md`](CONFIGURATION.md) to set
+credentials. PyPI installs use the `aa-auto-sdr` command; source-checkout
+examples below use `uv run aa_auto_sdr`.
+
+### Option 2 — Clone + uv sync
 
 ```bash
 git clone https://github.com/brian-a-au/aa_auto_sdr
@@ -61,7 +82,7 @@ aa_auto_sdr --version
 
 > All subsequent commands assume you are in the `aa_auto_sdr` directory.
 
-### Option 2 — Download ZIP
+### Option 3 — Download ZIP
 
 If you don't have git:
 
@@ -69,7 +90,7 @@ If you don't have git:
 2. Open a terminal in the extracted folder.
 3. `uv sync --all-extras`
 
-### Option 3 — pip + virtual environment
+### Option 4 — pip + virtual environment
 
 ```bash
 git clone https://github.com/brian-a-au/aa_auto_sdr

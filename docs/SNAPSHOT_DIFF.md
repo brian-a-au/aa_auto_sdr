@@ -271,7 +271,7 @@ Full table: `src/aa_auto_sdr/core/exit_codes.py` (consumed by `aa_auto_sdr --exi
 
 ## Snapshot lifecycle
 
-Beyond the per-run `--snapshot` flag, three first-class actions manage snapshots as a long-lived, profile-scoped store.
+Alongside the per-run `--snapshot` flag, `--auto-snapshot`, retention, listing, and pruning manage snapshots as a long-lived store scoped to the selected snapshot directory.
 
 ### Auto-snapshot on every run
 
@@ -363,7 +363,7 @@ aa_auto_sdr --trending-window 30d <RSID> --profile prod
 aa_auto_sdr --trending-window 30d <RSID> --profile prod --format json --output - | jq '.summary'
 ```
 
-`--trending-window <DURATION>` reads existing snapshots from the active snapshot store (no API contact) and emits a rollup of how component counts and quality signals moved across the window. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the profile's snapshot directory; honored uniformly by every snapshot-aware action (`--snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, `--watch`).
+`--trending-window <DURATION>` reads existing snapshots from the active snapshot store (no API contact) and reports component counts and lifecycle changes across the window. Its drift summary includes total changes, a volatility score, the most active component type, and churn by component type; it does not summarize quality findings. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the active snapshot directory for capture (`--snapshot` / `--auto-snapshot`), `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, and `--watch`.
 
 Trending renderers live under `output/trending_renderers/` (`console`, `json`, `markdown`); select with `--format`.
 

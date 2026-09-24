@@ -166,9 +166,9 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 ## De-dup rule
 
-`run_start` and `run_complete` fire **once per invocation**, from `cli/main.run` (the top frame). Sub-frames (e.g. `pipeline/batch.run_batch`) emit only their own scope-specific events (`rsid_start`, `rsid_complete`, `rsid_failure`) and never re-emit lifecycle events.
+`run_start` and `run_complete` fire **once per invocation that reaches logging setup**, from `cli/main.run` (the top frame). Sub-frames (e.g. `pipeline/batch.run_batch`) emit only their own scope-specific events (`rsid_start`, `rsid_complete`, `rsid_failure`) and never re-emit lifecycle events.
 
-Fast-path commands (`--version`, `--help`, `--exit-codes`, `--explain-exit-code`, `--completion`) skip `setup_logging`, and therefore also skip `run_start` / `run_complete`. **`run_start` is implicitly "any non-fast-path invocation."** This is the silent-fast-path contract; it is asserted by test.
+Fast-path commands (`--version`, `--help`, `--exit-codes`, `--explain-exit-code`, `--completion`) skip `setup_logging`, and therefore also skip `run_start` / `run_complete`. Argument-parsing failures and invalid sampling-option combinations also exit before logging setup. This is the silent-fast-path contract; it is asserted by test.
 
 ## Frequency budget at default INFO
 

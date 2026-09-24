@@ -227,7 +227,7 @@ aa_auto_sdr --profile-test client-a          # live OAuth + getCompanyId()
 
 # Use a profile
 aa_auto_sdr --list-reportsuites --profile client-a
-aa_auto_sdr "Main RS" -p client-b --format excel
+aa_auto_sdr "Main RS" --profile client-b --format excel
 
 # Import a profile non-interactively
 aa_auto_sdr --profile-import client-c ./client-c.json
@@ -245,9 +245,9 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 | Option | Purpose | Applies to |
 |--------|---------|------------|
 | `-V`, `--version` | Print version and exit (fast-path) | All |
-| `--profile NAME`, `-p` | Use a named profile from `~/.aa/orgs/` | All (when needed) |
+| `--profile NAME` | Use a named profile from `~/.aa/orgs/` | All (when needed) |
 | `--output-dir DIR` | Output directory for SDR files (default: cwd) | Generate |
-| `--output PATH \| -` | File path, or `-` for stdout pipe | Generate (JSON), list/inspect, diff |
+| `--output PATH \| -` | File path for list/inspect, diff, and trending; `-` pipes supported output | Generate (JSON pipe), list/inspect, diff, trending |
 | `--format FMT` | Output format (per-action allowlist; see below) | All |
 | `--filter`, `--exclude`, `--sort`, `--limit` | Shape list/inspect results | List/Inspect |
 | `--open` | Open output in the OS default app after writing | Generate |
@@ -258,12 +258,12 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 | `--sample N`, `--sample-seed N`, `--sample-stratified` | Subset RSIDs before dispatch | Batch |
 | `--snapshot` / `--auto-snapshot` | Persist a snapshot (profile-scoped; `default` store without `--profile`) | Generate |
 | `--auto-prune` + `--keep-last N` / `--keep-since DUR` | Retention policy | Snapshot |
-| `--snapshot-dir PATH` | Override the active snapshot directory | Snapshot/Diff |
+| `--snapshot-dir PATH` | Override the active snapshot directory | Snapshot/Diff/Trending/Watch |
 | `--name-match {exact,insensitive,fuzzy}` | Name-resolution strategy (default `insensitive`) | All |
 | `--max-retries`, `--retry-base-delay`, `--retry-max-delay` | Tune transient-failure retries | All |
 | `--log-level`, `--log-format {text,json}`, `--quiet` / `-q` | Logging controls | All |
 | `--show-timings` | Per-stage timings to stderr at end of run | Generate |
-| `--run-summary-json PATH \| -` | Structured JSON run summary | All |
+| `--run-summary-json PATH \| -` | Structured JSON run summary | Generate/Batch |
 | `--agent-mode` | Preset: `--format json --output - --log-format json` | All |
 | `--yes` / `-y` | Skip confirmation prompts for destructive actions | Prune / Notion maintenance |
 

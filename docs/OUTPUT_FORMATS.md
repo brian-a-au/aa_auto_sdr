@@ -1,6 +1,6 @@
 # Output Formats
 
-`aa_auto_sdr` supports five core generation formats (excel, csv, json, html, markdown) plus the specialized `excel-template` and `notion` outputs, four aliases, and four diff-output formats. Browse [`sample_outputs/`](../sample_outputs/) for committed examples of each.
+`aa_auto_sdr` supports five core generation formats (excel, csv, json, html, markdown) plus the specialized `excel-template` and `notion` outputs, four aliases, and four diff-output formats. [`sample_outputs/`](../sample_outputs/) contains representative examples of the core generation formats and the console, JSON, and Markdown diff renderers; it does not include a template-filled workbook, Notion output, or the `pr-comment` diff renderer.
 
 ## Base formats (generation)
 
@@ -122,6 +122,7 @@ uv run aa_auto_sdr <RSID> --format json --output - | python -c "..."
 **Restrictions:**
 - Only `--format json` is accepted with `--output -`. Other formats (csv, excel, html, markdown, aliases) are rejected with exit 15 (`format 'X' cannot be piped to stdout; use --output-dir <DIR> instead`).
 - `--output -` combined with `--batch` is rejected with exit 15 (multiple SDRs cannot share a single stream — use `--output-dir`).
+- `--quality-report` cannot be combined with `--output -` (exit 15). The quality report is a file artifact, so use normal file-output mode and `--output-dir` instead.
 
 ## Batch generation file layout
 
