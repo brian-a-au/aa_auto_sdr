@@ -21,9 +21,9 @@ A **Solution Design Reference** is the documentation that bridges your business 
 ### How It Works
 
 1. **Authenticates** via Adobe OAuth Server-to-Server (env vars, named profile, `.env`, or `config.json`).
-2. **Fetches** every component from your report suite via the Adobe Analytics 2.0 API. Read-only — no writes ever.
+2. **Fetches** the supported components from your report suite via the Adobe Analytics 2.0 API. If a component fetch is unavailable, the generated SDR records that fetch degradation. Read-only — no writes ever.
 3. **Builds** an `SdrDocument` — the normalized, SDK-agnostic boundary type that all renderers and snapshots consume.
-4. **Renders** to your chosen format(s) and optionally **persists a snapshot** under `~/.aa/orgs/<profile>/snapshots/` for later diffing.
+4. **Renders** to your chosen format(s) and optionally **persists a snapshot** under the active snapshot directory (the selected profile's store, or the `default` store when no profile is selected) for later diffing.
 
 ### Key Features
 
@@ -37,7 +37,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | `--dry-run` previews would-be output paths without writing (auth still validates) |
 | | `--open` opens generated output in OS default app after writing |
 | | `--show-timings` prints per-stage timings to stderr at end of run |
-| | `--run-summary-json PATH` emits a structured JSON run summary to a file or stdout |
+| | `--run-summary-json PATH` emits a structured JSON run summary for generation or batch runs, to a file or stdout |
 | | Continue-on-error across N report suites with summary banner |
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
@@ -49,7 +49,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | `--interactive` — pick an RSID interactively; emits to stdout for shell composition |
 | | `--filter`, `--exclude`, `--sort`, `--limit` on every list command |
 | **Snapshot & Diff** | `--snapshot` opt-in persist alongside generation |
-| | `--auto-snapshot` saves a snapshot per RSID on every `<RSID>` / `--batch` run |
+| | `--auto-snapshot` saves a snapshot per RSID on every generate / batch run (uses the `default` store when no profile is selected) |
 | | `--auto-prune` + `--keep-last N` / `--keep-since 30d` retention policy |
 | | `--list-snapshots [<RSID>]` action — table or json view |
 | | `--prune-snapshots [<RSID>] --dry-run` — apply retention policy with optional preview |
@@ -72,7 +72,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | `--profile-import` requires `--profile-overwrite` to replace an existing profile |
 | **Output** | `--output -` stdout pipe for json (single-RSID generation) and json/markdown (diff) |
 | | Machine-readable JSON error envelope on stderr for pipe-path failures |
-| | Atomic file writes (temp + rename) for every output format |
+| | Atomic writes for local output files (per destination file) |
 | | One-command registry setup: `--notion-create-database` builds the SDR Registry database with the full schema under your Notion parent page. |
 | **Reliability** | **Read-only against Adobe Analytics, forever** — CI-enforced via meta-test scanning `src/aa_auto_sdr/api/` for any write-shape SDK call |
 | | **API 2.0 only, no 1.4 paths** — CI-enforced via meta-test |
@@ -81,8 +81,8 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | Atomic snapshot writes; sorted-key JSON for git-friendly diffs |
 | **Developer UX** | `--exit-codes` lists every code; `--explain-exit-code <CODE>` prints meaning + remediation |
 | | `--completion {bash,zsh,fish}` emits a static shell-completion script |
-| | Sub-100ms fast-path for `-V`/`--version`/`-h`/`--help`/`--exit-codes`/`--explain-exit-code`/`--completion` |
-| | `--help` covers every flag |
+| | Lightweight fast path for `-V`/`--version`/`-h`/`--help`/`--exit-codes`/`--explain-exit-code`/`--completion` |
+| | `--help` prints a curated usage overview; the [CLI reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md) lists every flag |
 
 ### Who It's For
 
@@ -263,7 +263,7 @@ $ uv run aa_auto_sdr <RSID> --format all     # all five formats at once
 $ uv run aa_auto_sdr <RSID> --output-dir /tmp/sdr  # custom directory
 ```
 
-Browse [`sample_outputs/`](https://github.com/brian-a-au/aa_auto_sdr/tree/main/sample_outputs) in this repo to see what each format looks like before running anything.
+Browse [`sample_outputs/`](https://github.com/brian-a-au/aa_auto_sdr/tree/main/sample_outputs) for examples of the core file formats and three diff renderers. Template-filled workbooks and Notion pages are not included; see the [template workflow](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/TEMPLATE_WORKFLOW.md) and [Notion setup guide](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/NOTION_SETUP.md).
 
 ## Common Use Cases
 

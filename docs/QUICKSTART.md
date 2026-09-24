@@ -469,7 +469,7 @@ ls -la *.xlsx
 Get-ChildItem *.xlsx
 ```
 
-Every non-fast-path run also writes a per-run log under `./logs/` (e.g. `logs/SDR_Generation_demo.prod_<UTC_TS>.log`). `logs/` is git-ignored — treat it as ephemeral.
+Runs that reach logging setup also write a per-run log under `./logs/` (e.g. `logs/SDR_Generation_demo.prod_<UTC_TS>.log`). Argument-parsing errors and invalid sampling-option combinations exit before logging setup. `logs/` is git-ignored — treat it as ephemeral.
 
 ---
 
@@ -820,7 +820,7 @@ Warning: rate limited by API, retrying...
 
 If you're still stuck:
 
-1. **Check the log file** — every non-fast-path run writes one under `./logs/` (e.g. `logs/SDR_Generation_<RSID>_<UTC_TS>.log`) with the full trail.
+1. **Check the log file** — runs that reach logging setup write one under `./logs/` (e.g. `logs/SDR_Generation_<RSID>_<UTC_TS>.log`) with the full trail.
 2. **Turn up verbosity** — add `--log-level DEBUG` (and `--log-format json` for structured logs).
 3. **Look up an exit code** — `aa_auto_sdr --exit-codes` for the table, `aa_auto_sdr --explain-exit-code <CODE>` for per-code remediation.
 4. **Review the documentation:**

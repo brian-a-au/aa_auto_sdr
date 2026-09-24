@@ -1,6 +1,6 @@
 # Logging
 
-User-facing reference for `aa_auto_sdr` log output. Every non-fast-path invocation writes a per-run log file under `./logs/` (relative to the working directory). Fast-path entries (`--version`, `--help`, `--exit-codes`, `--explain-exit-code`, `--completion`) skip logging — they exit too quickly to be worth recording.
+User-facing reference for `aa_auto_sdr` log output. Invocations that reach logging setup write a per-run log file under `./logs/` (relative to the working directory). Argument-parsing failures and invalid sampling-option combinations exit before logging setup and do not create a run log. Standalone fast-path entries (`--version`, `--help`, `--exit-codes`, `--explain-exit-code`, `--completion`) also skip logging.
 
 For the internal logger-call contract (canonical event names, required extras, vocabulary meta-test), see [`LOGGING_STYLE.md`](LOGGING_STYLE.md).
 
@@ -89,7 +89,7 @@ grep "output_write" logs/SDR_*.log
 
 ## Reading credential resolution
 
-Every non-fast-path invocation logs which credentials source resolved:
+Commands that resolve Adobe credentials, such as generation and profile tests, log which credential source resolved:
 
 ```
 2026-05-06 12:34:55 - aa_auto_sdr.core.credentials - INFO - creds_resolved source=env
