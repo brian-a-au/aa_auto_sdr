@@ -62,7 +62,7 @@ dev = [
 
 [[package]]
 name = "aanalytics2"
-version = "0.5.4.post4"
+version = "0.5.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deprecation" },
@@ -78,9 +78,9 @@ dependencies = [
     { name = "requests" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/ca/a828b2fc4ef84e34262f768fa91492e953b629bac20458ae3b21c4cea4ad/aanalytics2-0.5.4.post4.tar.gz", hash = "sha256:8fd34371368ad5842dde2594c0fbf6897e84b85f0131600b6622232a5c6c545b", size = 291680, upload-time = "2026-09-14T09:43:16.875Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/3d/5e1f058b5c89d572a6c423c45aa1879eec5c91f71f5b626793e4e9df58dd/aanalytics2-0.5.5.tar.gz", hash = "sha256:7ff442205054927566f4a43d797b1570796d386449332be9d03fd2fefe92cff9", size = 305811, upload-time = "2026-09-21T12:52:23.608Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/1d/ea873783f46e59e40a8d84d203a646bb55766abd385fbbe6e86ed5c09907/aanalytics2-0.5.4.post4-py3-none-any.whl", hash = "sha256:9bcfccb49eac1f11a0d7552df6f9cd62cbde0c35c8a5496941e4a43443e35b89", size = 166897, upload-time = "2026-09-14T09:43:15.436Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/d2/b85404cd8a91354966896166263a38e485494a9c03a1d0eca1bc5cabe17d/aanalytics2-0.5.5-py3-none-any.whl", hash = "sha256:bd6cf240b0a4d4e782a05629d107237a5e4b791084d1126ef680d4849345b61c", size = 179235, upload-time = "2026-09-21T12:52:22.149Z" },
 ]
 
 [[package]]
