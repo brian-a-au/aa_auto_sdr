@@ -136,12 +136,12 @@ def test_build_real_fetcher_resolves_creds_and_client(monkeypatch) -> None:
     monkeypatch.setattr("aa_auto_sdr.core.credentials.resolve", lambda *, profile: {"creds": profile})
     monkeypatch.setattr(
         "aa_auto_sdr.api.client.AaClient.from_credentials",
-        classmethod(lambda _cls, creds: f"client:{creds}"),
+        classmethod(lambda _cls, creds, *, retry_policy: f"client:{creds}:{retry_policy}"),
     )
     ns = argparse.Namespace(profile="prod")
     fetcher = watch_mod._build_real_fetcher(ns)
     assert isinstance(fetcher, watch_mod._BuildSdrFetcher)
-    assert fetcher.client == "client:{'creds': 'prod'}"
+    assert fetcher.client == "client:{'creds': 'prod'}:None"
     assert fetcher.tool_version  # version string is non-empty
 
 

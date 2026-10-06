@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.18] — 2026-10-06
+
+### Fixed
+- Honor watch's configured `--max-retries`, `--retry-base-delay`, and
+  `--retry-max-delay` during company discovery and subsequent component fetches.
+  Explicit retry budgets now control exhaustion and recovery; defaults and
+  SDK-internal retries are unchanged.
+
 ## [1.21.17] — 2026-10-06
 
 ### Fixed

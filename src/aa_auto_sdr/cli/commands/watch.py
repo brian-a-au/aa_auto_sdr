@@ -318,7 +318,7 @@ def _build_real_fetcher(ns: argparse.Namespace) -> _BuildSdrFetcher:
 
     profile = getattr(ns, "profile", None)
     creds = credentials.resolve(profile=profile)
-    client = AaClient.from_credentials(creds)
+    client = AaClient.from_credentials(creds, retry_policy=getattr(ns, "retry_policy", None))
     return _BuildSdrFetcher(client=client, tool_version=version.__version__)
 
 
