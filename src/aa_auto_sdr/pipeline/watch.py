@@ -254,8 +254,8 @@ from aa_auto_sdr.output.watch_event import WATCH_EVENT_SCHEMA  # noqa: E402
 
 
 def _total_changes(diff: DiffReport) -> int:
-    """Sum added + removed + modified across all component types."""
-    return sum(len(c.added) + len(c.removed) + len(c.modified) for c in diff.components)
+    """Sum eligible added + removed + modified across comparable sections."""
+    return sum(len(c.added) + len(c.removed) + len(c.modified) for c in diff.components if not c.suppressed)
 
 
 def _should_emit(result: CycleResult, *, threshold: int) -> bool:
@@ -312,11 +312,11 @@ def _diff_summary(diff: DiffReport) -> dict[str, Any]:
     added = removed = modified = unchanged = 0
     by_type: dict[str, dict[str, int]] = {}
     for c in diff.components:
-        a, r, m = len(c.added), len(c.removed), len(c.modified)
+        a, r, m = (0, 0, 0) if c.suppressed else (len(c.added), len(c.removed), len(c.modified))
         added += a
         removed += r
         modified += m
-        unchanged += c.unchanged_count
+        unchanged += 0 if c.suppressed else c.unchanged_count
         by_type[c.component_type] = {"added": a, "removed": r, "modified": m}
     return {
         "added": added,

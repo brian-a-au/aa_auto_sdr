@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import argparse
+import logging
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from aa_auto_sdr.cli.commands.watch import run as watch_run
+from aa_auto_sdr.cli.parser import build_parser
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.snapshot.schema import validate_envelope
 
 
 @dataclass
@@ -101,7 +107,7 @@ def _ns(**overrides) -> argparse.Namespace:
         "watch": True,
         "interval": "1h",
         "watch_threshold": 1,
-        "ignore_fields": [],
+        "ignore_fields": None,
         "extended_fields": False,
         "format": None,
         "quality_policy": None,
@@ -195,3 +201,81 @@ class TestDispatchIntegration:
         assert kinds.count("error") == 2
         assert "baseline" in kinds
         assert "change" in kinds
+
+
+class _EnvelopeStore(_FakeStore):
+    def save(self, rsid: str, doc: dict) -> tuple[Path, dict]:
+        validate_envelope(doc)
+        self.saved.append((rsid, deepcopy(doc)))
+        self.latest_by_rsid[rsid] = doc
+        return Path(f"/tmp/{rsid}/{len(self.saved)}.json"), doc
+
+
+def _comparison_injection(edits: dict) -> _Injection:
+    prior = {
+        "schema": "aa-sdr-snapshot/v4",
+        "rsid": "rs_a",
+        "captured_at": "2026-10-06T00:00:00Z",
+        "tool_version": "1.21.16",
+        "degraded_components": [],
+        "partial_components": {},
+        "quality": None,
+        "components": {
+            "report_suite": {"rsid": "rs_a", "name": "Suite"},
+            "metrics": [
+                {"id": "m1", "name": "Before", "description": "Before", "definition": {"name": "Before", "a": "Before"}}
+            ],
+            "classifications": [{"id": "c1", "name": "Classification"}],
+        },
+    }
+    validate_envelope(prior)
+    current = deepcopy(prior)
+    current["components"]["metrics"][0].update(edits)
+    return _Injection(
+        fetcher=_FakeFetcher(rsid_to_doc={"rs_a": current}),
+        store=_EnvelopeStore(latest_by_rsid={"rs_a": prior}),
+    )
+
+
+@pytest.mark.parametrize(
+    ("csv", "edits", "changes"),
+    [
+        (None, {"name": "After"}, 1),
+        ("", {"name": "After"}, 1),
+        (" , ", {"name": "After"}, 1),
+        ("name", {"name": "After"}, 0),
+        ("description", {"description": "After"}, 0),
+        ("name,description", {"name": "After", "description": "After"}, 0),
+        (" name, ,description,name ", {"name": "After", "description": "After"}, 0),
+        ("name", {"definition": {"name": "After", "a": "Before"}}, 0),
+        ("name", {"definition": {"name": "After", "a": "After"}}, 1),
+        ("name", {"definition": {"name": "Before", "a": "After"}}, 1),
+        ("name", {"description": "After"}, 1),
+    ],
+)
+def test_watch_parser_csv_ignores_complete_field_names(csv, edits, changes) -> None:
+    argv = ["rs_a", "--watch", "--interval", "1h", "--extended-fields"]
+    if csv is not None:
+        argv += ["--ignore-fields", csv]
+    ns = build_parser().parse_args(argv)
+    inj = _comparison_injection(edits)
+    assert watch_run(ns, _injected=inj) == ExitCode.OK
+    assert len(inj.store.saved) == 1
+    assert len(inj.emitter.events) == changes
+    if changes:
+        assert inj.emitter.events[0]["summary"]["modified"] == 1
+
+
+@pytest.mark.parametrize("real_change", [False, True])
+def test_watch_logs_eligible_summary_count(caplog, real_change) -> None:
+    inj = _comparison_injection({"name": "After"} if real_change else {})
+    current = inj.fetcher.rsid_to_doc["rs_a"]
+    current["degraded_components"] = ["classifications"]
+    current["components"]["classifications"] = []
+    ns = build_parser().parse_args(["rs_a", "--watch", "--interval", "1h", "--watch-threshold", "0"])
+    with caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.watch"):
+        assert watch_run(ns, _injected=inj) == ExitCode.OK
+    records = [r for r in caplog.records if r.msg.startswith("watch_cycle_complete")]
+    assert len(records) == 1
+    assert records[0].change_count == int(real_change)
+    assert inj.emitter.events[0]["summary"]["removed"] == 0
