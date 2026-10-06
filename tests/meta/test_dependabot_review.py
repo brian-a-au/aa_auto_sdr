@@ -100,7 +100,7 @@ def test_reject_runtime_sdk_even_with_patch(locks):
     assert not review.review_locks(before, after)[0]
 
 
-@pytest.mark.parametrize("runtime_path", ["direct", "transitive", "optional"])
+@pytest.mark.parametrize("runtime_path", ["direct", "transitive", "optional", "optional-transitive"])
 def test_reject_allowlisted_package_if_used_at_runtime(locks, runtime_path):
     before, after = locks
     for lock in (before, after):
@@ -109,8 +109,10 @@ def test_reject_allowlisted_package_if_used_at_runtime(locks, runtime_path):
             root["dependencies"].append({"name": "ruff"})
         elif runtime_path == "transitive":
             sdk["dependencies"] = [{"name": "ruff"}]
-        else:
+        elif runtime_path == "optional":
             root["optional-dependencies"] = {"extra": [{"name": "ruff"}]}
+        else:
+            sdk["optional-dependencies"] = {"extra": [{"name": "ruff"}]}
     assert not review.review_locks(before, after)[0]
 
 

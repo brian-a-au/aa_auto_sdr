@@ -76,7 +76,10 @@ def _runtime_packages(packages: dict[str, dict[str, Any]]) -> set[str]:
         name = pending.pop()
         if name not in visited:
             visited.add(name)
-            pending.extend(dependency["name"] for dependency in packages[name].get("dependencies", []))
+            package = packages[name]
+            pending.extend(dependency["name"] for dependency in package.get("dependencies", []))
+            for optional in package.get("optional-dependencies", {}).values():
+                pending.extend(dependency["name"] for dependency in optional)
     return visited
 
 
