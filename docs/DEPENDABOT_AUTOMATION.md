@@ -39,7 +39,8 @@ After a successful required CI workflow run, `dependabot-auto-merge.yml` runs th
 script with narrowly scoped write permissions. It resolves the current PR from
 the triggering head SHA and repeats the review, including registry verification.
 Stale events are ignored. Before approving, it verifies required branch gates, confirms every required
-check succeeded, and rechecks both base and head SHAs. The review is attached
+check succeeded, rechecks both base and head SHAs, and verifies the reviewed
+head contains current main through the comparison API. The review is attached
 to the reviewed commit; `gh pr merge --squash --match-head-commit` uses no
 administrator bypass. GitHub enforces the required tests and up-to-date-branch
 rule. A pending or failed check causes no write; the next successful workflow
