@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.17] — 2026-10-06
+
+### Fixed
+- Exclude suppressed component sections from watch thresholds, event counts,
+  logs, Git summaries, and Notion publishing decisions. Degraded fetches and
+  mismatched partial-fetch levels no longer trigger false change alerts;
+  snapshots retain their raw data and availability markers.
+- Parse watch `--ignore-fields` as complete comma-separated field names,
+  trimming whitespace and empty entries, so explicit ignores work at every
+  nesting level without accidentally ignoring individual letters.
+
 ## [1.21.16] — 2026-09-23
 
 ### Fixed

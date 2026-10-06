@@ -262,7 +262,7 @@ def _ns(**overrides) -> argparse.Namespace:
         "watch": True,
         "interval": "1h",
         "watch_threshold": 1,
-        "ignore_fields": [],
+        "ignore_fields": None,
         "extended_fields": False,
         "format": None,
         "quality_policy": None,

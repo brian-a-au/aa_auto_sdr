@@ -375,6 +375,17 @@ aa_auto_sdr --watch --interval 1h <RSID> --profile prod
 
 `--watch` runs a foreground loop that captures a fresh snapshot at each `--interval` tick, diffs it against the prior baseline, and emits NDJSON events to stdout (`aa-watch-event/v1`). Event types: `baseline` (first cycle), `change` (when at least `--watch-threshold` components differ; default 1), `error`.
 
+Watch counts only comparable component changes after applying `--ignore-fields`
+and the default extended-field filtering. Sections suppressed by degraded fetches
+or mismatched partial-fetch levels contribute zero counts, including unchanged
+counts, while their `summary.by_type` entries remain present. Captured snapshots
+retain the raw data and availability markers; suppression does not establish
+that unavailable components are unchanged.
+
+At threshold `0`, heartbeat cycles still emit `change` events with zero eligible
+changes and run Git operations when enabled. Zero-change cycles never publish
+to Notion; the first baseline still publishes when configured.
+
 - `--interval Nh|Nd|Nw` — required with `--watch`.
 - `--watch-threshold N` — minimum changes to emit (default 1; `0` = heartbeat, emits every cycle).
 - SIGINT / SIGTERM exit cleanly with code 0.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import dataclass as _dc
 from dataclasses import field as _f
@@ -25,6 +26,7 @@ from aa_auto_sdr.pipeline.watch import (
     run_watch_loop,
 )
 from aa_auto_sdr.snapshot.models import AddedRemovedItem, ComponentDiff, DiffReport
+from aa_auto_sdr.snapshot.schema import validate_envelope
 
 
 class TestStopToken:
@@ -1178,3 +1180,182 @@ class TestCycleErrorsAreNonFatal:
         )
         assert cycles == 2
         assert [e["event"] for e in emitter.events] == ["error", "error"]
+
+
+# Real comparator integration: unavailable sections retain raw evidence but
+# must not drive watch notifications or their downstream side effects.
+def _watch_envelope() -> dict:
+    return {
+        "schema": "aa-sdr-snapshot/v4",
+        "rsid": "rs_a",
+        "captured_at": "2026-10-06T00:00:00Z",
+        "tool_version": "1.21.16",
+        "quality": None,
+        "degraded_components": [],
+        "partial_components": {},
+        "components": {
+            "report_suite": {"rsid": "rs_a", "name": "Suite"},
+            "metrics": [{"id": "m1", "name": "Metric"}],
+            "classifications": [{"id": "c1", "name": "Classification"}],
+            "virtual_report_suites": [{"id": "v1", "name": "VRS"}],
+        },
+    }
+
+
+class _EnvelopeStore(_FakeStore):
+    def latest(self, rsid: str) -> dict | None:
+        envelope = deepcopy(super().latest(rsid))
+        if envelope is not None:
+            validate_envelope(envelope)
+        return envelope
+
+    def save(self, rsid: str, doc: dict) -> tuple[Path, dict]:
+        validate_envelope(doc)
+        self.saved.append((rsid, deepcopy(doc)))
+        self.latest_by_rsid[rsid] = doc
+        return Path(f"/tmp/{rsid}/{len(self.saved)}.json"), doc
+
+
+@pytest.mark.parametrize("component_type", ["classifications", "virtual_report_suites"])
+@pytest.mark.parametrize("degraded_side", ["left", "right", "both"])
+def test_suppressed_counts_preserve_raw_comparator_evidence(component_type, degraded_side) -> None:
+    left = _watch_envelope()
+    right = deepcopy(left)
+    # Retain unchanged and modified rows, as well as a removed row, to exercise
+    # every count independently of whether the unavailable endpoint is empty.
+    left["components"][component_type] += [
+        {"id": "keep", "name": "Kept"},
+        {"id": "edit", "name": "Before"},
+    ]
+    right["components"][component_type] = [
+        {"id": "keep", "name": "Kept"},
+        {"id": "edit", "name": "After"},
+        {"id": "new", "name": "New"},
+    ]
+    for side, envelope in (("left", left), ("right", right)):
+        if degraded_side in (side, "both"):
+            envelope["degraded_components"] = [component_type]
+    before = deepcopy((left, right))
+    ctx = _ctx(
+        fetcher=_FakeFetcher(rsid_to_doc={"rs_a": right}),
+        snapshot_store=_EnvelopeStore(latest_by_rsid={"rs_a": left}),
+    )
+    result = run_one_cycle(rsid="rs_a", ctx=ctx)
+    section = next(c for c in result.diff.components if c.component_type == component_type)
+    assert section.suppressed
+    assert (len(section.added), len(section.removed), len(section.modified), section.unchanged_count) == (1, 1, 1, 1)
+    assert not _should_emit(result, threshold=1)
+    assert not _should_publish(result, threshold=1)
+    summary = _event_payload(result, cycle_n=0)["summary"]
+    assert (summary["added"], summary["removed"], summary["modified"], summary["unchanged"]) == (0, 0, 0, 2)
+    assert summary["by_type"][component_type] == {"added": 0, "removed": 0, "modified": 0}
+    assert (left, right) == before
+    assert ctx.snapshot_store.saved == [("rs_a", right)]
+
+
+def _run_envelope_loop(monkeypatch, tmp_path, prior, documents, *, threshold):
+    from aa_auto_sdr.pipeline import watch as watch_mod
+    from aa_auto_sdr.snapshot.git import GitOpResult
+
+    remaining = iter(documents)
+
+    class _SequenceFetcher:
+        def fetch_snapshot(self, rsid):
+            return next(remaining)
+
+    messages = []
+
+    def commit(directory, *, rsid, message, push):
+        messages.append(message)
+        return GitOpResult(ok=True, committed=True, commit_sha="offline", pushed=False)
+
+    monkeypatch.setattr(watch_mod, "git_commit_snapshot", commit)
+    publisher = TestRunWatchLoopNotionPublisher._FakeNotionPublisher()
+    store = _EnvelopeStore(latest_by_rsid={"rs_a": prior})
+    ctx = _ctx(
+        fetcher=_SequenceFetcher(),
+        snapshot_store=store,
+        notion_publisher=publisher,
+        git_commit=True,
+        snapshot_dir=tmp_path,
+    )
+    rc, cycles = run_watch_loop(
+        ctx=ctx,
+        rsids=["rs_a"],
+        interval=timedelta(seconds=1),
+        threshold=threshold,
+        stop=StopToken(),
+        max_cycles=len(documents),
+    )
+    assert rc == ExitCode.OK
+    assert cycles == len(documents)
+    assert store.saved == [("rs_a", doc) for doc in documents]
+    return ctx.emitter.events, publisher.calls, messages
+
+
+@pytest.mark.parametrize("component_type", ["classifications", "virtual_report_suites"])
+def test_degradation_recovery_saves_without_alerts(monkeypatch, tmp_path, component_type) -> None:
+    healthy = _watch_envelope()
+    degraded = deepcopy(healthy)
+    degraded["degraded_components"] = [component_type]
+    degraded["components"][component_type] = []
+    events, publishes, messages = _run_envelope_loop(monkeypatch, tmp_path, healthy, [degraded, healthy], threshold=1)
+    assert events == publishes == messages == []
+
+
+@pytest.mark.parametrize("threshold", [0, 1, 2])
+def test_mixed_real_and_suppressed_changes_use_one_eligible_change(monkeypatch, tmp_path, threshold) -> None:
+    healthy = _watch_envelope()
+    current = deepcopy(healthy)
+    current["degraded_components"] = ["classifications"]
+    current["components"]["classifications"] = []
+    current["components"]["metrics"][0]["name"] = "Renamed"
+    events, publishes, messages = _run_envelope_loop(monkeypatch, tmp_path, healthy, [current], threshold=threshold)
+    if threshold == 2:
+        assert events == publishes == messages == []
+    else:
+        assert len(events) == len(publishes) == len(messages) == 1
+        summary = events[0]["summary"]
+        assert (summary["added"], summary["removed"], summary["modified"], summary["unchanged"]) == (0, 0, 1, 1)
+        assert summary["by_type"]["classifications"] == {"added": 0, "removed": 0, "modified": 0}
+        assert "+0 -0 ~1" in messages[0]
+
+
+def test_suppressed_heartbeat_commits_but_never_publishes(monkeypatch, tmp_path) -> None:
+    healthy = _watch_envelope()
+    degraded = deepcopy(healthy)
+    degraded["degraded_components"] = ["classifications", "virtual_report_suites"]
+    degraded["components"]["classifications"] = []
+    degraded["components"]["virtual_report_suites"] = []
+    events, publishes, messages = _run_envelope_loop(monkeypatch, tmp_path, healthy, [degraded], threshold=0)
+    assert len(events) == len(messages) == 1
+    assert publishes == []
+    assert events[0]["event"] == "change"
+    assert events[0]["summary"]["removed"] == 0
+    assert events[0]["summary"]["unchanged"] == 1
+    assert "+0 -0 ~0" in messages[0]
+
+
+@pytest.mark.parametrize("component_type", ["classifications", "virtual_report_suites"])
+@pytest.mark.parametrize(
+    ("left_level", "right_level", "expected_count"),
+    [(None, "minimal", 0), ("minimal", None, 0), ("minimal", "reduced", 0), ("minimal", "minimal", 1), (None, None, 1)],
+)
+def test_partial_fetch_levels_control_watch_changes(
+    monkeypatch, tmp_path, component_type, left_level, right_level, expected_count
+) -> None:
+    left = _watch_envelope()
+    right = deepcopy(left)
+    right["components"][component_type][0]["name"] = "Renamed"
+    for envelope, level in ((left, left_level), (right, right_level)):
+        if level is not None:
+            envelope["partial_components"][component_type] = level
+        else:
+            # Pre-v2 healthy snapshots have no availability markers.
+            envelope["schema"] = "aa-sdr-snapshot/v1"
+            envelope.pop("partial_components")
+            envelope.pop("degraded_components")
+    events, publishes, messages = _run_envelope_loop(monkeypatch, tmp_path, left, [right], threshold=1)
+    assert len(events) == len(publishes) == len(messages) == expected_count
+    if expected_count:
+        assert events[0]["summary"]["modified"] == 1
