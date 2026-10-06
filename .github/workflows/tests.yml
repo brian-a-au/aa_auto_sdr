@@ -23,7 +23,7 @@ jobs:
           # so every run re-downloads them from PyPI despite a cache hit.
           prune-cache: false
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
       - name: Run tests with coverage gate
         shell: bash
         run: |
@@ -31,7 +31,7 @@ jobs:
           # tee. Without it, tee's success would mask test failures and the
           # matrix gate would silently green-light a broken run.
           set -o pipefail
-          uv run pytest -q 2>&1 | tee pytest-output.txt
+          uv run --locked pytest -q 2>&1 | tee pytest-output.txt
       - name: Emit coverage + test count to step summary
         # Surface the same metrics the `update-badges` workflow consumes,
         # but on EVERY tests run (PRs and main alike), so reviewers see
@@ -50,7 +50,7 @@ jobs:
           # `--collect-only --no-cov` pass (no test execution; <1s wall time).
           # The summary line we grep for has the form `1089 tests collected
           # in 0.74s` and only appears with --collect-only.
-          TESTS=$(uv run pytest --collect-only --no-cov 2>&1 | grep -oE '[0-9]+ tests collected' | head -1 | awk '{print $1}')
+          TESTS=$(uv run --locked pytest --collect-only --no-cov 2>&1 | grep -oE '[0-9]+ tests collected' | head -1 | awk '{print $1}')
           if [ -z "$COV" ] || [ -z "$TESTS" ]; then
             echo "::warning::Could not parse coverage (got '$COV') or test count (got '$TESTS') — emitting placeholder summary"
             {

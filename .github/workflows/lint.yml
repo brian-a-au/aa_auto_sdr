@@ -19,11 +19,11 @@ jobs:
           # so every run re-downloads them from PyPI despite a cache hit.
           prune-cache: false
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
       - name: Ruff check
-        run: uv run ruff check src/ tests/ scripts/
+        run: uv run --locked ruff check src/ tests/ scripts/
       - name: Ruff format check
-        run: uv run ruff format --check src/ tests/ scripts/
+        run: uv run --locked ruff format --check src/ tests/ scripts/
   actionlint:
     runs-on: ubuntu-latest
     steps:
