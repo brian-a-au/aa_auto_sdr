@@ -20,19 +20,19 @@ jobs:
           # so every run re-downloads them from PyPI despite a cache hit.
           prune-cache: false
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --locked --all-extras
       - name: Tests + coverage gate
-        run: uv run pytest -q
+        run: uv run --locked pytest -q
       - name: Ruff check
-        run: uv run ruff check src/ tests/ scripts/
+        run: uv run --locked ruff check src/ tests/ scripts/
       - name: Ruff format check
-        run: uv run ruff format --check src/ tests/ scripts/
+        run: uv run --locked ruff format --check src/ tests/ scripts/
       - name: Version sync
-        run: uv run python scripts/check_version_sync.py
+        run: uv run --locked python scripts/check_version_sync.py
       - name: Build wheel + sdist
         run: uv build
       - name: Verify packaged README links
-        run: uv run python scripts/check_distribution_readme_links.py dist/*.whl dist/*.tar.gz
+        run: uv run --locked python scripts/check_distribution_readme_links.py dist/*.whl dist/*.tar.gz
       - name: Smoke-install the wheel
         run: |
           # Use uv-managed Python 3.14 (system python on GH runners is 3.12, below our >=3.14 floor).
