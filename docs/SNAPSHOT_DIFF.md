@@ -382,6 +382,20 @@ counts, while their `summary.by_type` entries remain present. Captured snapshots
 retain the raw data and availability markers; suppression does not establish
 that unavailable components are unchanged.
 
+Before fetching, watch reads history from newest to oldest in the store's
+existing filename order. It skips malformed JSON, invalid UTF-8, and supported
+envelopes whose structure cannot be used for comparison. Each skipped file
+produces a warning on stderr/logs and remains untouched. Watch compares the
+fresh capture against the first usable candidate, so a recovery diff can span
+several capture intervals. When no usable history remains, the fresh capture
+establishes a `baseline`; subsequent cycles compare against it.
+
+Unsupported schema identifiers, filesystem access failures, and a valid
+snapshot with the wrong RSID remain cycle errors. Watch does not fetch or save
+that suite in that cycle; other suites and later cycles continue. Recovery
+does not quarantine, delete, or repair history, and it does not change the
+stdout event schema.
+
 At threshold `0`, heartbeat cycles still emit `change` events with zero eligible
 changes and run Git operations when enabled. Zero-change cycles never publish
 to Notion; the first baseline still publishes when configured.

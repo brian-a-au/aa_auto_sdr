@@ -311,6 +311,14 @@ Event types (schema `aa-watch-event/v1`, NDJSON on stdout):
 - `change` — subsequent cycle where `total_changes >= watch_threshold`.
 - `error` — per-RSID fetch failure within a cycle; loop continues.
 
+Before fetching, watch skips recognized malformed history with a warning and
+selects the newest usable snapshot in the existing filename order. Skipped
+files remain unchanged. If none is usable, the fresh capture establishes a
+baseline. A recovery comparison spans the gap since the selected capture.
+Unsupported schemas, filesystem errors, and valid snapshots with a mismatched
+RSID remain cycle errors without fetching or saving that suite; other suites
+and later cycles continue. Diagnostics use stderr/logs, preserving stdout NDJSON.
+
 SIGINT / SIGTERM → exit 0. `--quality-policy` and `--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
 `--watch --format notion` is supported. Notion publishes on the baseline cycle and on every `change` event. Zero-change cycles and fetch-error cycles do not publish. If the Notion API raises during a cycle, a `notion_watch_publish_failed` WARNING fires and the loop continues.

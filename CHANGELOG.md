@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.19] — 2026-10-08
+
+### Fixed
+- Recover watch monitoring after malformed snapshots by selecting the newest
+  usable prior capture, or establishing a fresh baseline when none remains.
+  Skipped files are preserved and reported through warnings. Unsupported
+  schemas, filesystem errors, and snapshots belonging to another report suite
+  remain cycle errors.
+
 ## [1.21.18] — 2026-10-06
 
 ### Fixed
