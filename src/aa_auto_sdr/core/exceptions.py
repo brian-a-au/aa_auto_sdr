@@ -80,5 +80,9 @@ class SnapshotSchemaError(SnapshotError):
     """A snapshot file's schema is unknown or unsupported."""
 
 
+class SnapshotCorruptError(SnapshotSchemaError):
+    """A supported snapshot envelope contains malformed data."""
+
+
 class OutputError(AaAutoSdrError):
     """An output writer failed (I/O, formatting, etc.)."""

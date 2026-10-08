@@ -38,7 +38,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from aa_auto_sdr.core.exceptions import SnapshotSchemaError
+from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
 from aa_auto_sdr.sdr.document import SdrDocument
 
 SCHEMA_VERSION = "aa-sdr-snapshot/v4"
@@ -125,46 +125,80 @@ def validate_envelope(env: dict[str, Any]) -> None:
     v3 envelopes carry `quality` but not the v4 inner `issues` + `summary`
     keys; defaulted in-memory so consumers can index them uniformly.
     """
+    # Classify the discriminator before inspecting supported-version contents.
+    # Unsupported string schemas must never be mistaken for recoverable damage.
+    if not isinstance(env, dict):
+        raise SnapshotCorruptError("snapshot envelope must be a dict")
     if "schema" not in env:
-        raise SnapshotSchemaError("snapshot envelope missing required key 'schema'")
+        raise SnapshotCorruptError("snapshot envelope missing required key 'schema'")
     schema = env["schema"]
-    if not isinstance(schema, str) or not _SUPPORTED_SCHEMA_RE.match(schema):
+    if not isinstance(schema, str):
+        raise SnapshotCorruptError("snapshot schema must be a string")
+    if not _SUPPORTED_SCHEMA_RE.match(schema):
         raise SnapshotSchemaError(
             f"unsupported snapshot schema {schema!r}; expected "
             f"'aa-sdr-snapshot/v1'..'aa-sdr-snapshot/v4' (or vN.x minor bump)",
         )
-    is_v4 = schema.startswith("aa-sdr-snapshot/v4")
-    is_v3 = schema.startswith("aa-sdr-snapshot/v3")
-    is_v2 = schema.startswith("aa-sdr-snapshot/v2")
-    # v1 → v2+ forward-compat: default new keys for v1 envelopes (in-memory only).
-    # v2-v4 envelopes already have these keys (validated below).
-    if not is_v2 and not is_v3 and not is_v4:
-        env.setdefault("degraded_components", [])
-        env.setdefault("partial_components", {})
-    # v1/v2 envelopes don't carry `quality`; default to None in-memory so
-    # all readers (comparator, writers) can index it uniformly.
-    env.setdefault("quality", None)
-    # v3 → v4 forward-compat: when `quality` is populated, ensure the v4
-    # inner keys exist. Pre-v4 envelopes' quality blocks have only
-    # `naming_audit` / `stale_components`.
-    if env.get("quality") is not None:
-        env["quality"].setdefault("issues", [])
-        env["quality"].setdefault(
-            "summary",
-            {"by_severity": {}, "total": 0, "verdict": "n/a"},
-        )
-    required = _REQUIRED_V2_KEYS if (is_v2 or is_v3 or is_v4) else _REQUIRED_V1_KEYS
+    is_v1 = schema.startswith("aa-sdr-snapshot/v1")
+    required = _REQUIRED_V1_KEYS if is_v1 else _REQUIRED_V2_KEYS
     for key in required:
         if key not in env:
-            raise SnapshotSchemaError(f"snapshot envelope missing required key '{key}'")
+            raise SnapshotCorruptError(f"snapshot envelope missing required key '{key}'")
     captured_at = env["captured_at"]
     if not isinstance(captured_at, str) or not _is_aware_iso_timestamp(captured_at):
-        raise SnapshotSchemaError(
+        raise SnapshotCorruptError(
             f"snapshot captured_at must be a timezone-aware ISO-8601 timestamp, got {captured_at!r}",
         )
-    # Type-check fetch-status keys uniformly (covers v1-defaulted, v1-with-keys,
-    # and v2). After the setdefault, both keys are guaranteed present.
-    if not isinstance(env["degraded_components"], list):
-        raise SnapshotSchemaError("degraded_components must be a list")
-    if not isinstance(env["partial_components"], dict):
-        raise SnapshotSchemaError("partial_components must be a dict")
+
+    # Validate all consumed containers before applying compatibility defaults.
+    # Missing optional sections remain supported; row identity is checked only
+    # at the watch comparison boundary, not by this shared reader.
+    _require_container(env["components"], dict, "components")
+    components = env["components"]
+    if "report_suite" in components:
+        _require_container(components["report_suite"], dict, "components.report_suite")
+    for section in (
+        "dimensions",
+        "metrics",
+        "segments",
+        "calculated_metrics",
+        "virtual_report_suites",
+        "classifications",
+    ):
+        if section in components:
+            _require_mapping_rows(components[section], f"components.{section}")
+    if "degraded_components" in env:
+        _require_container(env["degraded_components"], list, "degraded_components")
+    if "partial_components" in env:
+        _require_container(env["partial_components"], dict, "partial_components")
+    quality = env.get("quality")
+    if quality is not None:
+        _require_container(quality, dict, "quality")
+        if "naming_audit" in quality:
+            _require_container(quality["naming_audit"], dict, "quality.naming_audit")
+        for section in ("stale_components", "issues"):
+            if section in quality:
+                _require_mapping_rows(quality[section], f"quality.{section}")
+        if "summary" in quality:
+            _require_container(quality["summary"], dict, "quality.summary")
+            if "by_severity" in quality["summary"]:
+                _require_container(quality["summary"]["by_severity"], dict, "quality.summary.by_severity")
+
+    if is_v1:
+        env.setdefault("degraded_components", [])
+        env.setdefault("partial_components", {})
+    env.setdefault("quality", None)
+    if quality is not None:
+        quality.setdefault("issues", [])
+        quality.setdefault("summary", {"by_severity": {}, "total": 0, "verdict": "n/a"})
+
+
+def _require_container(value: Any, kind: type, field: str) -> None:
+    if not isinstance(value, kind):
+        raise SnapshotCorruptError(f"{field} must be a {kind.__name__}")
+
+
+def _require_mapping_rows(value: Any, field: str) -> None:
+    _require_container(value, list, field)
+    if any(not isinstance(row, dict) for row in value):
+        raise SnapshotCorruptError(f"{field} rows must be dicts")

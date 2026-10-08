@@ -78,3 +78,21 @@ def test_auth_explanation_lists_verified_minimum_three_scopes() -> None:
     assert "recommended" in text
     assert "read_organizations" in text
     assert "additional_info.job_function" in text
+
+
+def test_corrupt_snapshot_retains_snapshot_exit_code(tmp_path, capsys) -> None:
+    import json
+
+    from aa_auto_sdr.cli.commands import diff
+    from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
+
+    assert issubclass(SnapshotCorruptError, SnapshotSchemaError)
+    path = tmp_path / "malformed.json"
+    path.write_text('{"schema": "aa-sdr-snapshot/v4"}', encoding="utf-8")
+    rc = diff.run(a=str(path), b=str(path), format_name="json", output="-", profile=None)
+    assert rc == ExitCode.SNAPSHOT
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    error = json.loads(captured.err)["error"]
+    assert error["code"] == ExitCode.SNAPSHOT
+    assert error["type"] == "SnapshotCorruptError"

@@ -139,3 +139,71 @@ def test_validate_envelope_rejects_unparseable_timestamp_with_offset_shape() -> 
     env["captured_at"] = "garbage+00:00"
     with pytest.raises(SnapshotSchemaError, match=r"timezone-aware ISO-8601"):
         validate_envelope(env)
+
+
+@pytest.mark.parametrize("root", [None, [], "snapshot", 12, {}])
+def test_non_mapping_root_is_corrupt(root) -> None:
+    from aa_auto_sdr.core.exceptions import SnapshotCorruptError
+
+    with pytest.raises(SnapshotCorruptError):
+        validate_envelope(root)
+
+
+@pytest.mark.parametrize(
+    ("path", "value"),
+    [
+        (("schema",), None),
+        (("components",), []),
+        (("components", "report_suite"), None),
+        (("components", "metrics"), {}),
+        (("components", "dimensions"), [None]),
+        (("quality",), []),
+        (("quality", "naming_audit"), []),
+        (("quality", "stale_components"), [None]),
+        (("quality", "issues"), {}),
+        (("quality", "summary"), []),
+        (("quality", "summary", "by_severity"), []),
+        (("degraded_components",), {}),
+        (("partial_components",), []),
+        (("captured_at",), "garbage+00:00"),
+    ],
+)
+def test_malformed_containers_are_corrupt_without_defaulting(path, value) -> None:
+    from copy import deepcopy
+
+    from aa_auto_sdr.core.exceptions import SnapshotCorruptError
+
+    env = document_to_envelope(_stub_doc())
+    env["quality"] = {}
+    target = env
+    for key in path[:-1]:
+        target = target.setdefault(key, {})
+    target[path[-1]] = value
+    before = deepcopy(env)
+    with pytest.raises(SnapshotCorruptError):
+        validate_envelope(env)
+    assert env == before
+
+
+@pytest.mark.parametrize("schema", ["aa-sdr-snapshot/v5", "foreign/v1"])
+def test_unsupported_string_schema_is_not_corruption(schema) -> None:
+    from aa_auto_sdr.core.exceptions import SnapshotCorruptError
+
+    with pytest.raises(SnapshotSchemaError) as caught:
+        validate_envelope({"schema": schema, "components": []})
+    assert not isinstance(caught.value, SnapshotCorruptError)
+
+
+@pytest.mark.parametrize("major", [1, 2, 3, 4])
+@pytest.mark.parametrize("minor", ["", ".12"])
+def test_minimal_legacy_envelopes_keep_loading(major, minor) -> None:
+    env = document_to_envelope(_stub_doc())
+    env["schema"] = f"aa-sdr-snapshot/v{major}{minor}"
+    env["components"] = {}
+    del env["quality"]
+    if major == 1:
+        del env["degraded_components"]
+        del env["partial_components"]
+    validate_envelope(env)
+    assert env["components"] == {}
+    assert env["quality"] is None
