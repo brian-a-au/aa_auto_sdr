@@ -239,3 +239,33 @@ def test_watch_optional_fetch_failure_retains_degradation(sdk, capsys, method, c
     assert envelope["schema"] == "aa-sdr-snapshot/v4"
     assert envelope["degraded_components"] == [component]
     assert envelope["partial_components"] == {}
+
+
+@pytest.mark.parametrize(
+    ("contents", "reason", "error_class"),
+    [
+        (b'{"private_payload":', "invalid_json", "JSONDecodeError"),
+        (b"\xff", "invalid_utf8", "UnicodeDecodeError"),
+        (b"{}", "malformed_envelope", "SnapshotCorruptError"),
+    ],
+)
+def test_recovery_diagnostics_stay_on_stderr(sdk, capsys, contents, reason, error_class):
+    damaged = sdk.root / "demo" / "2099-01-01T00-00-00Z.json"
+    damaged.parent.mkdir(parents=True)
+    damaged.write_bytes(contents)
+
+    assert invoke(sdk, ["--agent-mode", "--log-format", "json"]) == 0
+    captured = capsys.readouterr()
+    payloads = [json.loads(line) for line in captured.out.splitlines()]
+    assert [payload["event"] for payload in payloads] == ["baseline"]
+    assert all(payload["schema"] == "aa-watch-event/v1" for payload in payloads)
+    assert "watch_snapshot_skipped" not in captured.out
+    diagnostics = [json.loads(line) for line in captured.err.splitlines()]
+    skipped = [record for record in diagnostics if "watch_snapshot_skipped" in record["message"]]
+    assert len(skipped) == 1
+    assert skipped[0]["reason"] == reason
+    assert skipped[0]["error_class"] == error_class
+    assert skipped[0]["rsid"] == "demo"
+    assert skipped[0]["snapshot_id"] == str(damaged)
+    assert "private_payload" not in captured.err
+    assert damaged.read_bytes() == contents
