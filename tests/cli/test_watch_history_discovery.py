@@ -80,6 +80,34 @@ def test_regular_file_directory_is_an_error(tmp_path, file_at):
         _SnapshotStoreAdapter(root).latest("rs_a")
 
 
+@pytest.mark.parametrize("file_at", ["root", "ancestor", "suite"])
+def test_missing_open_error_does_not_hide_regular_file_ancestor(tmp_path, monkeypatch, file_at):
+    root = tmp_path / "snapshots"
+    if file_at == "ancestor":
+        root.touch()
+        root = root / "nested"
+    elif file_at == "root":
+        root.touch()
+    else:
+        root.mkdir()
+        (root / "rs_a").touch()
+    monkeypatch.setattr(os, "scandir", Mock(side_effect=FileNotFoundError("Windows missing path")))
+    with pytest.raises(NotADirectoryError):
+        _SnapshotStoreAdapter(root).latest("rs_a")
+
+
+def test_missing_open_error_does_not_hide_stat_access_error(tmp_path, monkeypatch):
+    failure = PermissionError("blocked ancestor")
+    loader = Mock()
+    monkeypatch.setattr(os, "scandir", Mock(side_effect=FileNotFoundError("Windows missing path")))
+    monkeypatch.setattr(Path, "stat", Mock(side_effect=failure))
+    monkeypatch.setattr("aa_auto_sdr.snapshot.store.load_snapshot", loader)
+    with pytest.raises(PermissionError) as caught:
+        _SnapshotStoreAdapter(tmp_path).latest("rs_a")
+    assert caught.value is failure
+    loader.assert_not_called()
+
+
 def test_candidate_membership_and_order_match_shared_listing(tmp_path, monkeypatch):
     rs_dir = tmp_path / "rs_a"
     rs_dir.mkdir()
