@@ -58,17 +58,17 @@ def test_build_sdr_fetcher_delegates_to_build_sdr(monkeypatch) -> None:
     assert captured == {"client": "CLIENT", "rsid": "rs_a", "tool_version": "9.9.9"}
 
 
-def test_snapshot_store_adapter_latest_returns_none_when_empty(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr("aa_auto_sdr.snapshot.store.list_snapshots", lambda *_a, **_k: [])
+def test_snapshot_store_adapter_latest_returns_none_when_empty(tmp_path: Path) -> None:
+    (tmp_path / "rs_a").mkdir()
     adapter = watch_mod._SnapshotStoreAdapter(snapshot_dir=tmp_path)
     assert adapter.latest("rs_a") is None
 
 
 def test_snapshot_store_adapter_latest_loads_last_path(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(
-        "aa_auto_sdr.snapshot.store.list_snapshots",
-        lambda *_a, **_k: [tmp_path / "1.json", tmp_path / "2.json"],
-    )
+    rs_dir = tmp_path / "rs_a"
+    rs_dir.mkdir()
+    (rs_dir / "2.json").touch()
+    (rs_dir / "1.json").touch()
     loaded: list[Path] = []
 
     def _fake_load(path):
@@ -79,8 +79,8 @@ def test_snapshot_store_adapter_latest_loads_last_path(monkeypatch, tmp_path: Pa
     adapter = watch_mod._SnapshotStoreAdapter(snapshot_dir=tmp_path)
     out = adapter.latest("rs_a")
     # latest() loads paths[-1].
-    assert out["loaded"] == str(tmp_path / "2.json")
-    assert loaded == [tmp_path / "2.json"]
+    assert out["loaded"] == str(rs_dir / "2.json")
+    assert loaded == [rs_dir / "2.json"]
 
 
 def test_snapshot_store_adapter_save_persists_then_reloads(monkeypatch, tmp_path: Path) -> None:

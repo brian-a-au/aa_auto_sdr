@@ -396,9 +396,14 @@ or save that suite in that cycle; other suites and later cycles continue. Recove
 does not quarantine, delete, or repair history, and it does not change the
 stdout event schema.
 
-Directory discovery retains the existing store behavior: permission errors
-while listing a snapshot directory can appear as empty history, allowing a
-fresh baseline. This pre-existing limitation is not changed by recovery.
+Watch completes directory discovery before loading history. Permission, I/O,
+and incomplete-listing failures produce a cycle `error` before fetching or
+saving that suite, so they cannot establish a false baseline or trigger Git or
+Notion publication. Other suites and later cycles continue; once access returns,
+watch compares against the existing usable history. A missing RSID directory
+at initial open (including a missing snapshot root), or a readable empty
+directory, still permits a first baseline. Shared snapshot list, prune, diff,
+and trending commands retain their existing discovery behavior.
 
 At threshold `0`, heartbeat cycles still emit `change` events with zero eligible
 changes and run Git operations when enabled. Zero-change cycles never publish

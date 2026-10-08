@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import signal
 import sys
 import time
@@ -76,9 +77,19 @@ class _SnapshotStoreAdapter:
 
     def latest(self, rsid: str) -> dict | None:
         from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
-        from aa_auto_sdr.snapshot.store import list_snapshots, load_snapshot
+        from aa_auto_sdr.snapshot.store import load_snapshot
 
-        for path in reversed(list_snapshots(self.snapshot_dir, rsid=rsid)):
+        # Unlike Path.glob, scandir preserves directory access failures. Only
+        # an absent directory at open time means first-run history; incomplete
+        # iteration must fail before loading a candidate or fetching the suite.
+        try:
+            entries = os.scandir(self.snapshot_dir / rsid)
+        except FileNotFoundError:
+            return None
+        with entries:
+            paths = sorted(Path(entry.path) for entry in entries if Path(entry.name).match("*.json"))
+
+        for path in reversed(paths):
             try:
                 envelope = load_snapshot(path)
                 _validate_watch_history(envelope)
