@@ -8,8 +8,8 @@ All notable changes to this project will be documented in this file. Format foll
 - Recover watch monitoring after malformed snapshots by selecting the newest
   usable prior capture, or establishing a fresh baseline when none remains.
   Skipped files are preserved and reported through warnings. Unsupported
-  schemas, filesystem errors, and snapshots belonging to another report suite
-  remain cycle errors.
+  schemas, errors reading discovered snapshot files, and snapshots belonging
+  to another report suite remain cycle errors.
 
 ## [1.21.18] — 2026-10-06
 

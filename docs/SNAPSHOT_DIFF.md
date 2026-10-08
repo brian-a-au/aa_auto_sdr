@@ -390,11 +390,15 @@ fresh capture against the first usable candidate, so a recovery diff can span
 several capture intervals. When no usable history remains, the fresh capture
 establishes a `baseline`; subsequent cycles compare against it.
 
-Unsupported schema identifiers, filesystem access failures, and a valid
-snapshot with the wrong RSID remain cycle errors. Watch does not fetch or save
-that suite in that cycle; other suites and later cycles continue. Recovery
+Unsupported schema identifiers, errors reading discovered snapshot files, and
+a valid snapshot with the wrong RSID remain cycle errors. Watch does not fetch
+or save that suite in that cycle; other suites and later cycles continue. Recovery
 does not quarantine, delete, or repair history, and it does not change the
 stdout event schema.
+
+Directory discovery retains the existing store behavior: permission errors
+while listing a snapshot directory can appear as empty history, allowing a
+fresh baseline. This pre-existing limitation is not changed by recovery.
 
 At threshold `0`, heartbeat cycles still emit `change` events with zero eligible
 changes and run Git operations when enabled. Zero-change cycles never publish

@@ -315,9 +315,11 @@ Before fetching, watch skips recognized malformed history with a warning and
 selects the newest usable snapshot in the existing filename order. Skipped
 files remain unchanged. If none is usable, the fresh capture establishes a
 baseline. A recovery comparison spans the gap since the selected capture.
-Unsupported schemas, filesystem errors, and valid snapshots with a mismatched
-RSID remain cycle errors without fetching or saving that suite; other suites
-and later cycles continue. Diagnostics use stderr/logs, preserving stdout NDJSON.
+Unsupported schemas, errors reading discovered snapshot files, and valid
+snapshots with a mismatched RSID remain cycle errors without fetching or saving
+that suite; other suites and later cycles continue. Directory-listing permission
+errors can still appear as empty history under the existing store behavior,
+allowing a fresh baseline. Diagnostics use stderr/logs, preserving stdout NDJSON.
 
 SIGINT / SIGTERM → exit 0. `--quality-policy` and `--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
