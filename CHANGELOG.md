@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.20] — 2026-10-08
+
+### Fixed
+- Report unreadable or incompletely listed watch history as a cycle error before
+  fetching or saving that suite, preventing false baselines and Git or Notion
+  publication. Other suites and later cycles continue. Missing directories still
+  permit a first baseline, and malformed-snapshot recovery preserves damaged files.
+
 ## [1.21.19] — 2026-10-08
 
 ### Fixed

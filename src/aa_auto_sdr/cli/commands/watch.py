@@ -11,9 +11,12 @@ Wires the pure `pipeline/watch.py` orchestrator to real-world collaborators:
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import logging
+import os
 import signal
+import stat
 import sys
 import time
 from dataclasses import dataclass
@@ -76,9 +79,30 @@ class _SnapshotStoreAdapter:
 
     def latest(self, rsid: str) -> dict | None:
         from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
-        from aa_auto_sdr.snapshot.store import list_snapshots, load_snapshot
+        from aa_auto_sdr.snapshot.store import load_snapshot
 
-        for path in reversed(list_snapshots(self.snapshot_dir, rsid=rsid)):
+        # Unlike Path.glob, scandir preserves directory access failures. Only
+        # an absent directory at open time means first-run history; incomplete
+        # iteration must fail before loading a candidate or fetching the suite.
+        history_dir = self.snapshot_dir / rsid
+        try:
+            entries = os.scandir(history_dir)
+        except FileNotFoundError:
+            # Windows can report a missing path when an ancestor is a file.
+            # Validate only this failure path; stat preserves access errors.
+            for path in (history_dir, *history_dir.parents):
+                try:
+                    mode = path.stat().st_mode
+                except FileNotFoundError:
+                    continue
+                if not stat.S_ISDIR(mode):
+                    raise NotADirectoryError(errno.ENOTDIR, os.strerror(errno.ENOTDIR), str(path)) from None
+                break
+            return None
+        with entries:
+            paths = sorted(Path(entry.path) for entry in entries if Path(entry.name).match("*.json"))
+
+        for path in reversed(paths):
             try:
                 envelope = load_snapshot(path)
                 _validate_watch_history(envelope)
