@@ -73,13 +73,13 @@ def test_snapshot_store_adapter_latest_loads_last_path(monkeypatch, tmp_path: Pa
 
     def _fake_load(path):
         loaded.append(path)
-        return {"loaded": str(path)}
+        return {"loaded": str(path), "rsid": "rs_a", "components": {"report_suite": {}}}
 
     monkeypatch.setattr("aa_auto_sdr.snapshot.store.load_snapshot", _fake_load)
     adapter = watch_mod._SnapshotStoreAdapter(snapshot_dir=tmp_path)
     out = adapter.latest("rs_a")
     # latest() loads paths[-1].
-    assert out == {"loaded": str(tmp_path / "2.json")}
+    assert out["loaded"] == str(tmp_path / "2.json")
     assert loaded == [tmp_path / "2.json"]
 
 

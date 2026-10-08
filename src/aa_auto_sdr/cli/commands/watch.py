@@ -11,6 +11,7 @@ Wires the pure `pipeline/watch.py` orchestrator to real-world collaborators:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import signal
 import sys
@@ -74,12 +75,33 @@ class _SnapshotStoreAdapter:
     snapshot_dir: Path
 
     def latest(self, rsid: str) -> dict | None:
+        from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
         from aa_auto_sdr.snapshot.store import list_snapshots, load_snapshot
 
-        paths = list_snapshots(self.snapshot_dir, rsid=rsid)
-        if not paths:
-            return None
-        return load_snapshot(paths[-1])
+        for path in reversed(list_snapshots(self.snapshot_dir, rsid=rsid)):
+            try:
+                envelope = load_snapshot(path)
+                _validate_watch_history(envelope)
+                if envelope["rsid"] != rsid:
+                    raise SnapshotSchemaError("watch snapshot RSID does not match requested report suite")
+                return envelope
+            except (json.JSONDecodeError, UnicodeDecodeError, SnapshotCorruptError) as exc:
+                reason = (
+                    "invalid_json"
+                    if isinstance(exc, json.JSONDecodeError)
+                    else "invalid_utf8"
+                    if isinstance(exc, UnicodeDecodeError)
+                    else "malformed_envelope"
+                )
+                logger.warning(
+                    "watch_snapshot_skipped rsid=%s file=%s error_class=%s; "
+                    "using earlier history or establishing a baseline",
+                    rsid,
+                    path,
+                    type(exc).__name__,
+                    extra={"rsid": rsid, "snapshot_id": str(path), "error_class": type(exc).__name__, "reason": reason},
+                )
+        return None
 
     def save(self, rsid: str, doc: Any) -> tuple[Path, dict]:  # noqa: ARG002
         """Persist the SdrDocument and return (path, envelope_dict).
@@ -92,6 +114,42 @@ class _SnapshotStoreAdapter:
         path = save_snapshot(doc, snapshot_dir=self.snapshot_dir)
         envelope = load_snapshot(path)
         return path, envelope
+
+
+def _validate_watch_history(envelope: dict) -> None:
+    """Check only the identities and report-suite data needed by comparison.
+
+    Shared loading permits minimal envelopes; watch needs usable history.
+    Keep TypeError handling local to known hash/sort operations so unexpected
+    loader or comparator failures remain cycle errors.
+    """
+    from aa_auto_sdr.core.exceptions import SnapshotCorruptError
+
+    components = envelope["components"]
+    if not isinstance(components.get("report_suite"), dict):
+        raise SnapshotCorruptError("watch history requires report-suite data")
+    for component_type in (
+        "dimensions",
+        "metrics",
+        "segments",
+        "calculated_metrics",
+        "virtual_report_suites",
+        "classifications",
+    ):
+        identities = []
+        for row in components.get(component_type, []):
+            if "id" not in row:
+                raise SnapshotCorruptError("watch history component row is missing an identity")
+            identity = row["id"]
+            try:
+                hash(identity)
+            except TypeError as exc:
+                raise SnapshotCorruptError("watch history component identity is not hashable") from exc
+            identities.append(identity)
+        try:
+            sorted(identities)
+        except TypeError as exc:
+            raise SnapshotCorruptError("watch history component identities cannot be ordered") from exc
 
 
 # --- Notion watch publisher ------------------------------------------------
