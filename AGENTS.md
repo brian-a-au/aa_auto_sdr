@@ -418,8 +418,9 @@ on success:
  "git": {"committed": true, "commit_sha": "abc1234567…", "pushed": true}}
 ```
 
-On git failure, the original baseline/change event emits first (with no
-`git` block), followed by a separate `error` event:
+On Git failure, the original baseline/change event emits first, followed by a
+separate `error` event. If the snapshot commit completed before a later failure,
+the snapshot event retains its `git` block and any known commit SHA:
 
 ```json
 {"schema": "aa-watch-event/v1", "event": "error", "cycle": 7,
@@ -428,10 +429,16 @@ On git failure, the original baseline/change event emits first (with no
 ```
 
 The watch loop never dies on git failure — per-cycle errors continue
-the loop (same posture as fetch errors).
+the loop (same posture as fetch errors). Git timeouts and filesystem failures
+follow this contract too. A repository probe failure does not trigger
+auto-initialization. A timed-out commit is not reported as completed without
+evidence; a failed SHA lookup after a confirmed commit reports completion with
+a null SHA and skips push.
 
 **Batch composition.** Each RSID's snapshot commits as a separate commit
-(pathspec-scoped to `<rsid>/`). Workers are serialized for git operations
+(pathspec-scoped to `<rsid>/`). Unrelated staged and unstaged files stay intact;
+a later suite commit does not absorb files staged by an earlier failed commit.
+Workers are serialized for git operations
 regardless of `--workers` setting. Per-RSID git failures surface in
 `RunResult.git_op` and on stderr; if any RSID's git operation fails but
 every SDR succeeded, the batch exits `PARTIAL_SUCCESS` (14) instead of

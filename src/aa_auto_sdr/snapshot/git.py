@@ -5,6 +5,8 @@ Subprocess only — we don't want a libgit2 dependency for a single shell-out.""
 from __future__ import annotations
 
 import logging
+import os
+import stat
 import subprocess
 import threading as _threading
 import time
@@ -71,6 +73,7 @@ def _run_git(
     cwd: Path,
     timeout_s: int = 30,
     check: bool = False,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run `git <args>` in `cwd` and return the CompletedProcess.
 
@@ -85,6 +88,7 @@ def _run_git(
         text=True,
         check=check,
         timeout=timeout_s,
+        env=env,
     )
 
 
@@ -111,18 +115,38 @@ def is_git_repository(path: Path) -> bool:
     committing snapshot files into a parent repository when --snapshot-dir
     points to a subdirectory of an unrelated checkout.
     """
-    if not path.is_dir():
-        return False
     try:
-        result = _run_git(
-            ["rev-parse", "--show-toplevel"],
-            cwd=path,
-            timeout_s=5,
-        )
-    except FileNotFoundError, subprocess.TimeoutExpired:
+        return _probe_git_repository(path)
+    except OSError, subprocess.TimeoutExpired, RuntimeError:
         return False
+
+
+def _probe_git_repository(path: Path) -> bool:
+    """Strict root probe: only a confirmed non-repository permits initialization."""
+    try:
+        path_mode = path.stat().st_mode
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISDIR(path_mode):
+        return False
+    probe_env = os.environ.copy()
+    probe_env["LC_ALL"] = "C"
+    result = _run_git(["rev-parse", "--show-toplevel"], cwd=path, timeout_s=5, env=probe_env)
     if result.returncode != 0:
-        return False
+        metadata = path / ".git"
+        try:
+            metadata.lstat()
+        except FileNotFoundError:
+            has_metadata = False
+        else:
+            has_metadata = True
+        if "not a git repository" in result.stderr.lower() and not has_metadata:
+            return False
+        raise RuntimeError(
+            f"git repository probe failed: {result.stderr.strip() or result.stdout.strip() or result.returncode}"
+        )
+    if not result.stdout.strip():
+        raise RuntimeError("git repository probe returned an empty root")
     toplevel = Path(result.stdout.strip()).resolve()
     return toplevel == path.resolve()
 
@@ -134,7 +158,7 @@ def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False
     without re-initializing.
 
     `_already_checked` is an internal-only optimization for callers (namely
-    `git_commit_snapshot`) that have just run `is_git_repository(snapshot_dir)`
+    `git_commit_snapshot`) that have just run `_probe_git_repository(snapshot_dir)`
     themselves and know it returned False — it skips the redundant repeat
     probe. Public/default behavior (`_already_checked=False`) is unchanged:
     this function always verifies for itself unless told not to.
@@ -145,11 +169,13 @@ def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False
     - Writes `README.md` identifying the directory as an aa_auto_sdr snapshot store.
     - Creates the initial commit with that README.
     """
-    snapshot_dir.mkdir(parents=True, exist_ok=True)
-    if not _already_checked and is_git_repository(snapshot_dir):
-        return GitOpResult(ok=True)
-
-    init = _run_git(["init", "--initial-branch=main"], cwd=snapshot_dir)
+    try:
+        if not _already_checked and _probe_git_repository(snapshot_dir):
+            return GitOpResult(ok=True)
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        init = _run_git(["init", "--initial-branch=main"], cwd=snapshot_dir)
+    except (OSError, subprocess.TimeoutExpired, RuntimeError) as exc:
+        return GitOpResult(ok=False, error_kind="GitInitError", error_message=f"git init/probe failed: {exc}")
     if init.returncode != 0:
         return GitOpResult(
             ok=False,
@@ -157,7 +183,10 @@ def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False
             error_message=init.stderr.strip() or init.stdout.strip(),
         )
 
-    cfg = _run_git(["config", "--local", "commit.gpgsign", "false"], cwd=snapshot_dir)
+    try:
+        cfg = _run_git(["config", "--local", "commit.gpgsign", "false"], cwd=snapshot_dir)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return GitOpResult(ok=False, error_kind="GitInitError", error_message=f"git config failed: {exc}")
     if cfg.returncode != 0:
         return GitOpResult(
             ok=False,
@@ -166,9 +195,11 @@ def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False
         )
 
     readme_path = snapshot_dir / "README.md"
-    readme_path.write_text(_SNAPSHOT_README)
-
-    add = _run_git(["add", "README.md"], cwd=snapshot_dir)
+    try:
+        readme_path.write_text(_SNAPSHOT_README)
+        add = _run_git(["add", "--", "README.md"], cwd=snapshot_dir)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return GitOpResult(ok=False, error_kind="GitInitError", error_message=f"initial README/add failed: {exc}")
     if add.returncode != 0:
         return GitOpResult(
             ok=False,
@@ -176,10 +207,13 @@ def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False
             error_message=add.stderr.strip(),
         )
 
-    commit = _run_git(
-        ["commit", "-m", "Initial commit: aa_auto_sdr snapshot store"],
-        cwd=snapshot_dir,
-    )
+    try:
+        commit = _run_git(
+            ["commit", "--only", "-m", "Initial commit: aa_auto_sdr snapshot store", "--", "README.md"],
+            cwd=snapshot_dir,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return GitOpResult(ok=False, error_kind="GitInitError", error_message=f"initial commit failed: {exc}")
     if commit.returncode != 0:
         return GitOpResult(
             ok=False,
@@ -187,8 +221,20 @@ def git_init_snapshot_repo(snapshot_dir: Path, *, _already_checked: bool = False
             error_message=commit.stderr.strip() or commit.stdout.strip(),
         )
 
-    sha = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir)
-    commit_sha = sha.stdout.strip() if sha.returncode == 0 else None
+    try:
+        sha = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return GitOpResult(
+            ok=False, committed=True, error_kind="GitInitError", error_message=f"initial SHA lookup failed: {exc}"
+        )
+    if sha.returncode != 0 or not sha.stdout.strip():
+        return GitOpResult(
+            ok=False,
+            committed=True,
+            error_kind="GitInitError",
+            error_message=f"initial SHA lookup failed: {sha.stderr.strip() or sha.stdout.strip()}",
+        )
+    commit_sha = sha.stdout.strip()
     logger.info(
         "git_init_repo path=%s initial_commit=%s",
         snapshot_dir,
@@ -283,10 +329,11 @@ def git_commit_snapshot(
     """
     with _GIT_LOCK:
         started = time.monotonic()
-        # Lazy init. We've just confirmed `is_git_repository` is False, so pass
-        # _already_checked=True to skip the redundant re-probe inside
-        # git_init_snapshot_repo.
-        if not is_git_repository(snapshot_dir):
+        try:
+            repo_exists = _probe_git_repository(snapshot_dir)
+        except (OSError, subprocess.TimeoutExpired, RuntimeError) as exc:
+            return GitOpResult(ok=False, error_kind="GitInitError", error_message=f"git repository probe failed: {exc}")
+        if not repo_exists:
             init = git_init_snapshot_repo(snapshot_dir, _already_checked=True)
             if not init.ok:
                 duration_ms = int((time.monotonic() - started) * 1000)
@@ -303,18 +350,32 @@ def git_commit_snapshot(
                         "duration_ms": duration_ms,
                     },
                 )
-                return init
+                return GitOpResult(ok=False, error_kind=init.error_kind, error_message=init.error_message)
 
         # Nothing to commit if the per-RSID subdir doesn't exist yet — bail
         # before `git add` so we don't surface 'pathspec did not match any files'
         # (modern git's exit-code 128) as a spurious failure.
         rsid_dir = snapshot_dir / rsid
-        if not rsid_dir.exists():
-            return GitOpResult(ok=True, committed=False)
+        try:
+            if not rsid_dir.exists():
+                tracked = _run_git(["ls-files", "--", f"{rsid}/"], cwd=snapshot_dir, timeout_s=timeout_s)
+                if tracked.returncode != 0:
+                    return GitOpResult(
+                        ok=False,
+                        error_kind="GitCommitError",
+                        error_message=f"git ls-files failed: {tracked.stderr.strip()}",
+                    )
+                if not tracked.stdout.strip():
+                    return GitOpResult(ok=True, committed=False)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return GitOpResult(ok=False, error_kind="GitCommitError", error_message=f"git suite lookup failed: {exc}")
 
         # Stage everything under <rsid>/ (matches cja's pathspec scoping).
         pathspec = f"{rsid}/"
-        add = _run_git(["add", "-A", "--", pathspec], cwd=snapshot_dir, timeout_s=timeout_s)
+        try:
+            add = _run_git(["add", "-A", "--", pathspec], cwd=snapshot_dir, timeout_s=timeout_s)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return GitOpResult(ok=False, error_kind="GitCommitError", error_message=f"git add {pathspec} failed: {exc}")
         if add.returncode != 0:
             duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(
@@ -337,10 +398,21 @@ def git_commit_snapshot(
             )
 
         # Anything to commit?
-        diff = _run_git(["diff", "--cached", "--quiet"], cwd=snapshot_dir, timeout_s=10)
+        try:
+            diff = _run_git(["diff", "--cached", "--quiet", "--", pathspec], cwd=snapshot_dir, timeout_s=10)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return GitOpResult(
+                ok=False, error_kind="GitCommitError", error_message=f"git diff {pathspec} failed: {exc}"
+            )
         if diff.returncode == 0:
             # No staged changes; not an error.
             return GitOpResult(ok=True, committed=False)
+        if diff.returncode != 1:
+            return GitOpResult(
+                ok=False,
+                error_kind="GitCommitError",
+                error_message=f"git diff {pathspec} failed: {diff.stderr.strip() or diff.stdout.strip() or diff.returncode}",
+            )
 
         # Build the message if the caller didn't supply one.
         if message is None:
@@ -352,11 +424,16 @@ def git_commit_snapshot(
                 change_summary=None,
             )
 
-        commit = _run_git(
-            ["commit", "-m", message],
-            cwd=snapshot_dir,
-            timeout_s=timeout_s,
-        )
+        try:
+            commit = _run_git(
+                ["commit", "--only", "-m", message, "--", pathspec],
+                cwd=snapshot_dir,
+                timeout_s=timeout_s,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return GitOpResult(
+                ok=False, error_kind="GitCommitError", error_message=f"git commit {pathspec} failed: {exc}"
+            )
         if commit.returncode != 0:
             duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(
@@ -378,8 +455,23 @@ def git_commit_snapshot(
                 error_message=commit.stderr.strip() or commit.stdout.strip(),
             )
 
-        rev = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir, timeout_s=5)
-        commit_sha = rev.stdout.strip() if rev.returncode == 0 else None
+        try:
+            rev = _run_git(["rev-parse", "HEAD"], cwd=snapshot_dir, timeout_s=5)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return GitOpResult(
+                ok=False,
+                committed=True,
+                error_kind="GitCommitError",
+                error_message=f"git commit SHA lookup failed: {exc}",
+            )
+        if rev.returncode != 0 or not rev.stdout.strip():
+            return GitOpResult(
+                ok=False,
+                committed=True,
+                error_kind="GitCommitError",
+                error_message=f"git commit SHA lookup failed: {rev.stderr.strip() or rev.stdout.strip()}",
+            )
+        commit_sha = rev.stdout.strip()
 
         if not push:
             duration_ms = int((time.monotonic() - started) * 1000)
@@ -403,7 +495,16 @@ def git_commit_snapshot(
                 commit_sha=commit_sha,
             )
 
-        push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=push_timeout_s)
+        try:
+            push_result = _run_git(["push"], cwd=snapshot_dir, timeout_s=push_timeout_s)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return GitOpResult(
+                ok=False,
+                committed=True,
+                commit_sha=commit_sha,
+                error_kind="GitPushError",
+                error_message=f"git push failed: {exc}",
+            )
         if push_result.returncode != 0:
             duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(

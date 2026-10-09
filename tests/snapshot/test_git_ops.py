@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from aa_auto_sdr.snapshot import git as git_module
 from aa_auto_sdr.snapshot.git import (
     git_commit_snapshot,
     git_init_snapshot_repo,
@@ -119,6 +120,134 @@ def _write_snapshot(snapshot_dir: Path, rsid: str, content: str) -> Path:
 
 
 class TestGitCommitSnapshot:
+    def test_fresh_repo_initializes_when_git_diagnostic_is_localized(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _write_snapshot(tmp_path, "rs_a", "a")
+        monkeypatch.setenv("LC_ALL", "fr_FR.UTF-8")
+        original = subprocess.run
+
+        def localized_probe(cmd, **kwargs):
+            if cmd[:3] == ["git", "rev-parse", "--show-toplevel"] and kwargs.get("env", {}).get("LC_ALL") != "C":
+                return subprocess.CompletedProcess(cmd, 128, "", "fatal: pas un dépôt git")
+            return original(cmd, **kwargs)
+
+        monkeypatch.setattr(git_module.subprocess, "run", localized_probe)
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="snapshot", push=False)
+        assert result.ok
+        assert result.committed
+        assert (tmp_path / "README.md").exists()
+        assert _run_git(["show", "HEAD:rs_a/2026-05-11T15-00-00+00-00.json"], tmp_path).stdout == "a"
+
+    def test_first_call_without_suite_only_commits_readme(self, tmp_path: Path) -> None:
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="snapshot", push=False)
+        assert result.ok
+        assert not result.committed
+        assert result.commit_sha is None
+        assert _run_git(["show", "--pretty=format:", "--name-only", "HEAD"], tmp_path).stdout.strip() == "README.md"
+
+    def test_target_add_modify_delete_are_committed(self, tmp_path: Path) -> None:
+        git_init_snapshot_repo(tmp_path)
+        suite = tmp_path / "rs_a"
+        suite.mkdir()
+        (suite / "old.json").write_text("old")
+        (suite / "modified.json").write_text("before")
+        assert git_commit_snapshot(tmp_path, rsid="rs_a", message="before", push=False).ok
+        (suite / "old.json").unlink()
+        (suite / "modified.json").write_text("after")
+        (suite / "added.json").write_text("new")
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="after", push=False)
+        assert result.ok
+        assert result.committed
+        names = _run_git(["show", "--pretty=format:", "--name-only", "HEAD"], tmp_path).stdout.strip().splitlines()
+        assert names == ["rs_a/added.json", "rs_a/modified.json", "rs_a/old.json"]
+        assert _run_git(["show", "HEAD:rs_a/modified.json"], tmp_path).stdout == "after"
+
+    def test_deleted_last_suite_file_is_committed(self, tmp_path: Path) -> None:
+        git_init_snapshot_repo(tmp_path)
+        suite = tmp_path / "rs_a"
+        suite.mkdir()
+        (suite / "only.json").write_text("old")
+        assert git_commit_snapshot(tmp_path, rsid="rs_a", message="before", push=False).ok
+        (suite / "only.json").unlink()
+        suite.rmdir()
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="delete", push=False)
+        assert result.ok
+        assert result.committed
+        assert (
+            _run_git(["show", "--pretty=format:", "--name-only", "HEAD"], tmp_path).stdout.strip() == "rs_a/only.json"
+        )
+
+    def test_unrelated_staged_work_stays_out_of_suite_commit(self, tmp_path: Path) -> None:
+        git_init_snapshot_repo(tmp_path)
+        (tmp_path / "other.txt").write_text("staged")
+        _run_git(["add", "other.txt"], tmp_path)
+        (tmp_path / "loose.txt").write_text("unstaged")
+        _write_snapshot(tmp_path, "rs_a", "a")
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="a", push=False)
+        assert result.ok
+        assert result.committed
+        assert _run_git(["show", "--pretty=format:", "--name-only", "HEAD"], tmp_path).stdout.strip().splitlines() == [
+            "rs_a/2026-05-11T15-00-00+00-00.json"
+        ]
+        assert _run_git(["diff", "--cached", "--name-only"], tmp_path).stdout.strip() == "other.txt"
+        assert (tmp_path / "loose.txt").read_text() == "unstaged"
+
+    def test_unrelated_staged_and_later_unstaged_edits_survive(self, tmp_path: Path) -> None:
+        git_init_snapshot_repo(tmp_path)
+        other = tmp_path / "other.txt"
+        other.write_text("original")
+        _run_git(["add", "other.txt"], tmp_path)
+        _run_git(["commit", "-m", "other"], tmp_path)
+        other.write_text("staged version")
+        _run_git(["add", "other.txt"], tmp_path)
+        other.write_text("working version")
+        _write_snapshot(tmp_path, "rs_a", "a")
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="a", push=False)
+        assert result.ok
+        assert result.committed
+        assert _run_git(["show", ":other.txt"], tmp_path).stdout == "staged version"
+        assert other.read_text() == "working version"
+        assert _run_git(["show", "HEAD:other.txt"], tmp_path).stdout == "original"
+
+    def test_unrelated_staged_work_does_not_trigger_suite_commit(self, tmp_path: Path) -> None:
+        git_init_snapshot_repo(tmp_path)
+        _write_snapshot(tmp_path, "rs_a", "a")
+        git_commit_snapshot(tmp_path, rsid="rs_a", message="a", push=False)
+        (tmp_path / "other.txt").write_text("staged")
+        _run_git(["add", "other.txt"], tmp_path)
+        before = _run_git(["rev-parse", "HEAD"], tmp_path).stdout.strip()
+        result = git_commit_snapshot(tmp_path, rsid="rs_a", message="no change", push=False)
+        assert result.ok
+        assert not result.committed
+        assert _run_git(["rev-parse", "HEAD"], tmp_path).stdout.strip() == before
+
+    def test_failed_suite_does_not_leak_into_next_suite(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        git_init_snapshot_repo(tmp_path)
+        _write_snapshot(tmp_path, "rs_a", "a")
+        original = git_module._run_git
+
+        def fail_a_commit(args: list[str], **kwargs):
+            if args[:1] == ["commit"] and "rs_a/" in args:
+                return subprocess.CompletedProcess(args, 1, "", "blocked")
+            return original(args, **kwargs)
+
+        monkeypatch.setattr(git_module, "_run_git", fail_a_commit)
+        first = git_commit_snapshot(tmp_path, rsid="rs_a", message="a", push=False)
+        _write_snapshot(tmp_path, "rs_b", "b")
+        second = git_commit_snapshot(tmp_path, rsid="rs_b", message="b", push=False)
+        assert not first.ok
+        assert second.ok
+        assert second.committed
+        assert (
+            _run_git(["show", "--pretty=format:", "--name-only", "HEAD"], tmp_path).stdout.strip()
+            == "rs_b/2026-05-11T15-00-00+00-00.json"
+        )
+        assert (
+            _run_git(["diff", "--cached", "--name-only"], tmp_path).stdout.strip()
+            == "rs_a/2026-05-11T15-00-00+00-00.json"
+        )
+
     def test_commits_snapshot_file_after_init(self, tmp_path: Path) -> None:
         git_init_snapshot_repo(tmp_path)
         _write_snapshot(tmp_path, "rs_a", '{"rsid":"rs_a"}')
