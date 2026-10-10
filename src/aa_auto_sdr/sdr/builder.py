@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.sdr import quality as quality_module
 from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
 from aa_auto_sdr.sdr.quality import SeverityLevel
@@ -82,6 +83,7 @@ def build_sdr(
     flag_stale: bool = False,  # NEW (v1.9.0)
     fail_on_quality: SeverityLevel | None = None,  # NEW (v1.12.0)
     cache: ValidationCache | None = None,  # NEW (v1.12.0)
+    vrs_source: VrsSource | None = None,
 ) -> SdrDocument:
     """Fetch components for `rsid` (per `component_filter`) and assemble an SdrDocument."""
     flt = component_filter or ComponentFilter()
@@ -101,7 +103,7 @@ def build_sdr(
     fetch_status: dict[str, FetchOutcomeMeta] = {}
 
     if flt.virtual_report_suites:
-        vrs_outcome = fetch.fetch_virtual_report_suites(client, rsid)
+        vrs_outcome = fetch.fetch_virtual_report_suites(client, rsid, source=vrs_source)
         if vrs_outcome.status != "healthy":
             fetch_status["virtual_report_suites"] = FetchOutcomeMeta(
                 status=vrs_outcome.status,

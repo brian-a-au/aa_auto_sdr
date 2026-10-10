@@ -147,11 +147,14 @@ def run(
                 exit_code = ExitCode.API.value
                 return exit_code
 
+        from aa_auto_sdr.api.vrs_source import VrsSource
+
+        vrs_source = VrsSource(client)
         rows: list[dict[str, Any]] = []
         for r in canonical:
             try:
                 rs = fetch.fetch_report_suite(client, r)
-                vrs_outcome = fetch.fetch_virtual_report_suites(client, r, count_only=True)
+                vrs_outcome = fetch.fetch_virtual_report_suites(client, r, count_only=True, source=vrs_source)
                 cls_outcome = fetch.fetch_classification_datasets(client, r, count_only=True)
                 counts = {
                     "dimensions": len(fetch.fetch_dimensions(client, r)),

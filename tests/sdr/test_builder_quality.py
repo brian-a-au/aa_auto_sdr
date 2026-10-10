@@ -65,7 +65,7 @@ def _patch_fetchers(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("aa_auto_sdr.sdr.builder.fetch.fetch_calculated_metrics", lambda _c, _r: [])
     monkeypatch.setattr(
         "aa_auto_sdr.sdr.builder.fetch.fetch_virtual_report_suites",
-        lambda _c, _r: FetchOutcome.healthy([]),
+        lambda _c, _r, **_kw: FetchOutcome.healthy([]),
     )
     monkeypatch.setattr(
         "aa_auto_sdr.sdr.builder.fetch.fetch_classification_datasets",

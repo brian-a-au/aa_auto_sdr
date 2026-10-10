@@ -249,6 +249,7 @@ class TestBatchModeGit:
         """Each RSID in --batch passes through git_commit/git_push/git_message
         to run_single. Per-RSID commit failures isolate (one fail doesn't
         abort the batch)."""
+        from aa_auto_sdr.api.client import AaClient
         from aa_auto_sdr.pipeline import batch as batch_mod
         from aa_auto_sdr.pipeline.models import RunResult
 
@@ -278,7 +279,7 @@ class TestBatchModeGit:
 
         with patch.object(batch_mod, "run_single", side_effect=fake_run_single):
             result = batch_mod.run_batch(
-                client=_fake_client(),
+                client=AaClient(handle=object(), company_id="test"),
                 rsids=["rs_a", "rs_b"],
                 formats=["json"],
                 output_dir=tmp_path,

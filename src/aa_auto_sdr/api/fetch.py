@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from copy import deepcopy
 from difflib import SequenceMatcher
 from typing import Any, Literal
 
@@ -37,6 +38,7 @@ from aa_auto_sdr.api.resilience import (
     log_retry_attempt,
     with_retries,
 )
+from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
     ApiError,
@@ -578,6 +580,7 @@ def _finalize_vrs_fetch(
     started_monotonic: float,
     *,
     expansion_level: str,
+    copy_rows: bool = False,
 ) -> list[models.VirtualReportSuite]:
     """Apply parentRsid filter, build VRS rows, emit DEBUG + INFO logs.
 
@@ -610,8 +613,9 @@ def _finalize_vrs_fetch(
             modified=_str_or_none(r, "modified"),
             extra=_extra(r, known),
         )
-        for r in raws
-        if r.get("parentRsid") == parent_rsid
+        for source_row in raws
+        if source_row.get("parentRsid") == parent_rsid
+        for r in [deepcopy(source_row) if copy_rows else source_row]
     ]
     # v1.7.0 Item D — structured DEBUG when client-side parentRsid filter drops rows.
     if len(out) != len(raws):
@@ -655,6 +659,7 @@ def fetch_virtual_report_suites(
     parent_rsid: str,
     *,
     count_only: bool = False,
+    source: VrsSource | None = None,
 ) -> models.FetchOutcome[models.VirtualReportSuite]:
     """Lists VRS visible to the org, filtered to those whose parent matches.
 
@@ -696,8 +701,8 @@ def fetch_virtual_report_suites(
             component_type="virtual_report_suite",
         )
 
-    try:
-        raws = _records(
+    def enumerate_vrs() -> list[dict[str, Any]]:
+        return _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
                     lambda: classify_permanent_vrs_shape_error(
@@ -709,6 +714,11 @@ def fetch_virtual_report_suites(
                 on_attempt=_on_attempt,
             )
         )
+
+    if source is not None:
+        source.validate(client)
+    try:
+        raws = source.get(client, enumerate_vrs) if source is not None else enumerate_vrs()
     except Exception as e:
         failure_label = "count_only" if count_only else "exhausted"
         logger.warning(
@@ -734,7 +744,7 @@ def fetch_virtual_report_suites(
                 },
             )
         return models.FetchOutcome.degraded()
-    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="full")
+    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="full", copy_rows=source is not None)
     return models.FetchOutcome.healthy(out)
 
 

@@ -21,6 +21,7 @@ from pathlib import Path
 
 from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core.exceptions import AaAutoSdrError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline._results import error_exit_code, output_bytes
@@ -118,6 +119,7 @@ def run_batch(
             },
         )
 
+    vrs_source = VrsSource(client)
     if workers == 1:
         inner = _run_sequential(
             client=client,
@@ -136,6 +138,7 @@ def run_batch(
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
             cache=cache,
+            vrs_source=vrs_source,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
@@ -152,6 +155,7 @@ def run_batch(
             workers=workers,
             client=client,
             cache=cache,
+            vrs_source=vrs_source,
             fail_fast=fail_fast,
             formats=formats,
             output_dir=output_dir,
@@ -211,6 +215,7 @@ def _run_sequential(
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
     cache: ValidationCache | None = None,  # v1.12.0
+    vrs_source: VrsSource | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -274,6 +279,7 @@ def _run_sequential(
                 fail_on_quality=_foq,
                 quality_report=quality_report,
                 cache=cache,
+                vrs_source=vrs_source,
                 git_commit=git_commit,
                 git_push=git_push,
                 git_message=git_message,

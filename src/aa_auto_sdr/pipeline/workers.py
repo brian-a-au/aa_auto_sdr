@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core.exceptions import AaAutoSdrError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline._results import error_exit_code, output_bytes
@@ -58,6 +59,7 @@ def _run_single_for_batch(
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,
     cache: object = None,
+    vrs_source: VrsSource | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
@@ -106,6 +108,7 @@ def _run_single_for_batch(
         fail_on_quality=foq,
         quality_report=quality_report,
         cache=cache,  # type: ignore[arg-type]
+        vrs_source=vrs_source,
         git_commit=git_commit,
         git_push=git_push,
         git_message=git_message,
@@ -130,6 +133,7 @@ def _run_with_worker_id(
     snapshot_dir: Path | None,
     component_filter: ComponentFilter | None,
     cache: object,
+    vrs_source: VrsSource | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
@@ -166,6 +170,7 @@ def _run_with_worker_id(
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
             cache=cache,
+            vrs_source=vrs_source,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
@@ -201,6 +206,7 @@ def run_parallel(
     snapshot_dir: Path | None = None,
     component_filter: ComponentFilter | None = None,
     cache: object = None,
+    vrs_source: VrsSource | None = None,
     progress_callback: Callable[[int, int, str], None] | None = None,
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     audit_naming: bool = False,  # v1.9.0
@@ -271,6 +277,7 @@ def run_parallel(
             snapshot_dir=snapshot_dir,
             component_filter=component_filter,
             cache=cache,
+            vrs_source=vrs_source,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,

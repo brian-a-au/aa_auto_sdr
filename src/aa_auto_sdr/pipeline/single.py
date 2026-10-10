@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core import timings
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.output.notion_client_guard import resolve_notion_company
@@ -34,6 +35,7 @@ def run_single(
     fail_on_quality: SeverityLevel | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0 — "json" | "csv" | None
     cache: ValidationCache | None = None,  # v1.12.0
+    vrs_source: VrsSource | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -90,6 +92,7 @@ def run_single(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             cache=cache,
+            vrs_source=vrs_source,
         )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []

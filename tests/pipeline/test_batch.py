@@ -14,6 +14,7 @@ from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.core.exceptions import ApiError, ReportSuiteNotFoundError
 from aa_auto_sdr.pipeline import batch
 from aa_auto_sdr.pipeline.models import BatchResult
+from aa_auto_sdr.sdr.builder import ComponentFilter
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_rs.json"
 
@@ -80,6 +81,55 @@ def test_run_batch_happy_path_all_succeed(mock_client: AaClient, tmp_path: Path)
         assert all(p.exists() for p in r.outputs)
     assert result.total_output_bytes > 0
     assert result.total_duration_seconds >= 0.0
+
+
+@pytest.mark.parametrize("workers", [1, 8])
+def test_fifty_suites_share_one_vrs_enumeration(workers: int, tmp_path: Path) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    rsids = [f"batch.{i:03}" for i in range(50)]
+    handle = MagicMock()
+    handle.getReportSuites.return_value = _df([{**raw["report_suite"], "rsid": rsid, "name": rsid} for rsid in rsids])
+    for method, key in (
+        ("getDimensions", "dimensions"),
+        ("getMetrics", "metrics"),
+        ("getSegments", "segments"),
+        ("getCalculatedMetrics", "calculated_metrics"),
+        ("getClassificationDatasets", "classification_datasets"),
+    ):
+        getattr(handle, method).return_value = _df(raw[key])
+    handle.getVirtualReportSuites.return_value = _df(
+        [{"id": f"vrs-{i}", "name": f"VRS {i}", "parentRsid": rsid} for i, rsid in enumerate(rsids)]
+    )
+    client = AaClient(handle=handle, company_id="company-a")
+    result = batch.run_batch(
+        client=client,
+        rsids=rsids,
+        formats=["json"],
+        output_dir=tmp_path,
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="test",
+        workers=workers,
+    )
+    assert len(result.successes) == 50
+    assert result.failures == []
+    assert handle.getVirtualReportSuites.call_count == 1
+    for i, rsid in enumerate(rsids):
+        payload = json.loads((tmp_path / f"{rsid}.json").read_text())
+        assert [v["id"] for v in payload["virtual_report_suites"]] == [f"vrs-{i}"]
+
+
+def test_excluded_vrs_never_enumerates(mock_client: AaClient, tmp_path: Path) -> None:
+    result = batch.run_batch(
+        client=mock_client,
+        rsids=["demo.prod", "demo.dev"],
+        formats=["json"],
+        output_dir=tmp_path,
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="test",
+        component_filter=ComponentFilter(virtual_report_suites=False),
+    )
+    assert len(result.successes) == 2
+    mock_client.handle.getVirtualReportSuites.assert_not_called()
 
 
 def test_run_batch_partial_success_continues_after_failure(
