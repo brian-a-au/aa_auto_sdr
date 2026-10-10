@@ -19,7 +19,7 @@ import signal
 import stat
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -184,7 +184,8 @@ class _NotionWatchPublisher:
     """Reads the snapshot envelope at `snapshot_path` and publishes it to Notion.
 
     Constructed only when ``--format notion`` is active. The `publish` method
-    is called by `run_watch_loop` after baseline and real-change cycles.
+    is called after eligible captures and on later successful captures while
+    a publication remains pending.
     """
 
     client: Any  # notion_client.Client — typed Any to avoid heavy import at module load
@@ -193,8 +194,9 @@ class _NotionWatchPublisher:
     database_id: str | None
     disable_registry: bool
     company: str | None
+    known_pages: dict[str, str] = field(default_factory=dict)
 
-    def publish(self, *, snapshot_path: Path, rsid: str) -> None:  # noqa: ARG002
+    def publish(self, *, snapshot_path: Path, rsid: str) -> None:
         import json
 
         from aa_auto_sdr.cli.commands.push_to_notion import publish_payload_to_notion
@@ -209,7 +211,12 @@ class _NotionWatchPublisher:
             database_id=self.database_id,
             disable_registry=self.disable_registry,
             company=self.company,
+            known_pages=self.known_pages,
         )
+        # The in-memory ID only bridges failed attempts when the local
+        # registry could not be written. After success, reread the registry
+        # on the next cycle so another command's force-new page is respected.
+        self.known_pages.pop(rsid, None)
 
 
 # --- Handler ---------------------------------------------------------------

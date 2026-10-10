@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.22] — 2026-10-09
+
+### Fixed
+- Retry failed Notion watch publications after later successful captures, including
+  unchanged cycles. Retain the eligible snapshot until publication succeeds or a
+  newer eligible capture supersedes it.
+- Reuse known Notion page IDs after partial uploads, including within a watch
+  invocation when local registry persistence fails.
+
 ## [1.21.21] — 2026-10-09
 
 ### Fixed

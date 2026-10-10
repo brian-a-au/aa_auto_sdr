@@ -493,7 +493,18 @@ aa_auto_sdr --notion-repair-database --yes
 
 ### Watch with Notion
 
-`--watch --format notion` is supported. Notion publishes on the baseline cycle and on every cycle where `total_changes >= --watch-threshold`. Zero-change cycles and fetch-error cycles never publish. A `notion_watch_publish_failed` WARNING fires if a Notion call raises during a cycle; the watch loop continues.
+`--watch --format notion` publishes baseline captures and changes meeting
+`total_changes >= max(--watch-threshold, 1)`. A failed publication remains pending
+and is retried once after each later successful capture, including unchanged
+cycles. A newer eligible capture replaces the pending snapshot; below-threshold
+captures do not. Fetch/history errors do not trigger publication or clear pending
+work. Heartbeats without pending work do not publish.
+
+A `notion_watch_publish_failed` WARNING records a failed attempt and the loop
+continues. Pending work lasts for the current invocation only. Once Notion
+returns a created page ID, retries reuse it, including if local registry writes
+fail during that invocation. A creation failure that returns no page ID cannot
+guarantee duplicate prevention.
 
 ```bash
 # Publish to Notion whenever the report suite changes

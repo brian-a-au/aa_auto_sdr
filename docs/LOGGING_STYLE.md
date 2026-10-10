@@ -281,7 +281,7 @@ Emitted by `--notion-create-database` via `cli/commands/notion_create.py`.
 
 ### Notion watch event
 
-- `notion_watch_publish_failed` (WARNING) — a Notion publish call raised during a watch cycle. The cycle continues. Emitted from `pipeline/watch.py`. Extra: `rsid` in the message.
+- `notion_watch_publish_failed` (WARNING) — a Notion publish call raised during a watch cycle. The cycle continues and retains pending work for retry after a successful capture. Emitted from `pipeline/watch.py`. Extra: `rsid` in the message.
 
 ## Validation cache events
 

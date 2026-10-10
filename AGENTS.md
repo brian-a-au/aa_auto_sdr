@@ -325,7 +325,18 @@ stderr/logs, preserving stdout NDJSON.
 
 SIGINT / SIGTERM → exit 0. `--quality-policy` and `--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
-`--watch --format notion` is supported. Notion publishes on the baseline cycle and on every `change` event. Zero-change cycles and fetch-error cycles do not publish. If the Notion API raises during a cycle, a `notion_watch_publish_failed` WARNING fires and the loop continues.
+`--watch --format notion` publishes baseline captures and changes meeting
+`total_changes >= max(--watch-threshold, 1)`. A failed publication remains pending
+and is retried once after each later successful capture, including unchanged
+cycles. A newer eligible capture replaces the pending snapshot; below-threshold
+captures do not. Fetch/history errors do not trigger publication or clear pending
+work. Heartbeats without pending work do not publish.
+
+A `notion_watch_publish_failed` WARNING records a failed attempt and the loop
+continues. Pending work lasts for the current invocation only. Once Notion
+returns a created page ID, retries reuse it, including if local registry writes
+fail during that invocation. A creation failure that returns no page ID cannot
+guarantee duplicate prevention.
 
 ### Notion standalone modes
 

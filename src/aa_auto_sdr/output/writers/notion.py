@@ -75,10 +75,13 @@ def _create_or_update_page(
     registry_path: Path,
     *,
     force_new: bool,
+    known_pages: dict[str, str] | None = None,
 ) -> str:
-    existing = None if force_new else lookup_page_id(registry_path, rsid)
+    existing = None if force_new else ((known_pages or {}).get(rsid) or lookup_page_id(registry_path, rsid))
 
     if existing:
+        if known_pages is not None:
+            known_pages[rsid] = existing
         _clear_page_blocks(client, existing)
         _append_blocks(client, existing, blocks)
         store_page_id(registry_path, rsid, existing)
@@ -95,8 +98,12 @@ def _create_or_update_page(
         },
     )
     page_id = page["id"]
-    _append_blocks(client, page_id, blocks)
+    if known_pages is not None:
+        known_pages[rsid] = page_id
+    # Save identity before block upload. A partial append can then retry by
+    # clearing and repopulating this same page rather than creating another.
     store_page_id(registry_path, rsid, page_id)
+    _append_blocks(client, page_id, blocks)
     return page_id
 
 

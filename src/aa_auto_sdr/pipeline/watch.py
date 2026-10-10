@@ -76,10 +76,11 @@ class Emitter(Protocol):
 
 class NotionPublisher(Protocol):
     """Publishes an SDR snapshot to Notion. Called by the watch loop after a
-    baseline or real-change cycle when ``--format notion`` is active.
+    baseline, eligible change, or successful capture with pending work when
+    ``--format notion`` is active.
 
-    Implementations must not raise; they should log and swallow errors so that
-    a transient Notion failure never kills the watch loop.
+    Implementations propagate page-publication errors. The loop logs a warning
+    and retains the eligible snapshot for a later successful capture cycle.
     """
 
     def publish(self, *, snapshot_path: Path, rsid: str) -> None: ...
@@ -481,6 +482,7 @@ def run_watch_loop(
     to stop).
     """
     cycle_n = 0
+    pending_notion: dict[str, Path] = {}
     while not stop.is_set():
         cycle_started = ctx.clock.utcnow()
         for rsid in rsids:
@@ -490,16 +492,18 @@ def run_watch_loop(
             if _should_emit(result, threshold=threshold):
                 result = _maybe_commit(ctx, result, cycle_n=cycle_n)
                 _emit_cycle(ctx, result, cycle_n=cycle_n)
-            if (
-                ctx.notion_publisher is not None
-                and result.snapshot_path is not None
-                and _should_publish(result, threshold=threshold)
-            ):
+            if ctx.notion_publisher is not None and result.kind != "fetch_error":
+                if result.snapshot_path is not None and _should_publish(result, threshold=threshold):
+                    pending_notion[rsid] = result.snapshot_path
+                pending_path = pending_notion.get(rsid)
+                if pending_path is None:
+                    continue
                 try:
                     ctx.notion_publisher.publish(
-                        snapshot_path=result.snapshot_path,
+                        snapshot_path=pending_path,
                         rsid=rsid,
                     )
+                    del pending_notion[rsid]
                 except Exception:
                     logger.warning(
                         "notion_watch_publish_failed rsid=%s",
