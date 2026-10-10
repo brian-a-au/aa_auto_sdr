@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse  # noqa: F401
+import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -377,6 +378,57 @@ class TestBatchModeGitExitCode:
         assert rc == int(ExitCode.PARTIAL_SUCCESS), f"expected PARTIAL_SUCCESS (14), got {rc}"
         assert int(ExitCode.PARTIAL_SUCCESS) == 14
 
+    def test_actual_git_timeout_result_yields_batch_partial_success(self, tmp_path: Path, monkeypatch) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+        from aa_auto_sdr.pipeline import batch as batch_mod
+        from aa_auto_sdr.pipeline.models import BatchResult, RunResult
+        from aa_auto_sdr.snapshot import git as git_mod
+
+        monkeypatch.setenv("GIT_AUTHOR_NAME", "Test User")
+        monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@example.com")
+        monkeypatch.setenv("GIT_COMMITTER_NAME", "Test User")
+        monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+        suite = tmp_path / "rs_a"
+        suite.mkdir()
+        (suite / "snap.json").write_text("{}")
+        original = git_mod._run_git
+
+        def fail_commit(args: list[str], **kwargs):
+            if args[:1] == ["commit"] and "rs_a/" in args:
+                raise subprocess.TimeoutExpired(["git", *args], 1)
+            return original(args, **kwargs)
+
+        monkeypatch.setattr(git_mod, "_run_git", fail_commit)
+        git_op = git_mod.git_commit_snapshot(tmp_path, rsid="rs_a", message="m", push=False)
+        assert not git_op.ok
+        batch_result = BatchResult(
+            successes=[RunResult(rsid="rs_a", success=True, outputs=[], git_op=git_op)],
+            failures=[],
+            total_duration_seconds=0.1,
+            total_output_bytes=0,
+        )
+        with (
+            patch("aa_auto_sdr.core.credentials.resolve", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.client.AaClient.from_credentials", return_value=MagicMock()),
+            patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["rs_a"], False)),
+            patch("aa_auto_sdr.output.registry.bootstrap"),
+            patch("aa_auto_sdr.output.registry.resolve_formats", return_value=["json"]),
+            patch("aa_auto_sdr.output.registry.get_writer", return_value=MagicMock()),
+            patch("aa_auto_sdr.core.profiles.default_base", return_value=tmp_path),
+            patch.object(batch_mod, "run_batch", return_value=batch_result),
+        ):
+            rc = batch_cmd._run_impl(
+                rsids=["rs_a"],
+                output_dir=tmp_path,
+                format_name="json",
+                profile="testprofile",
+                git_commit=True,
+                git_push=False,
+                git_message=None,
+            )
+        assert rc == int(ExitCode.PARTIAL_SUCCESS)
+
     def test_all_sdrs_succeed_all_git_ops_ok_returns_ok(self, tmp_path: Path) -> None:
         from aa_auto_sdr.cli.commands import batch as batch_cmd
         from aa_auto_sdr.core.exit_codes import ExitCode
@@ -518,6 +570,64 @@ def _make_inj() -> _WInjection:
 
 
 class TestWatchModeGit:
+    def test_timeout_keeps_event_order_and_later_suite_cycle_running(self, tmp_path: Path, monkeypatch) -> None:
+        from aa_auto_sdr.pipeline.watch import StopToken, WatchContext, run_watch_loop
+        from aa_auto_sdr.snapshot import git as git_mod
+        from aa_auto_sdr.snapshot.git import git_init_snapshot_repo
+
+        monkeypatch.setenv("GIT_AUTHOR_NAME", "Test User")
+        monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@example.com")
+        monkeypatch.setenv("GIT_COMMITTER_NAME", "Test User")
+        monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+        assert git_init_snapshot_repo(tmp_path).ok
+        for rsid in ("rs_a", "rs_b"):
+            suite = tmp_path / rsid
+            suite.mkdir()
+            (suite / "snapshot.json").write_text(rsid)
+        original = git_mod._run_git
+        failed_once = False
+
+        def timeout_first_a(args: list[str], **kwargs):
+            nonlocal failed_once
+            if args[:1] == ["commit"] and "rs_a/" in args and not failed_once:
+                failed_once = True
+                raise subprocess.TimeoutExpired(["git", *args], 1)
+            return original(args, **kwargs)
+
+        monkeypatch.setattr(git_mod, "_run_git", timeout_first_a)
+        inj = _make_inj()
+        ctx = WatchContext(
+            fetcher=inj.fetcher,
+            snapshot_store=inj.store,
+            clock=inj.clock,
+            sleeper=inj.sleeper,
+            emitter=inj.emitter,
+            ignore_fields=frozenset(),
+            extended_fields=False,
+            git_commit=True,
+            git_push=False,
+            snapshot_dir=tmp_path,
+        )
+        _, cycles = run_watch_loop(
+            ctx=ctx,
+            rsids=["rs_a", "rs_b"],
+            interval=timedelta(seconds=1),
+            threshold=0,
+            max_cycles=2,
+            stop=StopToken(),
+        )
+        assert cycles == 2
+        assert [(event["event"], event["rsid"]) for event in inj.emitter.events] == [
+            ("baseline", "rs_a"),
+            ("error", "rs_a"),
+            ("baseline", "rs_b"),
+            ("change", "rs_a"),
+            ("change", "rs_b"),
+        ]
+        assert inj.emitter.events[1]["error_type"] == "GitCommitError"
+        assert inj.emitter.events[2]["git"]["committed"] is True
+        assert inj.emitter.events[3]["git"]["committed"] is True
+
     def test_watch_emits_error_event_after_change_when_git_fails(self) -> None:
         from aa_auto_sdr.pipeline import watch as watch_mod
         from aa_auto_sdr.pipeline.watch import (

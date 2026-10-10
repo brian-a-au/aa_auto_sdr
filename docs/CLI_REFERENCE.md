@@ -217,7 +217,9 @@ uv run aa_auto_sdr <RSID> --auto-snapshot --git-commit --profile prod
 uv run aa_auto_sdr <RSID> --watch --interval 1h --git-commit --git-push --profile prod
 ```
 
-Exit codes: on single / `--batch` runs a git failure exits `16` (`SNAPSHOT`); under `--watch` a git failure is reported as an `error` event and the loop continues (exit `0`).
+Git timeouts and filesystem failures are reported through the same result path as nonzero Git exits. Single generation returns `SNAPSHOT` for a Git failure. A batch whose SDRs succeed but whose Git operations fail returns `PARTIAL_SUCCESS` (see `--exit-codes` for numeric values). Under `--watch`, the snapshot event emits before the Git `error` event and the loop continues. A confirmed commit retains any known SHA if a later operation fails.
+
+Snapshot commits include only the selected report suite directory; unrelated staged and unstaged files remain intact. Repository-probe failures do not trigger initialization.
 
 ## Diff
 

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.21] — 2026-10-09
+
+### Fixed
+- Keep watch monitoring running after Git timeouts and filesystem failures, with
+  snapshot events followed by structured Git errors and completed commit evidence
+  preserved when a later operation fails.
+- Fail safely when repository discovery is unavailable instead of initializing
+  a repository on an uncertain result.
+- Limit snapshot commits to their report suite, preserving unrelated staged and
+  unstaged files and work left staged by a failed earlier suite.
+
 ## [1.21.20] — 2026-10-08
 
 ### Fixed
