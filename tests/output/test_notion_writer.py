@@ -11,7 +11,7 @@ import pytest
 from aa_auto_sdr.api import models
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.output.notion_client_guard import resolve_notion_credentials, resolve_notion_token
-from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME
+from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME, collect_superseded, load_registry
 from aa_auto_sdr.output.writers import notion as notion_writer_mod
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -202,6 +202,30 @@ def test_partial_append_retries_same_page(tmp_path, monkeypatch, registry_fails)
     assert all(call.kwargs["block_id"] == "created-once" for call in client.blocks.children.append.call_args_list)
     assert client.blocks.delete.call_count >= 1
     assert known_pages == {"rsid": "created-once"}
+
+
+def test_pending_watch_retry_respects_standalone_force_new_page(tmp_path):
+    client = MagicMock()
+    client.pages.create.side_effect = [{"id": "A"}, {"id": "B"}]
+    client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    client.blocks.children.append.side_effect = [RuntimeError("append failed"), None, None]
+    registry_path = tmp_path / REGISTRY_FILENAME
+    known_pages: dict[str, str] = {}
+    args = (client, "parent", "Title", "rsid", [{"type": "paragraph"}], registry_path)
+
+    with pytest.raises(RuntimeError, match="append failed"):
+        notion_writer_mod._create_or_update_page(*args, force_new=False, known_pages=known_pages)
+    assert known_pages == {"rsid": "A"}
+
+    assert notion_writer_mod._create_or_update_page(*args, force_new=True) == "B"
+    assert notion_writer_mod._create_or_update_page(*args, force_new=False, known_pages=known_pages) == "B"
+
+    registry = load_registry(registry_path)
+    assert known_pages == {"rsid": "B"}
+    assert registry["rsid"] == {"current": "B", "superseded": ["A"]}
+    assert collect_superseded(registry) == [("rsid", "A")]
+    assert [call.kwargs["block_id"] for call in client.blocks.children.append.call_args_list] == ["A", "B", "B"]
+    assert client.pages.create.call_count == 2
 
 
 def test_ambiguous_create_failure_remains_observable(tmp_path):

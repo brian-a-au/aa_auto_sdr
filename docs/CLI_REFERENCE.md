@@ -503,8 +503,9 @@ work. Heartbeats without pending work do not publish.
 A `notion_watch_publish_failed` WARNING records a failed attempt and the loop
 continues. Pending work lasts for the current invocation only. Once Notion
 returns a created page ID, retries reuse it, including if local registry writes
-fail during that invocation. A creation failure that returns no page ID cannot
-guarantee duplicate prevention.
+fail during that invocation. A later explicit `--notion-force-new` replacement
+in the local registry takes precedence over the in-memory retry identity.
+A creation failure that returns no page ID cannot guarantee duplicate prevention.
 
 ```bash
 # Publish to Notion whenever the report suite changes

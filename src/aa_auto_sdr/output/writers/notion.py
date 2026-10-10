@@ -77,7 +77,8 @@ def _create_or_update_page(
     force_new: bool,
     known_pages: dict[str, str] | None = None,
 ) -> str:
-    existing = None if force_new else ((known_pages or {}).get(rsid) or lookup_page_id(registry_path, rsid))
+    # The registry is authoritative; memory preserves a new page only when persistence failed.
+    existing = None if force_new else (lookup_page_id(registry_path, rsid) or (known_pages or {}).get(rsid))
 
     if existing:
         if known_pages is not None:
