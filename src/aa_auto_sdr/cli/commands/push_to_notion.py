@@ -63,6 +63,7 @@ def publish_payload_to_notion(
     database_id: str | None,
     disable_registry: bool,
     company: str | None,
+    known_pages: dict[str, str] | None = None,
 ) -> str:
     """Publish an SDR payload dict to Notion and return the page id.
 
@@ -90,6 +91,7 @@ def publish_payload_to_notion(
         blocks,
         registry_path,
         force_new=force_new,
+        known_pages=known_pages,
     )
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(

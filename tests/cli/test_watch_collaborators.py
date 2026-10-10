@@ -16,6 +16,9 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
 
 from aa_auto_sdr.cli.commands import watch as watch_mod
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -127,6 +130,145 @@ def test_notion_watch_publisher_reads_envelope_and_publishes(monkeypatch, tmp_pa
     assert call["database_id"] == "db-1"
     assert call["force_new"] is False
     assert call["company"] == "Acme"
+    assert call["known_pages"] is pub.known_pages
+
+
+def test_notion_watch_publisher_propagates_page_failure(monkeypatch, tmp_path: Path) -> None:
+    snap = tmp_path / "snap.json"
+    snap.write_text(json.dumps({"rsid": "rs_a"}), encoding="utf-8")
+
+    def fail_publish(*_args, **_kwargs):
+        raise RuntimeError("block upload failed")
+
+    monkeypatch.setattr("aa_auto_sdr.cli.commands.push_to_notion.publish_payload_to_notion", fail_publish)
+    pub = watch_mod._NotionWatchPublisher(
+        client="NOTION",
+        parent_page_id="parent",
+        registry_path=tmp_path / ".notion_pages.json",
+        database_id=None,
+        disable_registry=True,
+        company=None,
+    )
+    with pytest.raises(RuntimeError, match="block upload failed"):
+        pub.publish(snapshot_path=snap, rsid="rs_a")
+
+
+def test_real_notion_watch_publisher_reuses_created_page_after_failures(monkeypatch, tmp_path: Path) -> None:
+    from aa_auto_sdr.output.writers import notion as notion_writer
+
+    snap = tmp_path / "snap.json"
+    snap.write_text(
+        json.dumps(
+            {
+                "schema": "aa-sdr-snapshot/v4",
+                "rsid": "rs_a",
+                "captured_at": "2026-10-09T00:00:00Z",
+                "tool_version": "1.0",
+                "components": {"report_suite": {"rsid": "rs_a", "name": "Suite A"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = MagicMock()
+    client.pages.create.return_value = {"id": "page-1"}
+    client.blocks.children.list.return_value = {"results": [{"id": "partial"}], "has_more": False}
+    client.blocks.children.append.side_effect = [
+        RuntimeError("append failed"),
+        RuntimeError("append failed"),
+        None,
+        None,
+    ]
+    real_store = notion_writer.store_page_id
+    store_calls = 0
+
+    def flaky_store(*args):
+        nonlocal store_calls
+        store_calls += 1
+        if store_calls == 1:
+            raise OSError("registry unavailable")
+        real_store(*args)
+
+    monkeypatch.setattr(notion_writer, "store_page_id", flaky_store)
+    kwargs = {
+        "client": client,
+        "parent_page_id": "parent",
+        "registry_path": tmp_path / ".notion_pages.json",
+        "database_id": None,
+        "disable_registry": True,
+        "company": None,
+    }
+    publisher = watch_mod._NotionWatchPublisher(**kwargs)
+    with pytest.raises(OSError, match="registry unavailable"):
+        publisher.publish(snapshot_path=snap, rsid="rs_a")
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="append failed"):
+            publisher.publish(snapshot_path=snap, rsid="rs_a")
+    publisher.publish(snapshot_path=snap, rsid="rs_a")
+    assert publisher.known_pages == {}
+    client.pages.create.assert_called_once()
+    assert all(call.kwargs["block_id"] == "page-1" for call in client.blocks.children.append.call_args_list)
+    assert client.blocks.delete.call_count >= 2
+
+    next_invocation = watch_mod._NotionWatchPublisher(**kwargs)
+    assert next_invocation.known_pages == {}
+    next_invocation.publish(snapshot_path=snap, rsid="rs_a")
+    client.pages.create.assert_called_once()
+
+
+def test_successful_watch_publish_uses_later_force_new_page(monkeypatch, tmp_path: Path) -> None:
+    from aa_auto_sdr.output.notion_registry import load_registry
+    from aa_auto_sdr.output.writers import notion as notion_writer
+
+    snap = tmp_path / "snap.json"
+    snap.write_text(
+        json.dumps(
+            {
+                "schema": "aa-sdr-snapshot/v4",
+                "rsid": "rs_a",
+                "captured_at": "2026-10-09T00:00:00Z",
+                "tool_version": "1.0",
+                "components": {"report_suite": {"rsid": "rs_a", "name": "Suite A"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    client = MagicMock()
+    client.pages.create.side_effect = [{"id": "page-a"}, {"id": "page-b"}]
+    client.blocks.children.list.return_value = {"results": [], "has_more": False}
+    registry_path = tmp_path / ".notion_pages.json"
+    publisher = watch_mod._NotionWatchPublisher(
+        client=client,
+        parent_page_id="parent",
+        registry_path=registry_path,
+        database_id=None,
+        disable_registry=True,
+        company=None,
+    )
+    publisher.publish(snapshot_path=snap, rsid="rs_a")
+    assert publisher.known_pages == {}
+
+    assert (
+        notion_writer._create_or_update_page(
+            client,
+            "parent",
+            "Suite A (rs_a) — SDR",
+            "rs_a",
+            [],
+            registry_path,
+            force_new=True,
+        )
+        == "page-b"
+    )
+    publisher.publish(snapshot_path=snap, rsid="rs_a")
+
+    client.pages.create.assert_called_with(
+        parent={"page_id": "parent"},
+        properties={"title": {"title": [{"type": "text", "text": {"content": "Suite A (rs_a) — SDR"}}]}},
+    )
+    assert client.pages.create.call_count == 2
+    assert client.blocks.children.list.call_args.kwargs["block_id"] == "page-b"
+    assert all(call.kwargs["block_id"] != "page-a" for call in client.blocks.children.append.call_args_list[1:])
+    assert load_registry(registry_path)["rs_a"] == {"current": "page-b", "superseded": ["page-a"]}
 
 
 # --- builder helpers -------------------------------------------------------

@@ -1140,6 +1140,146 @@ class TestRunWatchLoopNotionPublisher:
         assert len(publisher.calls) >= 1
 
 
+def test_notion_pending_retries_original_path_only_on_successful_capture(monkeypatch, caplog) -> None:
+    from aa_auto_sdr.pipeline import watch as watch_mod
+
+    now = datetime(2026, 5, 10, tzinfo=UTC)
+    paths = [Path(f"/tmp/cycle-{n}.json") for n in range(5)]
+    unchanged = DiffReport(
+        a_rsid="a", b_rsid="a", a_captured_at="", b_captured_at="", a_tool_version="", b_tool_version=""
+    )
+    one_change = deepcopy(unchanged)
+    one_change.components.append(ComponentDiff(component_type="metrics", added=[AddedRemovedItem(id="m1", name="M")]))
+    outcomes = [
+        CycleResult.baseline(rsid="a", snapshot_path=paths[0], started_at=now, ended_at=now),
+        CycleResult.fetch_error(rsid="a", error=RuntimeError("fetch failed"), started_at=now, ended_at=now),
+        CycleResult.diffed(rsid="a", snapshot_path=paths[2], diff=unchanged, started_at=now, ended_at=now),
+        CycleResult.diffed(rsid="a", snapshot_path=paths[3], diff=one_change, started_at=now, ended_at=now),
+        CycleResult.diffed(rsid="a", snapshot_path=paths[4], diff=unchanged, started_at=now, ended_at=now),
+    ]
+    monkeypatch.setattr(watch_mod, "run_one_cycle", lambda **_kwargs: outcomes.pop(0))
+
+    class Publisher:
+        def __init__(self) -> None:
+            self.calls: list[Path] = []
+
+        def publish(self, *, snapshot_path: Path, rsid: str) -> None:
+            assert rsid == "a"
+            self.calls.append(snapshot_path)
+            if len(self.calls) < 3:
+                raise RuntimeError("append failed")
+
+    publisher = Publisher()
+    ctx = _ctx(notion_publisher=publisher)
+    with caplog.at_level("WARNING"):
+        rc, cycles = run_watch_loop(
+            ctx=ctx, rsids=["a"], interval=timedelta(0), threshold=0, stop=StopToken(), max_cycles=5
+        )
+    assert (rc, cycles) == (ExitCode.OK, 5)
+    assert publisher.calls == [paths[0], paths[0], paths[3]]
+    assert sum("notion_watch_publish_failed" in record.message for record in caplog.records) == 2
+
+
+def test_notion_missing_pending_path_warns_and_retries_next_cycle(monkeypatch, tmp_path, caplog) -> None:
+    from aa_auto_sdr.pipeline import watch as watch_mod
+
+    now = datetime(2026, 5, 10, tzinfo=UTC)
+    missing = tmp_path / "removed.json"
+    outcomes = [
+        CycleResult.baseline(rsid="a", snapshot_path=missing, started_at=now, ended_at=now),
+        CycleResult.diffed(
+            rsid="a",
+            snapshot_path=tmp_path / "unchanged.json",
+            diff=DiffReport(
+                a_rsid="a", b_rsid="a", a_captured_at="", b_captured_at="", a_tool_version="", b_tool_version=""
+            ),
+            started_at=now,
+            ended_at=now,
+        ),
+    ]
+    monkeypatch.setattr(watch_mod, "run_one_cycle", lambda **_kwargs: outcomes.pop(0))
+
+    class Publisher:
+        def __init__(self) -> None:
+            self.calls: list[Path] = []
+
+        def publish(self, *, snapshot_path: Path, rsid: str) -> None:
+            self.calls.append(snapshot_path)
+            snapshot_path.read_text()
+
+    publisher = Publisher()
+    with caplog.at_level("WARNING"):
+        rc, cycles = run_watch_loop(
+            ctx=_ctx(notion_publisher=publisher),
+            rsids=["a"],
+            interval=timedelta(0),
+            threshold=1,
+            stop=StopToken(),
+            max_cycles=2,
+        )
+    assert (rc, cycles) == (ExitCode.OK, 2)
+    assert publisher.calls == [missing, missing]
+    assert sum("notion_watch_publish_failed" in record.message for record in caplog.records) == 2
+
+
+def test_notion_pending_is_per_suite_and_new_eligible_capture_replaces_old(monkeypatch) -> None:
+    from aa_auto_sdr.pipeline import watch as watch_mod
+
+    now = datetime(2026, 5, 10, tzinfo=UTC)
+    base = DiffReport(a_rsid="a", b_rsid="a", a_captured_at="", b_captured_at="", a_tool_version="", b_tool_version="")
+
+    def diff_with_changes(count: int) -> DiffReport:
+        diff = deepcopy(base)
+        diff.components.append(
+            ComponentDiff(
+                component_type="metrics", added=[AddedRemovedItem(id=f"m{i}", name=f"M{i}") for i in range(count)]
+            )
+        )
+        return diff
+
+    outcomes = [
+        CycleResult.baseline(rsid="a", snapshot_path=Path("a0.json"), started_at=now, ended_at=now),
+        CycleResult.baseline(rsid="b", snapshot_path=Path("b0.json"), started_at=now, ended_at=now),
+        CycleResult.diffed(
+            rsid="a", snapshot_path=Path("a1.json"), diff=diff_with_changes(1), started_at=now, ended_at=now
+        ),
+        CycleResult.diffed(rsid="b", snapshot_path=Path("b1.json"), diff=base, started_at=now, ended_at=now),
+        CycleResult.diffed(
+            rsid="a", snapshot_path=Path("a2.json"), diff=diff_with_changes(2), started_at=now, ended_at=now
+        ),
+        CycleResult.diffed(rsid="b", snapshot_path=Path("b2.json"), diff=base, started_at=now, ended_at=now),
+    ]
+    monkeypatch.setattr(watch_mod, "run_one_cycle", lambda **_kwargs: outcomes.pop(0))
+
+    class Publisher:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, Path]] = []
+            self.failures = 2
+
+        def publish(self, *, snapshot_path: Path, rsid: str) -> None:
+            self.calls.append((rsid, snapshot_path))
+            if rsid == "a" and self.failures:
+                self.failures -= 1
+                raise RuntimeError("unavailable")
+
+    publisher = Publisher()
+    rc, cycles = run_watch_loop(
+        ctx=_ctx(notion_publisher=publisher),
+        rsids=["a", "b"],
+        interval=timedelta(0),
+        threshold=2,
+        stop=StopToken(),
+        max_cycles=3,
+    )
+    assert (rc, cycles) == (ExitCode.OK, 3)
+    assert publisher.calls == [
+        ("a", Path("a0.json")),
+        ("b", Path("b0.json")),
+        ("a", Path("a0.json")),
+        ("a", Path("a2.json")),
+    ]
+
+
 class _SaveExplodingStore(_FakeStore):
     def save(self, rsid: str, doc: _Any) -> tuple[Path, dict]:
         raise OSError("disk full")
