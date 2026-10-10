@@ -168,7 +168,8 @@ def test_stats_calls_fetchers_with_count_only_true() -> None:
     finally:
         for p in base_patches:
             p.stop()
-    assert vrs_call_kwargs == {"count_only": True}
+    assert vrs_call_kwargs["count_only"] is True
+    assert vrs_call_kwargs["source"] is not None
     assert cls_call_kwargs == {"count_only": True}
 
 

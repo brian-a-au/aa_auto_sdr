@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file. Format foll
 - Reuse known Notion page IDs after partial uploads, including within a watch
   invocation when local registry persistence fails.
 
+### Performance
+- Share successful organization-wide virtual report suite enumeration across
+  suites in each batch, stats, and inventory invocation, including parallel
+  batch workers. Preserve per-suite filtering and degraded-fetch reporting.
+
 ## [1.21.21] — 2026-10-09
 
 ### Fixed

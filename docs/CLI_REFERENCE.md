@@ -335,6 +335,13 @@ aa_auto_sdr --inventory-summary --format json
 
 ## Batch tuning
 
+Batch, stats, and inventory runs share a successful organization-wide VRS
+fetch within the invocation, including a healthy empty response. Concurrent
+batch workers join one in-flight fetch. Failed loads are not retained for later
+calls; existing retry and degraded-fetch reporting still apply. Sharing is
+scoped to the invocation and its client/company, requires no cache flag, and
+does not persist across runs or watch cycles.
+
 | Flag | Behavior |
 |----|----|
 | `--workers N` | Parallel batch workers (1..16, default `1`). Implemented via `ThreadPoolExecutor`. JSON log records on parallel runs include `worker_id`. |

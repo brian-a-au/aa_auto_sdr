@@ -109,9 +109,16 @@ JSON log records on parallel runs include `worker_id` (the per-RSID
 submission index, 0..N-1). Sequential runs omit the field. Agents
 parsing logs should treat the field as optional.
 
-Continue-on-error is the batch default; no opt-in flag is needed. Cache sharing across workers is not implemented; cache is per-process and gated by `--enable-cache`.
+Continue-on-error is the batch default; no opt-in flag is needed. The validation cache is gated by `--enable-cache`; VRS fetch sharing below is independent of that flag.
 
 `--batch --format notion --workers N>1` is supported. A process-level lock serializes all `.notion_pages.json` writes so concurrent workers do not race. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically, but high worker counts may increase latency on large batches.
+
+Batch, stats, and inventory runs share a successful organization-wide VRS
+fetch within the invocation, including a healthy empty response. Concurrent
+batch workers join one in-flight fetch. Failed loads are not retained for later
+calls; existing retry and degraded-fetch reporting still apply. Sharing is
+scoped to the invocation and its client/company, requires no cache flag, and
+does not persist across runs or watch cycles.
 
 ### Validation cache
 

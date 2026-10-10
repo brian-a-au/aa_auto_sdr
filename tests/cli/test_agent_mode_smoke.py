@@ -173,7 +173,11 @@ def test_single_sdr_under_agent_mode_writes_file_not_stdout(monkeypatch, tmp_pat
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
+    monkeypatch.setattr(
+        AaClient,
+        "from_credentials",
+        classmethod(lambda cls, creds, **kwargs: AaClient(handle=object(), company_id="test")),  # noqa: ARG005
+    )
     monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident, **kwargs: (["RS1"], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
@@ -184,7 +188,7 @@ def test_single_sdr_under_agent_mode_writes_file_not_stdout(monkeypatch, tmp_pat
     monkeypatch.setattr(fetch, "fetch_metrics", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r, **kw: FetchOutcome.healthy([]))  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
 
     from aa_auto_sdr.cli.main import run
@@ -278,7 +282,11 @@ def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, cap
             source="test",
         ),
     )
-    monkeypatch.setattr(AaClient, "from_credentials", classmethod(lambda cls, creds, **kwargs: object()))  # noqa: ARG005
+    monkeypatch.setattr(
+        AaClient,
+        "from_credentials",
+        classmethod(lambda cls, creds, **kwargs: AaClient(handle=object(), company_id="test")),  # noqa: ARG005
+    )
     monkeypatch.setattr(fetch, "resolve_rsid", lambda client, ident, **kwargs: ([ident], False))  # noqa: ARG005
     monkeypatch.setattr(
         fetch,
@@ -291,7 +299,7 @@ def test_batch_under_agent_mode_writes_files_per_rsid(monkeypatch, tmp_path, cap
     monkeypatch.setattr(fetch, "fetch_metrics", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_segments", lambda c, r: [])  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_calculated_metrics", lambda c, r: [])  # noqa: ARG005
-    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
+    monkeypatch.setattr(fetch, "fetch_virtual_report_suites", lambda c, r, **kw: FetchOutcome.healthy([]))  # noqa: ARG005
     monkeypatch.setattr(fetch, "fetch_classification_datasets", lambda c, r: FetchOutcome.healthy([]))  # noqa: ARG005
 
     from aa_auto_sdr.cli.main import run
