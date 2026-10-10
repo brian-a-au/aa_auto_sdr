@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.21.23] — 2026-10-09
+
+### Performance
+- Share successful organization-wide virtual report suite enumeration across
+  suites in each batch, stats, and inventory invocation, including parallel
+  batch workers. Preserve per-suite filtering and degraded-fetch reporting.
+
 ## [1.21.22] — 2026-10-09
 
 ### Fixed
@@ -10,11 +17,6 @@ All notable changes to this project will be documented in this file. Format foll
   newer eligible capture supersedes it.
 - Reuse known Notion page IDs after partial uploads, including within a watch
   invocation when local registry persistence fails.
-
-### Performance
-- Share successful organization-wide virtual report suite enumeration across
-  suites in each batch, stats, and inventory invocation, including parallel
-  batch workers. Preserve per-suite filtering and degraded-fetch reporting.
 
 ## [1.21.21] — 2026-10-09
 
