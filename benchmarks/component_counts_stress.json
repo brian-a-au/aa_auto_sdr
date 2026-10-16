@@ -1,0 +1,272 @@
+{
+  "case": "stats-rich",
+  "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+  "sources": {
+    "baseline": {
+      "source_sha256": "01ed1fd735831abb4b680e9b3a2e5a51c179a34261609cb6016a96a16aa9e930",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7"
+    },
+    "candidate": {
+      "source_sha256": "1f9a3dbbfeb9f52cbb4810b99d0c743dafdc9516d317035d641adbbb9dbd793c",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7"
+    }
+  },
+  "wall_pairs": [
+    {
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99680256,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.12365954200504348
+      },
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100237312,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.09582254104316235
+      }
+    },
+    {
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99205120,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.0965134589932859
+      },
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100532224,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.14952587499283254
+      }
+    },
+    {
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100646912,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.11997087497729808
+      },
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99270656,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.09353070799261332
+      }
+    },
+    {
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99991552,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.09359812503680587
+      },
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99614720,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.12593566701980308
+      }
+    },
+    {
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99696640,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.12332354101818055
+      },
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99418112,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.09682024997891858
+      }
+    },
+    {
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99500032,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.09471583302365616
+      },
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99418112,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.2495780410245061
+      }
+    },
+    {
+      "baseline": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99958784,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.11817100003827363
+      },
+      "candidate": {
+        "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99516416,
+        "sdk_calls": {
+          "getCalculatedMetrics": 20,
+          "getClassificationDatasets": 20,
+          "getDimensions": 20,
+          "getMetrics": 20,
+          "getReportSuites": 21,
+          "getSegments": 20,
+          "getVirtualReportSuites": 1
+        },
+        "seconds": 0.09239200002048165
+      }
+    }
+  ],
+  "allocation": {
+    "baseline": {
+      "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+      "peak_bytes": 544350,
+      "process_peak_rss_bytes": 100139008,
+      "sdk_calls": {
+        "getCalculatedMetrics": 20,
+        "getClassificationDatasets": 20,
+        "getDimensions": 20,
+        "getMetrics": 20,
+        "getReportSuites": 21,
+        "getSegments": 20,
+        "getVirtualReportSuites": 1
+      },
+      "seconds": 0.41659362497739494
+    },
+    "candidate": {
+      "output_sha256": "14895a14dd24e68e14c10d16444a421ca6936a49c35b9ede139070ac45697cd5",
+      "peak_bytes": 194432,
+      "process_peak_rss_bytes": 99778560,
+      "sdk_calls": {
+        "getCalculatedMetrics": 20,
+        "getClassificationDatasets": 20,
+        "getDimensions": 20,
+        "getMetrics": 20,
+        "getReportSuites": 21,
+        "getSegments": 20,
+        "getVirtualReportSuites": 1
+      },
+      "seconds": 0.3122094590216875
+    }
+  }
+}

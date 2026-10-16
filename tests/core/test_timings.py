@@ -57,11 +57,13 @@ def test_format_report_empty_returns_no_records_marker() -> None:
     assert "(no timings recorded)" in out
 
 
-def test_format_report_with_records_renders_total() -> None:
-    """Each recorded label appears, and a Total line sums the seconds."""
-    out = timings.format_report([("auth", 0.250), ("resolve", 0.500)])
-    assert "auth" in out
-    assert "resolve" in out
-    assert "Total" in out
+def test_format_report_with_overlapping_records_renders_summed_stage_time() -> None:
+    """Overlapping worker stages sum without claiming command elapsed time."""
+    out = timings.format_report([("build:worker-1", 0.250), ("build:worker-2", 0.500)])
+    assert "build:worker-1" in out
+    assert "build:worker-2" in out
+    assert "Summed stage time" in out
+    assert "Total" not in out
+    assert "elapsed" not in out
     # total should be 0.750, formatted as "0.750s"
     assert "0.750s" in out

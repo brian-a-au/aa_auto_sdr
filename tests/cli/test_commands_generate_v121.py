@@ -69,7 +69,7 @@ def test_show_timings_emits_block(
     assert rc == ExitCode.OK.value
     err = capsys.readouterr().err
     assert "Timings:" in err
-    assert "Total" in err
+    assert "Summed stage time" in err
 
 
 @patch("aa_auto_sdr.cli.commands.generate.AaClient")

@@ -1,0 +1,555 @@
+{
+  "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "dependencies": {
+    "aanalytics2": "0.5.5.post2",
+    "pandas": "3.0.6",
+    "numpy": "2.4.4",
+    "openpyxl": "3.1.5",
+    "xlsxwriter": "3.2.9"
+  },
+  "identities": {
+    "baseline": {
+      "source_sha256": "23d02670f3ebec2a5dbc7ee906e79f7bdd6f3aa5f9835c9f7ea898a2c209c428",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+      "git_sha": "ea74d3fa523553111e7febfc8be60542af3db048"
+    },
+    "candidate": {
+      "source_sha256": "da9fd4ea6abedd56da4ca71231217ba6a7bc59bc8d3075c6be56456c433f1511",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+      "git_sha": "0267030c228bd24b21c00c1910ef3929a1a3f0f6"
+    }
+  },
+  "fixtures": {
+    "suites": 200,
+    "vrs_per_suite": 100,
+    "components": 1000,
+    "depth": 100,
+    "snapshots": 10,
+    "workers": 8
+  },
+  "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+  "rounds": 7,
+  "cases": {
+    "stats": {
+      "summary": {
+        "baseline": {
+          "median_seconds": 0.9665324999950826,
+          "min_seconds": 0.9331584580359049,
+          "max_seconds": 1.0137247089878656,
+          "peak_python_bytes": 7129233,
+          "process_peak_rss_bytes": 121667584,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 201
+        },
+        "candidate": {
+          "median_seconds": 0.5781596659799106,
+          "min_seconds": 0.5499345420394093,
+          "max_seconds": 0.6003416249877773,
+          "peak_python_bytes": 7196017,
+          "process_peak_rss_bytes": 123305984,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 201
+        }
+      },
+      "samples": {
+        "baseline": [
+          {
+            "seconds": 0.9959252499975264,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119848960,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.9331584580359049,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 120750080,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 1.0137247089878656,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 118669312,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.9665324999950826,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 120127488,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.9576995420502499,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119898112,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.957297999993898,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 118734848,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 1.0031560420175083,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 118784000,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 2.263688999984879,
+            "peak_bytes": 7129233,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 121667584,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": true
+          }
+        ],
+        "candidate": [
+          {
+            "seconds": 0.5781596659799106,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119062528,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6003416249877773,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119406592,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5759030000190251,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 118587392,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5784768749726936,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 120537088,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5792732089757919,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119668736,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5729434170061722,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119324672,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5499345420394093,
+            "peak_bytes": 0,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 119603200,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": false
+          },
+          {
+            "seconds": 1.863981332979165,
+            "peak_bytes": 7196017,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 201,
+            "process_peak_rss_bytes": 123305984,
+            "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+            "allocation_run": true
+          }
+        ]
+      }
+    },
+    "excel": {
+      "summary": {
+        "baseline": {
+          "median_seconds": 0.21487404103390872,
+          "min_seconds": 0.2025110840331763,
+          "max_seconds": 0.27471395797329023,
+          "peak_python_bytes": 24546950,
+          "process_peak_rss_bytes": 182648832,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 1
+        },
+        "candidate": {
+          "median_seconds": 0.1615591250010766,
+          "min_seconds": 0.13567775004776195,
+          "max_seconds": 0.21380049997242168,
+          "peak_python_bytes": 5424861,
+          "process_peak_rss_bytes": 148979712,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 1
+        }
+      },
+      "samples": {
+        "baseline": [
+          {
+            "seconds": 0.21017020801082253,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 160301056,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.22738749999552965,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 160120832,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.27471395797329023,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 161595392,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.21431391703663394,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 162349056,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.2025110840331763,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 161792000,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.26754308299859986,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 162119680,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.21487404103390872,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 162054144,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 1.480942792026326,
+            "peak_bytes": 24546950,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 182648832,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": true
+          }
+        ],
+        "candidate": [
+          {
+            "seconds": 0.21380049997242168,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 149815296,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.17217224999330938,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 149979136,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.1615591250010766,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150011904,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.1390486669843085,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 149979136,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.13567775004776195,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 149913600,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.13829949998762459,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 149929984,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.19006508396705613,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 149536768,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.8972488750005141,
+            "peak_bytes": 5424861,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 148979712,
+            "output_sha256": "1f51050acaf7511ff22f726195175c429ab8eef62a0266a21c9f11232731a394",
+            "allocation_run": true
+          }
+        ]
+      }
+    },
+    "json-snapshot": {
+      "summary": {
+        "baseline": {
+          "median_seconds": 0.6309453749563545,
+          "min_seconds": 0.601916124986019,
+          "max_seconds": 0.6554314999957569,
+          "peak_python_bytes": 20982431,
+          "process_peak_rss_bytes": 170262528,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 1
+        },
+        "candidate": {
+          "median_seconds": 0.5698693330050446,
+          "min_seconds": 0.534780541958753,
+          "max_seconds": 0.6535123329958878,
+          "peak_python_bytes": 20973002,
+          "process_peak_rss_bytes": 169115648,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 1
+        }
+      },
+      "samples": {
+        "baseline": [
+          {
+            "seconds": 0.622016207955312,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150781952,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6376129160053097,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150650880,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.601916124986019,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151863296,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6309453749563545,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150126592,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6365672500105575,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151846912,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6192024160409346,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151617536,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6554314999957569,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152010752,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 4.3679338750080206,
+            "peak_bytes": 20982431,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 170262528,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": true
+          }
+        ],
+        "candidate": [
+          {
+            "seconds": 0.6528271249844693,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152666112,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5448508750414476,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151552000,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6535123329958878,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152780800,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5698693330050446,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152551424,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.534780541958753,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150192128,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5683384999865666,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151846912,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6379789580241777,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152207360,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 3.607961834000889,
+            "peak_bytes": 20973002,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 169115648,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": true
+          }
+        ]
+      }
+    }
+  },
+  "cold_cli_seconds": {
+    "baseline": 0.05008429096778855,
+    "candidate": 0.026601582998409867
+  }
+}

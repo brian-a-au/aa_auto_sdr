@@ -117,3 +117,15 @@ Use these to triage which command path was dispatched and how long the work took
 - [`CONFIGURATION.md`](CONFIGURATION.md) — credentials and profile resolution
 - [`LOGGING_STYLE.md`](LOGGING_STYLE.md) — the internal logger-call contract (canonical events, required extras, vocabulary meta-test)
 - [`CLI_REFERENCE.md`](CLI_REFERENCE.md) — full flag reference
+
+### Stage timings and elapsed duration
+
+`--show-timings` ends with **Summed stage time**: the sum of recorded stage
+durations. Parallel workers can overlap, so this sum is not command elapsed
+time and cannot establish batch speedup. Structured `(label, seconds)` timing
+records retain their existing shape. Use the run-summary duration for elapsed
+command time. Empty timing reports still show `(no timings recorded)`.
+
+Offline comparisons are available in `benchmarks/performance_arc.py`; its
+wall-clock and allocation samples run separately. Workload boundaries and
+reproduction commands are in `benchmarks/performance_arc_results.md`.
