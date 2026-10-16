@@ -1,0 +1,224 @@
+{
+  "case": "full-rich",
+  "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+  "sources": {
+    "baseline": {
+      "source_sha256": "01ed1fd735831abb4b680e9b3a2e5a51c179a34261609cb6016a96a16aa9e930",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7"
+    },
+    "candidate": {
+      "source_sha256": "1f9a3dbbfeb9f52cbb4810b99d0c743dafdc9516d317035d641adbbb9dbd793c",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7"
+    }
+  },
+  "wall_pairs": [
+    {
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99631104,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005991125013679266
+      },
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99926016,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005084500007797033
+      }
+    },
+    {
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99549184,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.00544145901221782
+      },
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100614144,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005373332998715341
+      }
+    },
+    {
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100630528,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005389207974076271
+      },
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99401728,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005362665979191661
+      }
+    },
+    {
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99336192,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005739959015045315
+      },
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100352000,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.00551470898790285
+      }
+    },
+    {
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100548608,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005513457988854498
+      },
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99385344,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005424125003628433
+      }
+    },
+    {
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99057664,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.013529541960451752
+      },
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99287040,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005702249996829778
+      }
+    },
+    {
+      "baseline": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 99385344,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.006229999999050051
+      },
+      "candidate": {
+        "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+        "peak_bytes": null,
+        "process_peak_rss_bytes": 100564992,
+        "sdk_calls": {
+          "getCalculatedMetrics": 1,
+          "getDimensions": 1,
+          "getMetrics": 1,
+          "getSegments": 1
+        },
+        "seconds": 0.005280582990963012
+      }
+    }
+  ],
+  "allocation": {
+    "baseline": {
+      "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+      "peak_bytes": 586976,
+      "process_peak_rss_bytes": 100974592,
+      "sdk_calls": {
+        "getCalculatedMetrics": 1,
+        "getDimensions": 1,
+        "getMetrics": 1,
+        "getSegments": 1
+      },
+      "seconds": 0.01733304199296981
+    },
+    "candidate": {
+      "output_sha256": "5a55492a4cc68bee87d3e5b556b7045146a16bd20c48e04b8a0244d77042e63b",
+      "peak_bytes": 587033,
+      "process_peak_rss_bytes": 100745216,
+      "sdk_calls": {
+        "getCalculatedMetrics": 1,
+        "getDimensions": 1,
+        "getMetrics": 1,
+        "getSegments": 1
+      },
+      "seconds": 0.01750341703882441
+    }
+  }
+}

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- Label timing totals as summed stage time so overlapping batch stages are not
+  mistaken for command elapsed time. Structured timing records are unchanged.
+- Add offline performance comparisons for resolution, VRS workflows, Excel,
+  JSON with snapshots, and trending, with separate timing/allocation samples.
+
 ## [1.21.23] — 2026-10-09
 
 ### Performance

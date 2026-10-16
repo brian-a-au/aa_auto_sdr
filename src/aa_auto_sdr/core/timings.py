@@ -57,7 +57,8 @@ def format_report(records: list[tuple[str, float]] | None = None) -> str:
     """Render the recorded timings as a fixed-width text block.
 
     Format: 32-char left-aligned label, right-aligned `{:.3f}s`, trailing
-    `Total` line summing all entries. Used by --show-timings."""
+    `Summed stage time` line summing all entries (overlapping stages are not
+    command elapsed time). Used by --show-timings."""
     items = report() if records is None else list(records)
     if not items:
         return "Timings:\n  (no timings recorded)\n"
@@ -66,5 +67,5 @@ def format_report(records: list[tuple[str, float]] | None = None) -> str:
     for label, secs in items:
         lines.append(f"  {label:<32}{secs:>10.3f}s")
         total += secs
-    lines.append(f"  {'Total':<32}{total:>10.3f}s")
+    lines.append(f"  {'Summed stage time':<32}{total:>10.3f}s")
     return "\n".join(lines) + "\n"

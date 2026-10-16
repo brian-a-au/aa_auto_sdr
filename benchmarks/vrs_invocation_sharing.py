@@ -72,6 +72,7 @@ def measure(args: argparse.Namespace) -> dict:
     class Handle:
         def __init__(self) -> None:
             self.vrs_calls = 0
+            self.listing_calls = 0
             self.simulated_http_pages = 0
             self.lock = threading.Lock()
 
@@ -80,6 +81,9 @@ def measure(args: argparse.Namespace) -> dict:
                 raise AttributeError(name)
 
             def fetch(*_args, **_kwargs):
+                if name == "getReportSuites":
+                    with self.lock:
+                        self.listing_calls += 1
                 if name == "getVirtualReportSuites":
                     with self.lock:
                         self.vrs_calls += 1
@@ -122,12 +126,16 @@ def measure(args: argparse.Namespace) -> dict:
     handle = Handle()
     with tempfile.TemporaryDirectory(prefix="aa-vrs-measure-") as folder:
         root = Path(folder)
-        tracemalloc.start()
+        if getattr(args, "allocation", True):
+            tracemalloc.start()
         started = time.perf_counter()
         stdout = workload(root, handle)
         elapsed = time.perf_counter() - started
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
+        rss = args.rss_reader() if hasattr(args, "rss_reader") else None
+        peak = 0
+        if getattr(args, "allocation", True):
+            _, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
         if args.workload.startswith("batch-"):
             payload = {p.name: json.loads(p.read_text()) for p in sorted(root.glob("*.json"))}
             if len(payload) != args.suites:
@@ -139,6 +147,8 @@ def measure(args: argparse.Namespace) -> dict:
         "seconds": elapsed,
         "peak_bytes": peak,
         "sdk_vrs_calls": handle.vrs_calls,
+        "sdk_listing_calls": handle.listing_calls,
+        "process_peak_rss_bytes": rss,
         "simulated_http_pages": handle.simulated_http_pages,
         "output_sha256": digest,
     }
