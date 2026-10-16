@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file. Format foll
 ## [Unreleased]
 
 ### Changed
+- Index shared virtual report suites by parent once per invocation, reducing
+  repeated filtering while preserving diagnostics and per-consumer row isolation.
 - Index preloaded report suites once per batch, stats, or inventory invocation
   to reduce repeated identifier scans while preserving matching and fallback behavior.
 - Label timing totals as summed stage time so overlapping batch stages are not

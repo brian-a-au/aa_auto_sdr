@@ -1,0 +1,429 @@
+{
+  "stress": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "b851874fed05708502fcff217760a21363027314"
+      },
+      "candidate": {
+        "source_sha256": "8814a32fd6a73f6b035736dd75c729485be330120c4823b6829c9c13dbbb54a7",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "b851874fed05708502fcff217760a21363027314"
+      }
+    },
+    "fixtures": {
+      "suites": 200,
+      "vrs_per_suite": 100,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "stats": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 0.9746962090139277,
+            "min_seconds": 0.9543640000047162,
+            "max_seconds": 1.1013237910228781,
+            "peak_python_bytes": 7196017,
+            "process_peak_rss_bytes": 121978880,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 201
+          },
+          "candidate": {
+            "median_seconds": 0.5796236669993959,
+            "min_seconds": 0.5424065419938415,
+            "max_seconds": 0.6008801250136457,
+            "peak_python_bytes": 7196017,
+            "process_peak_rss_bytes": 123699200,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 201
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 1.1013237910228781,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 121061376,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0574737080023624,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119865344,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.9645969999837689,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119046144,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.9746962090139277,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119390208,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.9658256249967963,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 118669312,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.9543640000047162,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 117555200,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0660280419979244,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 117194752,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.4173046670039184,
+              "peak_bytes": 7196017,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 121978880,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.5465620839968324,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 120553472,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.5819124580011703,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 118964224,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.5934989579836838,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119357440,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.5796236669993959,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119111680,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.5432097089942545,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 120553472,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.6008801250136457,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119095296,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.5424065419938415,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 119996416,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.829204292036593,
+              "peak_bytes": 7196017,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 201,
+              "process_peak_rss_bytes": 123699200,
+              "output_sha256": "820bc78a496ffc71a3ff72aee319758ee4323e2ad3bfe95119eaea881dcfc092",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.04030237504048273,
+      "candidate": 0.026115416956599802
+    }
+  },
+  "small_control": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "b851874fed05708502fcff217760a21363027314"
+      },
+      "candidate": {
+        "source_sha256": "8814a32fd6a73f6b035736dd75c729485be330120c4823b6829c9c13dbbb54a7",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "b851874fed05708502fcff217760a21363027314"
+      }
+    },
+    "fixtures": {
+      "suites": 20,
+      "vrs_per_suite": 20,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "stats": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 0.04640770796686411,
+            "min_seconds": 0.043915375019423664,
+            "max_seconds": 0.07676416705362499,
+            "peak_python_bytes": 201215,
+            "process_peak_rss_bytes": 100810752,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 21
+          },
+          "candidate": {
+            "median_seconds": 0.04599020798923448,
+            "min_seconds": 0.04333108302671462,
+            "max_seconds": 0.06671179097611457,
+            "peak_python_bytes": 208240,
+            "process_peak_rss_bytes": 100696064,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 21
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 0.07676416705362499,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100466688,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.07110862497938797,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100401152,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.046359125000890344,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 101269504,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.06784520798828453,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100007936,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.043915375019423664,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100220928,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.046181208977941424,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100679680,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.04640770796686411,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 101171200,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.20505058398703113,
+              "peak_bytes": 201215,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100810752,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.04709237499628216,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100827136,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.04599020798923448,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 101318656,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.04333108302671462,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100122624,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.051583292020950466,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100302848,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.04589612502604723,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100679680,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.06671179097611457,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100024320,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.04381804104195908,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100827136,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.14316570799564943,
+              "peak_bytes": 208240,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 21,
+              "process_peak_rss_bytes": 100696064,
+              "output_sha256": "b3159d64779bd69bb78326506274bf6f6c86c777cd6be58df78bd03fa7be3ed8",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.03179758304031566,
+      "candidate": 0.03021895798156038
+    }
+  },
+  "retained_index_overhead_bytes": {
+    "stress": 190920,
+    "small_control": 5760
+  },
+  "retained_index_method": "sys.getsizeof(result) + sys.getsizeof(result.__dict__) + sys.getsizeof(result.by_parent) + sum(sys.getsizeof(bucket) for bucket in result.by_parent.values()); excludes retained original rows, original list and referenced parent strings"
+}
