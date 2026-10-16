@@ -1,0 +1,211 @@
+{
+  "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "dependencies": {
+    "aanalytics2": "0.5.5.post2",
+    "pandas": "3.0.6",
+    "numpy": "2.4.4",
+    "openpyxl": "3.1.5",
+    "xlsxwriter": "3.2.9"
+  },
+  "identities": {
+    "baseline": {
+      "source_sha256": "8cc3ed374580da7b47ce395e6eaa6de935944ae459cd7d8237d25ac5f48566a0",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+      "git_sha": "8d5854c768bd0483f4c9898093d06f8946f29c46"
+    },
+    "candidate": {
+      "source_sha256": "01ed1fd735831abb4b680e9b3a2e5a51c179a34261609cb6016a96a16aa9e930",
+      "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+      "git_sha": "8d5854c768bd0483f4c9898093d06f8946f29c46"
+    }
+  },
+  "fixtures": {
+    "suites": 50,
+    "vrs_per_suite": 20,
+    "components": 1000,
+    "depth": 100,
+    "snapshots": 10,
+    "workers": 8
+  },
+  "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+  "rounds": 7,
+  "cases": {
+    "json-snapshot": {
+      "summary": {
+        "baseline": {
+          "median_seconds": 0.628741207998246,
+          "min_seconds": 0.6027402079780586,
+          "max_seconds": 0.659220791014377,
+          "peak_python_bytes": 20982481,
+          "process_peak_rss_bytes": 167854080,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 1
+        },
+        "candidate": {
+          "median_seconds": 0.5576874589896761,
+          "min_seconds": 0.5365384999895468,
+          "max_seconds": 0.6628255829564296,
+          "peak_python_bytes": 20972953,
+          "process_peak_rss_bytes": 168493056,
+          "sdk_vrs_enumerations": 1,
+          "sdk_report_suite_enumerations": 1
+        }
+      },
+      "samples": {
+        "baseline": [
+          {
+            "seconds": 0.6246387089486234,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 154124288,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6027402079780586,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152354816,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6524918749928474,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151502848,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6065839579678141,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151814144,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6375594589626417,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152158208,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.628741207998246,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150290432,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.659220791014377,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151453696,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 4.234477040998172,
+            "peak_bytes": 20982481,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 167854080,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": true
+          }
+        ],
+        "candidate": [
+          {
+            "seconds": 0.5533757079974748,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151699456,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5365384999895468,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151830528,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5478925829520449,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151519232,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.6628255829564296,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 152436736,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.582476207986474,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 150192128,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5861977500026114,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151846912,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 0.5576874589896761,
+            "peak_bytes": null,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 151486464,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": false
+          },
+          {
+            "seconds": 3.623302332998719,
+            "peak_bytes": 20972953,
+            "sdk_vrs_calls": 1,
+            "sdk_listing_calls": 1,
+            "process_peak_rss_bytes": 168493056,
+            "output_sha256": "b099d3a90bd7e9a5a57f2ebc66e3d6c3553eab47900eb839b57f14e79b3fea62",
+            "allocation_run": true
+          }
+        ]
+      }
+    }
+  },
+  "cold_cli_seconds": {
+    "baseline": 0.07241487497230992,
+    "candidate": 0.034192249993793666
+  }
+}

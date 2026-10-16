@@ -39,3 +39,26 @@ def test_document_to_envelope_reuses_payload(monkeypatch):
     env = schema.document_to_envelope(doc, payload=payload)
     assert env["rsid"] == "rs"
     assert calls["n"] == 1  # envelope did NOT call to_dict again
+
+
+def test_promoted_metadata_does_not_mutate_payload_or_document():
+    from copy import deepcopy
+    from dataclasses import replace
+
+    from aa_auto_sdr.sdr.document import FetchOutcomeMeta
+
+    doc = replace(
+        _doc(),
+        quality={"issues": [{"details": {"names": ["old"]}}]},
+        fetch_status={
+            "virtual_report_suites": FetchOutcomeMeta("degraded", None),
+            "classifications": FetchOutcomeMeta("partial", "full"),
+        },
+    )
+    payload = doc.to_dict()
+    before = deepcopy(payload)
+    expected = schema.document_to_envelope(doc)
+    actual = schema.document_to_envelope(doc, payload=payload)
+    assert actual == expected
+    assert payload == before
+    assert doc.to_dict() == before

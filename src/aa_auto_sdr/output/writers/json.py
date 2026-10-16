@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.core.json_io import write_json
 from aa_auto_sdr.output.registry import register_writer
@@ -17,9 +18,14 @@ class JsonWriter:
     extension = ".json"
 
     def write(self, doc: SdrDocument, output_path: Path) -> list[Path]:
+        paths, _ = self._write_and_retain_payload(doc, output_path)
+        return paths
+
+    def _write_and_retain_payload(self, doc: SdrDocument, output_path: Path) -> tuple[list[Path], dict[str, Any]]:
         started = time.monotonic()
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
-        write_json(target, doc.to_dict())
+        payload = doc.to_dict()
+        write_json(target, payload)
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
             "output_write format=json output_path=%s count=1 duration_ms=%s",
@@ -33,7 +39,7 @@ class JsonWriter:
                 "rsid": doc.report_suite.rsid,
             },
         )
-        return [target]
+        return [target], payload
 
 
 register_writer("json", JsonWriter())
