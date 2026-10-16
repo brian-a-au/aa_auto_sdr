@@ -234,3 +234,25 @@ def test_stats_preload_listing_failure_falls_back_to_per_identifier_resolve(
     # stub or partial listing) would silently change matching inputs.
     assert resolve_mock.call_count == 1
     assert resolve_mock.call_args.kwargs["preloaded_suites"] is None
+
+
+@pytest.mark.parametrize("command_name", ["stats", "inventory"])
+def test_mixed_identifiers_preserve_order_duplicates_and_listing_count(command_name, env_creds, capsys):
+    from importlib import import_module
+
+    command = import_module(f"aa_auto_sdr.cli.commands.{command_name}")
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    suites = [
+        {**raw["report_suite"], "rsid": "z", "name": "Straße"},
+        {**raw["report_suite"], "rsid": "a", "name": "STRASSE"},
+    ]
+    handle.getReportSuites.return_value = suites
+    with patch.object(command.AaClient, "from_credentials", return_value=MagicMock(handle=handle, company_id="co")):
+        rc = command.run(rsids=["strasse", "a"], profile=None, format_name="json")
+    assert rc == ExitCode.OK.value
+    output = json.loads(capsys.readouterr().out)
+    rows = output if command_name == "stats" else output["per_rsid"]
+    assert [row["rsid"] for row in rows] == ["z", "a", "a"]
+    # One discovery plus the unchanged per-suite metadata fetches.
+    assert handle.getReportSuites.call_count == 4

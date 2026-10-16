@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file. Format foll
 ## [Unreleased]
 
 ### Changed
+- Index preloaded report suites once per batch, stats, or inventory invocation
+  to reduce repeated identifier scans while preserving matching and fallback behavior.
 - Label timing totals as summed stage time so overlapping batch stages are not
   mistaken for command elapsed time. Structured timing records are unchanged.
 - Add offline performance comparisons for resolution, VRS workflows, Excel,
