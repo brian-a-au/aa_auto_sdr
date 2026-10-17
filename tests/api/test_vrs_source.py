@@ -154,3 +154,82 @@ def test_shared_rows_do_not_leak_mutations_between_consumers():
     first.data[0].segment_list.append("changed")
     second = fetch_virtual_report_suites(client, "a", source=source)
     assert second.data[0].segment_list == ["one"]
+
+
+@pytest.mark.parametrize("parent", ["a", "", "missing"])
+def test_index_preserves_filter_counts_for_missing_empty_and_nan(parent, caplog):
+    import logging
+
+    rows = [
+        {"id": "a", "parentRsid": "a"},
+        {"id": "b", "parentRsid": "b"},
+        {"id": "missing"},
+        {"id": "none", "parentRsid": None},
+        {"id": "empty", "parentRsid": ""},
+        {"id": "nan", "parentRsid": float("nan")},
+    ]
+    client = _client(lambda **_: rows)
+    signatures = []
+    for source in (None, VrsSource(client)):
+        caplog.clear()
+        with caplog.at_level(logging.DEBUG):
+            outcome = fetch_virtual_report_suites(client, parent, source=source)
+        records = [r for r in caplog.records if r.msg.startswith("vrs_parent_filter")]
+        signatures.append(
+            (outcome, [(r.pulled, r.filtered, r.dropped_no_parent, r.dropped_other_parent) for r in records])
+        )
+    assert signatures[0] == signatures[1]
+
+
+@pytest.mark.parametrize("unexpected", [[], {}, 0, False])
+def test_unusual_parent_uses_scan_without_degrading(unexpected):
+    rows = [{"id": "odd", "parentRsid": unexpected}, {"id": "selected", "parentRsid": "a"}]
+    client = _client(lambda **_: rows)
+    assert fetch_virtual_report_suites(client, "a", source=VrsSource(client)) == fetch_virtual_report_suites(
+        client, "a"
+    )
+
+
+def test_malformed_row_still_errors_after_successful_source_load():
+    client = _client(lambda **_: [None])
+    source = VrsSource(client)
+    for _ in range(2):
+        with pytest.raises(AttributeError):
+            fetch_virtual_report_suites(client, "a", source=source)
+    assert source._loaded is not None
+
+
+def test_index_keeps_row_references_and_copies_nested_selected_data():
+    row = {"id": "vrs", "parentRsid": "a", "custom": {"nested": ["one"]}}
+    client = _client(lambda **_: [row])
+    source = VrsSource(client)
+    first = fetch_virtual_report_suites(client, "a", source=source)
+    assert source._loaded.by_parent["a"][0] is source._loaded.rows[0]
+    first.data[0].extra["custom"]["nested"].append("changed")
+    assert fetch_virtual_report_suites(client, "a", source=source).data[0].extra["custom"] == {"nested": ["one"]}
+
+
+def test_index_publication_waits_for_complete_build(monkeypatch):
+    entered = Event()
+    release = Event()
+    original = vrs_source.VrsRows.build
+
+    def build(rows):
+        entered.set()
+        assert release.wait(5)
+        return original(rows)
+
+    monkeypatch.setattr(vrs_source.VrsRows, "build", build)
+    waiters_ready = _waiter_ready_event(monkeypatch, 1)
+    client = _client(lambda **_: [{"id": "vrs", "parentRsid": "a"}])
+    source = VrsSource(client)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        owner = pool.submit(fetch_virtual_report_suites, client, "a", source=source)
+        assert entered.wait(5)
+        waiter = pool.submit(fetch_virtual_report_suites, client, "a", source=source)
+        assert waiters_ready.wait(5)
+        assert source._loaded is None
+        assert not waiter.done()
+        release.set()
+        assert owner.result(timeout=5) == waiter.result(timeout=5)
+    assert source._loaded.by_parent == {"a": source._loaded.rows}

@@ -597,6 +597,7 @@ def _finalize_vrs_fetch(
     *,
     expansion_level: str,
     copy_rows: bool = False,
+    parent_counts: tuple[int, int] | None = None,
 ) -> list[models.VirtualReportSuite]:
     """Apply parentRsid filter, build VRS rows, emit DEBUG + INFO logs.
 
@@ -634,19 +635,21 @@ def _finalize_vrs_fetch(
         for r in [deepcopy(source_row) if copy_rows else source_row]
     ]
     # v1.7.0 Item D — structured DEBUG when client-side parentRsid filter drops rows.
-    if len(out) != len(raws):
-        dropped_no_parent = sum(1 for r in raws if not _get(r, "parentRsid"))
-        dropped_other_parent = len(raws) - len(out) - dropped_no_parent
+    pulled, dropped_no_parent = parent_counts if parent_counts is not None else (len(raws), 0)
+    if len(out) != pulled:
+        if parent_counts is None:
+            dropped_no_parent = sum(1 for r in raws if not _get(r, "parentRsid"))
+        dropped_other_parent = pulled - len(out) - dropped_no_parent
         logger.debug(
             "vrs_parent_filter rsid=%s pulled=%s filtered=%s dropped_no_parent=%s dropped_other_parent=%s",
             parent_rsid,
-            len(raws),
+            pulled,
             len(out),
             dropped_no_parent,
             dropped_other_parent,
             extra={
                 "rsid": parent_rsid,
-                "pulled": len(raws),
+                "pulled": pulled,
                 "filtered": len(out),
                 "dropped_no_parent": dropped_no_parent,
                 "dropped_other_parent": dropped_other_parent,
@@ -734,7 +737,8 @@ def fetch_virtual_report_suites(
     if source is not None:
         source.validate(client)
     try:
-        raws = source.get(client, enumerate_vrs) if source is not None else enumerate_vrs()
+        shared = source.get(client, enumerate_vrs) if source is not None else None
+        raws = shared.rows if shared is not None else enumerate_vrs()
     except Exception as e:
         failure_label = "count_only" if count_only else "exhausted"
         logger.warning(
@@ -760,7 +764,13 @@ def fetch_virtual_report_suites(
                 },
             )
         return models.FetchOutcome.degraded()
-    out = _finalize_vrs_fetch(raws, parent_rsid, started, expansion_level="full", copy_rows=source is not None)
+    parent_counts = None
+    if shared is not None and shared.by_parent is not None and type(parent_rsid) is str:
+        raws = shared.by_parent.get(parent_rsid, [])
+        parent_counts = (len(shared.rows), shared.no_parent)
+    out = _finalize_vrs_fetch(
+        raws, parent_rsid, started, expansion_level="full", copy_rows=source is not None, parent_counts=parent_counts
+    )
     return models.FetchOutcome.healthy(out)
 
 
