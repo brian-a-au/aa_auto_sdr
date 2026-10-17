@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file. Format foll
 ## [Unreleased]
 
 ### Changed
+- Reuse the JSON file payload when saving a snapshot in the same run, avoiding
+  a second document conversion while preserving custom writer behavior.
 - Reduce Excel export allocation by reading component fields without nested
   copies and materializing one sheet at a time, preserving workbook output.
 - Index shared virtual report suites by parent once per invocation, reducing

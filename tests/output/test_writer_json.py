@@ -69,3 +69,29 @@ def test_json_writer_emits_quality_when_present(tmp_path: Path) -> None:
     JsonWriter().write(doc, target)
     payload = json.loads(target.read_text())
     assert payload["quality"] == {"naming_audit": {"total_components": 0}}
+
+
+def test_retained_payload_matches_normal_write_and_logs_conversion(tmp_path, monkeypatch, caplog):
+    import logging
+
+    from aa_auto_sdr.output.writers import json as json_writer
+
+    doc = _doc()
+    elapsed = [0.0]
+    real = SdrDocument.to_dict
+
+    def convert(self):
+        elapsed[0] += 0.025
+        return real(self)
+
+    monkeypatch.setattr(SdrDocument, "to_dict", convert)
+    monkeypatch.setattr(json_writer.time, "monotonic", lambda: elapsed[0])
+    with caplog.at_level(logging.INFO, logger=json_writer.__name__):
+        JsonWriter().write(doc, tmp_path / "normal.json")
+        paths, payload = JsonWriter()._write_and_retain_payload(doc, tmp_path / "retained.json")
+    assert paths == [tmp_path / "retained.json"]
+    assert paths[0].read_bytes() == (tmp_path / "normal.json").read_bytes()
+    assert payload == real(doc)
+    records = [record for record in caplog.records if record.name == json_writer.__name__]
+    assert len(records) == 2
+    assert all(record.rsid == "x" and record.duration_ms == 25 for record in records)

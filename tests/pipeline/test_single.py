@@ -110,3 +110,156 @@ def test_run_single_keeps_prior_success_when_later_format_fails(
     assert json.loads(json_target.read_text())["tool_version"] == "1.21.12"
     assert markdown_target.read_bytes() == b"old markdown"
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
+@pytest.mark.parametrize(
+    ("formats", "snapshot", "conversions"),
+    [
+        (["json"], True, 1),
+        (["json"], False, 1),
+        ([], True, 1),
+        (["markdown"], False, 0),
+        (["excel", "csv", "json", "html", "markdown"], True, 1),
+    ],
+)
+def test_payload_conversion_and_output_parity(mock_client, tmp_path, monkeypatch, formats, snapshot, conversions):
+    from aa_auto_sdr.core.json_io import write_json
+    from aa_auto_sdr.sdr.document import SdrDocument
+    from aa_auto_sdr.snapshot.schema import document_to_envelope
+
+    documents = []
+    payloads = []
+    real = SdrDocument.to_dict
+
+    def count(doc):
+        documents.append(doc)
+        payload = real(doc)
+        payloads.append(payload)
+        return payload
+
+    monkeypatch.setattr(SdrDocument, "to_dict", count)
+    result = single.run_single(
+        client=mock_client,
+        rsid="demo.prod",
+        formats=formats,
+        output_dir=tmp_path / "outputs",
+        snapshot_dir=tmp_path / "snapshots" if snapshot else None,
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="test",
+        audit_naming=True,
+        flag_stale=True,
+    )
+    assert len(documents) == conversions
+    if "json" in formats:
+        expected = real(documents[0])
+        expected_path = tmp_path / "expected.json"
+        write_json(expected_path, expected)
+        assert (tmp_path / "outputs/demo.prod.json").read_bytes() == expected_path.read_bytes()
+        assert payloads[0] == expected  # envelope promotion must not mutate the shared payload
+    if snapshot:
+        expected = document_to_envelope(documents[0], payload=real(documents[0]))
+        expected_path = tmp_path / "envelope.json"
+        write_json(expected_path, expected)
+        assert result.outputs[-1].read_bytes() == expected_path.read_bytes()
+
+
+@pytest.mark.parametrize("failure", ["json", "snapshot"])
+def test_payload_write_failure_order(mock_client, tmp_path, monkeypatch, failure):
+    from aa_auto_sdr.core.exceptions import OutputError
+
+    output = tmp_path / "output"
+    snapshots = tmp_path / "snapshots"
+    real_replace = os.replace
+
+    def fail_replace(source, destination):
+        if (failure == "json" and destination.parent == output) or (
+            failure == "snapshot" and snapshots in destination.parents
+        ):
+            raise PermissionError("locked")
+        real_replace(source, destination)
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+    with pytest.raises((PermissionError, OutputError), match="locked"):
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["json"],
+            output_dir=output,
+            snapshot_dir=snapshots,
+            captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+            tool_version="test",
+        )
+    assert (output / "demo.prod.json").exists() == (failure == "snapshot")
+    assert not list(snapshots.rglob("*.json"))
+
+
+@pytest.mark.parametrize("subclass", [False, True])
+def test_custom_json_writer_preserves_write(mock_client, tmp_path, monkeypatch, subclass):
+    from aa_auto_sdr.output.writers.json import JsonWriter
+
+    calls = []
+
+    class Custom(JsonWriter if subclass else object):
+        extension = ".json"
+
+        def write(self, doc, path):
+            calls.append(doc.report_suite.rsid)
+            path.write_text("custom")
+            return [path]
+
+    single.registry.bootstrap()
+    monkeypatch.setitem(single.registry._WRITERS, "json", Custom())
+    result = single.run_single(
+        client=mock_client,
+        rsid="demo.prod",
+        formats=["json"],
+        output_dir=tmp_path,
+        snapshot_dir=tmp_path / "snapshots",
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="test",
+    )
+    assert calls == ["demo.prod"]
+    assert result.outputs[0].read_text() == "custom"
+    assert json.loads(result.outputs[1].read_text())["rsid"] == "demo.prod"
+
+
+def test_parallel_payloads_are_run_local(mock_client, tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from dataclasses import replace
+    from threading import Barrier
+
+    from aa_auto_sdr.sdr.builder import build_sdr
+    from aa_auto_sdr.snapshot import store
+
+    doc = build_sdr(mock_client, "demo.prod", captured_at=datetime(2026, 4, 25, tzinfo=UTC), tool_version="test")
+    monkeypatch.setattr(
+        single,
+        "build_sdr",
+        lambda _client, rsid, **_kwargs: replace(doc, report_suite=replace(doc.report_suite, rsid=rsid)),
+    )
+    barrier = Barrier(2)
+    save = store.save_snapshot
+
+    def synchronized_save(doc, **kwargs):
+        barrier.wait(timeout=10)
+        assert kwargs["payload"]["report_suite"]["rsid"] == doc.report_suite.rsid
+        return save(doc, **kwargs)
+
+    monkeypatch.setattr(store, "save_snapshot", synchronized_save)
+
+    def run(rsid):
+        return single.run_single(
+            client=mock_client,
+            rsid=rsid,
+            formats=["json"],
+            output_dir=tmp_path,
+            snapshot_dir=tmp_path / "snapshots",
+            captured_at=doc.captured_at,
+            tool_version="test",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(run, ["a", "b"]))
+    for result in results:
+        assert json.loads(result.outputs[0].read_text())["report_suite"]["rsid"] == result.rsid
+        assert json.loads(result.outputs[1].read_text())["rsid"] == result.rsid

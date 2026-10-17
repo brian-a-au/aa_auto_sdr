@@ -96,16 +96,25 @@ def run_single(
         )
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
+    snapshot_payload = None
     for fmt in formats:
         writer = registry.get_writer(fmt)
         target = output_dir / f"{rsid}{writer.extension}"
         with timings.Timer(f"write:{fmt}:{rsid}"):
+            if fmt == "json" and snapshot_dir is not None:
+                from aa_auto_sdr.output.writers.json import JsonWriter
+
+                if type(writer) is JsonWriter:
+                    written, snapshot_payload = writer._write_and_retain_payload(doc, target)
+                    paths.extend(written)
+                    continue
             paths.extend(writer.write(doc, target))
     if snapshot_dir is not None:
         from aa_auto_sdr.snapshot.store import save_snapshot
 
         with timings.Timer(f"snapshot:{rsid}"):
-            snap_path = save_snapshot(doc, snapshot_dir=snapshot_dir)
+            snap_path = save_snapshot(doc, snapshot_dir=snapshot_dir, payload=snapshot_payload)
+            snapshot_payload = None
         paths.append(snap_path)
 
     # v1.15.0 — git commit after snapshot save.
