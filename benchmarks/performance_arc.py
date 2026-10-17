@@ -136,9 +136,17 @@ def local_measure(args):
                 identifiers = [r["rsid"] if mode == "exact" else r["name"] for r in suites]
                 if mode == "fuzzy":
                     identifiers = [name + "x" for name in identifiers]
+                preloaded = suites
+                if args.resolution_index:
+                    try:
+                        from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
+                    except ImportError:
+                        pass
+                    else:
+                        preloaded = ReportSuiteIndex(suites)
                 return [
                     resolve_rsid(
-                        None, name, name_match="fuzzy" if mode == "fuzzy" else "insensitive", preloaded_suites=suites
+                        None, name, name_match="fuzzy" if mode == "fuzzy" else "insensitive", preloaded_suites=preloaded
                     )
                     for name in identifiers
                 ]
@@ -229,6 +237,9 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--source-root", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--workload", choices=CASES, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--resolution-index", action="store_true", help="Include supported resolution index construction in timed work"
+    )
     parser.add_argument("--allocation", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     args.latency_ms = 0
@@ -288,6 +299,8 @@ def main():
                     ]
                     for field in ("suites", "vrs_per_suite", "components", "depth", "snapshots", "workers"):
                         command.extend(["--" + field.replace("_", "-"), str(getattr(args, field))])
+                    if args.resolution_index:
+                        command.append("--resolution-index")
                     if allocation:
                         command.append("--allocation")
                     value = json.loads(subprocess.check_output(command, text=True))

@@ -19,6 +19,7 @@ from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.cli.list_output import build_footer
 from aa_auto_sdr.core import credentials
@@ -110,6 +111,8 @@ def run(
         if rsids:
             try:
                 preloaded_suites = fetch.fetch_report_suites_raw(client)
+                if len(rsids) > 1:
+                    preloaded_suites = ReportSuiteIndex(preloaded_suites)
             except Exception:  # best-effort; any failure falls back to per-identifier fetch
                 preloaded_suites = None
             for ident in rsids:

@@ -31,6 +31,7 @@ import pandas as pd
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 from aa_auto_sdr.api.resilience import (
     RetryPolicy,
     classify_permanent_vrs_shape_error,
@@ -265,7 +266,7 @@ def resolve_rsid(
     identifier: str,
     *,
     name_match: NameMatchStrategy = "insensitive",
-    preloaded_suites: list[dict[str, Any]] | None = None,
+    preloaded_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
 ) -> tuple[list[str], bool]:
     """Resolve a user-supplied identifier to one or more canonical RSIDs.
 
@@ -304,20 +305,35 @@ def resolve_rsid(
             )
         )
 
+    index = suites if isinstance(suites, ReportSuiteIndex) else None
+    if index is not None:
+        suites = index.rows
+
     # 1) Exact RSID match — RSIDs are distinct and case-sensitive
-    for raw in suites:
-        if raw.get("rsid") == identifier:
-            logger.debug(
-                "resolve_rsid resolved count=%s was_name_lookup=false strategy=%s",
-                1,
-                name_match,
-                extra={"count": 1, "name_match_strategy": name_match},
-            )
-            return [identifier], False
+    id_matches = (
+        identifier in index.rsids
+        if index is not None and not index.scan_rsids
+        else any(raw.get("rsid") == identifier for raw in suites)
+    )
+    if id_matches:
+        logger.debug(
+            "resolve_rsid resolved count=%s was_name_lookup=false strategy=%s",
+            1,
+            name_match,
+            extra={"count": 1, "name_match_strategy": name_match},
+        )
+        return [identifier], False
 
     # 2) Name match — strategy-dependent
     name_matches: list[tuple[str, str]] = []  # (rsid, name)
-    if name_match == "exact":
+    if index is not None and not index.scan_names:
+        matches = (
+            index.exact_names.get(identifier, [])
+            if name_match == "exact"
+            else index.folded_names.get(identifier.casefold(), [])
+        )
+        name_matches = [(str(raw["rsid"]), str(raw["name"])) for raw in matches]
+    elif name_match == "exact":
         name_matches.extend((str(raw["rsid"]), str(raw["name"])) for raw in suites if raw.get("name") == identifier)
     else:  # insensitive or fuzzy
         target = identifier.casefold()

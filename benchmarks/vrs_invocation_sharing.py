@@ -46,6 +46,7 @@ def measure(args: argparse.Namespace) -> dict:
     fixture = json.loads((Path(args.source_root) / "tests/fixtures/sample_rs.json").read_text())
     rsids = [f"bench.{i:03}" for i in range(args.suites)]
     suites = [{**fixture["report_suite"], "rsid": rsid, "name": rsid} for rsid in rsids]
+    suites_by_id = {row["rsid"]: row for row in suites}
     vrs = [
         {
             "id": f"vrs.{i:03}.{j:03}",
@@ -89,6 +90,11 @@ def measure(args: argparse.Namespace) -> dict:
                         self.vrs_calls += 1
                         self.simulated_http_pages += max(1, math.ceil(len(vrs) / 1000))
                 time.sleep(args.latency_ms / 1000)
+                if name == "getReportSuites" and "rsid_list" in _kwargs:
+                    requested = _kwargs["rsid_list"]
+                    if isinstance(requested, str):
+                        requested = [requested]
+                    return pd.DataFrame([suites_by_id[rsid] for rsid in requested if rsid in suites_by_id])
                 return pd.DataFrame(records[name])
 
             return fetch

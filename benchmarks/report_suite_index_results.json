@@ -1,0 +1,1401 @@
+{
+  "resolution_stress": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "46d0eec3476a4ecc5506565f76f6919e4809b367290fff54ea45d6f7e4b1bbd1",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      },
+      "candidate": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      }
+    },
+    "fixtures": {
+      "suites": 5000,
+      "vrs_per_suite": 0,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "resolution-exact": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 0.3294692079653032,
+            "min_seconds": 0.3178999579977244,
+            "max_seconds": 0.33872870804043487,
+            "peak_python_bytes": 591814,
+            "process_peak_rss_bytes": 102957056,
+            "sdk_vrs_enumerations": 0,
+            "sdk_report_suite_enumerations": 0
+          },
+          "candidate": {
+            "median_seconds": 0.0041983750415965915,
+            "min_seconds": 0.0040098330355249345,
+            "max_seconds": 0.005382374976761639,
+            "peak_python_bytes": 2508814,
+            "process_peak_rss_bytes": 108249088,
+            "sdk_vrs_enumerations": 0,
+            "sdk_report_suite_enumerations": 0
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 0.327311415981967,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101597184,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.3178999579977244,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101548032,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.3231895409990102,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101859328,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.3296167500084266,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101056512,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.3294692079653032,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101761024,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.33872870804043487,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 102350848,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.33579833299154416,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101793792,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.33565041702240705,
+              "peak_bytes": 591814,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 102957056,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.004117082979064435,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 103743488,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0040098330355249345,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 103792640,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.004859792010392994,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 103383040,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0043612910085357726,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104333312,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.005382374976761639,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104038400,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0041983750415965915,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 105152512,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.004100457997992635,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104513536,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.02906820800853893,
+              "peak_bytes": 2508814,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 108249088,
+              "output_sha256": "4b363503f7483bf196172e7dd1bf3df43e47b7dc5cf71341936b78f28474b3af",
+              "allocation_run": true
+            }
+          ]
+        }
+      },
+      "resolution-name": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 2.303999957977794,
+            "min_seconds": 2.2507482079672627,
+            "max_seconds": 2.35112200002186,
+            "peak_python_bytes": 712026,
+            "process_peak_rss_bytes": 101711872,
+            "sdk_vrs_enumerations": 0,
+            "sdk_report_suite_enumerations": 0
+          },
+          "candidate": {
+            "median_seconds": 0.0059049580013379455,
+            "min_seconds": 0.0055958330049179494,
+            "max_seconds": 0.03364300000248477,
+            "peak_python_bytes": 2628965,
+            "process_peak_rss_bytes": 106315776,
+            "sdk_vrs_enumerations": 0,
+            "sdk_report_suite_enumerations": 0
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 2.3301640830468386,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 102465536,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.325789333030116,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 102105088,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.303999957977794,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 102039552,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.2507482079672627,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101548032,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.35112200002186,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101449728,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.273063957982231,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101990400,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 2.30030970799271,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101318656,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 19.015276791004,
+              "peak_bytes": 712026,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 101711872,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.0059049580013379455,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 103972864,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0055958330049179494,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 103120896,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.005677625013049692,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104497152,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.03364300000248477,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104382464,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0056845840299502015,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104349696,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.005923708027694374,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 103825408,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0061431670328602195,
+              "peak_bytes": null,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 104792064,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.05497883399948478,
+              "peak_bytes": 2628965,
+              "sdk_vrs_calls": 0,
+              "sdk_listing_calls": 0,
+              "process_peak_rss_bytes": 106315776,
+              "output_sha256": "f37fef61e372c53bf710453a9d0178bf77c29a25cfb2777e6826d65d19d6e43c",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.0365989159909077,
+      "candidate": 0.028745750023517758
+    }
+  },
+  "command_stress": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "46d0eec3476a4ecc5506565f76f6919e4809b367290fff54ea45d6f7e4b1bbd1",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      },
+      "candidate": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      }
+    },
+    "fixtures": {
+      "suites": 500,
+      "vrs_per_suite": 0,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "stats": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 1.0509482499910519,
+            "min_seconds": 1.0144433330278844,
+            "max_seconds": 1.0748994999448769,
+            "peak_python_bytes": 662941,
+            "process_peak_rss_bytes": 101498880,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 501
+          },
+          "candidate": {
+            "median_seconds": 1.0348283749772236,
+            "min_seconds": 0.9652612920035608,
+            "max_seconds": 1.1008242079988122,
+            "peak_python_bytes": 838346,
+            "process_peak_rss_bytes": 101924864,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 501
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 1.0144433330278844,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100220928,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.05061299999943,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100106240,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0420207499992102,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101580800,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0509482499910519,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100007936,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0748994999448769,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100925440,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.070039457990788,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101187584,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0541134999948554,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100335616,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 3.368956958001945,
+              "peak_bytes": 662941,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101498880,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 1.0175031669787131,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100630528,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0253725000075065,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100974592,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.1008242079988122,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101007360,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0687062089564279,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101302272,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0464994580252096,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101023744,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.9652612920035608,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101466112,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0348283749772236,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101597184,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": false
+            },
+            {
+              "seconds": 3.472914333047811,
+              "peak_bytes": 838346,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101924864,
+              "output_sha256": "1f28c469b8d3bc1c7f7c9fc543789ef7d6729cc5c48c55b7db2fb4207d2b8654",
+              "allocation_run": true
+            }
+          ]
+        }
+      },
+      "inventory": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 1.063984457985498,
+            "min_seconds": 1.0432240419904701,
+            "max_seconds": 1.1345301250112243,
+            "peak_python_bytes": 693154,
+            "process_peak_rss_bytes": 100745216,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 501
+          },
+          "candidate": {
+            "median_seconds": 1.0313963330117986,
+            "min_seconds": 0.9941614160197787,
+            "max_seconds": 1.1473681660136208,
+            "peak_python_bytes": 865799,
+            "process_peak_rss_bytes": 101515264,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 501
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 1.0635106670088135,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100581376,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0456542909960262,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101154816,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.1345301250112243,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100679680,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.1128168340073898,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101449728,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0975699159898795,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101400576,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0432240419904701,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100777984,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.063984457985498,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100941824,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 3.377063666994218,
+              "peak_bytes": 693154,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100745216,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 1.1473681660136208,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100859904,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0140087910112925,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100597760,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0814877919619903,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100974592,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0466306249727495,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100319232,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.9941614160197787,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101498880,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.0313963330117986,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 100171776,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 1.019206375000067,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101335040,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": false
+            },
+            {
+              "seconds": 3.3040734590031207,
+              "peak_bytes": 865799,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 501,
+              "process_peak_rss_bytes": 101515264,
+              "output_sha256": "4818a4b0073edb2bab4c753f1fa62e51afdc983b20973ee7257ff7659fec8754",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.04150549997575581,
+      "candidate": 0.03155112499371171
+    }
+  },
+  "single_suite": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "46d0eec3476a4ecc5506565f76f6919e4809b367290fff54ea45d6f7e4b1bbd1",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      },
+      "candidate": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      }
+    },
+    "fixtures": {
+      "suites": 1,
+      "vrs_per_suite": 0,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "stats": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 0.0031967920367605984,
+            "min_seconds": 0.0026422079536132514,
+            "max_seconds": 0.0039294169982895255,
+            "peak_python_bytes": 56862,
+            "process_peak_rss_bytes": 101040128,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 2
+          },
+          "candidate": {
+            "median_seconds": 0.0034047910012304783,
+            "min_seconds": 0.0028444159543141723,
+            "max_seconds": 0.004290540993679315,
+            "peak_python_bytes": 57617,
+            "process_peak_rss_bytes": 100368384,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 2
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 0.0036040000268258154,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 97042432,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0039294169982895255,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100057088,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0028073329594917595,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100548608,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003037625050637871,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100139008,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0031967920367605984,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100024320,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0026422079536132514,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99713024,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003585082944482565,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99631104,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.00906620902242139,
+              "peak_bytes": 56862,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 101040128,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.003182999964337796,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100139008,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0034047910012304783,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99598336,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0028444159543141723,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100745216,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003726291994098574,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100073472,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0038097919896245003,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100417536,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.004290540993679315,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99647488,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0029287920333445072,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99713024,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.007655708002857864,
+              "peak_bytes": 57617,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100368384,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.04333629203028977,
+      "candidate": 0.03812874999130145
+    }
+  },
+  "single_suite_repeat": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "46d0eec3476a4ecc5506565f76f6919e4809b367290fff54ea45d6f7e4b1bbd1",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      },
+      "candidate": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      }
+    },
+    "fixtures": {
+      "suites": 1,
+      "vrs_per_suite": 0,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "stats": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 0.0031818340066820383,
+            "min_seconds": 0.0029472080059349537,
+            "max_seconds": 0.0043984170188196,
+            "peak_python_bytes": 56910,
+            "process_peak_rss_bytes": 100466688,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 2
+          },
+          "candidate": {
+            "median_seconds": 0.003789000038523227,
+            "min_seconds": 0.0028989589773118496,
+            "max_seconds": 0.004059041966684163,
+            "peak_python_bytes": 57716,
+            "process_peak_rss_bytes": 99713024,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 2
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 0.0031818750430829823,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 98664448,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003117249987553805,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100286464,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0029472080059349537,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99860480,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0030238330364227295,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99581952,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003564207989256829,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99598336,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0031818340066820383,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99516416,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0043984170188196,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100335616,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.008209999999962747,
+              "peak_bytes": 56910,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100466688,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.003789000038523227,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99680256,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0038426670362241566,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100958208,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003441167005803436,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100761600,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.002954958996269852,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100630528,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.004059041966684163,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100188160,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.003962083021178842,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100024320,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.0028989589773118496,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 100040704,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.008696583041455597,
+              "peak_bytes": 57716,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 2,
+              "process_peak_rss_bytes": 99713024,
+              "output_sha256": "df940d37f4a2a8b7cb0c1c02e5b99ad5265c94bcdb46ca0af7d841aa6a38fc67",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.03164283302612603,
+      "candidate": 0.03347120899707079
+    }
+  },
+  "fifty_suite_control": {
+    "python": "3.14.0 (main, Oct 14 2025, 21:10:22) [Clang 20.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "dependencies": {
+      "aanalytics2": "0.5.5.post2",
+      "pandas": "3.0.6",
+      "numpy": "2.4.4",
+      "openpyxl": "3.1.5",
+      "xlsxwriter": "3.2.9"
+    },
+    "identities": {
+      "baseline": {
+        "source_sha256": "46d0eec3476a4ecc5506565f76f6919e4809b367290fff54ea45d6f7e4b1bbd1",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      },
+      "candidate": {
+        "source_sha256": "37b3e0ec43115a411ab21c3c52579ed645736f9de92c3c9c959e7753804619fa",
+        "lock_sha256": "3e0275f6d274eaf453c93d58e66de718d1263afa9b4c3fbed91a0b7181c568b7",
+        "git_sha": "822f0421b029ea1ec5381c5d79ee875b89912e4f"
+      }
+    },
+    "fixtures": {
+      "suites": 50,
+      "vrs_per_suite": 0,
+      "components": 1,
+      "depth": 20,
+      "snapshots": 10,
+      "workers": 8
+    },
+    "scope": "Offline performance arc comparisons, using one interpreter/dependency set.\n\nExample: uv run --no-sync python benchmarks/performance_arc.py --baseline-root /tmp/base\nWarm operations exclude imports, fixture construction and authentication. VRS\nstats/inventory include command credential/resolve orchestration with stub auth.\nResolution is a local preloaded-list operation, exports cover the real single\npipeline with a stub SDK, and trending reads real local snapshots.\nCold CLI startup is reported separately. No HTTP or live credentials are used.\n",
+    "rounds": 7,
+    "cases": {
+      "stats": {
+        "summary": {
+          "baseline": {
+            "median_seconds": 0.11018066701944917,
+            "min_seconds": 0.10446870798477903,
+            "max_seconds": 0.13294116698671132,
+            "peak_python_bytes": 103895,
+            "process_peak_rss_bytes": 100794368,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 51
+          },
+          "candidate": {
+            "median_seconds": 0.1158009169739671,
+            "min_seconds": 0.10465308395214379,
+            "max_seconds": 0.1296767079620622,
+            "peak_python_bytes": 123080,
+            "process_peak_rss_bytes": 99975168,
+            "sdk_vrs_enumerations": 1,
+            "sdk_report_suite_enumerations": 51
+          }
+        },
+        "samples": {
+          "baseline": [
+            {
+              "seconds": 0.11018066701944917,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 99811328,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.10446870798477903,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100368384,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.10728254198329523,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 99958784,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.13294116698671132,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100286464,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.1133504580357112,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 101007360,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.122201792022679,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 99762176,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.1071966250310652,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100892672,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.35616612498415634,
+              "peak_bytes": 103895,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100794368,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": true
+            }
+          ],
+          "candidate": [
+            {
+              "seconds": 0.1158009169739671,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100024320,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.11910287500359118,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100057088,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.10465308395214379,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100892672,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.12316137499874458,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100483072,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.1296767079620622,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 99614720,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.11099825002020225,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100007936,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.11029708298156038,
+              "peak_bytes": 0,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 100712448,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": false
+            },
+            {
+              "seconds": 0.35191062500234693,
+              "peak_bytes": 123080,
+              "sdk_vrs_calls": 1,
+              "sdk_listing_calls": 51,
+              "process_peak_rss_bytes": 99975168,
+              "output_sha256": "b50d5b12fe458c81926d01cb39df39abf30dabf14335d773b599967013fa5700",
+              "allocation_run": true
+            }
+          ]
+        }
+      }
+    },
+    "cold_cli_seconds": {
+      "baseline": 0.05786637496203184,
+      "candidate": 0.03903087496291846
+    }
+  }
+}
