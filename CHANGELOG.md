@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.21.24] — 2026-10-16
 
 ### Changed
 - Reuse the JSON file payload when saving a snapshot in the same run, avoiding
