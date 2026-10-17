@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import asdict
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -30,29 +30,14 @@ class ExcelWriter:
 
         import pandas as pd
 
-        sheets: dict[str, pd.DataFrame] = {
-            "Summary": pd.DataFrame(
-                [
-                    ("RSID", doc.report_suite.rsid),
-                    ("Name", doc.report_suite.name),
-                    ("Timezone", doc.report_suite.timezone or ""),
-                    ("Captured at", doc.captured_at.isoformat()),
-                    ("Tool version", doc.tool_version),
-                    ("Dimensions", len(doc.dimensions)),
-                    ("Metrics", len(doc.metrics)),
-                    ("Segments", len(doc.segments)),
-                    ("Calculated Metrics", len(doc.calculated_metrics)),
-                    ("Virtual Report Suites", len(doc.virtual_report_suites)),
-                    ("Classifications", len(doc.classifications)),
-                ],
-                columns=["Field", "Value"],
-            ),
-            "Dimensions": _component_df([asdict(d) for d in doc.dimensions]),
-            "Metrics": _component_df([asdict(m) for m in doc.metrics]),
-            "Segments": _component_df([asdict(s) for s in doc.segments]),
-            "Calculated Metrics": _component_df([asdict(c) for c in doc.calculated_metrics]),
-            "Virtual Report Suites": _component_df([asdict(v) for v in doc.virtual_report_suites]),
-            "Classifications": _component_df([asdict(c) for c in doc.classifications]),
+        sheets = {
+            "Summary": None,
+            "Dimensions": doc.dimensions,
+            "Metrics": doc.metrics,
+            "Segments": doc.segments,
+            "Calculated Metrics": doc.calculated_metrics,
+            "Virtual Report Suites": doc.virtual_report_suites,
+            "Classifications": doc.classifications,
         }
 
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -63,7 +48,26 @@ class ExcelWriter:
 
         def serialize(staged: Path) -> None:
             with pd.ExcelWriter(staged, engine="xlsxwriter", engine_kwargs=engine_kwargs) as xl:
-                for name, df in sheets.items():
+                for name, items in sheets.items():
+                    if items is None:
+                        df = pd.DataFrame(
+                            [
+                                ("RSID", doc.report_suite.rsid),
+                                ("Name", doc.report_suite.name),
+                                ("Timezone", doc.report_suite.timezone or ""),
+                                ("Captured at", doc.captured_at.isoformat()),
+                                ("Tool version", doc.tool_version),
+                                ("Dimensions", len(doc.dimensions)),
+                                ("Metrics", len(doc.metrics)),
+                                ("Segments", len(doc.segments)),
+                                ("Calculated Metrics", len(doc.calculated_metrics)),
+                                ("Virtual Report Suites", len(doc.virtual_report_suites)),
+                                ("Classifications", len(doc.classifications)),
+                            ],
+                            columns=["Field", "Value"],
+                        )
+                    else:
+                        df = _component_df(items)
                     df.to_excel(xl, sheet_name=name, index=False)
                     ws = xl.sheets[name]
                     ws.freeze_panes(1, 0)
@@ -76,6 +80,7 @@ class ExcelWriter:
                         longest = max((len(v) if isinstance(v, str) else len(str(v)) for v in df[col]), default=0)
                         width = max(len(str(col)), longest or 10)
                         ws.set_column(col_idx, col_idx, min(width + 2, 60))
+                    del df
 
         atomic_write_path(target, serialize)
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -94,13 +99,13 @@ class ExcelWriter:
         return [target]
 
 
-def _component_df(rows: list[dict[str, Any]]):
+def _component_df(items: list[Any]):
     """Build a DataFrame for one component sheet, stringifying nested values."""
     import pandas as pd
 
-    if not rows:
+    if not items:
         return pd.DataFrame()
-    flat = [{k: stringify_cell(v) for k, v in r.items()} for r in rows]
+    flat = [{field.name: stringify_cell(getattr(item, field.name)) for field in fields(item)} for item in items]
     return pd.DataFrame(flat)
 
 

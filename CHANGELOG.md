@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file. Format foll
 ## [Unreleased]
 
 ### Changed
+- Reduce Excel export allocation by reading component fields without nested
+  copies and materializing one sheet at a time, preserving workbook output.
 - Index shared virtual report suites by parent once per invocation, reducing
   repeated filtering while preserving diagnostics and per-consumer row isolation.
 - Index preloaded report suites once per batch, stats, or inventory invocation

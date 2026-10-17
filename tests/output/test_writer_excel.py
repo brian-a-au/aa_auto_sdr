@@ -146,3 +146,74 @@ def test_excel_column_widths_fit_content_capped_at_60(tmp_path: Path) -> None:
     assert 7 <= ws.column_dimensions[id_col].width < 8
     # description: 100-char cell exceeds the cap -> 60
     assert 60 <= ws.column_dimensions[desc_col].width < 61
+
+
+def test_excel_nested_values_and_layout_preserve_document(doc, tmp_path: Path) -> None:
+    from copy import deepcopy
+    from dataclasses import fields, replace
+
+    from aa_auto_sdr.output._helpers import stringify_cell
+
+    segment = replace(
+        doc.segments[0],
+        name='=HYPERLINK("https://example.test", "雪")',
+        description="雪" * 1000,
+        definition={"container": {"predicates": [{"value": "café", "enabled": True}]}},
+        tags=["雪", "café"],
+        extra={"url": "https://example.test", "nested": [None, {"x": 1}]},
+    )
+    doc = replace(doc, segments=[segment], metrics=[])
+    before = deepcopy(doc)
+    target = tmp_path / "nested.xlsx"
+    ExcelWriter().write(doc, target)
+    assert doc == before
+    with target.open("rb") as stream:
+        wb = load_workbook(stream)
+    assert wb.sheetnames == [
+        "Summary",
+        "Dimensions",
+        "Metrics",
+        "Segments",
+        "Calculated Metrics",
+        "Virtual Report Suites",
+        "Classifications",
+    ]
+    ws = wb["Segments"]
+    headers = [f.name for f in fields(segment)]
+    assert [cell.value for cell in ws[1]] == headers
+    expected = [stringify_cell(getattr(segment, name)) or None for name in headers]
+    assert [cell.value for cell in ws[2]] == expected
+    assert all(cell.data_type != "f" and cell.hyperlink is None for cell in ws[2])
+    assert len({cell.style_id for cell in ws[1]}) == 1
+    assert ws.freeze_panes == "A2"
+    assert ws.auto_filter.ref == "A1:K2"
+    assert wb["Metrics"].max_row == 1
+    assert wb["Metrics"]["A1"].value is None
+    assert wb["Metrics"].auto_filter.ref is None
+    assert wb["Metrics"].freeze_panes == "A2"
+    summary = {row[0].value: row[1] for row in wb["Summary"].iter_rows(min_row=2)}
+    assert summary["Segments"].value == 1
+    assert summary["Segments"].data_type == "n"
+    assert summary["Metrics"].value == 0
+    wb.close()
+
+
+def test_excel_serialization_failure_preserves_existing_workbook(doc, tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "sdr.xlsx"
+    ExcelWriter().write(doc, target)
+    original_bytes = target.read_bytes()
+    original_to_excel = pd.DataFrame.to_excel
+
+    def fail_later_sheet(frame, writer, *, sheet_name, **kwargs):
+        if sheet_name == "Segments":
+            raise OSError("sheet write failed")
+        return original_to_excel(frame, writer, sheet_name=sheet_name, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "to_excel", fail_later_sheet)
+    with pytest.raises(OSError, match="sheet write failed"):
+        ExcelWriter().write(doc, target)
+    assert target.read_bytes() == original_bytes
+    wb = load_workbook(target)
+    assert wb["Summary"]["A1"].value == "Field"
+    wb.close()
+    assert list(tmp_path.iterdir()) == [target]
