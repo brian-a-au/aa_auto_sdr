@@ -56,39 +56,19 @@ def run(
 
         colors.set_theme(color_theme)
         fmt = format_name or "console"
-        if fmt not in _VALID_FORMATS:
-            print(
-                f"error: format '{fmt}' is not available for --diff (use console|json|markdown|pr-comment)",
-                file=sys.stderr,
-                flush=True,
-            )
+        if not validate_output_format(fmt, output):
             exit_code = ExitCode.OUTPUT.value
             return exit_code
-        if fmt == "console" and output == "-":
-            print(
-                "error: --format console cannot pipe to stdout (use --format json|markdown for pipes)",
-                file=sys.stderr,
-                flush=True,
-            )
-            exit_code = ExitCode.OUTPUT.value
-            return exit_code
-
-        if reverse:
-            a, b = b, a
-
-        profile_snapshot_dir = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
-        repo_root = Path.cwd()
 
         try:
-            env_a = resolve_snapshot(
-                a,
-                profile_snapshot_dir=profile_snapshot_dir,
-                repo_root=repo_root,
-            )
-            env_b = resolve_snapshot(
-                b,
-                profile_snapshot_dir=profile_snapshot_dir,
-                repo_root=repo_root,
+            full_report = compute_report(
+                a=a,
+                b=b,
+                profile=profile,
+                snapshot_dir=snapshot_dir,
+                reverse=reverse,
+                ignore_fields=ignore_fields,
+                extended_fields=extended_fields,
             )
         except SnapshotError as exc:
             # `output is None` also renders to stdout (see the write below), so
@@ -104,59 +84,25 @@ def run(
             exit_code = ExitCode.SNAPSHOT.value
             return exit_code
 
-        full_report = compare(env_a, env_b, ignore_fields=ignore_fields, extended_fields=extended_fields)
-        # Compute warn-threshold against the FULL (unfiltered) report — per spec section 2.4.
-        total_changes = sum(
-            len(c.added) + len(c.removed) + len(c.modified) for c in full_report.components if not c.suppressed
-        )
-
-        # Apply presentational filters before render. The filters are pure copies;
-        # full_report stays intact for warn-threshold and step-summary computation.
-        report = filter_for_render(
+        rendered = render_report(
             full_report,
+            fmt=fmt,
+            side_by_side=side_by_side,
+            summary=summary,
+            quiet=quiet,
+            labels=labels,
             changes_only=changes_only,
             show_only=show_only,
             max_issues=max_issues,
         )
-
-        if fmt == "console":
-            rendered = render_console(
-                report,
-                side_by_side=side_by_side,
-                summary=summary,
-                quiet=quiet,
-                labels=labels,
-            )
-        elif fmt == "json":
-            rendered = render_json(report, summary=summary, labels=labels)
-        elif fmt == "markdown":
-            rendered = render_markdown(
-                report,
-                side_by_side=side_by_side,
-                summary=summary,
-                quiet=quiet,
-                labels=labels,
-            )
-        else:  # pr-comment
-            rendered = render_pr_comment(report, summary=summary, labels=labels)
-
-        if output is None or output == "-":
-            sys.stdout.write(rendered)
-            if not rendered.endswith("\n"):
-                sys.stdout.write("\n")
-            sys.stdout.flush()
-        else:
-            target = Path(output)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_text(target, rendered)
-            print(f"wrote: {target}", flush=True)
+        write_output(rendered, output)
 
         # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view
         # using the FULL report (no presentational filters) so CI surfaces are
         # never misleadingly trimmed.
         _maybe_append_step_summary(full_report, labels=labels)
 
-        if warn_threshold is not None and total_changes >= warn_threshold:
+        if report_exit_code(full_report, warn_threshold) == ExitCode.WARN.value:
             exit_code = ExitCode.WARN.value
             return exit_code
         exit_code = ExitCode.OK.value
@@ -191,3 +137,84 @@ def _maybe_append_step_summary(
     except OSError:
         # Don't fail the diff if step-summary write fails; CI surface is best-effort.
         pass
+
+
+def compute_report(
+    *,
+    a: str,
+    b: str,
+    profile: str | None,
+    snapshot_dir: Path | None,
+    reverse: bool,
+    ignore_fields: frozenset[str],
+    extended_fields: bool,
+) -> DiffReport:
+    """Resolve and compare without presentation or output side effects."""
+    if reverse:
+        a, b = b, a
+    directory = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
+    repo_root = Path.cwd()
+    env_a = resolve_snapshot(a, profile_snapshot_dir=directory, repo_root=repo_root)
+    env_b = resolve_snapshot(b, profile_snapshot_dir=directory, repo_root=repo_root)
+    return compare(env_a, env_b, ignore_fields=ignore_fields, extended_fields=extended_fields)
+
+
+def report_exit_code(report: DiffReport, warn_threshold: int | None) -> int:
+    """Evaluate the threshold against the full, unsuppressed comparison."""
+    total = sum(len(c.added) + len(c.removed) + len(c.modified) for c in report.components if not c.suppressed)
+    return ExitCode.WARN.value if warn_threshold is not None and total >= warn_threshold else ExitCode.OK.value
+
+
+def render_report(
+    full_report: DiffReport,
+    *,
+    fmt: str,
+    side_by_side: bool = False,
+    summary: bool = False,
+    quiet: bool = False,
+    labels: tuple[str, str] | None = None,
+    changes_only: bool = False,
+    show_only: frozenset[str] = frozenset(),
+    max_issues: int | None = None,
+) -> str:
+    """Apply presentation flags to a copy, preserving the complete report."""
+    report = filter_for_render(full_report, changes_only=changes_only, show_only=show_only, max_issues=max_issues)
+    if fmt == "json":
+        return render_json(report, summary=summary, labels=labels)
+    if fmt == "pr-comment":
+        return render_pr_comment(report, summary=summary, labels=labels)
+    renderer = render_console if fmt == "console" else render_markdown
+    return renderer(report, side_by_side=side_by_side, summary=summary, quiet=quiet, labels=labels)
+
+
+def write_output(rendered: str, output: str | None) -> None:
+    """Emit one complete result, replacing file destinations atomically."""
+    if output is None or output == "-":
+        sys.stdout.write(rendered)
+        if not rendered.endswith("\n"):
+            sys.stdout.write("\n")
+        sys.stdout.flush()
+    else:
+        target = Path(output)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(target, rendered)
+        print(f"wrote: {target}", flush=True)
+
+
+def validate_output_format(fmt: str, output: str | None) -> bool:
+    if fmt not in _VALID_FORMATS:
+        print(
+            f"error: format '{fmt}' is not available for --diff (use console|json|markdown|pr-comment)",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+    if fmt == "console" and output == "-":
+        print(
+            "error: --format console cannot pipe to stdout (use --format json|markdown for pipes)",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+
+    return True
