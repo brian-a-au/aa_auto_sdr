@@ -65,7 +65,7 @@ def test_dataframe_and_raw_paths_agree_on_missing_cells():
     """Characterization: format='raw' avoids NaN fill for ragged rows, and the
     coercion helpers now also treat float-NaN like an absent key — so both
     paths resolve a missing cell to None. Guards the helpers' NaN handling for
-    the fetchers that have no raw option (dimensions / metrics / VRS)."""
+    DataFrame compatibility and the VRS fetcher."""
     import pandas as pd
 
     from aa_auto_sdr.api.fetch import _records, _str_or_none

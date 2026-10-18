@@ -124,3 +124,18 @@ def test_extended_with_user_ignore_fields_user_wins() -> None:
     )
     dim_diff = next(c for c in report.components if c.component_type == "dimensions")
     assert dim_diff.modified == []
+
+
+def test_newly_visible_raw_metadata_only_changes_extended_diff() -> None:
+    a = _envelope(dimensions=[_dim("evar1", "Foo")])
+    b = _envelope(dimensions=[_dim("evar1", "Foo", tags=["team"], extra={"standardComponent": False})])
+    a["components"]["metrics"] = [{"id": "event1", "data_group": None}]
+    b["components"]["metrics"] = [{"id": "event1", "data_group": "Commerce"}]
+    assert all(not component.modified for component in compare(a, b).components)
+    extended = compare(a, b, extended_fields=True)
+    deltas = {
+        component.component_type: {delta.field for item in component.modified for delta in item.deltas}
+        for component in extended.components
+    }
+    assert deltas["dimensions"] == {"tags", "extra"}
+    assert deltas["metrics"] == {"data_group"}

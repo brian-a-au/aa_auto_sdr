@@ -1,11 +1,8 @@
-"""NaN guards on the DataFrame-bound fetchers (dimensions / metrics / VRS).
+"""NaN guards for DataFrame compatibility and VRS normalization.
 
-v1.21.4 moved segments and calculated metrics to format="raw", eliminating
-the NaN pollution that pandas introduces for ragged rows (absent cells become
-float-NaN, which str() renders as the literal "nan" and bool() as True).
-getDimensions / getMetrics / getVirtualReportSuites have no raw option in the
-SDK — the DataFrame round trip is forced — so the coercion helpers must treat
-float-NaN exactly like an absent key.
+Dimensions and metrics now request raw SDK responses, but their boundary still
+accepts DataFrames. VRS also uses DataFrames, where ragged rows introduce NaN;
+coercion helpers must treat float-NaN exactly like an absent key.
 """
 
 from __future__ import annotations

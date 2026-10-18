@@ -61,6 +61,7 @@ def test_fetch_dimensions_passes_richer_info_flags(mock_client: AaClient) -> Non
     assert kwargs.get("rsid") == "demo.prod"
     assert kwargs.get("description") is True
     assert kwargs.get("tags") is True
+    assert kwargs.get("format") == "raw"
 
 
 def test_fetch_metrics_returns_list_with_full_fields(mock_client: AaClient) -> None:
@@ -78,9 +79,9 @@ def test_fetch_metrics_passes_richer_info_flags(mock_client: AaClient) -> None:
     assert kwargs.get("rsid") == "demo.prod"
     assert kwargs.get("description") is True
     assert kwargs.get("tags") is True
-    # dataGroup=True intentionally NOT passed — the aanalytics2 wrapper crashes
-    # with KeyError when the API doesn't return that column for the given RS.
-    # See note in fetch_metrics() and CHANGELOG v0.1.1.
+    assert kwargs.get("format") == "raw"
+    # dataGroup only controls SDK DataFrame column selection, not API expansion.
+    # Raw responses retain the field when supplied without requiring that flag.
     assert "dataGroup" not in kwargs
 
 

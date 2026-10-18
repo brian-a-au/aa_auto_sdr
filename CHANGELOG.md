@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file. Format foll
 ## [Unreleased]
 
 ### Fixed
+- Preserve dimension and metric tags and raw metadata that the SDK's default
+  DataFrame selection omitted. Metric `data_group` is retained when supplied;
+  `standardComponent` and unmodeled metadata stay in `extra` (absent means
+  unknown). Requires aanalytics2 >=0.5.4. Malformed raw component responses
+  now produce contextual API errors rather than empty inventories.
+- Existing snapshots remain compatible with no schema change. The first new
+  capture can show newly visible tags, data groups, and `extra` metadata under
+  `--extended-fields`; default diff suppression is unchanged.
 - Aggregate multi-suite `--compare-with-prev` output into one complete document,
   preserving every suite and error in stdout and file output. JSON uses the
   `aa-compare-with-prev/v1` envelope; single-suite output remains unchanged.
