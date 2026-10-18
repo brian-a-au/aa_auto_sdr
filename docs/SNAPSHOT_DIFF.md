@@ -356,6 +356,40 @@ aa_auto_sdr --compare-with-prev <RSID> --profile prod
 
 `--compare-with-prev` is shorthand for `--diff <RSID>@previous <RSID>@latest --profile <name>`. It's the typical "what changed since last capture" form, so prefer it to the long form unless you need a non-default base.
 
+### Multiple previous comparisons
+
+With two or more positional RSIDs, `--compare-with-prev` emits one combined
+result in input order and writes a file destination once, atomically. Console,
+Markdown, and PR-comment output include a section for every suite with its
+`exit_code`, including snapshot errors. One-RSID output retains the ordinary
+diff format.
+
+JSON uses this envelope (each result contains exactly one of `report` or `error`):
+
+```json
+{
+  "schema": "aa-compare-with-prev/v1",
+  "results": [
+    {"rsid": "rs1", "exit_code": 0, "report": {"a_rsid": "rs1"}},
+    {"rsid": "missing", "exit_code": 16,
+     "error": {"error_type": "SnapshotResolveError", "error": "Snapshot not found"}}
+  ],
+  "exit_code": 16
+}
+```
+
+The abbreviated `report` above is the existing JSON diff report, with the same
+presentation flags applied. `error_type` is the exception class name and `error`
+is its message. Snapshot failures also retain the usual stderr diagnostics;
+JSON and Markdown stdout destinations use the existing stderr JSON error envelope.
+
+The result and command exit codes are the maximum per-suite code: warning `3`
+remains lower than snapshot failure `16`; mixed results do not introduce a
+partial-success code. Warning thresholds and GitHub step summaries use full
+unfiltered reports. A failure to write the combined output raises `OutputError`
+(exit `15`), even when a suite failed with `16`, because the requested artifact
+was not emitted. Failed atomic replacement preserves an existing destination.
+
 ## Trending: rollup across a window of snapshots
 
 ```bash
