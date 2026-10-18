@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- Report local output-directory, writer, and quality-report filesystem failures
+  as output errors, so batches continue with other report suites and retain
+  per-suite failure accounting. Fail-fast cancellation and earlier successfully
+  written artifacts keep their existing behavior.
+
 ## [1.21.24] — 2026-10-16
 
 ### Changed
