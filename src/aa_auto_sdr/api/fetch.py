@@ -1,17 +1,10 @@
 """Per-component fetchers. Calls into the aanalytics2 SDK and normalizes
 results into our SDK-agnostic dataclasses (api/models.py).
 
-Two non-obvious facts (validated by the spike at
-docs/superpowers/spikes/2026-04-25-aanalytics2-shape-spike.md):
-
-1. The SDK returns pandas DataFrames, not lists of dicts. We coerce at the
-   boundary via `.to_dict(orient='records')`.
-
-2. Default columns are sparse. We pass richer-info flags so we get all the
-   fields the SDR cares about:
-     - dimensions: description=True, tags=True
-     - metrics:    description=True, tags=True, dataGroup=True
-     - segments / calc metrics / VRS: extended_info=True (carries `definition`)
+Dimensions and metrics use supported raw SDK responses (aanalytics2 >=0.5.4)
+to preserve tags and metadata omitted by the default DataFrame column selection.
+Other DataFrame responses are normalized at the boundary. Segments, calculated
+metrics, and VRS request extended information for their definitions.
 
 Classifications are fetched via getClassificationDatasets(rsid) — the only
 API 2.0 list endpoint. The wrapper has no per-dimension classifications
@@ -44,6 +37,7 @@ from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
     ApiError,
     ReportSuiteNotFoundError,
+    TransientApiError,
     VrsEndpointShapeError,
 )
 
@@ -116,11 +110,33 @@ def _records(value: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _component_records(value: Any, *, rsid: str, component_type: str) -> list[dict[str, Any]]:
+    """Validate the raw dimension/metric list before treating it as inventory.
+
+    Keep DataFrame compatibility at the existing boundary, but never interpret
+    error mappings, missing IDs, or unexpected response shapes as empty success.
+    """
+    # Connector discards HTTP status. Before raw mode these known error stubs
+    # raised pandas ValueError and were retried. Preserve that ambiguity/budget,
+    # without treating arbitrary malformed lists or mappings as transient.
+    if isinstance(value, dict) and "id" not in value:
+        error = value.get("error")
+        if (isinstance(error, str) and error.strip()) or value.get("error_code") == "429050":
+            raise TransientApiError(f"{component_type} fetch failed for {rsid}: transient SDK error stub")
+    if isinstance(value, pd.DataFrame):
+        value = value.to_dict(orient="records")
+    if not isinstance(value, list):
+        raise ApiError(f"{component_type} fetch failed for {rsid}: expected a list of component records")
+    for index, row in enumerate(value):
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"].strip():
+            raise ApiError(f"{component_type} fetch failed for {rsid}: row {index} requires a nonempty string id")
+    return value
+
+
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     """dict.get that treats pandas float-NaN like an absent key.
 
-    The DataFrame-bound fetchers (dimensions / metrics / VRS / report-suite
-    listing — no format="raw" in the SDK) receive NaN for cells absent from
+    The DataFrame-bound fetchers (VRS / report-suite listing) receive NaN for cells absent from
     ragged rows; str(NaN) is the literal "nan" and bool(NaN) is True, so NaN
     must resolve to `default` before any coercion. NaN is the only float that
     is != itself."""
@@ -378,13 +394,15 @@ def resolve_rsid(
 
 def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     started = time.monotonic()
-    raws = _records(
-        _retry_and_normalize(
-            lambda: client.handle.getDimensions(rsid=rsid, description=True, tags=True),
-            policy=client.retry_policy,
+    raws = _retry_and_normalize(
+        lambda: _component_records(
+            client.handle.getDimensions(rsid=rsid, description=True, tags=True, format="raw"),
             rsid=rsid,
             component_type="dimension",
-        )
+        ),
+        policy=client.retry_policy,
+        rsid=rsid,
+        component_type="dimension",
     )
     known = {"id", "name", "type", "category", "parent", "pathable", "description", "tags"}
     out = [
@@ -418,20 +436,16 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
 
 
 def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
-    # NOTE: `dataGroup=True` removed in v0.1.1. The aanalytics2 wrapper internally
-    # slices the response DataFrame to a hardcoded column list that includes
-    # `dataGroup` — but the API doesn't always return that column for every RS,
-    # which raises `KeyError: "['dataGroup'] not in index"`. Until upstream fixes
-    # the slice or we figure out which RS shapes are safe, we skip the flag and
-    # leave `data_group` as None on the Metric model.
     started = time.monotonic()
-    raws = _records(
-        _retry_and_normalize(
-            lambda: client.handle.getMetrics(rsid=rsid, description=True, tags=True),
-            policy=client.retry_policy,
+    raws = _retry_and_normalize(
+        lambda: _component_records(
+            client.handle.getMetrics(rsid=rsid, description=True, tags=True, format="raw"),
             rsid=rsid,
             component_type="metric",
-        )
+        ),
+        policy=client.retry_policy,
+        rsid=rsid,
+        component_type="metric",
     )
     known = {
         "id",

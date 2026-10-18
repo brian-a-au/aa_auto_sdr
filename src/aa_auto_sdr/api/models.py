@@ -28,8 +28,9 @@ class Dimension:
     """A dimension (eVar, prop, event, etc.).
 
     Real API 2.0 columns: category, id, name, parent, pathable, type.
-    `description` and `tags` only populated when the fetcher passes
-    `description=True, tags=True`."""
+    Raw SDK responses retain descriptions and tags (requested with `tags=True`).
+    Other metadata, including
+    `standardComponent` when supplied, remains in `extra`."""
 
     id: str
     name: str
@@ -47,7 +48,8 @@ class Metric:
     """A metric (numeric counter or rate).
 
     Real API 2.0 columns: category, id, name, precision, segmentable, type.
-    `description`, `tags`, `data_group` only populated with the matching flags."""
+    Raw SDK responses preserve `description`, `tags`, and `data_group` when
+    supplied; other metadata remains in `extra`."""
 
     id: str
     name: str
