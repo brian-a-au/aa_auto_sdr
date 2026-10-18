@@ -289,6 +289,12 @@ aa_auto_sdr rs1 rs2 rs3 --trending-window 30d --format json --profile prod
 aa_auto_sdr <RSID> --compare-with-prev --profile prod
 ```
 
+For two or more RSIDs, `--compare-with-prev` emits one aggregate result, in input
+order, including each suite's outcome and snapshot errors. JSON uses
+`aa-compare-with-prev/v1`; see [the envelope contract](SNAPSHOT_DIFF.md#multiple-previous-comparisons).
+The final exit code is the maximum per-suite code; a combined output write
+failure instead returns output error `15`. Single-RSID output is unchanged.
+
 ## Watch and scheduled
 
 ```bash

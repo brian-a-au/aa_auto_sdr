@@ -246,7 +246,7 @@ exclusive with the rest of the actions group.
 | Flag | Effect |
 |------|--------|
 | `--trending-window <DURATION>` | Per-RSID time-series of component lifecycle counts plus a derived drift summary. Duration grammar `Nh|Nd|Nw` (e.g. `30d`, `12h`, `4w`). Multi-RSID supported via positionals. |
-| `--compare-with-prev` | Sugar over `--diff <RSID>@previous <RSID>@latest`. Multi-RSID loops; worst exit code wins. Reuses the diff resolver, output formats, and flag set. |
+| `--compare-with-prev` | Sugar over `--diff <RSID>@previous <RSID>@latest`. Multi-RSID emits one combined result; maximum per-suite exit code wins. JSON schema `aa-compare-with-prev/v1` has ordered `results` and top-level `exit_code`; each result contains `rsid`, `exit_code`, and either `report` or `error` (`error_type`, `error`). Reuses diff flags. |
 | `--snapshot-dir <PATH>` | Override the active snapshot directory used by capture, diff, list/prune, compare-with-prev, trending, and watch actions. |
 
 Examples:

@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file. Format foll
 - Existing snapshots remain compatible with no schema change. The first new
   capture can show newly visible tags, data groups, and `extra` metadata under
   `--extended-fields`; default diff suppression is unchanged.
+- Aggregate multi-suite `--compare-with-prev` output into one complete document,
+  preserving every suite and error in stdout and file output. JSON uses the
+  `aa-compare-with-prev/v1` envelope; single-suite output remains unchanged.
 - Report local output-directory, writer, and quality-report filesystem failures
   as output errors, so batches continue with other report suites and retain
   per-suite failure accounting. Fail-fast cancellation and earlier successfully
