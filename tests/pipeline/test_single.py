@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.pipeline.models import RunResult
 
@@ -97,7 +98,7 @@ def test_run_single_keeps_prior_success_when_later_format_fails(
 
     monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_markdown_replace)
 
-    with pytest.raises(PermissionError, match="markdown destination locked"):
+    with pytest.raises(OutputError, match="markdown destination locked") as error:
         single.run_single(
             client=mock_client,
             rsid="demo.prod",
@@ -107,6 +108,9 @@ def test_run_single_keeps_prior_success_when_later_format_fails(
             tool_version="1.21.12",
         )
 
+    assert "demo.prod" in str(error.value)
+    assert str(markdown_target) in str(error.value)
+    assert isinstance(error.value.__cause__, PermissionError)
     assert json.loads(json_target.read_text())["tool_version"] == "1.21.12"
     assert markdown_target.read_bytes() == b"old markdown"
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
@@ -263,3 +267,103 @@ def test_parallel_payloads_are_run_local(mock_client, tmp_path, monkeypatch):
     for result in results:
         assert json.loads(result.outputs[0].read_text())["report_suite"]["rsid"] == result.rsid
         assert json.loads(result.outputs[1].read_text())["rsid"] == result.rsid
+
+
+def test_output_directory_failure_is_contextual(mock_client, tmp_path):
+    output_dir = tmp_path / "not-a-directory"
+    output_dir.write_text("existing file")
+
+    with pytest.raises(OutputError) as error:
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["json"],
+            output_dir=output_dir,
+            captured_at=datetime(2026, 10, 17, tzinfo=UTC),
+            tool_version="test",
+        )
+
+    assert "demo.prod" in str(error.value)
+    assert str(output_dir) in str(error.value)
+    assert isinstance(error.value.__cause__, OSError)
+    assert output_dir.read_text() == "existing file"
+
+
+def test_retained_json_write_failure_is_contextual(mock_client, tmp_path, monkeypatch):
+    target = tmp_path / "demo.prod.json"
+    target.write_text("previous capture")
+    snapshot_dir = tmp_path / "snapshots"
+
+    def fail_replace(source, destination):
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+    with pytest.raises(OutputError, match="destination locked") as error:
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["json"],
+            output_dir=tmp_path,
+            snapshot_dir=snapshot_dir,
+            captured_at=datetime(2026, 10, 17, tzinfo=UTC),
+            tool_version="test",
+        )
+
+    assert "json" in str(error.value)
+    assert str(target) in str(error.value)
+    assert isinstance(error.value.__cause__, PermissionError)
+    assert target.read_text() == "previous capture"
+    assert not snapshot_dir.exists()
+    assert not list(tmp_path.glob(".*"))
+
+
+@pytest.mark.parametrize("quality_format", ["json", "csv"])
+def test_quality_report_failure_keeps_sdr_output(mock_client, tmp_path, monkeypatch, quality_format):
+    target = tmp_path / f"quality_report_demo.prod_20261017T000000.{quality_format}"
+    target.write_text("previous quality report")
+    real_replace = os.replace
+
+    def fail_quality_replace(source, destination):
+        if destination == target:
+            raise PermissionError("quality destination locked")
+        real_replace(source, destination)
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_quality_replace)
+    with pytest.raises(OutputError, match="quality destination locked") as error:
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["json"],
+            output_dir=tmp_path,
+            captured_at=datetime(2026, 10, 17, tzinfo=UTC),
+            tool_version="test",
+            audit_naming=True,
+            quality_report=quality_format,
+        )
+
+    assert "demo.prod" in str(error.value)
+    assert str(target) in str(error.value)
+    assert isinstance(error.value.__cause__, PermissionError)
+    assert target.read_text() == "previous quality report"
+    assert json.loads((tmp_path / "demo.prod.json").read_text())["tool_version"] == "test"
+    assert not list(tmp_path.glob(".*"))
+
+
+@pytest.mark.parametrize("exception", [RuntimeError("writer bug"), OutputError("already classified")])
+def test_non_os_writer_errors_pass_through(mock_client, tmp_path, monkeypatch, exception):
+    from aa_auto_sdr.output.writers.json import JsonWriter
+
+    def fail_write(self, doc, output_path):
+        raise exception
+
+    monkeypatch.setattr(JsonWriter, "write", fail_write)
+    with pytest.raises(type(exception)) as error:
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["json"],
+            output_dir=tmp_path,
+            captured_at=datetime(2026, 10, 17, tzinfo=UTC),
+            tool_version="test",
+        )
+    assert error.value is exception

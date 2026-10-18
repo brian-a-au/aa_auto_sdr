@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core import timings
+from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.output.notion_client_guard import resolve_notion_company
 from aa_auto_sdr.pipeline.models import RunResult
@@ -94,21 +95,27 @@ def run_single(
             cache=cache,
             vrs_source=vrs_source,
         )
-    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise OutputError(f"output directory creation failed for rsid={rsid} at {output_dir}: {exc}") from exc
     paths: list[Path] = []
     snapshot_payload = None
     for fmt in formats:
         writer = registry.get_writer(fmt)
         target = output_dir / f"{rsid}{writer.extension}"
         with timings.Timer(f"write:{fmt}:{rsid}"):
-            if fmt == "json" and snapshot_dir is not None:
-                from aa_auto_sdr.output.writers.json import JsonWriter
+            try:
+                if fmt == "json" and snapshot_dir is not None:
+                    from aa_auto_sdr.output.writers.json import JsonWriter
 
-                if type(writer) is JsonWriter:
-                    written, snapshot_payload = writer._write_and_retain_payload(doc, target)
-                    paths.extend(written)
-                    continue
-            paths.extend(writer.write(doc, target))
+                    if type(writer) is JsonWriter:
+                        written, snapshot_payload = writer._write_and_retain_payload(doc, target)
+                        paths.extend(written)
+                        continue
+                paths.extend(writer.write(doc, target))
+            except OSError as exc:
+                raise OutputError(f"output write failed for rsid={rsid} format={fmt} at {target}: {exc}") from exc
     if snapshot_dir is not None:
         from aa_auto_sdr.snapshot.store import save_snapshot
 
@@ -143,7 +150,12 @@ def run_single(
             issues = [_rehydrate_issue(d) for d in issues_raw]
             summary = doc.quality.get("summary", {})
             with timings.Timer(f"quality_report:{rsid}"):
-                write_quality_report(issues=issues, summary=summary, target=target, fmt=quality_report)
+                try:
+                    write_quality_report(issues=issues, summary=summary, target=target, fmt=quality_report)
+                except OSError as exc:
+                    raise OutputError(
+                        f"quality report write failed for rsid={rsid} format={quality_report} at {target}: {exc}"
+                    ) from exc
             paths.append(target)
             quality_report_path = target
         verdict = doc.quality.get("summary", {}).get("verdict", "")

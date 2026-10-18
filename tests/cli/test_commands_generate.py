@@ -613,3 +613,21 @@ class TestAutoSnapshot:
         assert rc == 0
         snap_dir = tmp_path / ".aa" / "orgs" / "prod" / "snapshots" / "demo.prod"
         assert len(list(snap_dir.glob("*.json"))) == 1
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_filesystem_failure_returns_output_error(mock_client_cls, env_creds, tmp_path, monkeypatch, capsys):
+    handle = _build_handle(json.loads(FIXTURE.read_text()))
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    def fail_replace(source, destination):
+        raise PermissionError("destination locked")
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="excel", profile=None)
+    assert rc == 15
+    err = capsys.readouterr().err
+    assert "demo.prod" in err
+    assert "excel" in err
+    assert "destination locked" in err
+    assert not list(tmp_path.glob(".*"))

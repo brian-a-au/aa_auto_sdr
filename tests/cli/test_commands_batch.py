@@ -594,3 +594,88 @@ class TestBatchFilteredSnapshotGuard:
         )
         assert rc == ExitCode.USAGE.value
         assert "filtered snapshots" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+@pytest.mark.parametrize("all_fail", [False, True])
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_output_failures_preserve_results(
+    mock_client_cls, mock_handle, authed_env, tmp_path, monkeypatch, workers, all_fail
+):
+    import os
+
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    output_dir = tmp_path / "outputs"
+    output_dir.mkdir()
+    failed_target = output_dir / "demo.prod.json"
+    failed_target.write_text("previous output")
+    real_replace = os.replace
+
+    def fail_output_replace(source, destination):
+        if destination.parent == output_dir and (all_fail or destination == failed_target):
+            raise PermissionError("destination locked")
+        real_replace(source, destination)
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_output_replace)
+    summary_path = tmp_path / "summary.json"
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging", "demo.dev"],
+        output_dir=output_dir,
+        format_name="json",
+        profile=None,
+        workers=workers,
+        run_summary_json=str(summary_path),
+    )
+
+    assert rc == (15 if all_fail else 14)
+    rows = {row["rsid"]: row for row in json.loads(summary_path.read_text())["rsids"]}
+    assert set(rows) == {"demo.prod", "demo.staging", "demo.dev"}
+    assert not rows["demo.prod"]["succeeded"]
+    assert "OutputError" in rows["demo.prod"]["error"]
+    assert str(failed_target) in rows["demo.prod"]["error"]
+    assert failed_target.read_text() == "previous output"
+    for rsid in ("demo.staging", "demo.dev"):
+        assert rows[rsid]["succeeded"] is (not all_fail)
+        assert (output_dir / f"{rsid}.json").exists() is (not all_fail)
+    assert not list(output_dir.glob(".*"))
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_fail_fast_accounts_for_output_failure_and_cancellations(
+    mock_client_cls, mock_handle, authed_env, tmp_path, monkeypatch, workers
+):
+    import os
+
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    output_dir = tmp_path / "outputs"
+    real_replace = os.replace
+
+    def fail_output_replace(source, destination):
+        if destination.parent == output_dir:
+            raise PermissionError("destination locked")
+        real_replace(source, destination)
+
+    monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_output_replace)
+    summary_path = tmp_path / "summary.json"
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging", "demo.dev"],
+        output_dir=output_dir,
+        format_name="json",
+        profile=None,
+        workers=workers,
+        fail_fast=True,
+        run_summary_json=str(summary_path),
+    )
+
+    assert rc == 15
+    rows = json.loads(summary_path.read_text())["rsids"]
+    assert {row["rsid"] for row in rows} == {"demo.prod", "demo.staging", "demo.dev"}
+    assert all(not row["succeeded"] for row in rows)
+    assert any("OutputError" in row["error"] for row in rows)
+    assert any("CancelledError" in row["error"] for row in rows)
+    assert not list(output_dir.iterdir())
