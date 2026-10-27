@@ -220,7 +220,18 @@ Adobe's template ships with example calc metrics and segments (Average Time Spen
 
 - **Matched-row fills:** keep the template's existing cell style (openpyxl preserves style on `cell.value = …` to an already-styled cell). Borders, fonts, alignment, conditional formatting — all untouched.
 - **Appended rows:** use openpyxl's default style (no border, no font customization). Matched-row fills keep their styling; only rows appended past the template's pre-styled skeleton are plain.
-- **Soft cap:** the writer appends up to 50 rows past `max_row`. Beyond that, additional API entries are dropped with a `template_sheet_clipped` WARNING. In practice this only trips for tenants with hundreds of segments — very rare.
+- **Soft cap:** the writer appends up to 50 rows past `max_row`. Rows beyond that are not written into the template sheet. They go to an `Overflow` sheet instead (see below), and a `template_sheet_clipped` WARNING fires. On `metrics-segments`, calculated metrics are written first, so a tenant with many calculated metrics sees its segments in `Overflow`.
+
+## Overflow and Template Coverage sheets
+
+The writer appends up to two sheets after the template's own sheets. Neither touches a template region, so template formulas, styles, and defined names are unchanged.
+
+- **`Overflow`** is created only when a soft cap clipped rows. Row 1 is a header. Each row is one clipped component: `Template Sheet` (the sheet it was clipped from), `Component Type` (`Dimension`, `Metric`, `Calculated Metric`, or `Segment`), `Component ID` (the ID the writer matches on: the bare ID such as `evar120` for eVars, props, and events, and the AA ID for calculated metrics and segments), then one column per template column the sheet would have filled (for example `Variable Name`, `Name`, `Description`, `Format`). Every row the API supplied is in either its template sheet or `Overflow`.
+- **`Template Coverage`** is always created. It has three blocks separated by a blank row: a `Measure` / `Value` summary (rows matched, rows appended, rows sent to Overflow, the Overflow sheet name, sheets skipped, and the quality audit status), one row per template sheet (status `filled` or `skipped`, the skip reason, how many components were meant for the sheet, rows matched, appended, and sent to overflow, template columns the writer cannot fill, and writer columns the template lacks), and one row per component family with the same coverage state the other report formats show (collected, excluded, degraded, partial, or unknown scope) plus the template sheets that family fills.
+
+If the template already has a sheet with either name, the writer leaves it alone and uses `Overflow (2)` or `Template Coverage (2)`.
+
+A separate sheet was chosen over a block inside an existing sheet because every existing sheet belongs to the template: a block there could collide with formulas, print areas, or the customer's own rows.
 
 ## Troubleshooting
 
@@ -269,7 +280,7 @@ Pre-existing Adobe template behavior. The template's dropdowns reference an exte
 
 ## Log signals
 
-Five events fire during a template-fill run. All have structured extras for log-stream parsing.
+Six events fire during a template-fill run. All have structured extras for log-stream parsing.
 
 | Event | Level | When | Extras |
 |---|---|---|---|
@@ -277,7 +288,8 @@ Five events fire during a template-fill run. All have structured extras for log-
 | `template_sheet_filled` | INFO | After each data sheet finishes its fill loop | `sheet`, `rows_matched`, `rows_appended` |
 | `template_sheet_skipped` | WARNING | Expected sheet missing or anchor check failed | `sheet`, `reason` (`missing_or_unanchored` / `no_id_column`) |
 | `template_overflow` | WARNING | One or more rows appended past `max_row` (default-styled) | `sheet`, `overflow_rows` |
-| `template_sheet_clipped` | WARNING | Soft cap dropped rows the API supplied | `sheet`, `rows_dropped`, `soft_cap` |
+| `template_sheet_clipped` | WARNING | Soft cap kept rows out of a template sheet (they go to `Overflow`) | `sheet`, `rows_dropped`, `soft_cap` |
+| `template_overflow_sheet_written` | WARNING | Clipped rows were written to the `Overflow` sheet (once per write) | `sheet` (the Overflow sheet name), `count` |
 
 Health checklist for a "did this work?" assertion in CI / agents:
 
@@ -285,7 +297,7 @@ Health checklist for a "did this work?" assertion in CI / agents:
 - One `template_sheet_filled` per resolved data sheet (4 expected for a complete template).
 - Zero `template_sheet_skipped` records — any skip means a template-structure problem.
 - `template_overflow` is informational; not a failure. Indicates "this RSID has API IDs the template didn't pre-seed" — normal for tenants with custom calc metrics or segments.
-- `template_sheet_clipped` should be zero in practice; investigate if it fires.
+- `template_sheet_clipped` and `template_overflow_sheet_written` mean some rows are in the `Overflow` sheet rather than the template sheet. Nothing is lost, but a reader of the template sheet alone will not see those rows. The run still exits 0.
 
 ## How it works (one-screen)
 
@@ -293,8 +305,9 @@ Health checklist for a "did this work?" assertion in CI / agents:
 2. For each data sheet, [`output/_template_anchors.py`](../src/aa_auto_sdr/output/_template_anchors.py)'s `resolve_sheet` confirms the sheet exists, the section title at `B4` matches (case-insensitive), and scans rows 5–10 for the `ID` header marker. Returns a `header_text → 1-indexed column number` map.
 3. The writer normalizes API IDs (`variables/<stem>` → `<stem>`, `metrics/<stem>` → `<stem>`) and builds a `wanted = {lower_id: component}` dict.
 4. The writer walks pre-existing data rows, matches by lowercased ID, fills in place via `_write_row` (which honors the non-empty rule — never writes `None` or empty over a styled cell).
-5. Remaining unmatched components are appended past `max_row`, soft-capped at +50 rows.
-6. `wb.save(target)` writes the result. Styles, formulas, defined names, and untouched cells all survive.
+5. Remaining unmatched components are appended past `max_row`, soft-capped at +50 rows. Rows past the cap are kept for the `Overflow` sheet.
+6. The writer appends the `Overflow` sheet (only if something was clipped) and the `Template Coverage` sheet.
+7. `wb.save(target)` writes the result. Styles, formulas, defined names, and untouched cells all survive.
 
 Only one module imports `openpyxl` ([`output/writers/excel_template.py`](../src/aa_auto_sdr/output/writers/excel_template.py)), and the import is method-scoped so the fast-path entry stays cheap.
 
@@ -302,7 +315,7 @@ Only one module imports `openpyxl` ([`output/writers/excel_template.py`](../src/
 
 - [CLI Reference — `--template` / `--template-organization`](CLI_REFERENCE.md) — formal flag contract, USAGE matrix
 - [Output Formats — `excel-template`](OUTPUT_FORMATS.md) — format key + alias routing
-- [Logging Style Guide](LOGGING_STYLE.md) — canonical event vocabulary, including the 5 template events
+- [Logging Style Guide](LOGGING_STYLE.md) — canonical event vocabulary, including the 6 template events
 - [`AGENTS.md`](../AGENTS.md) — unattended-run contract (template-fill section)
 - [`CHANGELOG.md`](../CHANGELOG.md) — v1.16.0 entry with dropped-flag rationale
 - [v1.16.0 design spec](superpowers/specs/2026-05-11-aa-auto-sdr-v1.16.0-design.md) — full design + spike findings (gitignored; local only)

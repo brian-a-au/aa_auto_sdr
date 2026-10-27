@@ -2,7 +2,7 @@
 
 Exercises the engine methods directly against synthetic openpyxl workbooks
 (no Adobe template needed): missing/unanchored sheets, missing id columns,
-None-id rows, the +50 soft cap with row drops, the Glossary-absent guard,
+None-id rows, the +50 soft cap with overflow rows, the Glossary-absent guard,
 and the non-empty rule in `_write_row`."""
 
 from __future__ import annotations
@@ -80,6 +80,7 @@ def test_fill_by_id_sheet_skips_when_sheet_missing_or_unanchored() -> None:
         wb,
         anchor=ANCHORS["evars"],
         id_column_header="Analytics Variable",
+        component_type="Dimension",
         components=[],
         get_id=lambda d: d.id,
         column_map={},
@@ -101,6 +102,7 @@ def test_fill_by_id_sheet_skips_when_id_column_absent() -> None:
         wb,
         anchor=ANCHORS["evars"],
         id_column_header="Nonexistent Column",
+        component_type="Dimension",
         components=[_dim("evar1", "Customer ID")],
         get_id=lambda d: d.id,
         column_map={"Variable Name": lambda d: d.name},
@@ -127,6 +129,7 @@ def test_fill_by_id_sheet_skips_rows_with_none_id() -> None:
         wb,
         anchor=ANCHORS["evars"],
         id_column_header="Analytics Variable",
+        component_type="Dimension",
         components=[_dim("evar1", "Customer ID")],
         get_id=lambda d: d.id,
         column_map={"Variable Name": lambda d: d.name},
@@ -136,7 +139,7 @@ def test_fill_by_id_sheet_skips_rows_with_none_id() -> None:
     assert "evar1" in seen
 
 
-def test_fill_by_id_sheet_soft_cap_breaks_and_drops_overflow() -> None:
+def test_fill_by_id_sheet_soft_cap_sends_rest_to_overflow() -> None:
     wb = Workbook()
     _add_resolvable_sheet(
         wb,
@@ -146,12 +149,13 @@ def test_fill_by_id_sheet_soft_cap_breaks_and_drops_overflow() -> None:
     )
     writer = ExcelTemplateWriter()
     # 60 components, no template rows to match → all go to the append path.
-    # Soft cap is max_row(6) + 50 = 56, so only 50 append and 10 are dropped.
+    # Soft cap is max_row(6) + 50 = 56, so only 50 append and 10 go to overflow.
     components = [f"x{i}" for i in range(60)]
-    writer._fill_by_id_sheet(
+    report = writer._fill_by_id_sheet(
         wb,
         anchor=ANCHORS["evars"],
         id_column_header="Analytics Variable",
+        component_type="Dimension",
         components=components,
         get_id=lambda c: c,
         column_map={},
@@ -160,6 +164,10 @@ def test_fill_by_id_sheet_soft_cap_breaks_and_drops_overflow() -> None:
     appended_ids = {ws.cell(row=r, column=3).value for r in range(7, ws.max_row + 1)}
     appended_ids.discard(None)
     assert len(appended_ids) == 50  # soft cap stopped at +50 rows
+    assert report.rows_appended == 50
+    assert [o.component_id for o in report.overflow] == [f"x{i}" for i in range(50, 60)]
+    assert {o.source_sheet for o in report.overflow} == {"eVars"}
+    assert report.overflow[0].values == {"Analytics Variable": "x50"}
 
 
 # --- _fill_metrics_segments ----------------------------------------------
@@ -169,11 +177,12 @@ def test_fill_metrics_segments_skips_when_sheet_missing() -> None:
     wb = Workbook()  # no "metrics-segments" sheet
     writer = ExcelTemplateWriter()
     # resolve_sheet returns None → warn + early return.
-    writer._fill_metrics_segments(wb, _make_doc(segments=[_seg(0)]))
+    report = writer._fill_metrics_segments(wb, _make_doc(segments=[_seg(0)]))
     assert "metrics-segments" not in wb.sheetnames
+    assert (report.status, report.reason, report.components) == ("skipped", "missing_or_unanchored", 1)
 
 
-def test_fill_metrics_segments_soft_cap_breaks_and_drops_overflow() -> None:
+def test_fill_metrics_segments_soft_cap_sends_rest_to_overflow() -> None:
     wb = Workbook()
     _add_resolvable_sheet(
         wb,
@@ -183,11 +192,13 @@ def test_fill_metrics_segments_soft_cap_breaks_and_drops_overflow() -> None:
     )
     writer = ExcelTemplateWriter()
     # 60 entries, append-only sheet, soft cap = max_row(6) + 50 = 56 → 50 land.
-    writer._fill_metrics_segments(wb, _make_doc(segments=[_seg(i) for i in range(60)]))
+    report = writer._fill_metrics_segments(wb, _make_doc(segments=[_seg(i) for i in range(60)]))
     ws = wb["metrics-segments"]
     names = {ws.cell(row=r, column=4).value for r in range(7, ws.max_row + 1)}
     names.discard(None)
     assert len(names) == 50
+    assert [o.component_id for o in report.overflow] == [f"seg_{i}" for i in range(50, 60)]
+    assert report.overflow[0].values == {"Type": "Segment", "Name": "Segment 50", "Description": "desc 50"}
 
 
 # --- _fill_glossary_org ---------------------------------------------------
@@ -196,8 +207,9 @@ def test_fill_metrics_segments_soft_cap_breaks_and_drops_overflow() -> None:
 def test_fill_glossary_org_skips_when_glossary_absent() -> None:
     wb = Workbook()  # default "Sheet"; no "Glossary"
     writer = ExcelTemplateWriter()
-    writer._fill_glossary_org(wb, _make_doc())  # early return, no exception
+    report = writer._fill_glossary_org(wb, _make_doc())  # early return, no exception
     assert "Glossary" not in wb.sheetnames
+    assert (report.status, report.reason) == ("skipped", "missing")
 
 
 def test_fill_glossary_org_writes_org_override_to_c2() -> None:

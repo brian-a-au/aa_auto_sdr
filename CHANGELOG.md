@@ -12,10 +12,27 @@ All notable changes to this project will be documented in this file. Format foll
   and is eligible for Notion publication, whatever `--watch-threshold` is;
   the threshold and diff `--warn-threshold` stay component-only. Watch Git
   commit messages add a `settings:` line.
+- Every template-filled workbook now has a `Template Coverage` sheet. It
+  reports rows matched, appended, and sent to overflow; template sheets
+  skipped because they are missing or their anchors do not match; template
+  columns the writer cannot fill; and each component family's coverage state
+  (collected, excluded, degraded, partial, or unknown scope), using the same
+  states as the other report formats.
 
 ### Fixed
 - `--summary` diffs and `pr-comment` output now show report-suite setting
   changes. Before, summary mode and PR comments left them out.
+- Template fill no longer loses rows past a sheet's soft cap. Each template
+  sheet still holds at most 50 rows past its last existing row, but the rows
+  past that cap now go to an `Overflow` sheet appended after the template's
+  own sheets, instead of being dropped with only a `template_sheet_clipped`
+  log line. Each overflow row keeps the template sheet it was clipped from,
+  its component type and ID, and the values the template sheet would have
+  received. This matters most on `metrics-segments`, where calculated metrics
+  are written first and could push every segment out of the workbook. The
+  `Overflow` sheet is created only when something was clipped, and a new
+  `template_overflow_sheet_written` warning reports how many rows it holds.
+  Overflow does not change the exit code.
 
 ## [1.22.0] — 2026-10-27
 
