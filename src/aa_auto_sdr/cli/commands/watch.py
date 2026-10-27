@@ -78,6 +78,21 @@ class _SnapshotStoreAdapter:
     snapshot_dir: Path
 
     def latest(self, rsid: str) -> dict | None:
+        """The baseline envelope for the next comparison (see `baseline`)."""
+        return self.baseline(rsid).envelope
+
+    def baseline(self, rsid: str):
+        """Newest usable snapshot whose scope covers a full capture.
+
+        Watch always captures every family, so filtered snapshots (for
+        example a `--metrics-only --snapshot` run sharing this store) are
+        skipped and reported in `skipped`; snapshots without scope count as
+        full captures."""
+        from aa_auto_sdr.snapshot.baseline import select_covering
+
+        return select_covering(self._usable_history(rsid), None)
+
+    def _usable_history(self, rsid: str):
         from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
         from aa_auto_sdr.snapshot.store import load_snapshot
 
@@ -98,7 +113,7 @@ class _SnapshotStoreAdapter:
                 if not stat.S_ISDIR(mode):
                     raise NotADirectoryError(errno.ENOTDIR, os.strerror(errno.ENOTDIR), str(path)) from None
                 break
-            return None
+            return
         with entries:
             paths = sorted(Path(entry.path) for entry in entries if Path(entry.name).match("*.json"))
 
@@ -108,7 +123,7 @@ class _SnapshotStoreAdapter:
                 _validate_watch_history(envelope)
                 if envelope["rsid"] != rsid:
                     raise SnapshotSchemaError("watch snapshot RSID does not match requested report suite")
-                return envelope
+                yield envelope
             except (json.JSONDecodeError, UnicodeDecodeError, SnapshotCorruptError) as exc:
                 reason = (
                     "invalid_json"
@@ -125,7 +140,6 @@ class _SnapshotStoreAdapter:
                     type(exc).__name__,
                     extra={"rsid": rsid, "snapshot_id": str(path), "error_class": type(exc).__name__, "reason": reason},
                 )
-        return None
 
     def save(self, rsid: str, doc: Any) -> tuple[Path, dict]:  # noqa: ARG002
         """Persist the SdrDocument and return (path, envelope_dict).

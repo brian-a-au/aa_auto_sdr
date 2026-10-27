@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.snapshot.baseline import scope_of, select_covering
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.models import Comparability, ComponentDiff
 from aa_auto_sdr.snapshot.retention import restore_iso
@@ -84,6 +85,9 @@ class SnapshotPoint:
     counts: ComponentCounts
     delta_by_type: dict[str, LifecycleDelta] | None = None  # None for the first point
     settings_changes: int | None = None  # changed report-suite fields vs prev; None for the first point
+    # The earlier snapshot this point was compared against: the newest one whose
+    # scope covers this point's. None when no earlier snapshot covers it.
+    baseline_captured_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,23 +195,34 @@ def compute_trending(
     matching = [p for p in paths if _path_in_window(p, window)]
 
     series: list[SnapshotPoint] = []
-    prev = None
+    # Latest envelope per distinct scope, oldest first. Each point is compared
+    # against the newest earlier snapshot whose scope covers it, so a filtered
+    # snapshot never becomes the baseline of a fuller one. Bounded by the
+    # number of distinct scopes, not the window size.
+    latest_by_scope: dict[tuple[str, ...] | None, dict[str, Any]] = {}
     last = None
     for p in matching:
         snap = load_snapshot(p)
         delta_by_type: dict[str, LifecycleDelta] | None = None
         settings_changes: int | None = None
-        if prev is not None:
+        baseline_at: datetime | None = None
+        choice = select_covering(reversed(list(latest_by_scope.values())), scope_of(snap))
+        if choice.envelope is not None:
             diff = compare(
-                a=prev,
+                a=choice.envelope,
                 b=snap,
                 ignore_fields=frozenset(ignore_fields),
                 extended_fields=extended_fields,
             )
             delta_by_type = {cd.component_type: _summarize_diff(cd) for cd in diff.components}
             settings_changes = diff.settings_changes
-        series.append(_to_snapshot_point(snap, delta_by_type, settings_changes))
-        prev = snap
+            if isinstance(choice.envelope.get("captured_at"), str):
+                baseline_at = datetime.fromisoformat(choice.envelope["captured_at"])
+        series.append(_to_snapshot_point(snap, delta_by_type, settings_changes, baseline_at))
+        scope = scope_of(snap)
+        key = tuple(sorted(scope)) if scope is not None else None
+        latest_by_scope.pop(key, None)
+        latest_by_scope[key] = snap
         last = snap
 
     drift = _compute_drift_summary(series)
@@ -247,6 +262,7 @@ def _to_snapshot_point(
     envelope: dict[str, Any],
     delta_by_type: dict[str, LifecycleDelta] | None,
     settings_changes: int | None = None,
+    baseline_captured_at: datetime | None = None,
 ) -> SnapshotPoint:
     """Convert a snapshot envelope dict into a SnapshotPoint."""
     components = envelope.get("components", {})
@@ -266,6 +282,7 @@ def _to_snapshot_point(
         counts=counts,
         delta_by_type=delta_by_type,
         settings_changes=settings_changes,
+        baseline_captured_at=baseline_captured_at,
     )
 
 

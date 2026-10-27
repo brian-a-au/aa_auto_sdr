@@ -171,11 +171,15 @@ and `v4` files without the key remain readable; their scope is unknown
 `--metrics-only` / `--dimensions-only` may be combined with `--snapshot` /
 `--auto-snapshot`; diffs, watch, trending, and `--compare-with-prev` suppress
 families a side did not collect (`comparability: "excluded"`) instead of
-reporting removals, and log a `diff_scope_mismatch` WARNING. Baselines
-(`@previous`, watch's previous snapshot, trending pairs, `--keep-last`) are
-chosen by time, not scope: a filtered snapshot between two full ones hides
-changes to its excluded families. Keep filtered snapshots in a separate
-`--snapshot-dir`, or diff explicit snapshot paths. See `docs/SNAPSHOT_DIFF.md` for the rules and
+reporting removals, and log a `diff_scope_mismatch` WARNING. Automatic
+baselines skip filtered snapshots: watch, `--compare-with-prev`, and trending
+points compare against the newest earlier snapshot whose scope covers the
+current capture (scope-less snapshots count as full), so a filtered snapshot
+between two full ones hides nothing. Diff JSON carries `baseline_skipped`
+(captured_at values passed over), watch `change` events carry
+`baseline: {captured_at, skipped}`, and trending points carry
+`baseline_captured_at`. Pruning never deletes the newest full capture.
+Explicit `--diff` tokens (`@previous`, `@<ts>`, paths) stay literal. See `docs/SNAPSHOT_DIFF.md` for the rules and
 `CHANGELOG.md` for the per-version field additions.
 
 ### Name resolution

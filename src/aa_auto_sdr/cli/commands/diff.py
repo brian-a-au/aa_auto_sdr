@@ -47,6 +47,7 @@ def run(
     max_issues: int | None = None,
     warn_threshold: int | None = None,
     color_theme: str = "default",
+    covering_rsid: str | None = None,
 ) -> int:
     started_ms = time.monotonic()
     logger.info("command_start command=diff", extra={"command": "diff"})
@@ -69,6 +70,7 @@ def run(
                 reverse=reverse,
                 ignore_fields=ignore_fields,
                 extended_fields=extended_fields,
+                covering_rsid=covering_rsid,
             )
         except SnapshotError as exc:
             # `output is None` also renders to stdout (see the write below), so
@@ -148,11 +150,25 @@ def compute_report(
     reverse: bool,
     ignore_fields: frozenset[str],
     extended_fields: bool,
+    covering_rsid: str | None = None,
 ) -> DiffReport:
-    """Resolve and compare without presentation or output side effects."""
+    """Resolve and compare without presentation or output side effects.
+
+    With `covering_rsid` (used by --compare-with-prev), `a` / `b` are ignored:
+    the latest snapshot is compared against the newest earlier snapshot whose
+    scope covers it, and the skipped snapshots land in `baseline_skipped`."""
+    directory = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
+    if covering_rsid is not None:
+        from dataclasses import replace
+
+        from aa_auto_sdr.snapshot.resolver import resolve_covering_pair
+
+        pair = resolve_covering_pair(covering_rsid, snapshot_dir=directory)
+        env_a, env_b = (pair.target, pair.baseline) if reverse else (pair.baseline, pair.target)
+        report = compare(env_a, env_b, ignore_fields=ignore_fields, extended_fields=extended_fields)
+        return replace(report, baseline_skipped=list(pair.skipped))
     if reverse:
         a, b = b, a
-    directory = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
     repo_root = Path.cwd()
     env_a = resolve_snapshot(a, profile_snapshot_dir=directory, repo_root=repo_root)
     env_b = resolve_snapshot(b, profile_snapshot_dir=directory, repo_root=repo_root)

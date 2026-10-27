@@ -214,7 +214,14 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
     started_at = ctx.clock.utcnow()
 
     try:
-        prev = ctx.snapshot_store.latest(rsid)
+        # Stores that can choose a covering baseline report the filtered
+        # snapshots they skipped; plain stores fall back to latest().
+        choose = getattr(ctx.snapshot_store, "baseline", None)
+        if choose is not None:
+            choice = choose(rsid)
+            prev, skipped = choice.envelope, list(choice.skipped)
+        else:
+            prev, skipped = ctx.snapshot_store.latest(rsid), []
         current_doc = ctx.fetcher.fetch_snapshot(rsid)
         snapshot_path, current_envelope = ctx.snapshot_store.save(rsid, current_doc)
         if prev is None:
@@ -230,6 +237,10 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
             ignore_fields=ctx.ignore_fields,
             extended_fields=ctx.extended_fields,
         )
+        if skipped:
+            from dataclasses import replace
+
+            diff = replace(diff, baseline_skipped=skipped)
         return CycleResult.diffed(
             rsid=rsid,
             snapshot_path=snapshot_path,
@@ -373,6 +384,7 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
         assert result.diff is not None
         base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
         base["summary"] = _diff_summary(result.diff)
+        base["baseline"] = {"captured_at": result.diff.a_captured_at, "skipped": list(result.diff.baseline_skipped)}
 
     # v1.15.0 — git operation block on snapshot events.
     if result.kind in ("baseline", "diffed") and result.git_op is not None and result.git_op.committed:

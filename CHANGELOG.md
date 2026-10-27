@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- Automatic baselines skip filtered snapshots. Watch, `--compare-with-prev`,
+  and `--trending-window` points now compare against the newest earlier
+  snapshot whose scope covers the current capture (snapshots without scope
+  count as full captures), so a `--metrics-only --snapshot` run between two
+  full captures no longer hides changes to the families it left out. Diff
+  JSON gains `baseline_skipped`, watch `change` events gain
+  `baseline: {captured_at, skipped}`, and trending points gain
+  `baseline_captured_at`. Explicit `--diff` tokens, including
+  `<RSID>@previous`, stay literal.
+- `--keep-last` and `--keep-since` pruning never deletes the newest full
+  capture of a report suite.
+
 ## [1.23.0] — 2026-10-27
 
 This release adds offline rendering and makes monitoring and template output

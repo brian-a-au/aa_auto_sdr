@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from aa_auto_sdr.core.exceptions import OutputError
+from aa_auto_sdr.core.exceptions import OutputError, SnapshotSchemaError
 from aa_auto_sdr.core.json_io import read_json, write_json
 from aa_auto_sdr.sdr.document import SdrDocument
 from aa_auto_sdr.snapshot.schema import document_to_envelope, validate_envelope
@@ -180,6 +180,22 @@ def list_snapshots(snapshot_dir: Path, *, rsid: str | None = None) -> list[Path]
     return files
 
 
+def _newest_full_capture(files: list[Path]) -> Path | None:
+    """Newest snapshot that collected every family (snapshots without scope count).
+
+    Unreadable or malformed files are passed over, not protected."""
+    from aa_auto_sdr.snapshot.baseline import is_full, scope_of
+
+    for path in sorted(files, reverse=True):
+        try:
+            envelope = load_snapshot(path)
+        except OSError, ValueError, SnapshotSchemaError:
+            continue
+        if is_full(scope_of(envelope)):
+            return path
+    return None
+
+
 def prune_snapshots(
     snapshot_dir: Path,
     policy: RetentionPolicy,
@@ -201,7 +217,12 @@ def prune_snapshots(
     deleted: list[Path] = []
     for r in rsids:
         files = list_snapshots(snapshot_dir, rsid=r)
-        for f in select_for_deletion(files, policy, now=now):
+        doomed = select_for_deletion(files, policy, now=now)
+        if doomed:
+            newest_full = _newest_full_capture(files)
+            if newest_full is not None:
+                doomed = select_for_deletion(files, policy, now=now, protect=frozenset({newest_full}))
+        for f in doomed:
             if not dry_run:
                 try:
                     f.unlink()

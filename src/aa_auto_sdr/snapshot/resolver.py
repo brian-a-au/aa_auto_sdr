@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -162,3 +163,56 @@ def _resolve_git(token: str, *, repo_root: Path | None) -> dict[str, Any]:
         raise SnapshotResolveError(f"{token} did not decode as JSON: {exc}") from exc
     validate_envelope(env)
     return env
+
+
+@dataclass(frozen=True, slots=True)
+class CoveringPair:
+    """The newest snapshot and the newest earlier snapshot whose scope covers it."""
+
+    baseline_path: Path
+    baseline: dict[str, Any]
+    target_path: Path
+    target: dict[str, Any]
+    skipped: tuple[str, ...]
+
+
+def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPair:
+    """Resolve `--compare-with-prev`'s pair: the latest snapshot and its covering baseline.
+
+    Unlike the literal `<rsid>@previous` token, earlier snapshots that did not
+    collect every family the latest one collected are skipped (see
+    snapshot/baseline.py) and reported in `skipped`."""
+    from aa_auto_sdr.snapshot.baseline import scope_of, select_covering
+
+    if snapshot_dir is None:
+        raise SnapshotResolveError(f"'{rsid}' requires --profile or --snapshot-dir (snapshots are profile-scoped)")
+    rs_dir = snapshot_dir / rsid
+    files = sorted(rs_dir.glob("*.json")) if rs_dir.exists() else []
+    if not files:
+        raise SnapshotResolveError(f"no snapshots for {rsid} in {rs_dir}")
+    if len(files) < 2:
+        raise SnapshotResolveError(f"only one snapshot for {rsid}; a comparison needs at least two")
+    target_path = files[-1]
+    target = _resolve_path(target_path)
+    older = list(reversed(files[:-1]))
+    loaded: dict[int, Path] = {}
+
+    def _candidates():
+        for path in older:
+            env = _resolve_path(path)
+            loaded[id(env)] = path
+            yield env
+
+    choice = select_covering(_candidates(), scope_of(target))
+    if choice.envelope is None:
+        raise SnapshotResolveError(
+            f"no earlier snapshot for {rsid} covers the latest snapshot's scope "
+            f"(skipped {len(choice.skipped)} filtered snapshot(s)); diff explicit snapshots with --diff instead",
+        )
+    return CoveringPair(
+        baseline_path=loaded[id(choice.envelope)],
+        baseline=choice.envelope,
+        target_path=target_path,
+        target=target,
+        skipped=choice.skipped,
+    )

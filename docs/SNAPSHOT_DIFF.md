@@ -188,7 +188,13 @@ A side with unknown scope that has rows counts as collected, since the rows show
 
 `--compare-with-prev`, `--watch`, and `--trending-window` all use the same comparator, so the same rules apply there.
 
-**Filtered snapshots in a history.** The previous snapshot is chosen by time alone: `<RSID>@previous` and `@latest`, the watch baseline, and each consecutive trending pair do not look at scope, and `--keep-last` counts filtered snapshots like any other. If a filtered snapshot sits between two full ones, the next comparison marks the families it left out as `not collected in source`, and changes to those families between the two full captures are never reported. Each such comparison logs a `diff_scope_mismatch` warning naming the families. To compare full captures across a filtered one, pass both snapshot paths (or `<RSID>@<timestamp>` tokens) to `--diff` explicitly, and keep filtered snapshots in a separate `--snapshot-dir` if you mix them with watch or trending.
+**Filtered snapshots in a history.** Automatic baselines skip snapshots that left out families the current capture collected. Watch, `--compare-with-prev`, and each `--trending-window` point compare against the newest earlier snapshot whose scope covers the current one: it collected every family the current capture collected, and a snapshot without scope counts as a full capture. So a `--metrics-only --snapshot` run between two full captures never hides changes to dimensions, segments, or the other families. A metrics-only capture compares against the last capture that included metrics.
+
+- Diff JSON (from `--compare-with-prev`) carries `baseline_skipped`, the `captured_at` values of the newer snapshots that were passed over; `a_captured_at` names the baseline used.
+- Watch `change` events carry `baseline: {captured_at, skipped}`. Watch always captures every family, so its baseline is the newest full capture; with only filtered history, the next cycle is a new `baseline` event.
+- Trending series points carry `baseline_captured_at` (the snapshot each point was compared against). A point with no covering earlier snapshot has no deltas.
+- `--keep-last` / `--keep-since` pruning never deletes the newest full capture, so a covering baseline survives retention.
+- Explicit `--diff` tokens stay literal: `<RSID>@previous` is always the second-newest file, and paths or `<RSID>@<timestamp>` are used as given. If such a pair covers different scopes, the comparison logs a `diff_scope_mismatch` warning.
 
 ### RSID mismatch warning
 

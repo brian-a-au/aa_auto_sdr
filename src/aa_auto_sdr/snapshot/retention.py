@@ -56,8 +56,12 @@ def select_for_deletion(
     policy: RetentionPolicy,
     *,
     now: datetime | None = None,
+    protect: frozenset[Path] = frozenset(),
 ) -> list[Path]:
     """Return the paths in `files` that should be deleted under `policy`.
+
+    Paths in `protect` are never selected (the store protects the newest full
+    capture so a covering baseline always survives pruning).
 
     Files are interpreted as chronological by sorted filename (lexical sort
     matches chronological order due to the ISO-8601 stem). `now` is injectable
@@ -83,7 +87,7 @@ def select_for_deletion(
             ts = restore_iso(f.stem)
             if ts < cutoff:
                 to_delete.add(f)
-    return sorted(to_delete)
+    return sorted(to_delete - protect)
 
 
 def restore_iso(stem: str) -> datetime:
