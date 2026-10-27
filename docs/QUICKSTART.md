@@ -39,7 +39,7 @@ Before starting, ensure you have:
 
 > **Read-only by design.** `aa_auto_sdr` only ever reads from Adobe Analytics. It never creates, updates, or deletes anything in your environment — no segments, no calculated metrics, no classifications. The only local writes are SDR output files, snapshots, and profiles in your home directory.
 
-> **Can't install uv?** You can use pip instead — you'll need Python 3.14+ installed manually ([download Python](https://www.python.org/downloads/)). `uv` is strongly recommended because it manages the Python version for you.
+> **Can't install uv?** You can use pip instead — you'll need Python 3.11+ installed manually ([download Python](https://www.python.org/downloads/)). `uv` is strongly recommended because it manages the Python version for you.
 
 ---
 
@@ -167,7 +167,7 @@ uv sync
 ```
 
 This command:
-- Downloads the required Python version automatically (Python 3.14+, if not already present)
+- Downloads the required Python version automatically (Python 3.11+, if not already present)
 - Creates a [virtual environment](https://realpython.com/python-virtual-environments-a-primer/) in `.venv/` (isolates project dependencies)
 - Installs all required packages, including the `aanalytics2` Adobe Analytics SDK
 - Installs the `aa_auto_sdr` command

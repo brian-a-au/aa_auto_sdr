@@ -16,7 +16,7 @@ The architectural patterns called out below (SDK isolation, writer-protocol outp
 
 ## Stack & Toolchain (binding)
 
-- **Python:** `>=3.14` (matches the sister project).
+- **Python:** `>=3.11` (matches the sister project). CI tests 3.11, 3.12, 3.13, and 3.14. Do not use syntax or stdlib APIs newer than 3.11 in `src/`, `tests/`, `scripts/`, or `benchmarks/` (ruff `target-version = "py311"` catches the syntax). Use `os.path.exists`/`isdir`/`isfile`/`islink` instead of the `Path` methods in `src/`, which raise `PermissionError` before 3.14 (`tests/meta/test_no_raising_path_checks.py`).
 - **Package manager:** `uv`. All commands are `uv run …`.
 - **Build backend:** `hatchling` with dynamic version sourced from `src/aa_auto_sdr/core/version.py`.
 - **AA SDK:** [`aanalytics2`](https://github.com/pitchmuc/adobe-analytics-api-2.0) (PyPI: `aanalytics2`). This is the AA equivalent of `cjapy` in the sister project — wrapped in our own client module so the rest of the codebase never imports it directly.
@@ -103,7 +103,7 @@ Snapshots are first-class, not an afterthought:
 
 ## Documentation conventions
 
-- **Version anchors in prose are reserved for one of three cases:** (1) a hard system requirement (e.g. `Python 3.14+`); (2) back-compat behavior triggered by reading older artifacts (e.g. `v1 snapshots load with both keys defaulted to true`); (3) a deliberate behavior pivot whose old form may still be encountered. Everything else — "added in vX", "as of vY" — belongs in `CHANGELOG.md`, not in user-facing docs. Once a feature ships, it's a feature of the tool.
+- **Version anchors in prose are reserved for one of three cases:** (1) a hard system requirement (e.g. `Python 3.11+`); (2) back-compat behavior triggered by reading older artifacts (e.g. `v1 snapshots load with both keys defaulted to true`); (3) a deliberate behavior pivot whose old form may still be encountered. Everything else — "added in vX", "as of vY" — belongs in `CHANGELOG.md`, not in user-facing docs. Once a feature ships, it's a feature of the tool.
 - `CHANGELOG.md` is the source of truth for *when*. The rest of the docs are the source of truth for *what*.
 - Source-of-truth assignments for facts that recur across docs:
   - **Exit codes** → `src/aa_auto_sdr/core/exit_codes.py` (consumed by `--exit-codes`). Other docs link, don't duplicate.

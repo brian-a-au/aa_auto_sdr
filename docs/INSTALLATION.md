@@ -6,7 +6,7 @@ How to get `aa_auto_sdr` installed and verified across platforms, including inst
 
 | Requirement | Detail |
 |-------------|--------|
-| **Python** | 3.14 or higher |
+| **Python** | 3.11 or higher |
 | **Package manager** | [`uv`](https://docs.astral.sh/uv/) (recommended); `pip` also works |
 | **Operating system** | macOS, Linux, or Windows |
 | **Network** | Connectivity to Adobe Analytics 2.0 APIs |
@@ -118,7 +118,7 @@ If you hit problems, the usual causes are:
 
 | Issue | Fix |
 |-------|-----|
-| Wrong Python | Install Python 3.14+ from [python.org](https://www.python.org/downloads/), not the Microsoft Store. Check "Add Python to PATH". |
+| Wrong Python | Install Python 3.11+ from [python.org](https://www.python.org/downloads/), not the Microsoft Store. Check "Add Python to PATH". |
 | `python` resolves to the Store stub | `python -c "import sys; print(sys.executable)"` should point under `...\Programs\Python\...`, not `...\Microsoft\WindowsApps\...`. |
 | Execution policy blocks activation | Run PowerShell as Administrator, then `Set-ExecutionPolicy RemoteSigned`. |
 | Module not found after install | Confirm the venv is active: `.venv\Scripts\activate`. |
