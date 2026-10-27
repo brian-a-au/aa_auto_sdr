@@ -626,6 +626,53 @@ class TestEnrichPayload:
         assert "formula_summary" not in out["virtual_report_suites"][0]
 
 
+class TestReviewHardening:
+    @pytest.mark.parametrize(
+        ("ref_id", "cm_id"),
+        [("metrics/cm300_rate", "cm300_rate"), ("cm300_rate", "metrics/cm300_rate")],
+    )
+    def test_nested_cm_resolves_with_or_without_metrics_prefix(self, ref_id: str, cm_id: str) -> None:
+        doc = _doc(
+            calculated_metrics=[
+                _cm(cm_id, "Rate", cm(m("metrics/orders"))),
+                _cm("cm_outer", "Outer", cm(op("multiply", m(ref_id), num(100)))),
+            ]
+        )
+        by_id = {e.id: e for e in d.build_references(doc)}
+        (target,) = by_id["cm_outer"].references
+        assert (target.id, target.family, target.name, target.status) == (
+            ref_id,
+            "calculated_metrics",
+            "Rate",
+            "resolved",
+        )
+        assert [(r.family, r.id) for r in by_id[cm_id].referenced_by] == [("calculated_metrics", "cm_outer")]
+
+    def test_exact_match_wins_over_prefix_variant(self) -> None:
+        doc = _doc(
+            metrics=[_metric("metrics/x", "Std X")],
+            calculated_metrics=[_cm("x", "CM X", cm(num(1))), _cm("c", "C", cm(m("metrics/x")))],
+        )
+        by_id = {e.id: e for e in d.build_references(doc)}
+        (target,) = by_id["c"].references
+        assert (target.family, target.name) == ("metrics", "Std X")
+
+    def test_quoted_values_are_one_line(self) -> None:
+        out = d.summarize_segment(seg(streq("v/x", "a\nb\rc\td\x01e")))
+        assert out == "Hit where v/x = 'a\\nb\\rc\\td\\x01e'"
+        assert "\n" not in out
+        assert d.summarize_segment(seg(streq("v/x", "a\u2028b\x7f"))) == "Hit where v/x = 'a\\u2028b\\x7f'"
+
+    def test_long_quoted_values_are_capped(self) -> None:
+        out = d.summarize_segment(seg(streq("v/x", "y" * 500)))
+        assert out == "Hit where v/x = '" + "y" * d.MAX_QUOTED_CHARS + "…'"
+
+    def test_integer_valued_floats_drop_the_point(self) -> None:
+        assert d.summarize_formula(cm(op("multiply", m("metrics/a"), num(3.0)))) == "metrics/a * 3"
+        assert d.summarize_formula(cm(num(2.5))) == "2.5"
+        assert d.summarize_segment(seg({"func": "gt", "num": 1.0, "val": attr("v/x")})) == "Hit where v/x > 1"
+
+
 class TestEdgeCases:
     def test_negate_without_operand(self) -> None:
         assert d.summarize_formula(cm({"func": "negate"})) == "[unparsed: negate]"

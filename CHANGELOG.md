@@ -73,8 +73,8 @@ All notable changes to this project will be documented in this file. Format foll
   as `Visit where variables/visitnumber > 1 AND metrics/pageviews exists` or
   `metrics/orders / metrics/visits[segment s_222]`. Both families also gain
   `metric_references` and `segment_references` (sorted IDs; lists in JSON,
-  joined with `, ` in tabular formats). The names match `cja_auto_sdr`. The
-  full definition JSON is still included. The summary covers a conservative
+  joined with `, ` in tabular formats). The field names match `cja_auto_sdr`;
+  the values are full component IDs rather than short names. The full definition JSON is still included. The summary covers a conservative
   part of the AA 2.0 grammar; anything else shows raw as `[unparsed: <func>]`.
   Depth and size limits keep very deep or very large definitions safe.
 - A references appendix lists, for each calculated metric, segment, and

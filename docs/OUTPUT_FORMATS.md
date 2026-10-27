@@ -176,7 +176,11 @@ column or field; the summary is a reading aid, not a replacement.
 In Excel, CSV, Markdown, and HTML the three columns come after the existing
 columns, and the reference lists are joined with `, `. In JSON they are added
 to each segment and calculated-metric object, and the reference fields are
-lists. The names match `cja_auto_sdr`.
+lists. In Markdown, summary cells are inline code so characters such as
+`*`, `_`, and `\` show as written. The field names match `cja_auto_sdr`,
+but the values differ: `cja_auto_sdr` lists short names (for example
+`revenue`), while `aa_auto_sdr` keeps full component IDs (for example
+`metrics/revenue`).
 
 Reference IDs are collected from the whole definition, including parts the
 summarizer does not understand: `name` on `metric` and `event` nodes, and
@@ -223,7 +227,17 @@ Segments (`definition.container`):
 | `segment` | `segment <segment_id>` |
 
 The subject is the `name` of an `attr` or `event` node in `val`. Strings
-are quoted with `'`; a `'` or `\` inside a string is escaped with `\`.
+are quoted with `'`. A `'` or `\` inside a string is escaped with `\`, and
+line breaks, tabs, and other control characters are written as escapes
+(`\n`, `\t`, `\x01`), so a summary is always one line. A quoted value
+longer than 200 characters is cut there and ends with `…`. A number with no
+fractional part is written without a decimal point (`3.0` shows as `3`).
+
+Two shapes are inferred from Adobe's documentation and not yet checked
+against a live capture: the `evt` key on `event-exists` and
+`not-event-exists`, and a `segment` node with `segment_id` used as a
+predicate inside a segment. If real definitions use a different shape,
+those nodes show as `[unparsed: …]` rather than a wrong summary.
 
 ### Limits
 
@@ -240,7 +254,10 @@ For each calculated metric, segment, and virtual report suite, the appendix
 lists what it references and what references it. A virtual report suite
 references the segments in its `segment_list`. References are resolved
 against the capture: a metric ID resolves to a captured calculated metric or
-metric, and a segment ID to a captured segment. An ID that is not in the
+metric, and a segment ID to a captured segment. If a metric ID has no exact
+match, it is also tried against the calculated metrics with the `metrics/`
+prefix removed or added, because a formula may name a nested calculated
+metric either way. The output keeps the ID as the definition wrote it. An ID that is not in the
 capture is labeled `unresolved`. This only means the target was not in this
 capture. It may live outside the report suite, belong to a family that was
 not collected, or be one the API did not return; the tool cannot tell which.

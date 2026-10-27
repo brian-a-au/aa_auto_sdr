@@ -217,7 +217,7 @@ class TestMarkdown:
         (path,) = MarkdownWriter().write(_doc(), tmp_path / "out.md")
         text = path.read_text()
         assert "| formula_summary | metric_references | segment_references |" in text
-        assert "| metrics/orders / metrics/visits | metrics/orders, metrics/visits |  |" in text
+        assert "| `metrics/orders / metrics/visits` | metrics/orders, metrics/visits |  |" in text
         assert "| definition_summary | metric_references | segment_references |" in text
         assert "## References\n" in text
         assert text.index("## References") > text.index("## Classifications")
@@ -231,6 +231,37 @@ class TestMarkdown:
 
         (path,) = MarkdownWriter().write(_doc(empty=True), tmp_path / "out.md")
         assert "## References\n\n_No references found._\n" in path.read_text()
+
+
+class TestMarkdownSpecials:
+    @pytest.mark.parametrize(
+        ("value", "cell"),
+        [
+            ("*sale*", "| `Hit where v/x = '*sale*'` |"),
+            ("_x_", "| `Hit where v/x = '_x_'` |"),
+            ("a\\b", "| `Hit where v/x = 'a\\\\b'` |"),
+            ("a|b", "| `Hit where v/x = 'a\\|b'` |"),
+            ("a`b", "| ``Hit where v/x = 'a`b'`` |"),
+        ],
+    )
+    def test_summary_cells_are_inline_code(self, tmp_path: Path, value: str, cell: str) -> None:
+        from dataclasses import replace
+
+        from aa_auto_sdr.output.writers.markdown import MarkdownWriter
+
+        definition = {
+            "func": "segment",
+            "container": {
+                "func": "container",
+                "context": "hits",
+                "pred": {"func": "streq", "str": value, "val": {"func": "attr", "name": "v/x"}},
+            },
+        }
+        doc = _doc()
+        doc = replace(doc, segments=[replace(doc.segments[0], definition=definition)])
+        (path,) = MarkdownWriter().write(doc, tmp_path / "out.md")
+        line = next(ln for ln in path.read_text().splitlines() if ln.startswith("| s_mobile"))
+        assert cell in line
 
 
 class TestHtml:

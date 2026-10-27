@@ -55,6 +55,8 @@ MAX_DEPTH = 64
 MAX_NODES = 1000
 MAX_WALK_NODES = 50_000
 MAX_WALK_DEPTH = 256
+MAX_QUOTED_CHARS = 200
+_METRIC_PREFIX = "metrics/"
 
 # New output columns per component family, in output order.
 DERIVED_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -114,6 +116,13 @@ def _number(value: Any) -> int | float | None:
     return value
 
 
+def _format_number(value: int | float) -> str:
+    """Integer-valued floats drop the point (3.0 -> 3); other numbers use repr."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return repr(value)
+
+
 def _summarize(definition: Any, key: str, render: Any) -> str:
     if isinstance(definition, dict) and not definition:
         return ""
@@ -164,7 +173,7 @@ def _formula(node: Any, depth: int, budget: _Budget) -> tuple[str, int, str | No
         value = _number(node.get("val"))
         if value is None:
             return raw
-        return repr(value), (_UNARY if value < 0 else _ATOM), None
+        return _format_number(value), (_UNARY if value < 0 else _ATOM), None
     if func in _BINARY:
         if "col1" not in node or "col2" not in node:
             return raw
@@ -221,8 +230,24 @@ def summarize_segment(definition: Any) -> str:
     return _summarize(definition, "container", lambda node, budget: _container(node, 1, budget))
 
 
+_ESCAPES = {"\\": "\\\\", "'": "\\'", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
+
+
+def _escape_char(ch: str) -> str:
+    if ch in _ESCAPES:
+        return _ESCAPES[ch]
+    code = ord(ch)
+    if code < 0x20 or 0x7F <= code < 0xA0 or ch in "\u2028\u2029":
+        return f"\\x{code:02x}" if code < 0x100 else f"\\u{code:04x}"
+    return ch
+
+
 def _quote(text: str) -> str:
-    return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
+    """Single-quoted, escaped, one-line form of a string value, capped at
+    `MAX_QUOTED_CHARS` characters of the original (then `…`)."""
+    clipped = text[:MAX_QUOTED_CHARS]
+    suffix = "…" if len(text) > MAX_QUOTED_CHARS else ""
+    return "'" + "".join(_escape_char(ch) for ch in clipped) + suffix + "'"
 
 
 def _subject(value: Any) -> str | None:
@@ -301,7 +326,7 @@ def _pred(node: Any, depth: int, budget: _Budget) -> tuple[str, str | None]:
         number = _number(node.get("num"))
         if number is None:
             return raw
-        return f"{subject} {_NUMBER_OPS[func]} {number!r}", None
+        return f"{subject} {_NUMBER_OPS[func]} {_format_number(number)}", None
     return raw
 
 
@@ -408,11 +433,21 @@ def build_references(doc: Any) -> list[ReferenceEntry]:
         "virtual_report_suites": {v.id: v.name for v in doc.virtual_report_suites},
     }
 
+    cm_names = names["calculated_metrics"]
+    # Resolved inventory id per (family, referenced id), for referenced_by.
+    resolved_ids: dict[tuple[str, str], str] = {}
+
     def resolve_metric(mid: str) -> ReferenceTarget:
-        if mid in names["calculated_metrics"]:
-            return ReferenceTarget("metric", mid, "calculated_metrics", names["calculated_metrics"][mid], "resolved")
+        if mid in cm_names:
+            return ReferenceTarget("metric", mid, "calculated_metrics", cm_names[mid], "resolved")
         if mid in metric_names:
             return ReferenceTarget("metric", mid, "metrics", metric_names[mid], "resolved")
+        # A nested calculated metric may be written with or without the
+        # `metrics/` prefix; the output keeps the id as the formula wrote it.
+        alt = mid.removeprefix(_METRIC_PREFIX) if mid.startswith(_METRIC_PREFIX) else _METRIC_PREFIX + mid
+        if alt in cm_names:
+            resolved_ids[("calculated_metrics", mid)] = alt
+            return ReferenceTarget("metric", mid, "calculated_metrics", cm_names[alt], "resolved")
         return ReferenceTarget("metric", mid, None, None, "unresolved")
 
     def resolve_segment(sid: str) -> ReferenceTarget:
@@ -434,7 +469,8 @@ def build_references(doc: Any) -> list[ReferenceEntry]:
     for family, ident, name, targets in raw:
         for target in targets:
             if target.status == "resolved" and target.family in REFERENCE_FAMILIES:
-                referrers.setdefault((target.family, target.id), set()).add((family, ident, name))
+                target_id = resolved_ids.get((target.family, target.id), target.id)
+                referrers.setdefault((target.family, target_id), set()).add((family, ident, name))
 
     return [
         ReferenceEntry(

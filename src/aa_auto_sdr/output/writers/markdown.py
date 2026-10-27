@@ -46,6 +46,22 @@ _COMPONENT_SECTIONS: list[tuple[str, str, str]] = [
 ]
 
 
+_SUMMARY_COLUMNS = frozenset({"formula_summary", "definition_summary"})
+
+
+def _code_cell(text: str) -> str:
+    """Inline-code span for a table cell, so GFM specials (`*`, `_`, `\\`)
+    render literally. The fence is one backtick longer than the longest run
+    inside; pipes are still escaped for the table."""
+    longest = run = 0
+    for ch in text:
+        run = run + 1 if ch == "`" else 0
+        longest = max(longest, run)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{escape_pipe(text)}{pad}{fence}" if text else ""
+
+
 def _cell(value: Any) -> str:
     """Stringify a value and escape it for a GFM table cell."""
     s = stringify_cell(value)
@@ -94,7 +110,13 @@ def _section(heading: str, attr: str, items: list[Any], cls_name: str, coverage:
     if not items:
         return f"## {heading}\n\n_{escape_pipe(coverage.label)}_\n"
     headers = component_headers(attr, getattr(models, cls_name))
-    rows = [[_cell(v) for v in component_values(attr, item)] for item in items]
+    rows = [
+        [
+            _code_cell(str(v)) if h in _SUMMARY_COLUMNS else _cell(v)
+            for h, v in zip(headers, component_values(attr, item), strict=True)
+        ]
+        for item in items
+    ]
     note = "" if coverage.state is CoverageState.COLLECTED else f"_{escape_pipe(coverage.label)}_\n\n"
     return f"## {heading}\n\n{note}{_table(headers, rows)}"
 
