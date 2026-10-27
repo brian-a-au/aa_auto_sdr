@@ -83,16 +83,29 @@ def rule_id_for(finding_type: str) -> str:
     return QUALITY_RULE_IDS.get(finding_type, CUSTOM_RULE_ID)
 
 
+# Lowercase words Title Case allows after the first word, so Adobe names such
+# as "Time Spent per Visit" pass.
+TITLE_CASE_SMALL_WORDS: Final[frozenset[str]] = frozenset(
+    {"a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "per", "the", "to", "vs", "via", "with"},
+)
+
+
 def matches_case_style(name: str, style: str) -> bool:
     """True when `name` follows `style` (one of CASE_STYLES).
 
     `Title Case` means every space-separated word that starts with a letter
-    starts with a capital letter; words starting with a digit or punctuation
-    are ignored. `any` always matches."""
+    starts with a capital letter, except the small words in
+    TITLE_CASE_SMALL_WORDS when they are not the first word; words starting
+    with a digit or punctuation are ignored. The other styles are ASCII-only
+    regexes. `any` always matches."""
     if style == "any":
         return True
     if style == "Title Case":
-        return bool(name) and all(w and (not w[0].isalpha() or w[0].isupper()) for w in name.split(" "))
+        words = name.split(" ")
+        return bool(name) and all(
+            w and (not w[0].isalpha() or w[0].isupper() or (idx > 0 and w in TITLE_CASE_SMALL_WORDS))
+            for idx, w in enumerate(words)
+        )
     return _CASE_STYLE_RE[style].fullmatch(name) is not None
 
 
@@ -317,22 +330,21 @@ def audit_naming(bundle: _ComponentBundle) -> dict[str, Any]:
         prefix = _detect_prefix(name)
         audit["prefix_groups"][prefix] = audit["prefix_groups"].get(prefix, 0) + 1
 
-    # Recommendation rule: any minority case style triggers the rec. Stricter
-    # ratio-based thresholding (e.g., "minority must exceed 20%") is deferred
-    # to v1.12.0's quality severity engine, where severity scoring formalizes
-    # what counts as actionable. v1.9.0 ships the read-only signal only.
+    # Recommendation rule: any minority case style triggers the rec. One rec
+    # names the majority style and every minority style with its count.
     styles = audit["case_styles"]
     nonzero = {s: c for s, c in styles.items() if c > 0}
     if len(nonzero) >= 2:
         majority_style, majority_count = max(nonzero.items(), key=lambda kv: kv[1])
-        for style, count in nonzero.items():
-            if style == majority_style:
-                continue
-            audit["recommendations"].append(
-                f"Mixed case styles detected ({majority_style}: {majority_count}, "
-                f"{style}: {count}). Consider standardizing on a single style.",
-            )
-            break  # one rec is enough
+        minority = ", ".join(
+            f"{style}: {count}"
+            for style, count in sorted(nonzero.items(), key=lambda kv: -kv[1])
+            if style != majority_style
+        )
+        audit["recommendations"].append(
+            f"Mixed case styles detected ({majority_style}: {majority_count}, "
+            f"{minority}). Consider standardizing on a single style.",
+        )
 
     return audit
 
@@ -435,6 +447,13 @@ def run_audits(
         issues.extend(_naming_convention_issues(bundle, rules.naming))
     if rules is not None and rules.exceptions:
         issues = [_apply_exceptions(i, rules.exceptions) for i in issues]
+        _warn_unmatched_exceptions(
+            issues,
+            rules.exceptions,
+            rsid=rsid,
+            audit_naming_enabled=audit_naming_enabled,
+            flag_stale_enabled=flag_stale_enabled,
+        )
 
     by_severity: dict[str, int] = {sev.value: 0 for sev in SeverityLevel}
     excepted = 0
@@ -635,6 +654,45 @@ def _naming_convention_issues(bundle: Any, naming_rules: dict[str, NamingRule]) 
                 ),
             )
     return out
+
+
+_STALE_RULE_IDS = frozenset(QUALITY_RULE_IDS[t] for t in ("stale_keyword", "version_suffix", "date_pattern"))
+
+
+def _warn_unmatched_exceptions(
+    issues: list[Issue],
+    exceptions: tuple[QualityException, ...],
+    *,
+    rsid: str,
+    audit_naming_enabled: bool,
+    flag_stale_enabled: bool,
+) -> None:
+    """WARNING for each exception that covers no affected component of any
+    finding of its rule (usually a typo). Silent for rules whose audit did
+    not run, since nothing could have matched."""
+    for exc in exceptions:
+        ran = flag_stale_enabled if exc.rule_id in _STALE_RULE_IDS else audit_naming_enabled
+        if not ran:
+            continue
+        matched = any(
+            (i.rule_id or rule_id_for(i.type)) == exc.rule_id and any(exc.covers(f, c) for f, c in i.members)
+            for i in issues
+        )
+        if matched:
+            continue
+        logger.warning(
+            "quality_exception_unmatched rsid=%s rule_id=%s component_id=%s component_type=%s",
+            rsid,
+            exc.rule_id,
+            exc.component_id,
+            exc.component_type,
+            extra={
+                "rsid": rsid,
+                "rule_id": exc.rule_id,
+                "component_id": exc.component_id,
+                "component_type": exc.component_type,
+            },
+        )
 
 
 def _apply_exceptions(issue: Issue, exceptions: tuple[QualityException, ...]) -> Issue:

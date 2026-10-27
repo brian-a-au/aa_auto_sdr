@@ -183,13 +183,24 @@ def issue_exception_label(issue: dict[str, Any]) -> str:
     return f"excepted ({reason})" if reason else "excepted"
 
 
+# Human formats show at most this many component IDs per finding; JSON and
+# --quality-report keep the full list.
+COMPONENT_IDS_DISPLAY_CAP = 50
+
+
+def _capped_ids(ids: list[Any]) -> str:
+    shown = ", ".join(str(i) for i in ids[:COMPONENT_IDS_DISPLAY_CAP])
+    extra = len(ids) - COMPONENT_IDS_DISPLAY_CAP
+    return f"{shown}… (+{extra} more)" if extra > 0 else shown
+
+
 def quality_issue_cells(issue: dict[str, Any]) -> list[str]:
     """One issue as display strings, in QUALITY_ISSUE_COLUMNS order."""
     ids = issue.get("component_ids") or []
     occurrences = issue.get("occurrences")
     by_col: dict[str, str] = {
         "rule_id": issue_rule_id(issue),
-        "component_ids": ", ".join(str(i) for i in ids),
+        "component_ids": _capped_ids(ids),
         "occurrences": "" if occurrences is None else str(occurrences),
         "exception": issue_exception_label(issue),
     }

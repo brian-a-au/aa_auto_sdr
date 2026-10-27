@@ -21,6 +21,7 @@ from typing import Any, Literal
 
 from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.exceptions import ConfigError
+from aa_auto_sdr.output._helpers import neutralize_formula
 from aa_auto_sdr.sdr.quality import (
     CASE_STYLES,
     COMPONENT_FAMILIES,
@@ -305,21 +306,22 @@ def write_quality_report(
         writer.writerow(_REPORT_CSV_HEADERS)
         for i in issues:
             d = i.to_dict()
-            writer.writerow(
-                [
-                    d["severity"],
-                    d["category"],
-                    d["type"],
-                    d["item_id"],
-                    d["item_name"],
-                    d["issue"],
-                    d["rule_id"],
-                    ", ".join(d["component_ids"]),
-                    d["occurrences"],
-                    "true" if d["excepted"] else "false",
-                    d["exception_reason"] or "",
-                ],
-            )
+            # Names, IDs, and reasons are user-authored: defuse spreadsheet
+            # formulas the same way the SDR CSV writer does.
+            cells = [
+                d["severity"],
+                d["category"],
+                d["type"],
+                d["item_id"],
+                d["item_name"],
+                d["issue"],
+                d["rule_id"],
+                ", ".join(d["component_ids"]),
+                d["occurrences"],
+                "true" if d["excepted"] else "false",
+                d["exception_reason"] or "",
+            ]
+            writer.writerow([neutralize_formula(str(c)) for c in cells])
         rendered = buf.getvalue()
         if target == "-":
             sys.stdout.write(rendered)

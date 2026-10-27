@@ -376,7 +376,7 @@ Naming audits are severity-tagged and machine-readable. Three flags promote them
 | `--quality-policy PATH` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`, `naming`, `exceptions` (see [Policy file](#policy-file)). CLI flags always win over policy values. Hyphen/underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
 | `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `17` (`QUALITY`) if any non-excepted issue at or above the threshold exists. The severity is case-insensitive (`high` works). The SDR and snapshot still emit normally. |
 
-`--quality-report` or `--fail-on-quality` without `--audit-naming` / `--flag-stale` auto-enables both audits. Quality flags outside SDR generation (`--stats`, the list-actions, `--inventory-summary`, `--diff`) exit `USAGE` (2). In batch, `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
+`--quality-report` or `--fail-on-quality` without `--audit-naming` / `--flag-stale` auto-enables both audits. A policy file with `naming` rules always turns on `--audit-naming`, whatever the other flags say. Quality flags outside SDR generation (`--stats`, the list-actions, `--inventory-summary`, `--diff`) exit `USAGE` (2). In batch, `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
 
 The policy-file keys `max_issues` and `allow_partial` are not supported (the loader rejects them with `ConfigError`); the unrelated CLI flag `--max-issues` for `--diff` rendering still exists. `--quality-report` cannot be combined with generation's `--output -` JSON pipe (exit 15); use file output so both artifacts have destinations.
 
@@ -394,7 +394,9 @@ Every finding carries a stable `rule_id`, a sorted `component_ids` list, and an 
 
 `dq.custom.unknown` is the fallback for a finding with no catalogued rule. The trailing `vN` changes only when a rule's meaning changes (what it flags or why). Wording and severity changes keep the same ID, so exceptions and filters keyed on a rule ID keep working.
 
-For `case_inconsistency`, `component_ids` lists every audited component whose case style differs from the majority style, and `occurrences` is their count. Per-component findings list one ID and have `occurrences` 1.
+`occurrences` counts affected components. For `case_inconsistency`, the issue text names the majority style and every minority style with its count, `component_ids` lists every audited component whose style differs from the majority, and `occurrences` counts those components across all audited types (it can exceed the length of `component_ids` when two types share an ID). Per-component findings list one ID and have `occurrences` 1.
+
+JSON output and `--quality-report` keep the full `component_ids` list. Excel, CSV, Markdown, and HTML show at most 50 IDs per finding, followed by `… (+N more)`.
 
 ### Policy file
 
@@ -416,17 +418,19 @@ For `case_inconsistency`, `component_ids` lists every audited component whose ca
 
 - **`fail_on_quality`**: a severity, case-insensitive.
 - **`naming`**: an object keyed by component type: `dimensions`, `metrics`, `segments`, `calculated_metrics`, `virtual_report_suites`, or `classifications`. Each rule sets `case`, `pattern`, or both.
-  - `case` is one of `snake_case` (`page_name`), `camelCase` (`pageName`), `PascalCase` (`PageName`), `Title Case` (every space-separated word that starts with a letter starts with a capital, as in `Page Name`), `kebab-case` (`page-name`), or `any` (no case check).
-  - `pattern` is a Python regular expression that the whole component name must match.
+  - `case` is one of `snake_case` (`page_name`), `camelCase` (`pageName`), `PascalCase` (`PageName`), `Title Case`, `kebab-case` (`page-name`), or `any` (no case check). `snake_case`, `camelCase`, `PascalCase`, and `kebab-case` accept ASCII letters and digits only, so a name with accented letters fails them.
+  - `Title Case` means every space-separated word that starts with a letter starts with a capital, as in `Page Name`. After the first word, these small words may stay lowercase: a, an, and, as, at, by, for, in, of, on, or, per, the, to, vs, via, with. So `Time Spent per Visit` passes.
+  - `pattern` is a Python regular expression that the whole component name must match. It runs against every name of that type, so a slow pattern (for example one with nested repeats) slows every run that uses the policy. Writing an efficient pattern is the policy author's job.
   - Each component whose name breaks its type's rule produces one `dq.naming_convention.v1` finding at LOW severity. `details.violations` lists `case`, `pattern`, or both.
   - Naming rules run only when the naming audit runs (`--audit-naming`, or the auto-enable described above). They apply to virtual report suites only when a `virtual_report_suites` rule is set.
-  - A component whose metadata says `standardComponent: true` (an Adobe standard component) is skipped. When the flag is absent, the component is checked.
+  - A component whose metadata says `standardComponent: true` (an Adobe standard component) is skipped. When the flag is absent, the component is checked. The API rarely sets the flag on standard dimensions, so Adobe built-in names can still be flagged; add an exception for those.
 - **`exceptions`**: a list. Each entry needs a `rule_id` from the table above, a non-empty `reason`, and exactly one of `component_id` (one component) or `component_type` (a whole component type, using the `naming` type names). Wildcard rule IDs are not supported.
   - A matching finding stays in the output with `excepted: true` and `exception_reason`. Human formats show it as `excepted (<reason>)`.
   - Excepted findings do not count toward `--fail-on-quality`. `summary.by_severity` and `summary.total` count non-excepted findings only; `summary.excepted` counts the excepted ones.
   - A `case_inconsistency` finding is excepted only when every component in its `component_ids` is covered by an exception for that rule.
+  - An exception that covers no finding of its rule logs a `quality_exception_unmatched` WARNING, which usually points to a typo. Nothing is logged when that rule's audit did not run.
 
-The loader is strict. Unknown keys (at the top level, in a naming rule, or in an exception), unknown component types, unknown case styles, invalid regular expressions, a missing or empty `reason`, an unknown or wildcard `rule_id`, an exception with both or neither of `component_id` / `component_type`, and duplicate exceptions all fail with exit `CONFIG` and a message naming the problem. With `--enable-cache`, a change to the naming rules or exceptions invalidates cached audits.
+The loader is strict. Unknown keys (at the top level, in a naming rule, or in an exception), unknown component types, unknown case styles, invalid regular expressions, a missing or empty `reason`, an unknown or wildcard `rule_id`, an exception with both or neither of `component_id` / `component_type`, and duplicate exceptions all fail with exit `CONFIG` and a message naming the problem. With `--enable-cache`, the validation cache lives in memory for one run only. Its key includes a hash of the naming rules and exceptions, so audits cached earlier in a run are never reused under different rules.
 
 ## Inventory and stats
 

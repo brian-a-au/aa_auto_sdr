@@ -38,13 +38,15 @@ Where each format puts this:
 - **Excel**: a `Coverage` sheet directly after `Summary` (columns `Family`,
   `State`, `Count`, `Expansion Level`), then a `Quality` sheet. When an audit
   ran, the `Quality` sheet starts with a summary block (`Verdict`,
-  `Policy threshold`, `Total issues`, `Excepted`, one row per severity), then
+  `Policy threshold`, `Total issues`, one row per severity), then
   a blank row, then one row per issue (`severity`, `category`, `type`,
   `item_id`, `item_name`, `issue`, `details`, `rule_id`, `component_ids`,
-  `occurrences`, `exception`). `component_ids` is joined with `, `.
+  `occurrences`, `exception`). `component_ids` is joined with `, ` and shows
+  at most 50 IDs, then `… (+N more)`.
   `exception` reads `excepted (<reason>)` for a finding covered by a policy
   exception and is empty otherwise. `Total issues` and the severity rows count
-  non-excepted findings only. When no audit ran, it holds a single row saying
+  non-excepted findings only. An `Excepted` row follows the severity rows only
+  when some finding is excepted. When no audit ran, it holds a single row saying
   so. The component sheets are unchanged.
 - **CSV**: `<stem>.coverage.csv` is always written (columns `family`, `state`,
   `count`, `expansion_level`). `<stem>.quality_issues.csv` is written only

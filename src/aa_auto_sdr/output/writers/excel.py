@@ -153,9 +153,12 @@ def _write_quality_sheet(xl: Any, doc: SdrDocument) -> None:
         ("Verdict", status.verdict or "n/a"),
         ("Policy threshold", status.threshold or ""),
         ("Total issues", status.total),
-        ("Excepted", status.excepted),
     ]
     summary_rows.extend((sev, n) for sev, n in (status.by_severity or {}).items())
+    # Last and only when non-zero, so a workbook without exceptions keeps the
+    # same summary layout and issue-table position as before.
+    if status.excepted:
+        summary_rows.append(("Excepted", status.excepted))
     summary_df = pd.DataFrame(summary_rows, columns=["Field", "Value"])
     summary_df.to_excel(xl, sheet_name="Quality", index=False)
 

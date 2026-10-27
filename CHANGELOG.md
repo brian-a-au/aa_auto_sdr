@@ -35,7 +35,10 @@ All notable changes to this project will be documented in this file. Format foll
   `dq.custom.unknown`), a sorted `component_ids` list, and an `occurrences`
   count. The scheme matches `cja_auto_sdr`. Existing finding keys are
   unchanged. The Excel `Quality` sheet, the CSV `quality_issues` file, and the
-  `--quality-report csv` file gain these as extra columns at the end.
+  `--quality-report csv` file gain these as extra columns at the end. Human
+  formats show at most 50 component IDs per finding, then `… (+N more)`;
+  JSON and `--quality-report` keep the full list. `--quality-report csv`
+  cells are now formula-neutralized like the SDR CSV files.
 - Policy files accept `naming`: per-component-type rules with a `case` style
   (`snake_case`, `camelCase`, `PascalCase`, `Title Case`, `kebab-case`,
   `any`) and an optional full-match `pattern`. Violations produce LOW
@@ -55,8 +58,16 @@ All notable changes to this project will be documented in this file. Format foll
   `allow_partial` are still rejected.
 - Markdown and HTML reports list quality findings in a table under the
   Quality status line when the audit found anything.
-- The validation cache key includes a hash of the policy naming rules and
-  exceptions, so a policy change invalidates cached audits.
+- The in-memory validation cache key (`--enable-cache`) includes a hash of
+  the policy naming rules and exceptions, so a cached audit is never reused
+  under different rules.
+- A policy with `naming` rules always turns on the naming audit, logged as
+  `quality_auto_enabled` with `reason=policy_naming`. The existing
+  auto-enable record now carries `reason=quality_flags`.
+- `quality_exception_unmatched` WARNING when a policy exception covers no
+  finding of its rule, to catch typos.
+- `Title Case` naming rules allow lowercase small words (a, an, and, as, at,
+  by, for, in, of, on, or, per, the, to, vs, via, with) after the first word.
 
 ### Changed
 - Automatic baselines skip filtered snapshots. Watch, `--compare-with-prev`,
@@ -76,6 +87,9 @@ All notable changes to this project will be documented in this file. Format foll
 - Severity values are case-insensitive in `--fail-on-quality` and in the
   policy file's `fail_on_quality` (`high` now works), matching
   `cja_auto_sdr`. Uppercase values behave as before.
+- The `case_inconsistency` message now names every minority case style with
+  its count, not just the first one. The same text appears in
+  `naming_audit.recommendations`.
 - `--fail-on-quality` ignores findings covered by a policy exception. Without
   `exceptions` in the policy, the gate behaves as before.
 

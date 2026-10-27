@@ -117,6 +117,9 @@ VOCAB = {
     # capture scope — comparisons across captures with different scope
     "not_compared",
     "settings_changes",
+    # v1.24.0 additions — quality conventions (reasoned exceptions)
+    "rule_id",
+    "component_id",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -145,6 +148,9 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     # so multi-RSID batch logs can be correlated.
     "quality_audit_complete": {"rsid", "quality_total", "quality_by_severity"},
     "quality_gate_evaluated": {"rsid", "threshold", "verdict"},
+    # v1.24.0 — `reason` is quality_flags or policy_naming
+    "quality_auto_enabled": {"audit_naming", "flag_stale", "reason"},
+    "quality_exception_unmatched": {"rsid", "rule_id", "component_id", "component_type"},
     # v1.13.0 — trending events
     "trending_window_resolved": {"duration", "start_at", "end_at"},
     "trending_compute_complete": {"rsid", "snapshot_count", "total_changes", "volatility_score"},

@@ -271,8 +271,8 @@ Finding fields. Every entry in `quality.issues` (SDR JSON, snapshots, and `--qua
 | Field | Type | Meaning |
 |-------|------|---------|
 | `rule_id` | str | `dq.stale_keyword.v1`, `dq.version_suffix.v1`, `dq.date_pattern.v1`, `dq.naming_case_inconsistency.v1`, `dq.naming_convention.v1`; fallback `dq.custom.unknown`. `vN` changes only when a rule's meaning changes. |
-| `component_ids` | list[str] | Sorted affected component IDs. CSV, Excel, Markdown, and HTML join them with `, `. |
-| `occurrences` | int | Number of affected components. |
+| `component_ids` | list[str] | Sorted affected component IDs. JSON and `--quality-report` keep the full list; CSV, Excel, Markdown, and HTML join them with `, ` and show at most 50, then `… (+N more)`. |
+| `occurrences` | int | Number of affected components, counted across all audited types. |
 | `excepted` | bool | True when a policy exception covers the finding. |
 | `exception_reason` | str or null | The exception's `reason`; null when not excepted. |
 
@@ -280,21 +280,22 @@ Finding fields. Every entry in `quality.issues` (SDR JSON, snapshots, and `--qua
 
 Policy keys `naming` and `exceptions`:
 
-- `naming`: `{<type>: {"case": <style>, "pattern": <regex>}}`. `<type>` is one of `dimensions`, `metrics`, `segments`, `calculated_metrics`, `virtual_report_suites`, `classifications`. `case` is one of `snake_case`, `camelCase`, `PascalCase`, `Title Case`, `kebab-case`, `any`. `pattern` must fully match the component name. Either key is optional, but a rule needs at least one. Violations produce `dq.naming_convention.v1` findings (LOW). Evaluated only when the naming audit runs. Components with `standardComponent: true` are skipped; absent means checked.
-- `exceptions`: `[{"rule_id": ..., "component_id": ... | "component_type": ..., "reason": ...}]`. `reason` is required and non-empty; exactly one of `component_id` / `component_type`; `rule_id` must be a catalogued rule ID (no wildcards).
+- `naming`: `{<type>: {"case": <style>, "pattern": <regex>}}`. `<type>` is one of `dimensions`, `metrics`, `segments`, `calculated_metrics`, `virtual_report_suites`, `classifications`. `case` is one of `snake_case`, `camelCase`, `PascalCase`, `Title Case`, `kebab-case`, `any`. `snake_case`, `camelCase`, `PascalCase`, and `kebab-case` are ASCII-only. `Title Case` allows lowercase a, an, and, as, at, by, for, in, of, on, or, per, the, to, vs, via, with after the first word. `pattern` is a user-supplied regex that must fully match the component name. Either key is optional, but a rule needs at least one. Violations produce `dq.naming_convention.v1` findings (LOW). Evaluated only in the naming audit, which a policy with `naming` rules always turns on (`quality_auto_enabled` with `reason=policy_naming`). Components with `standardComponent: true` are skipped; absent means checked, so use exceptions for flagged Adobe built-ins.
+- `exceptions`: `[{"rule_id": ..., "component_id": ... | "component_type": ..., "reason": ...}]`. `reason` is required and non-empty; exactly one of `component_id` / `component_type`; `rule_id` must be a catalogued rule ID (no wildcards). An exception that covers no finding logs a `quality_exception_unmatched` WARNING.
 - Schema errors (unknown keys, bad case styles, invalid regex, missing reason, unknown rule IDs, duplicate exceptions) exit `CONFIG` (10).
 
 Behavior:
 
 - **Auto-enable.** `--quality-report` or `--fail-on-quality` without
-  `--audit-naming` / `--flag-stale` auto-enables both audits.
+  `--audit-naming` / `--flag-stale` auto-enables both audits. A policy
+  with `naming` rules always turns on `--audit-naming`.
 - **Mode-scoping.** Quality flags outside SDR generation (`--stats`,
   the discovery/inspection list-actions, `--inventory-summary`,
   `--diff`) exit `USAGE` (2).
 - **Batch precedence.** `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
   Build failures are more actionable than quality verdicts; users
   fixing partial failures re-run and then see the gate.
-- **Cache.** `quality.run_audits` is the production caller of `ValidationCache`. Cache key includes the severity-table version and a hash of the policy naming rules and exceptions, so mapping or policy changes invalidate.
+- **Cache.** `quality.run_audits` is the production caller of `ValidationCache`. The cache is in memory for one run. Its key includes the severity-table version and a hash of the policy naming rules and exceptions.
 
 Note on `--max-issues`: there are *two* concepts with the same surface name. The CLI flag `--max-issues N` for `--diff` rendering is real and valid (caps per-component added/removed/modified counts in the rendered diff). The policy-file key `max_issues` (and `allow_partial`) are NOT supported keys in `--quality-policy` files — the loader rejects them with `ConfigError`.
 
