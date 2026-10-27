@@ -11,16 +11,11 @@ jobs:
   test-matrix:
     strategy:
       fail-fast: false
-      # Every OS on the floor (3.11) and the newest supported version (3.14);
-      # 3.12 and 3.13 on ubuntu only.
+      # Every supported Python on every OS. Keep this list in sync with the
+      # pyproject classifiers; tests/meta/test_python_version_matrix.py checks it.
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.11", "3.14"]
-        include:
-          - os: ubuntu-latest
-            python-version: "3.12"
-          - os: ubuntu-latest
-            python-version: "3.13"
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

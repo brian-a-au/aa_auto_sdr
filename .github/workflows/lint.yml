@@ -24,9 +24,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-extras
       - name: Ruff check
-        run: uv run --locked ruff check src/ tests/ scripts/
+        run: uv run --locked ruff check src/ tests/ scripts/ benchmarks/
       - name: Ruff format check
-        run: uv run --locked ruff format --check src/ tests/ scripts/
+        run: uv run --locked ruff format --check src/ tests/ scripts/ benchmarks/
   actionlint:
     runs-on: ubuntu-latest
     steps:
