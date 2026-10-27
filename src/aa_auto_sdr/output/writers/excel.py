@@ -9,12 +9,18 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.core.atomic_io import atomic_write_path
-from aa_auto_sdr.output._helpers import render_provenance_pairs, stringify_cell
+from aa_auto_sdr.output._helpers import (
+    REFERENCE_HEADINGS,
+    component_headers,
+    component_values,
+    reference_display_rows,
+    render_provenance_pairs,
+    stringify_cell,
+)
 from aa_auto_sdr.output.coverage import (
     QUALITY_ISSUE_COLUMNS,
     coverage_rows,
@@ -47,6 +53,15 @@ class ExcelWriter:
             "Calculated Metrics": doc.calculated_metrics,
             "Virtual Report Suites": doc.virtual_report_suites,
             "Classifications": doc.classifications,
+            "References": None,
+        }
+        families = {
+            "Dimensions": "dimensions",
+            "Metrics": "metrics",
+            "Segments": "segments",
+            "Calculated Metrics": "calculated_metrics",
+            "Virtual Report Suites": "virtual_report_suites",
+            "Classifications": "classifications",
         }
 
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -65,8 +80,10 @@ class ExcelWriter:
                         df = _summary_df(doc)
                     elif name == "Coverage":
                         df = _coverage_df(doc)
+                    elif name == "References":
+                        df = _references_df(doc)
                     else:
-                        df = _component_df(items)
+                        df = _component_df(families[name], items)
                     df.to_excel(xl, sheet_name=name, index=False)
                     ws = xl.sheets[name]
                     ws.freeze_panes(1, 0)
@@ -179,14 +196,25 @@ def _write_quality_sheet(xl: Any, doc: SdrDocument) -> None:
         ws.set_column(col_idx, col_idx, min(max(longest, 10) + 2, 60))
 
 
-def _component_df(items: list[Any]):
-    """Build a DataFrame for one component sheet, stringifying nested values."""
+def _component_df(family: str, items: list[Any]):
+    """Build a DataFrame for one component sheet, stringifying nested values.
+
+    Segments and calculated metrics gain the derived definition columns
+    after the model fields."""
     import pandas as pd
 
     if not items:
         return pd.DataFrame()
-    flat = [{field.name: stringify_cell(getattr(item, field.name)) for field in fields(item)} for item in items]
-    return pd.DataFrame(flat)
+    headers = component_headers(family, type(items[0]))
+    rows = [[stringify_cell(v) for v in component_values(family, item)] for item in items]
+    return pd.DataFrame(rows, columns=headers)
+
+
+def _references_df(doc: SdrDocument):
+    """References appendix: one row per reference edge, header always present."""
+    import pandas as pd
+
+    return pd.DataFrame(reference_display_rows(doc), columns=list(REFERENCE_HEADINGS))
 
 
 register_writer("excel", ExcelWriter())

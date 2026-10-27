@@ -179,16 +179,18 @@ def test_excel_nested_values_and_layout_preserve_document(doc, tmp_path: Path) -
         "Calculated Metrics",
         "Virtual Report Suites",
         "Classifications",
+        "References",
     ]
     ws = wb["Segments"]
     headers = [f.name for f in fields(segment)]
-    assert [cell.value for cell in ws[1]] == headers
+    derived = ["definition_summary", "metric_references", "segment_references"]
+    assert [cell.value for cell in ws[1]] == headers + derived
     expected = [stringify_cell(getattr(segment, name)) or None for name in headers]
-    assert [cell.value for cell in ws[2]] == expected
+    assert [cell.value for cell in ws[2]] == [*expected, "[unparsed: container]", None, None]
     assert all(cell.data_type != "f" and cell.hyperlink is None for cell in ws[2])
     assert len({cell.style_id for cell in ws[1]}) == 1
     assert ws.freeze_panes == "A2"
-    assert ws.auto_filter.ref == "A1:K2"
+    assert ws.auto_filter.ref == "A1:N2"
     assert wb["Metrics"].max_row == 1
     assert wb["Metrics"]["A1"].value is None
     assert wb["Metrics"].auto_filter.ref is None

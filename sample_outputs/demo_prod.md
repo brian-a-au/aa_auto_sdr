@@ -53,16 +53,16 @@ No quality audit ran.
 
 ## Segments
 
-| id | name | description | rsid | owner_id | definition | compatibility | tags | created | modified | extra |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| s_111 | Mobile Users | Mobile device traffic | demo.prod | 42 | `{"container": {"context": "hits", "func": "container", "pred": {"func": "eq", "val": "mobile"}}, "version": [1, 0, 0]}` | `{}` | `[]` | 2025-01-01T00:00:00Z | 2025-01-02T00:00:00Z | `{}` |
-| s_222 | Returning Visitors |  | demo.prod | 42 | `{"container": {"context": "visits", "func": "container", "pred": {"func": "eq", "val": "returning"}}, "version": [1, 0, 0]}` | `{}` | `[]` |  |  | `{}` |
+| id | name | description | rsid | owner_id | definition | compatibility | tags | created | modified | extra | definition_summary | metric_references | segment_references |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| s_111 | Mobile Users | Mobile device traffic | demo.prod | 42 | `{"container": {"context": "hits", "func": "container", "pred": {"func": "streq", "str": "mobile", "val": {"func": "attr", "name": "variables/evar2"}}}, "func": "segment", "version": [1, 0, 0]}` | `{}` | `[]` | 2025-01-01T00:00:00Z | 2025-01-02T00:00:00Z | `{}` | `Hit where variables/evar2 = 'mobile'` |  |  |
+| s_222 | Returning Visitors |  | demo.prod | 42 | `{"container": {"context": "visits", "func": "container", "pred": {"func": "and", "preds": [{"func": "gt", "num": 1, "val": {"func": "attr", "name": "variables/visitnumber"}}, {"evt": {"func": "event", "name": "metrics/pageviews"}, "func": "event-exists"}]}}, "func": "segment", "version": [1, 0, 0]}` | `{}` | `[]` |  |  | `{}` | `Visit where variables/visitnumber > 1 AND metrics/pageviews exists` | metrics/pageviews |  |
 
 ## Calculated Metrics
 
-| id | name | description | rsid | owner_id | polarity | precision | type | definition | tags | categories | extra |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| cm_1 | Conversion Rate | Orders divided by visits | demo.prod | 42 | positive | 4 | decimal | `{"formula": {"args": ["metrics/orders", "metrics/visits"], "func": "divide"}}` | `[]` | `["Conversion"]` | `{}` |
+| id | name | description | rsid | owner_id | polarity | precision | type | definition | tags | categories | extra | formula_summary | metric_references | segment_references |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cm_1 | Conversion Rate | Orders divided by visits | demo.prod | 42 | positive | 4 | decimal | `{"formula": {"col1": {"func": "metric", "name": "metrics/orders"}, "col2": {"func": "segment", "metric": {"func": "metric", "name": "metrics/visits"}, "segment_id": "s_222"}, "func": "divide"}, "func": "calc-metric", "version": [1, 0, 0]}` | `[]` | `["Conversion"]` | `{}` | `metrics/orders / metrics/visits[segment s_222]` | metrics/orders, metrics/visits | s_222 |
 
 ## Virtual Report Suites
 
@@ -75,3 +75,14 @@ No quality audit ran.
 | id | name | rsid | extra |
 | --- | --- | --- | --- |
 | ds_5 | Campaign Metadata | demo.prod | `{}` |
+
+## References
+
+| Family | ID | Name | Relation | Kind | Target Family | Target ID | Target Name | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Calculated Metrics | cm_1 | Conversion Rate | references | metric | Metrics | metrics/orders | Orders | resolved |
+| Calculated Metrics | cm_1 | Conversion Rate | references | metric | Metrics | metrics/visits | Visits | resolved |
+| Calculated Metrics | cm_1 | Conversion Rate | references | segment | Segments | s_222 | Returning Visitors | resolved |
+| Segments | s_222 | Returning Visitors | references | metric | Metrics | metrics/pageviews | Page Views | resolved |
+| Segments | s_222 | Returning Visitors | referenced by |  | Calculated Metrics | cm_1 | Conversion Rate | resolved |
+| Virtual Report Suites | vrs_eu | EU Visitors Only | references | segment |  | s_eu |  | unresolved |

@@ -16,12 +16,26 @@
         ],
         "definition": {
           "formula": {
-            "args": [
-              "metrics/orders",
-              "metrics/visits"
-            ],
+            "col1": {
+              "func": "metric",
+              "name": "metrics/orders"
+            },
+            "col2": {
+              "func": "segment",
+              "metric": {
+                "func": "metric",
+                "name": "metrics/visits"
+              },
+              "segment_id": "s_222"
+            },
             "func": "divide"
-          }
+          },
+          "func": "calc-metric",
+          "version": [
+            1,
+            0,
+            0
+          ]
         },
         "description": "Orders divided by visits",
         "extra": {},
@@ -145,10 +159,15 @@
             "context": "hits",
             "func": "container",
             "pred": {
-              "func": "eq",
-              "val": "mobile"
+              "func": "streq",
+              "str": "mobile",
+              "val": {
+                "func": "attr",
+                "name": "variables/evar2"
+              }
             }
           },
+          "func": "segment",
           "version": [
             1,
             0,
@@ -172,10 +191,27 @@
             "context": "visits",
             "func": "container",
             "pred": {
-              "func": "eq",
-              "val": "returning"
+              "func": "and",
+              "preds": [
+                {
+                  "func": "gt",
+                  "num": 1,
+                  "val": {
+                    "func": "attr",
+                    "name": "variables/visitnumber"
+                  }
+                },
+                {
+                  "evt": {
+                    "func": "event",
+                    "name": "metrics/pageviews"
+                  },
+                  "func": "event-exists"
+                }
+              ]
             }
           },
+          "func": "segment",
           "version": [
             1,
             0,

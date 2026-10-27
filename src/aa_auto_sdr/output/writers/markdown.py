@@ -6,13 +6,21 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
-from aa_auto_sdr.output._helpers import escape_pipe, render_provenance_line, render_provenance_pairs, stringify_cell
+from aa_auto_sdr.output._helpers import (
+    REFERENCE_HEADINGS,
+    component_headers,
+    component_values,
+    escape_pipe,
+    reference_display_rows,
+    render_provenance_line,
+    render_provenance_pairs,
+    stringify_cell,
+)
 from aa_auto_sdr.output.coverage import (
     QUALITY_FINDING_HEADERS,
     CoverageRow,
@@ -36,6 +44,22 @@ _COMPONENT_SECTIONS: list[tuple[str, str, str]] = [
     ("Virtual Report Suites", "virtual_report_suites", "VirtualReportSuite"),
     ("Classifications", "classifications", "ClassificationDataset"),
 ]
+
+
+_SUMMARY_COLUMNS = frozenset({"formula_summary", "definition_summary"})
+
+
+def _code_cell(text: str) -> str:
+    """Inline-code span for a table cell, so GFM specials (`*`, `_`, `\\`)
+    render literally. The fence is one backtick longer than the longest run
+    inside; pipes are still escaped for the table."""
+    longest = run = 0
+    for ch in text:
+        run = run + 1 if ch == "`" else 0
+        longest = max(longest, run)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{escape_pipe(text)}{pad}{fence}" if text else ""
 
 
 def _cell(value: Any) -> str:
@@ -82,12 +106,17 @@ def _coverage_table(rows: list[CoverageRow]) -> str:
     return _table(["Family", "State", "Count", "Expansion level"], body)
 
 
-def _section(heading: str, items: list[Any], cls_name: str, coverage: CoverageRow) -> str:
+def _section(heading: str, attr: str, items: list[Any], cls_name: str, coverage: CoverageRow) -> str:
     if not items:
         return f"## {heading}\n\n_{escape_pipe(coverage.label)}_\n"
-    cls = getattr(models, cls_name)
-    headers = [f.name for f in fields(cls)]
-    rows = [[_cell(getattr(item, h)) for h in headers] for item in items]
+    headers = component_headers(attr, getattr(models, cls_name))
+    rows = [
+        [
+            _code_cell(str(v)) if h in _SUMMARY_COLUMNS else _cell(v)
+            for h, v in zip(headers, component_values(attr, item), strict=True)
+        ]
+        for item in items
+    ]
     note = "" if coverage.state is CoverageState.COLLECTED else f"_{escape_pipe(coverage.label)}_\n\n"
     return f"## {heading}\n\n{note}{_table(headers, rows)}"
 
@@ -131,8 +160,17 @@ def _document(doc: SdrDocument) -> str:
     }
     coverage_by_family = {r.family: r for r in coverage}
     for heading, attr, cls_name in _COMPONENT_SECTIONS:
-        parts.append(_section(heading, components_map[attr], cls_name, coverage_by_family[attr]))
+        parts.append(_section(heading, attr, components_map[attr], cls_name, coverage_by_family[attr]))
+    parts.append(_references_section(doc))
     return "\n".join(parts)
+
+
+def _references_section(doc: SdrDocument) -> str:
+    rows = reference_display_rows(doc)
+    if not rows:
+        return "## References\n\n_No references found._\n"
+    body = [[escape_pipe(c) for c in r] for r in rows]
+    return f"## References\n\n{_table(list(REFERENCE_HEADINGS), body)}"
 
 
 class MarkdownWriter:

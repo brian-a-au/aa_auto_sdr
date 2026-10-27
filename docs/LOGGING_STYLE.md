@@ -247,7 +247,7 @@ Every SDK call in `api/fetch.py` is wrapped in either `_retry_and_normalize` (bu
 
 Each writer in `output/writers/*` emits one `output_write` INFO record on a successful write. The `format` extra discriminates them — its values are `excel`, `csv`, `json`, `html`, `markdown`, `excel-template`, and `notion`. The first six are in `INSTRUMENTED_MODULES` and are checked by the meta-test; the Notion writer emits the same `output_write` record but is not part of the instrumented set.
 
-**One writer call → one record, regardless of file count.** The CSV writer produces 9 files per invocation (a summary, a coverage file, six per-component files, and the `<stem>._manifest.json` completion manifest; 10 when a quality audit ran adds `quality_issues`); it emits ONE `output_write` record with `count=9` (or `count=10`), not one record per file. Other writers produce 1 file each and emit `count=1`.
+**One writer call → one record, regardless of file count.** The CSV writer produces 10 files per invocation (a summary, a coverage file, six per-component files, a references file, and the `<stem>._manifest.json` completion manifest; 11 when a quality audit ran adds `quality_issues`); it emits ONE `output_write` record with `count=10` (or `count=11`), not one record per file. Other writers produce 1 file each and emit `count=1`.
 
 Required extras on every `output_write` INFO record: `format`, `output_path`, `count`, `duration_ms`, `rsid`. For writers whose `write()` returns a list of N paths, `output_path` is `str(paths[0])` — abstracted so a future internal change to a writer's file shape doesn't break the contract.
 

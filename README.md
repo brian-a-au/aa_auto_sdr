@@ -40,6 +40,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | `--run-summary-json PATH` emits a structured JSON run summary for generation or batch runs, to a file or stdout |
 | | Continue-on-error across N report suites with summary banner |
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
+| | Readable segment and calculated-metric summaries, plus a References appendix of what uses what ([output formats](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/OUTPUT_FORMATS.md#definition-summaries-and-references)) |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
 | | Multi-match name fan-out: a name matching N suites generates N SDRs |
 | | `--render-from TOKEN` re-renders saved SDR JSON or a snapshot in any local format, with no auth and no API calls ([CLI reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md#offline-render)) |

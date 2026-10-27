@@ -1,2 +1,2 @@
-﻿id,name,description,rsid,owner_id,polarity,precision,type,definition,tags,categories,extra
-cm_1,Conversion Rate,Orders divided by visits,demo.prod,42,positive,4,decimal,"{""formula"": {""args"": [""metrics/orders"", ""metrics/visits""], ""func"": ""divide""}}",[],"[""Conversion""]",{}
+﻿id,name,description,rsid,owner_id,polarity,precision,type,definition,tags,categories,extra,formula_summary,metric_references,segment_references
+cm_1,Conversion Rate,Orders divided by visits,demo.prod,42,positive,4,decimal,"{""formula"": {""col1"": {""func"": ""metric"", ""name"": ""metrics/orders""}, ""col2"": {""func"": ""segment"", ""metric"": {""func"": ""metric"", ""name"": ""metrics/visits""}, ""segment_id"": ""s_222""}, ""func"": ""divide""}, ""func"": ""calc-metric"", ""version"": [1, 0, 0]}",[],"[""Conversion""]",{},metrics/orders / metrics/visits[segment s_222],"metrics/orders, metrics/visits",s_222

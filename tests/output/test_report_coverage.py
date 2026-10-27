@@ -245,6 +245,7 @@ def test_excel_coverage_sheet_follows_summary(mixed_doc: SdrDocument, tmp_path: 
         "Calculated Metrics",
         "Virtual Report Suites",
         "Classifications",
+        "References",
     ]
     rows = _sheet_rows(target, "Coverage")
     assert rows[0] == ("Family", "State", "Count", "Expansion Level")

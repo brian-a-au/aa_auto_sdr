@@ -35,11 +35,17 @@ def _check_pyproject(repo: Path) -> None:
 
 
 def _check_changelog(repo: Path, canonical: str) -> None:
+    """The most recent released heading (`## [x.y.z]`, skipping Unreleased) must match.
+
+    Searched across the whole file, so a long Unreleased section never hides it."""
     text = (repo / "CHANGELOG.md").read_text()
-    head = "\n".join(text.splitlines()[:100])
-    if f"## [{canonical}]" not in head:
+    match = re.search(r"^## \[(\d+\.\d+\.\d+[^\]]*)\]", text, re.MULTILINE)
+    if match is None:
+        print("error: CHANGELOG.md has no released '## [x.y.z]' heading", file=sys.stderr)
+        sys.exit(1)
+    if match.group(1) != canonical:
         print(
-            f"error: CHANGELOG.md first 100 lines missing '## [{canonical}]' heading",
+            f"error: CHANGELOG.md most recent release heading is '## [{match.group(1)}]', expected '## [{canonical}]'",
             file=sys.stderr,
         )
         sys.exit(1)

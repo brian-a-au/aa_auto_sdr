@@ -483,7 +483,11 @@ def _run_impl(
                 _emit_timings_if_enabled(show_timings=show_timings)
                 return ExitCode.API.value
             payload = doc.to_dict()
-            docs.append(payload)
+            # stdout matches the --format json file (derived definition
+            # fields + references); the snapshot below keeps the plain payload.
+            from aa_auto_sdr.sdr.definitions import enrich_payload
+
+            docs.append(enrich_payload(doc, payload))
             if (
                 _fail_on_quality is not None
                 and doc.quality is not None

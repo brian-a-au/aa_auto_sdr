@@ -59,6 +59,75 @@ def escape_html(text: str) -> str:
     return _html.escape(text, quote=True)
 
 
+def component_headers(family: str, cls: type) -> list[str]:
+    """Column names for one component family: the model fields, then the
+    derived definition columns (summary and references) when the family has them."""
+    from dataclasses import fields
+
+    from aa_auto_sdr.sdr.definitions import DERIVED_COLUMNS
+
+    return [f.name for f in fields(cls)] + list(DERIVED_COLUMNS.get(family, ()))
+
+
+def component_values(family: str, item: Any) -> list[Any]:
+    """Cell values for one component, in `component_headers` order.
+
+    Model fields are returned as-is (each writer stringifies them). Derived
+    reference lists are joined with ", " so tabular formats show plain IDs."""
+    from dataclasses import fields
+
+    from aa_auto_sdr.sdr.definitions import derived_fields
+
+    values: list[Any] = [getattr(item, f.name) for f in fields(item)]
+    values.extend(", ".join(v) if isinstance(v, list) else v for v in derived_fields(family, item).values())
+    return values
+
+
+# Human labels for the references appendix in Excel, Markdown, and HTML.
+REFERENCE_HEADINGS: tuple[str, ...] = (
+    "Family",
+    "ID",
+    "Name",
+    "Relation",
+    "Kind",
+    "Target Family",
+    "Target ID",
+    "Target Name",
+    "Status",
+)
+
+_FAMILY_LABELS = {
+    "calculated_metrics": "Calculated Metrics",
+    "metrics": "Metrics",
+    "segments": "Segments",
+    "virtual_report_suites": "Virtual Report Suites",
+}
+
+
+def reference_display_rows(doc: Any) -> list[list[str]]:
+    """References appendix rows with human family and relation labels."""
+    from aa_auto_sdr.sdr.definitions import build_references, reference_rows
+
+    out: list[list[str]] = []
+    for family, ident, name, relation, kind, target_family, target_id, target_name, status in reference_rows(
+        build_references(doc)
+    ):
+        out.append(
+            [
+                _FAMILY_LABELS.get(family, family),
+                ident,
+                name,
+                relation.replace("_", " "),
+                kind,
+                _FAMILY_LABELS.get(target_family, target_family),
+                target_id,
+                target_name,
+                status,
+            ]
+        )
+    return out
+
+
 def render_provenance_pairs(doc: Any) -> list[tuple[str, str]]:
     """Summary rows for a document rebuilt by `--render-from`; empty for a live capture."""
     rendered = getattr(doc, "rendered", None)

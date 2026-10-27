@@ -18,11 +18,11 @@
     {"id": "metrics/orders", "name": "Orders", "type": "int", "category": "Commerce", "precision": 0, "segmentable": true, "description": "Conversion events", "tags": [], "dataGroup": "Commerce"}
   ],
   "segments": [
-    {"id": "s_111", "name": "Mobile Users", "description": "Mobile device traffic", "rsid": "demo.prod", "owner": {"id": 42}, "definition": {"version": [1, 0, 0], "container": {"func": "container", "context": "hits", "pred": {"func": "eq", "val": "mobile"}}}, "compatibility": {}, "tags": [], "created": "2025-01-01T00:00:00Z", "modified": "2025-01-02T00:00:00Z"},
-    {"id": "s_222", "name": "Returning Visitors", "description": null, "rsid": "demo.prod", "owner": {"id": 42}, "definition": {"version": [1, 0, 0], "container": {"func": "container", "context": "visits", "pred": {"func": "eq", "val": "returning"}}}, "compatibility": {}, "tags": [], "created": null, "modified": null}
+    {"id": "s_111", "name": "Mobile Users", "description": "Mobile device traffic", "rsid": "demo.prod", "owner": {"id": 42}, "definition": {"func": "segment", "version": [1, 0, 0], "container": {"func": "container", "context": "hits", "pred": {"func": "streq", "str": "mobile", "val": {"func": "attr", "name": "variables/evar2"}}}}, "compatibility": {}, "tags": [], "created": "2025-01-01T00:00:00Z", "modified": "2025-01-02T00:00:00Z"},
+    {"id": "s_222", "name": "Returning Visitors", "description": null, "rsid": "demo.prod", "owner": {"id": 42}, "definition": {"func": "segment", "version": [1, 0, 0], "container": {"func": "container", "context": "visits", "pred": {"func": "and", "preds": [{"func": "gt", "num": 1, "val": {"func": "attr", "name": "variables/visitnumber"}}, {"func": "event-exists", "evt": {"func": "event", "name": "metrics/pageviews"}}]}}}, "compatibility": {}, "tags": [], "created": null, "modified": null}
   ],
   "calculated_metrics": [
-    {"id": "cm_1", "name": "Conversion Rate", "description": "Orders divided by visits", "rsid": "demo.prod", "owner": {"id": 42}, "polarity": "positive", "precision": 4, "type": "decimal", "definition": {"formula": {"func": "divide", "args": ["metrics/orders", "metrics/visits"]}}, "tags": [], "categories": ["Conversion"]}
+    {"id": "cm_1", "name": "Conversion Rate", "description": "Orders divided by visits", "rsid": "demo.prod", "owner": {"id": 42}, "polarity": "positive", "precision": 4, "type": "decimal", "definition": {"func": "calc-metric", "version": [1, 0, 0], "formula": {"func": "divide", "col1": {"func": "metric", "name": "metrics/orders"}, "col2": {"func": "segment", "segment_id": "s_222", "metric": {"func": "metric", "name": "metrics/visits"}}}}, "tags": [], "categories": ["Conversion"]}
   ],
   "virtual_report_suites": [
     {"id": "vrs_eu", "name": "EU Visitors Only", "parentRsid": "demo.prod", "timezone": "Europe/Berlin", "description": "EU-only traffic view", "segmentList": ["s_eu"], "curatedComponents": [], "modified": "2025-03-01T00:00:00Z"}

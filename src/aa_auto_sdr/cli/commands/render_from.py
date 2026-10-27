@@ -122,7 +122,9 @@ def _run_impl(
         return _fail(is_pipe=is_pipe, exc=exc, message=msg, exit_code=ExitCode.GENERIC.value)
 
     if is_pipe:
-        sys.stdout.write(json.dumps(doc.to_dict(), indent=2, default=str) + "\n")
+        from aa_auto_sdr.sdr.definitions import enrich_payload
+
+        sys.stdout.write(json.dumps(enrich_payload(doc, doc.to_dict()), indent=2, default=str) + "\n")
         sys.stdout.flush()
         return ExitCode.OK.value
 

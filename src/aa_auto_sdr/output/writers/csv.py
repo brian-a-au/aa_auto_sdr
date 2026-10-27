@@ -1,9 +1,9 @@
 """CSV writer — one file per component type, UTF-8 with BOM, staged writes.
 
 Self-registers with the registry on import. Returns one Path per file written:
-summary, coverage, and the 6 component types (8 files), plus quality_issues
-when a quality audit ran, then the `<stem>._manifest.json` completion
-manifest last (9 or 10 paths). Files are staged and published together; see
+summary, coverage, the 6 component types, and references (9 files), plus
+quality_issues when a quality audit ran, then the `<stem>._manifest.json`
+completion manifest last (10 or 11 paths). Files are staged and published together; see
 `_publish_bundle`."""
 
 from __future__ import annotations
@@ -17,12 +17,17 @@ import os
 import shutil
 import tempfile
 import time
-from dataclasses import fields
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.output._helpers import neutralize_formula, render_provenance_pairs, stringify_cell
+from aa_auto_sdr.output._helpers import (
+    component_headers,
+    component_values,
+    neutralize_formula,
+    render_provenance_pairs,
+    stringify_cell,
+)
 from aa_auto_sdr.output.coverage import (
     FAMILY_HEADINGS,
     QUALITY_ISSUE_COLUMNS,
@@ -85,23 +90,17 @@ def _coverage_csv_rows(doc: SdrDocument) -> list[list[str]]:
     return [[r.family, r.state.value, str(r.count), r.expansion_level or ""] for r in coverage_rows(doc)]
 
 
-def _component_rows(items: list[Any]) -> tuple[list[str], list[list[str]]]:
-    """Return (headers, rows) for a list of frozen dataclass instances."""
-    if not items:
-        return [], []
-    cls = type(items[0])
-    headers = [f.name for f in fields(cls)]
-    rows = [[stringify_cell(getattr(item, h)) for h in headers] for item in items]
-    return headers, rows
+def _component_rows(field_name: str, items: list[Any]) -> tuple[list[str], list[list[str]]]:
+    """Return (headers, rows) for one component family.
 
-
-def _component_headers_for_empty(field_name: str) -> list[str]:
-    """When a component list is empty, we can't derive headers from the data,
-    so use the dataclass field names directly."""
+    Headers come from the model class, so an empty family still gets them,
+    followed by the derived definition columns for segments and calculated
+    metrics."""
     from aa_auto_sdr.api import models
 
-    cls = getattr(models, _COMPONENT_FIELDS[field_name])
-    return [f.name for f in fields(cls)]
+    headers = component_headers(field_name, getattr(models, _COMPONENT_FIELDS[field_name]))
+    rows = [[stringify_cell(v) for v in component_values(field_name, item)] for item in items]
+    return headers, rows
 
 
 def _encode_csv(headers: list[str], rows: list[list[str]]) -> str:
@@ -153,12 +152,13 @@ def _sections(doc: SdrDocument) -> list[tuple[str, str, list[str], list[list[str
         ("coverage", "Coverage", ["family", "state", "count", "expansion_level"], _coverage_csv_rows(doc)),
     ]
     for field_name, heading in FAMILY_HEADINGS.items():
-        items = getattr(doc, field_name)
-        if items:
-            headers, rows = _component_rows(items)
-        else:
-            headers, rows = _component_headers_for_empty(field_name), []
+        headers, rows = _component_rows(field_name, getattr(doc, field_name))
         sections.append((field_name, heading, headers, rows))
+    # References appendix (always) — one row per reference edge
+    from aa_auto_sdr.sdr.definitions import REFERENCE_COLUMNS, build_references, reference_rows
+
+    reference_body = [list(r) for r in reference_rows(build_references(doc))]
+    sections.append(("references", "References", list(REFERENCE_COLUMNS), reference_body))
     # Quality findings — only when an audit ran
     quality = quality_status(doc.quality)
     if quality.audited:
