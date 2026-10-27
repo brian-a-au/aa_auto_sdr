@@ -67,8 +67,8 @@ Supports `--filter`, `--exclude`, `--sort`, `--limit`.
 | Format value | Output produced                       |
 |--------------|---------------------------------------|
 | `excel`      | `.xlsx` workbook (default)            |
-| `csv`        | CSV file set: `<RSID>.<component>.csv` per component, plus `summary`, `coverage`, and `quality_issues` (only when a quality audit ran) |
-| `json`       | JSON file                             |
+| `csv`        | CSV file set: `<RSID>.<component>.csv` per component, plus `summary`, `coverage`, and `quality_issues` (only when a quality audit ran), then `<RSID>._manifest.json` written last (`manifest_version`, `complete`, `generated_at`, `files: [{name, sheet, sha256, rows, bytes}]`). Files are staged and published together; read the manifest to confirm a complete set. |
+| `json`       | JSON file, with a top-level `coverage` object: `families: [{family, state, count, detail}]` and `quality: {state, detail, issue_count, severity_counts, gate}` |
 | `html`       | HTML report                           |
 | `markdown`   | Markdown file                         |
 | `all`        | All five file formats                 |
@@ -198,6 +198,14 @@ Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with exit cod
 (description, tags, category, etc.) in diff output. Without the flag,
 these fields are suppressed by default — diff output focuses on
 identity, structure, and definition changes.
+
+Diff JSON (and each `--compare-with-prev` JSON `report`) has a top-level
+`coverage` object: `compare_fields`, `ignored_fields` (the effective set,
+including the default extended-field set unless `--extended-fields`),
+`component_types`, `settings_fields`, `settings_policy` (`reported`),
+`show_only`, and `limitations` (stable IDs such as
+`warn_threshold_counts_components_only` and `baseline_chosen_by_time`). See
+`docs/SNAPSHOT_DIFF.md` for the full list. Watch events do not carry it.
 
 ### Batch sampling
 

@@ -98,6 +98,14 @@ def _dispatch(
     raise SnapshotResolveError(f"snapshot file not found: {path}")
 
 
+def is_time_relative_token(token: str) -> bool:
+    """True for `<rsid>@latest` / `<rsid>@previous`: the store picks the
+    snapshot by file-name time order, not the caller."""
+    if token.startswith("git:") or "@" not in token or _looks_like_path(token):
+        return False
+    return token.rpartition("@")[2] in ("latest", "previous")
+
+
 def _looks_like_path(token: str) -> bool:
     """Heuristic: tokens with a path separator or that point to an existing file are paths."""
     if os.sep in token or token.startswith(("./", "~")):

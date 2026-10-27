@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file. Format foll
 
 ## [Unreleased]
 
+### Added
+- SDR JSON has a new top-level `coverage` object, shaped like the one in
+  cja_auto_sdr. `coverage.families` gives each component family's `state`
+  (aa's values: `collected`, `collected_empty`, `excluded`, `degraded`,
+  `partial`, `unknown_scope`), `count`, and a human-readable `detail`.
+  `coverage.quality` gives the audit `state` (`ran` or `not_run`), `detail`,
+  `issue_count`, `severity_counts`, and `gate` (`null` without a
+  `--fail-on-quality` threshold, else `{threshold, verdict}` with `pass` or
+  `fail`). Snapshot envelopes do not carry it and are
+  unchanged.
+- Diff JSON, and each `--compare-with-prev` JSON report, has a new top-level
+  `coverage` object that says what the diff compared: `compare_fields`,
+  `ignored_fields` (the effective set, including the default extended-field
+  set unless `--extended-fields`), `component_types`, `settings_fields`,
+  `settings_policy` (`reported`), `show_only`, and `limitations` (stable IDs
+  such as `warn_threshold_counts_components_only` and
+  `baseline_chosen_by_time`). Watch events are unchanged.
+- The CSV writer now stages every file in a dot-prefixed directory next to the
+  target and publishes them together, ending with a `<stem>._manifest.json`
+  completion manifest (`manifest_version`, `complete`, `generated_at`, and
+  `name`, `sheet`, `sha256`, `rows`, and `bytes` per file). If a section
+  fails to render, the files from the previous run are left untouched. Files
+  that are not part of the new run are never deleted. CSV file names and
+  locations are unchanged; the writer's returned paths and its
+  `output_write` `count` now include the manifest.
+
 ### Changed
 - Automatic baselines skip filtered snapshots. Watch, `--compare-with-prev`,
   and `--trending-window` points now compare against the newest earlier

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import dataclasses
 import json
+from typing import Any
 
+from aa_auto_sdr.snapshot.diff_coverage import diff_coverage
 from aa_auto_sdr.snapshot.models import DiffReport
 
 
@@ -13,8 +15,13 @@ def render_json(
     *,
     summary: bool = False,
     labels: tuple[str, str] | None = None,
+    coverage: dict[str, Any] | None = None,
 ) -> str:
+    """Render the report. `coverage` is the top-level `coverage` object
+    (see snapshot.diff_coverage); when omitted it is derived from `report`
+    with the default compare options."""
     payload = dataclasses.asdict(report)
+    payload["coverage"] = coverage if coverage is not None else diff_coverage(report)
     if labels:
         payload["a_label"] = labels[0]
         payload["b_label"] = labels[1]

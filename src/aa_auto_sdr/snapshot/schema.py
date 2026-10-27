@@ -108,6 +108,8 @@ def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = N
     quality = payload.pop("quality", None)
     payload.pop("fetch_status", None)
     payload.pop("collected_components", None)
+    # SDR JSON's derived `coverage` object is report output, not capture data.
+    payload.pop("coverage", None)
     # Render provenance (set only by --render-from) is not part of a capture.
     payload.pop("rendered_at", None)
     payload.pop("rendered_by_tool_version", None)

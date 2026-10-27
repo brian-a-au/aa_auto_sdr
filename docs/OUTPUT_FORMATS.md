@@ -8,8 +8,8 @@
 |--------|-----------|-------------|----------|
 | `excel` | `.xlsx` | Single workbook: `Summary`, `Coverage`, and `Quality` sheets, then one sheet per component type | Human review; default format |
 | `excel-template` | `.xlsx` | Auto-selected when `--template PATH` is passed. Opens an existing Adobe BRD/SDR `.xlsx`, fills component data into anchored sheets, preserves styles and formulas. | Customer-facing SDRs that must match the official template's look. |
-| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus `summary` and `coverage` (8 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage), plus `quality_issues` when a quality audit ran. Report-suite metadata and the quality verdict are rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
-| `json` | `.json` | Single self-contained JSON file with the full SdrDocument, including `fetch_status`, `quality`, and `collected_components` (the families this capture requested) | Automation; jq pipelines; downstream tooling |
+| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus `summary` and `coverage` (8 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage), plus `quality_issues` when a quality audit ran, and a `<stem>._manifest.json` completion manifest written last ([CSV bundle publication](#csv-bundle-publication-and-manifest)). Report-suite metadata and the quality verdict are rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
+| `json` | `.json` | Single self-contained JSON file with the full SdrDocument, including `fetch_status`, `quality`, `collected_components` (the families this capture requested), and a derived `coverage` object ([below](#sdr-json-coverage-object)) | Automation; jq pipelines; downstream tooling |
 | `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript. Coverage and Quality sections follow the header. | Sharing as a static report; PR/email attachments |
 | `markdown` | `.md` | Single GFM-flavored Markdown file: Coverage and Quality sections, the summary, then one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
 | `notion` | `.notion` (nominal) | Publishes a Notion page; tracks RSID → page-id in `.notion_pages.json`. Requires `[notion]` extra plus `NOTION_TOKEN` / `NOTION_PARENT_PAGE_ID`. | Notion-based wikis; collaborative docs |
@@ -54,8 +54,95 @@ Where each format puts this:
   family's state (for example "Not collected in this capture") instead of a
   bare "none". A section that has rows but is partial, degraded, or of
   unknown scope shows the state above its table.
-- **JSON** already carries `fetch_status`, `quality`, and
-  `collected_components` and is unchanged.
+- **JSON**: carries `fetch_status`, `quality`, and `collected_components`,
+  plus the derived top-level `coverage` object described below.
+
+### SDR JSON `coverage` object
+
+SDR JSON (file output, `--output -`, and `--render-from` JSON) has a
+top-level `coverage` object with the same per-family states and quality
+status the other formats show. Its shape matches the SDR JSON `coverage`
+block in `cja_auto_sdr`; the state values are aa's.
+
+```json
+"coverage": {
+  "families": [
+    {"family": "dimensions", "state": "collected", "count": 4, "detail": "Collected"},
+    {"family": "classifications", "state": "partial", "count": 1,
+     "detail": "Partial fetch (expansion level: rsid_only)"}
+  ],
+  "quality": {
+    "state": "ran",
+    "detail": "Quality gate FAIL at threshold HIGH: 2 issues (CRITICAL 0, HIGH 1, MEDIUM 0, LOW 1, INFO 0).",
+    "issue_count": 2,
+    "severity_counts": {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 1, "INFO": 0},
+    "gate": {"threshold": "HIGH", "verdict": "fail"}
+  }
+}
+```
+
+- `families` lists all six families in report order (dimensions, metrics,
+  segments, calculated_metrics, virtual_report_suites, classifications).
+  `state` is one of the values in the table above. `detail` is the
+  human-readable state, including the expansion level for `partial`.
+- `quality.state` is `ran` or `not_run`. `failed` is reserved for parity with
+  `cja_auto_sdr` and is never written today, because an audit that raises
+  fails the whole run instead of producing a document. When no audit ran,
+  `issue_count` and `gate` are `null` and `severity_counts` is `{}`.
+- `quality.gate` is `null` unless a `--fail-on-quality` threshold applied, as
+  in `cja_auto_sdr`. With a threshold it is `{threshold, verdict}`, and
+  `verdict` is `pass` or `fail`. These lowercase values are aa's existing
+  `quality.summary.verdict` values; `cja_auto_sdr` uses `PASS`, `FAIL`, and
+  `NOT_EVALUATED` instead.
+- `coverage` is derived output. Snapshot envelopes never carry it, and
+  `--render-from` ignores it in its input and derives it again.
+
+### CSV bundle publication and manifest
+
+The CSV writer renders every file of a run into a dot-prefixed staging
+directory (`.<stem>.csv-*`) next to the target. It then moves the files into place
+together and writes `<stem>._manifest.json` last. File names and locations
+do not change: the files stay flat in the output directory as
+`<stem>.<section>.csv`.
+
+```json
+{
+  "complete": true,
+  "files": [
+    {"bytes": 334, "name": "demo_prod.summary.csv", "rows": 16,
+     "sha256": "ca1508ae…", "sheet": "Summary"}
+  ],
+  "generated_at": "2026-04-26T12:00:00+00:00",
+  "manifest_version": "1.0"
+}
+```
+
+- `files` lists every CSV file the run wrote, in write order: summary,
+  coverage, the six component files, then quality_issues when an audit ran.
+  `sha256` and `bytes` describe the file as written (UTF-8 with BOM). `rows`
+  counts data rows, not the header row. `sheet` is the section title.
+- If any section fails to render, nothing is published. The files from the
+  previous run, including its manifest, are left untouched.
+- The old manifest is removed before the files are replaced, and the new one
+  is written last, so a manifest always describes a complete set from one
+  run. Replacing several files is not atomic as a set: a failure while moving
+  files leaves no manifest, which tells a consumer the set is incomplete.
+- Files that are not part of the new run are never deleted. A
+  `<stem>.quality_issues.csv` from an earlier audited run stays on disk but is
+  not listed in the new manifest.
+- The manifest is named after the stem (the RSID for normal runs). A batch
+  that writes several report suites into one `--output-dir` gets one manifest
+  per report suite, and parallel workers never write the same file. The
+  shape matches the `_manifest.json` in `cja_auto_sdr`. The stem prefix is
+  aa's own, because aa writes CSV files flat instead of into a per-run
+  directory.
+- Use one writer per output stem. Two separate processes that write the same
+  RSID into the same directory at the same time can interleave their files.
+  A single batch run is safe, because each report suite has its own stem.
+- The staging directory is removed when the write finishes or fails. If the
+  process is killed (for example by SIGKILL or a power loss), a
+  `.<stem>.csv-*` directory can be left behind. It is not cleaned up
+  automatically and is safe to delete.
 
 ### Default
 

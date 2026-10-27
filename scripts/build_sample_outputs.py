@@ -75,10 +75,11 @@ asserts the committed tree matches the script's current output via
 | File | Format | Notes |
 |---|---|---|
 | `demo_prod.xlsx` | Excel | One sheet per component type. *Best-effort sample only — xlsxwriter embeds creation time in zip metadata, so the file is not byte-deterministic across runs and is excluded from the up-to-date assertion test.* |
-| `demo_prod.json` | JSON | Full SdrDocument as JSON. |
+| `demo_prod.json` | JSON | Full SdrDocument as JSON, with a top-level `coverage` object. |
 | `demo_prod.html` | HTML | Single self-contained file with inline CSS. |
 | `demo_prod.md` | Markdown | GFM-flavored. |
 | `demo_prod.<component>.csv` | CSV | One file per component type plus `summary` and `coverage` (eight files). `quality_issues` is added only when a quality audit runs. |
+| `demo_prod._manifest.json` | CSV manifest | Written last. Lists each CSV file with its SHA-256, row count, and byte size. |
 
 ### Diff outputs
 
@@ -88,7 +89,7 @@ one renamed dimension and one removed metric. The diff is rendered three ways:
 | File | Renderer |
 |---|---|
 | `diff_console.txt` | Console (ANSI escapes stripped for repo display) |
-| `diff_report.json` | JSON renderer (sorted keys, jq-friendly) |
+| `diff_report.json` | JSON renderer (sorted keys, jq-friendly, with a top-level `coverage` object) |
 | `diff_report.md` | Markdown renderer (GFM tables, PR-comment-friendly) |
 """
 
@@ -108,6 +109,11 @@ def main() -> int:
 
     registry.bootstrap()
     client = _build_mock_client()
+
+    # The CSV manifest records when it was generated; pin it like captured_at.
+    from aa_auto_sdr.output.writers import csv as csv_writer
+
+    csv_writer._utcnow = lambda: FIXED_CAPTURED_AT_B
 
     # Build the SdrDocument once at the FIXED_CAPTURED_AT_B timestamp.
     doc = build_sdr(client, "demo.prod", captured_at=FIXED_CAPTURED_AT_B, tool_version=FIXED_TOOL_VERSION)

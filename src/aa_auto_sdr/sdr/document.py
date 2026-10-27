@@ -88,7 +88,14 @@ class SdrDocument:
         Includes `quality` (None when no audit ran) and `fetch_status`
         (FetchOutcomeMeta entries unpacked via asdict). Bundled v1.12.0
         correctness fix; pre-v1.12.0 builds silently dropped these.
+
+        `coverage` is derived from the fields above (per-family state and
+        quality status). Snapshot envelopes drop it, and `--render-from`
+        ignores it and derives it again.
         """
+        # Lazy: output.coverage imports this module.
+        from aa_auto_sdr.output.coverage import coverage_json
+
         payload: dict[str, Any] = {
             "report_suite": asdict(self.report_suite),
             "dimensions": [asdict(d) for d in self.dimensions],
@@ -104,6 +111,7 @@ class SdrDocument:
             "collected_components": (
                 sorted(self.collected_components) if self.collected_components is not None else None
             ),
+            "coverage": coverage_json(self),
         }
         if self.rendered is not None:
             payload["rendered_at"] = self.rendered.rendered_at.isoformat()

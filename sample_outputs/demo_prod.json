@@ -42,6 +42,53 @@
     "segments",
     "virtual_report_suites"
   ],
+  "coverage": {
+    "families": [
+      {
+        "count": 4,
+        "detail": "Collected",
+        "family": "dimensions",
+        "state": "collected"
+      },
+      {
+        "count": 3,
+        "detail": "Collected",
+        "family": "metrics",
+        "state": "collected"
+      },
+      {
+        "count": 2,
+        "detail": "Collected",
+        "family": "segments",
+        "state": "collected"
+      },
+      {
+        "count": 1,
+        "detail": "Collected",
+        "family": "calculated_metrics",
+        "state": "collected"
+      },
+      {
+        "count": 1,
+        "detail": "Collected",
+        "family": "virtual_report_suites",
+        "state": "collected"
+      },
+      {
+        "count": 1,
+        "detail": "Collected",
+        "family": "classifications",
+        "state": "collected"
+      }
+    ],
+    "quality": {
+      "detail": "No quality audit ran.",
+      "gate": null,
+      "issue_count": null,
+      "severity_counts": {},
+      "state": "not_run"
+    }
+  },
   "dimensions": [
     {
       "category": "Conversion",

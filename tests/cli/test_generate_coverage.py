@@ -162,6 +162,7 @@ def test_generate_dry_run_csv_with_snapshot_lists_paths(
     out = capsys.readouterr().out
     assert "DRY RUN" in out
     assert "demo.prod.<component>.csv" in out
+    assert str(tmp_path / "demo.prod._manifest.json") in out
     assert "snaps" in out  # snapshot path listed
 
 

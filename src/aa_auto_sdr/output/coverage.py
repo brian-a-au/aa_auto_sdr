@@ -158,3 +158,48 @@ def quality_status_line(status: QualityStatus) -> str:
         return f"Quality audit ran with no gate policy: {findings}."
     threshold = f" at threshold {status.threshold}" if status.threshold else ""
     return f"Quality gate {str(status.verdict).upper()}{threshold}: {findings}."
+
+
+class QualityState(StrEnum):
+    """Whether the quality audit ran, for the SDR JSON `coverage.quality.state`.
+
+    `failed` is reserved for parity with cja_auto_sdr: an audit that raises
+    fails the whole run today, so no SDR document ever records it."""
+
+    RAN = "ran"
+    NOT_RUN = "not_run"
+    FAILED = "failed"
+
+
+def quality_json(status: QualityStatus) -> dict[str, Any]:
+    """JSON form of a quality status: `{state, detail, issue_count, severity_counts, gate}`.
+
+    `gate` is None unless a `--fail-on-quality` threshold applied (as in
+    cja_auto_sdr). Then it is `{threshold, verdict}` with aa's existing
+    summary verdict values (`pass`, `fail`)."""
+    if not status.audited:
+        return {
+            "state": QualityState.NOT_RUN.value,
+            "detail": quality_status_line(status),
+            "issue_count": None,
+            "severity_counts": {},
+            "gate": None,
+        }
+    return {
+        "state": QualityState.RAN.value,
+        "detail": quality_status_line(status),
+        "issue_count": status.total,
+        "severity_counts": dict(status.by_severity or {}),
+        "gate": ({"threshold": status.threshold, "verdict": status.verdict} if status.threshold is not None else None),
+    }
+
+
+def coverage_json(doc: SdrDocument) -> dict[str, Any]:
+    """The SDR JSON `coverage` object: per-family rows plus the quality status."""
+    return {
+        "families": [
+            {"family": row.family, "state": row.state.value, "count": row.count, "detail": row.label}
+            for row in coverage_rows(doc)
+        ],
+        "quality": quality_json(quality_status(doc.quality)),
+    }

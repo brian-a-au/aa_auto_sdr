@@ -257,11 +257,48 @@ Metrics: +0 added, -1 removed, ~0 modified, 32 unchanged
     ...
   ],
   "rsid_mismatch": false,
-  "settings_changes": 1
+  "settings_changes": 1,
+  "coverage": {
+    "compare_fields": ["curated_components", "definition", "name", "parent", "..."],
+    "ignored_fields": ["categories", "category", "compatibility", "created", "data_group",
+                       "description", "extra", "modified", "owner_id", "tags"],
+    "component_types": ["dimensions", "metrics", "segments", "calculated_metrics",
+                        "virtual_report_suites", "classifications"],
+    "settings_fields": ["currency", "name", "parent_rsid", "timezone"],
+    "settings_policy": "reported",
+    "show_only": null,
+    "limitations": ["warn_threshold_counts_components_only"]
+  }
 }
 ```
 
 Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`. Keys are emitted alphabetically sorted (shown grouped above for readability). `report_suite_deltas` carries the report-suite header changes (timezone, currency, etc.) and is an empty list when the header is unchanged; it is also emptied in `--summary` mode. `settings_changes` counts those changed fields (one per field) and is kept in `--summary` mode. It is never added to component totals. Each component carries `suppressed` / `suppression_reason` — non-null only when the [comparability rules](#comparability-capture-scope-and-fetch-quality) skip that component's per-item diff — and `comparability` (`comparable`, `excluded`, `unknown`, `degraded`, or `partial`).
+
+#### Diff JSON `coverage`
+
+The top-level `coverage` object says what the comparison compared, so a reader can judge the evidence behind it. Its shape follows the diff `coverage` object in `cja_auto_sdr`, with aa's field names. It describes the full comparison, before `--show-only`, `--changes-only`, or `--max-issues` trim the rendered `components`, and it is kept in `--summary` mode.
+
+| Key | Meaning |
+|-----|---------|
+| `compare_fields` | Sorted top-level component fields that were compared. The identity fields `id` and `rsid` are never deltas, and ignored fields are left out. Keys nested under these fields are compared too. |
+| `ignored_fields` | Sorted effective ignore set: `--ignore-fields` plus the default extended-field set, or only `--ignore-fields` with `--extended-fields`. It applies at every nesting level and to report-suite settings. |
+| `component_types` | The six component types in render order. |
+| `settings_fields` | Sorted report-suite settings that were compared. |
+| `settings_policy` | Always `reported`: setting changes appear in `report_suite_deltas` and `settings_changes` but never count toward `--warn-threshold`. `--watch` treats any setting change as a trigger. |
+| `show_only` | Sorted `--show-only` types, or `null`. |
+| `limitations` | Stable string IDs, listed below. |
+
+Limitation IDs:
+
+- `warn_threshold_counts_components_only`: always present. `--warn-threshold` counts added, removed, and modified components in comparable sections only.
+- `baseline_chosen_by_time`: an explicit `--diff` side was `<RSID>@latest` or `<RSID>@previous`. Those tokens pick snapshots by time, not by capture scope. `--compare-with-prev` never reports it, because it chooses a covering baseline.
+- `excluded_families_not_compared`: at least one family has `comparability: "excluded"`. This includes a family that neither side collected.
+- `suppressed_families_not_compared`: at least one family is `unknown`, `degraded`, or `partial` and was not compared.
+- `show_only_does_not_narrow_warn_threshold`: `--show-only` was given. It hides sections from the output, but `--warn-threshold` still counts every comparable section.
+
+`compare_fields` and `settings_fields` come from the current tool's models, not from the keys in the two snapshots. A field that is present only in older snapshots is still compared (unless it is ignored), but it is not listed.
+
+Each `--compare-with-prev` JSON result's `report` is a diff JSON document, so it carries `coverage` too. Watch events do not.
 
 ### `markdown`
 
