@@ -52,8 +52,10 @@ exception handler. Inspect stderr for context.
 Likely causes:
 - An internal bug or unexpected condition in the tool itself.
 - `--render-from` or `--push-to-notion` was given a file that is neither a
-  snapshot envelope nor valid SDR JSON (unknown shape, a row without `id`,
-  duplicate ids in one family, a missing or wrong-typed field).
+  valid snapshot envelope nor valid SDR JSON (unknown shape, a row without
+  `id`, duplicate ids in one family, a missing or wrong-typed field, or a
+  report-suite rsid that is not a plain file-name token). Fix or regenerate
+  the input file; this is not an internal bug.
 
 What to try:
 - Re-run with the same arguments and capture full stderr.

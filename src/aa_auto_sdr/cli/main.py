@@ -421,6 +421,28 @@ _RENDER_FROM_CONFLICTS: tuple[tuple[str, str], ...] = (
 )
 
 
+# Flags --render-from honors. Together with _RENDER_FROM_CONFLICTS and the
+# actions group, every parser destination is classified; a meta-test fails on
+# any new flag that is in neither list. Positional `rsids` is rejected by its
+# own check in _reject_render_from_conflicts.
+_RENDER_FROM_ACCEPTED: frozenset[str] = frozenset(
+    {
+        "format",
+        "output",
+        "output_dir",
+        "template",
+        "template_organization",
+        "profile",
+        "snapshot_dir",
+        "agent_mode",
+        "quiet",
+        "log_level",
+        "log_format",
+        "color_theme",
+    }
+)
+
+
 def _reject_render_from_conflicts(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Reject --render-from combined with positional RSIDs, --format notion, or
     any flag in :data:`_RENDER_FROM_CONFLICTS`. Returns OK or USAGE."""

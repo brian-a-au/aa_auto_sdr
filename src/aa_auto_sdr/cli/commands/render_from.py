@@ -134,12 +134,19 @@ def _run_impl(
         tw.organization = template_organization
 
     rsid = doc.report_suite.rsid
+    # Belt and braces: rebuild already rejects unsafe rsids, but never write a
+    # target that resolves outside --output-dir.
+    targets = [(fmt, output_dir / f"{rsid}{registry.get_writer(fmt).extension}") for fmt in formats]
+    root_dir = output_dir.resolve()
+    for _fmt, target in targets:
+        if not _inside(target, root_dir):
+            msg = f"output error: refusing to write {target}: resolves outside --output-dir {output_dir}"
+            return _fail(is_pipe=False, exc=None, message=msg, exit_code=ExitCode.OUTPUT.value)
     try:
         output_dir.mkdir(parents=True, exist_ok=True)
         written: list[Path] = []
-        for fmt in formats:
-            writer = registry.get_writer(fmt)
-            written.extend(writer.write(doc, output_dir / f"{rsid}{writer.extension}"))
+        for fmt, target in targets:
+            written.extend(registry.get_writer(fmt).write(doc, target))
     except OSError as exc:
         return _fail(
             is_pipe=False,
@@ -150,6 +157,13 @@ def _run_impl(
     for path in written:
         print(f"wrote: {path}")
     return ExitCode.OK.value
+
+
+def _inside(target: Path, root_dir: Path) -> bool:
+    """True when `target` is a direct child of `root_dir` after resolution."""
+    if "\x00" in str(target):
+        return False
+    return target.resolve().parent == root_dir
 
 
 def _load_token(token: str, *, profile: str | None, snapshot_dir: Path | None) -> Any:

@@ -17,12 +17,17 @@ non-empty string `id`, ids must be unique within a family, every required
 model field must be present, and every field present must have the model's
 type. Envelope problems raise `SnapshotCorruptError` (or
 `SnapshotSchemaError` for an unsupported schema); SDR JSON problems raise
-`SdrPayloadError`."""
+`SdrPayloadError`.
+
+The report-suite rsid names the output files, so it must be a plain
+file-name token: no path separators, no `..`, no NUL, no leading dot. An
+envelope's top-level `rsid` must also match `components.report_suite.rsid`."""
 
 from __future__ import annotations
 
 from dataclasses import MISSING, fields
 from datetime import datetime
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any, Literal
 
 from aa_auto_sdr.api import models
@@ -138,10 +143,15 @@ def _from_envelope(env: dict[str, Any], *, rendered: RenderProvenance) -> SdrDoc
     rsid = env["rsid"]
     if not isinstance(rsid, str) or not rsid:
         raise err("snapshot 'rsid' must be a non-empty string")
+    _require_safe_rsid(rsid, "rsid", err)
     tool_version = env["tool_version"]
     if not isinstance(tool_version, str) or not tool_version:
         raise err("snapshot 'tool_version' must be a non-empty string")
     report_suite = _report_suite(components.get("report_suite"), err, fallback_rsid=rsid)
+    if report_suite.rsid != rsid:
+        raise err(
+            f"snapshot 'rsid' {rsid!r} does not match 'components.report_suite.rsid' {report_suite.rsid!r}",
+        )
     families = {family: _rows(components.get(family, []), family, err) for family in COMPONENT_FAMILIES}
 
     # Scope is never defaulted: an envelope without the key has unknown scope.
@@ -184,7 +194,28 @@ def _report_suite(value: Any, err: type[AaAutoSdrError], *, fallback_rsid: str |
         )
     if not isinstance(value, dict):
         raise err("'report_suite' must be an object")
-    return _build_row(models.ReportSuite, value, "report_suite", err, id_field="rsid")
+    report_suite = _build_row(models.ReportSuite, value, "report_suite", err, id_field="rsid")
+    _require_safe_rsid(report_suite.rsid, "report_suite.rsid", err)
+    return report_suite
+
+
+def _require_safe_rsid(rsid: str, field: str, err: type[AaAutoSdrError]) -> None:
+    """The rsid becomes an output file name, so it must not be able to leave
+    the output directory on any platform."""
+    unsafe = (
+        not rsid
+        or "\x00" in rsid
+        or "/" in rsid
+        or "\\" in rsid
+        or rsid.startswith(".")
+        or ".." in rsid
+        or PurePosixPath(rsid).name != rsid
+        or PureWindowsPath(rsid).name != rsid
+    )
+    if unsafe:
+        raise err(
+            f"'{field}' {rsid!r} is not a plain file-name token (no path separators, '..', NUL, or leading '.')",
+        )
 
 
 def _rows(value: Any, family: str, err: type[AaAutoSdrError]) -> list[Any]:

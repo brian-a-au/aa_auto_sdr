@@ -92,7 +92,7 @@ uv run aa_auto_sdr <RSID> --format json --run-summary-json -
 
 ### Offline render
 
-`--render-from TOKEN` rebuilds an SDR from a saved capture and runs the normal writers. It needs no credentials and makes no Adobe Analytics calls. `TOKEN` is an SDR JSON file (`--format json` output) or any snapshot token `--diff` accepts (path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`, `git:<ref>:<path>`; `<RSID>@...` needs `--profile` or `--snapshot-dir`).
+`--render-from TOKEN` rebuilds an SDR from a saved capture and runs the normal writers. It needs no credentials and makes no Adobe Analytics calls. `TOKEN` is an SDR JSON file (`--format json` output) or any snapshot token `--diff` accepts (path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`, `git:<ref>:<path>`; `<RSID>@...` needs `--profile` or `--snapshot-dir`). Only an existing file path can be SDR JSON: `git:` and `<RSID>@...` tokens must point to a snapshot envelope. The input's report-suite rsid names the output files, so it must be a plain file-name token (no `/`, `\`, `..`, NUL, or leading `.`); an envelope's `rsid` must match `components.report_suite.rsid`.
 
 ```bash
 # Re-render saved SDR JSON as Markdown
@@ -108,7 +108,7 @@ uv run aa_auto_sdr --render-from ./snapshots/<RSID>/<ts>.json --template ./templ
 - Output keeps the capture's `captured_at`, `tool_version`, `collected_components` (null stays null for inputs that never recorded scope), `fetch_status`, and `quality`. JSON output adds `rendered_at` and `rendered_by_tool_version`; other formats add matching summary rows and a header line.
 - Accepted flags: `--format` (generation formats and aliases; default `excel`), `--output-dir`, `--output -` (JSON only, else exit 15), `--template`, `--template-organization`, `--profile`, `--snapshot-dir`, `--agent-mode`, and the logging flags.
 - Rejected with `2`: positional RSIDs, every other top-level action, `--format notion` (use `--push-to-notion`), and flags that need a fresh capture or belong to another mode (snapshot, retention, git, component filters, `--dry-run`, audit and quality flags, `--name-match`, retry/cache/batch/sampling flags, list filters, diff modifiers, watch modifiers, `--open`, `--show-timings`, `--run-summary-json`, `--yes`, Notion flags). Full list: [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md#offline-render).
-- Exits: `0` written; `1` file is not a snapshot envelope and not valid SDR JSON (unknown shape, row without `id`, duplicate ids in a family, missing or wrong-typed field); `15` bad `--format`, non-JSON with `--output -`, or write failure; `16` token cannot be resolved or read, or an envelope is unsupported or malformed. On the stdout path errors go to stderr as the JSON error envelope and stdout stays empty.
+- Exits: `0` written; `1` the input is neither a valid snapshot envelope nor valid SDR JSON (unknown shape, row without `id`, duplicate ids in a family, missing or wrong-typed field, unsafe rsid), the same code `--push-to-notion` uses for bad input; `15` bad `--format`, non-JSON with `--output -`, or write failure; `16` token cannot be resolved or read, or an envelope is unsupported or malformed. On the stdout path errors go to stderr as the JSON error envelope and stdout stays empty.
 
 ### Parallel batch
 

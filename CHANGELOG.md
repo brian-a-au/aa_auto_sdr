@@ -30,7 +30,15 @@ All notable changes to this project will be documented in this file. Format foll
   show the render time next to the capture time. Inputs are validated (rows
   without `id`, duplicate ids, missing or wrong-typed fields): a bad snapshot
   exits 16 and bad SDR JSON exits 1. Flags that need a fresh capture or belong
-  to another mode, and `--format notion`, are rejected with exit 2.
+  to another mode, and `--format notion`, are rejected with exit 2. The
+  input's report-suite rsid must be a plain file-name token, so a saved file
+  can never make the render write outside `--output-dir`. Logs from these runs
+  carry `run_mode` `render`.
+
+### Fixed
+- `git:<ref>:<path>` tokens (for `--diff`, `--render-from`, and other snapshot
+  readers) now reject a ref or path that starts with `-` before calling git,
+  so it can never be read as a git option.
 
 ### Fixed
 - `--summary` diffs and `pr-comment` output now show report-suite setting

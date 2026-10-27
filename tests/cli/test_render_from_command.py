@@ -514,3 +514,61 @@ def test_non_utf8_file_is_snapshot_error(tmp_path: Path, capsys) -> None:
     bad.write_bytes(b'{"name": "\xff\xfe"}')
     assert _rc(["--render-from", str(bad)]) == 16
     assert "could not read" in capsys.readouterr().err
+
+
+# --- output path confinement ---------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", ["../escaped", "ABSOLUTE", "..\\escaped", "rs\x00x"])
+@pytest.mark.parametrize("shape", ["sdr_json", "envelope"])
+def test_unsafe_rsid_writes_nothing_outside_output_dir(bad: str, shape: str, tmp_path: Path, capsys) -> None:
+    if bad == "ABSOLUTE":
+        bad = str(tmp_path / "abs_target")
+    work = tmp_path / "work"
+    out = work / "out"
+    doc = _built_doc()
+    if shape == "sdr_json":
+        payload = json.loads(json.dumps(doc.to_dict()))
+        payload["report_suite"]["rsid"] = bad
+        expected_rc = 1
+    else:
+        payload = json.loads(json.dumps(document_to_envelope(doc)))
+        payload["rsid"] = bad
+        payload["components"]["report_suite"]["rsid"] = bad
+        expected_rc = 16
+    src = _write_envelope(payload, tmp_path / "input" / "in.json")
+    before = set(tmp_path.rglob("*"))
+    assert _rc(["--render-from", str(src), "--format", "all", "--output-dir", str(out)]) == expected_rc
+    assert "rsid" in capsys.readouterr().err
+    after = {p for p in tmp_path.rglob("*") if "logs" not in p.parts}
+    assert after - before == set()
+
+
+def test_mismatched_envelope_rsid_is_snapshot_error(tmp_path: Path, capsys) -> None:
+    env = document_to_envelope(_built_doc())
+    env["components"]["report_suite"]["rsid"] = "other.rs"
+    src = _write_envelope(env, tmp_path / "x.json")
+    out = tmp_path / "out"
+    assert _rc(["--render-from", str(src), "--output-dir", str(out)]) == 16
+    assert "other.rs" in capsys.readouterr().err
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("bad", ["../escaped", "escaped\x00"])
+def test_command_refuses_output_path_outside_output_dir(bad: str, tmp_path: Path, monkeypatch, capsys) -> None:
+    """Belt and braces: even if a document slipped past rebuild validation, the
+    command refuses to write a target that resolves outside --output-dir."""
+    from aa_auto_sdr.api import models
+    from aa_auto_sdr.sdr import rebuild
+
+    unsafe = dataclasses.replace(
+        _built_doc(),
+        report_suite=models.ReportSuite(rsid=bad, name="x", timezone=None, currency=None, parent_rsid=None),
+    )
+    monkeypatch.setattr(rebuild, "document_from_payload", lambda *_a, **_k: unsafe)
+    saved = _write_sdr_json(_built_doc(), tmp_path / "demo.prod.json")
+    out = tmp_path / "work" / "out"
+    assert _rc(["--render-from", str(saved), "--format", "all", "--output-dir", str(out)]) == 15
+    assert "outside" in capsys.readouterr().err
+    assert not (tmp_path / "work" / "escaped.json").exists()
+    assert not list((tmp_path / "work").glob("escaped*"))

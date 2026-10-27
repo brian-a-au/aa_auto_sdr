@@ -30,7 +30,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `batch_id` | str | All batch-mode records. |
 | `error_class` | str (exception class name) | Every `ERROR` and `CRITICAL` record. |
 | `retry_attempt` | int | Retry/backoff records (DEBUG). |
-| `run_mode` | str — `single`/`batch`/`diff`/`config`/`discovery`/`inspect`/etc. | `run_start` records — derived from `infer_run_mode(ns)`. |
+| `run_mode` | str — `single`/`batch`/`diff`/`config`/`discovery`/`inspect`/`render` (`--render-from`)/etc. | `run_start` records — derived from `infer_run_mode(ns)`. |
 | `argv_summary` | list[str] | `run_start` records — flag names only (anything starting with `-`); never positional values like RSIDs or file paths. |
 | `exit_code` | int | `run_complete`, `run_failure`, `rsid_failure` — the exit code being returned/escalated. |
 | `count_failed` | int | Batch summary records — count of RSIDs that failed (paired with `count` for successes). |

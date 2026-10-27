@@ -417,3 +417,49 @@ def test_sdr_json_bad_expansion_level_rejected() -> None:
     payload["fetch_status"] = {"metrics": {"status": "partial", "expansion_level": 1}}
     with pytest.raises(SdrPayloadError, match="expansion_level"):
         rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+# --- rsid must be a plain file-name-safe token (it names output files) -------
+
+_UNSAFE_RSIDS = ["../escaped", "/abs/path", "a/b", "..\\escaped", "a\\b", "rs\x00x", ".hidden", "..", "."]
+
+
+@pytest.mark.parametrize("bad", _UNSAFE_RSIDS)
+def test_sdr_json_unsafe_rsid_rejected(bad: str) -> None:
+    payload = _sdr_json(_doc())
+    payload["report_suite"]["rsid"] = bad
+    with pytest.raises(SdrPayloadError, match=r"report_suite\.rsid"):
+        rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+@pytest.mark.parametrize("bad", _UNSAFE_RSIDS)
+def test_envelope_unsafe_rsid_rejected(bad: str) -> None:
+    env = _envelope(_doc())
+    env["rsid"] = bad
+    env["components"]["report_suite"]["rsid"] = bad
+    with pytest.raises(SnapshotCorruptError, match="rsid"):
+        rebuild.document_from_payload(env, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+@pytest.mark.parametrize("bad", _UNSAFE_RSIDS)
+def test_envelope_without_report_suite_unsafe_rsid_rejected(bad: str) -> None:
+    env = _envelope(_doc())
+    env["rsid"] = bad
+    del env["components"]["report_suite"]
+    with pytest.raises(SnapshotCorruptError, match="rsid"):
+        rebuild.document_from_payload(env, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+def test_envelope_rsid_mismatch_rejected() -> None:
+    env = _envelope(_doc())
+    env["components"]["report_suite"]["rsid"] = "other.rs"
+    with pytest.raises(SnapshotCorruptError, match=r"'demo\.prod'.*'other\.rs'"):
+        rebuild.document_from_payload(env, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+@pytest.mark.parametrize("ok", ["demo.prod", "examplersid1", "acme-prod_2", "RS1"])
+def test_ordinary_rsids_accepted(ok: str) -> None:
+    payload = _sdr_json(_doc())
+    payload["report_suite"]["rsid"] = ok
+    doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+    assert doc.report_suite.rsid == ok

@@ -135,6 +135,10 @@ Rebuilds the SDR document from a saved capture and runs the normal writers. Ther
 - an SDR JSON file (the `--format json` output);
 - any snapshot token `--diff` accepts: a snapshot file path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`, or `git:<ref>:<path>` (see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md) for the token forms). `<RSID>@...` tokens need `--profile` or `--snapshot-dir`.
 
+Only an existing file path can be SDR JSON. `git:<ref>:<path>` and `<RSID>@...` tokens must point to a snapshot envelope; SDR JSON read through them fails as a snapshot error (exit 16). A git ref or path that starts with `-` is rejected before git runs.
+
+The report-suite rsid in the input names the output files, so it must be a plain file-name token: no `/` or `\`, no `..`, no NUL byte, and no leading `.`. In a snapshot envelope the top-level `rsid` must also match `components.report_suite.rsid`. Inputs that break either rule are rejected and nothing is written.
+
 The output keeps the capture's own `captured_at`, `tool_version`, capture scope, fetch status, and quality block. A snapshot or SDR JSON that does not record scope (older files) keeps scope unknown: coverage rows say "Scope unknown", never "Collected — no components". The render step is recorded separately: JSON output gains `rendered_at` and `rendered_by_tool_version`, and the other formats add a "Rendered at … from a capture taken at …" line plus two summary rows. Normal generation output never carries these.
 
 Accepted with it: `--format` (any generation format or alias; default `excel`), `--output-dir`, `--output -` (JSON only), `--template` / `--template-organization`, `--profile`, `--snapshot-dir`, `--agent-mode`, and the logging flags (`--quiet`, `--log-level`, `--log-format`, `--color-theme`). Under `--agent-mode` the JSON document goes to stdout; a non-JSON `--format` writes files under `--output-dir`.
@@ -151,10 +155,10 @@ Exit codes:
 | Code | When |
 |---|---|
 | `0` | Reports written (or JSON streamed to stdout). |
-| `1` | The file is not a snapshot envelope and is not valid SDR JSON: unknown shape, a row without a string `id`, duplicate ids in one family, a missing required field, or a field of the wrong type. `--push-to-notion` uses the same code for a bad payload. |
+| `1` | The input file is neither a valid snapshot envelope nor valid SDR JSON: unknown shape, a row without a string `id`, duplicate ids in one family, a missing required field, a field of the wrong type, or an unsafe report-suite rsid. `--push-to-notion` exits 1 for the same kind of bad input. |
 | `2` | A flag conflict listed above, or a bad `--template`. |
 | `15` | Unknown `--format`, a non-JSON format with `--output -`, or a write failure. |
-| `16` | The token cannot be resolved or read (missing file, directory, invalid JSON, `<RSID>@...` without `--profile` / `--snapshot-dir`, git failure), or a snapshot envelope is unsupported or malformed (including the row problems listed for `1`). |
+| `16` | The token cannot be resolved or read (missing file, directory, invalid JSON, `<RSID>@...` without `--profile` / `--snapshot-dir`, git failure), or a snapshot envelope is unsupported or malformed (including the row problems listed for `1`, and an envelope `rsid` that does not match `components.report_suite.rsid`). |
 
 With `--output -` (or `--agent-mode`), errors go to stderr as the JSON error envelope and stdout stays empty.
 

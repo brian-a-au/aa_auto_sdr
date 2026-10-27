@@ -231,8 +231,10 @@ def infer_run_mode(ns: argparse.Namespace) -> str:
     """Map a parsed argparse Namespace to a run-mode string.
 
     Returns one of: 'diff', 'batch', 'discovery', 'inspect', 'snapshot',
-    'profile', 'config', 'stats', 'interactive', 'single', 'other'.
+    'profile', 'config', 'stats', 'interactive', 'render', 'single', 'other'.
     """
+    if getattr(ns, "render_from", None):
+        return "render"
     if getattr(ns, "diff", None):
         return "diff"
     if getattr(ns, "batch", None) or len(getattr(ns, "rsids", []) or []) > 1:
