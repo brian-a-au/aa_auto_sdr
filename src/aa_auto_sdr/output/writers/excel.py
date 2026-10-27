@@ -15,7 +15,13 @@ from typing import Any
 
 from aa_auto_sdr.core.atomic_io import atomic_write_path
 from aa_auto_sdr.output._helpers import render_provenance_pairs, stringify_cell
-from aa_auto_sdr.output.coverage import coverage_rows, quality_status, quality_status_line
+from aa_auto_sdr.output.coverage import (
+    QUALITY_ISSUE_COLUMNS,
+    coverage_rows,
+    quality_issue_cells,
+    quality_status,
+    quality_status_line,
+)
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -127,7 +133,7 @@ def _coverage_df(doc: SdrDocument):
     )
 
 
-_ISSUE_COLUMNS = ["severity", "category", "type", "item_id", "item_name", "issue", "details"]
+_ISSUE_COLUMNS = QUALITY_ISSUE_COLUMNS
 
 
 def _write_quality_sheet(xl: Any, doc: SdrDocument) -> None:
@@ -147,6 +153,7 @@ def _write_quality_sheet(xl: Any, doc: SdrDocument) -> None:
         ("Verdict", status.verdict or "n/a"),
         ("Policy threshold", status.threshold or ""),
         ("Total issues", status.total),
+        ("Excepted", status.excepted),
     ]
     summary_rows.extend((sev, n) for sev, n in (status.by_severity or {}).items())
     summary_df = pd.DataFrame(summary_rows, columns=["Field", "Value"])
@@ -154,7 +161,7 @@ def _write_quality_sheet(xl: Any, doc: SdrDocument) -> None:
 
     issues_start = len(summary_rows) + 2  # header row + rows + one blank row
     issues_df = pd.DataFrame(
-        [[stringify_cell(issue.get(col)) for col in _ISSUE_COLUMNS] for issue in status.issues],
+        [quality_issue_cells(issue) for issue in status.issues],
         columns=_ISSUE_COLUMNS,
     )
     issues_df.to_excel(xl, sheet_name="Quality", index=False, startrow=issues_start)

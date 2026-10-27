@@ -23,7 +23,13 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.output._helpers import neutralize_formula, render_provenance_pairs, stringify_cell
-from aa_auto_sdr.output.coverage import FAMILY_HEADINGS, coverage_rows, quality_status
+from aa_auto_sdr.output.coverage import (
+    FAMILY_HEADINGS,
+    QUALITY_ISSUE_COLUMNS,
+    coverage_rows,
+    quality_issue_cells,
+    quality_status,
+)
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -49,7 +55,7 @@ _COMPONENT_FIELDS: dict[str, str] = {
 }
 
 
-_QUALITY_ISSUE_HEADERS = ["severity", "category", "type", "item_id", "item_name", "issue", "details"]
+_QUALITY_ISSUE_HEADERS = QUALITY_ISSUE_COLUMNS
 
 
 def _summary_rows(doc: SdrDocument) -> list[tuple[str, str]]:
@@ -156,7 +162,7 @@ def _sections(doc: SdrDocument) -> list[tuple[str, str, list[str], list[list[str
     # Quality findings — only when an audit ran
     quality = quality_status(doc.quality)
     if quality.audited:
-        issue_rows = [[stringify_cell(i.get(h)) for h in _QUALITY_ISSUE_HEADERS] for i in quality.issues]
+        issue_rows = [quality_issue_cells(i) for i in quality.issues]
         sections.append(("quality_issues", "Quality Issues", _QUALITY_ISSUE_HEADERS, issue_rows))
     return sections
 

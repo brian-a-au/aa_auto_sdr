@@ -132,3 +132,26 @@ def test_both_flags_stamp_both_blocks(fake_client: MagicMock, monkeypatch: pytes
     assert doc.quality is not None
     assert "naming_audit" in doc.quality
     assert "stale_components" in doc.quality
+
+
+def test_quality_rules_thread_to_audits(fake_client: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Policy rules reach run_audits: the excepted stale finding no longer fails the gate."""
+    from aa_auto_sdr.sdr.quality import QualityException, QualityRules, SeverityLevel
+
+    _patch_fetchers(monkeypatch)
+    rules = QualityRules(
+        exceptions=(QualityException(rule_id="dq.stale_keyword.v1", component_id="evar1", reason="kept"),),
+    )
+    doc = build_sdr(
+        fake_client,
+        "rs1",
+        captured_at=datetime(2026, 5, 9, tzinfo=UTC),
+        tool_version="1.9.0",
+        flag_stale=True,
+        fail_on_quality=SeverityLevel.MEDIUM,
+        quality_rules=rules,
+    )
+    assert doc.quality is not None
+    assert doc.quality["issues"][0]["excepted"] is True
+    assert doc.quality["summary"]["verdict"] == "pass"
+    assert doc.quality["summary"]["excepted"] == 1

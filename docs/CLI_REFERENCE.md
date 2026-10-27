@@ -373,12 +373,60 @@ Naming audits are severity-tagged and machine-readable. Three flags promote them
 | `--flag-stale` | Adds a stale-component block listing components matching stale-keyword / version-suffix / date-pattern regexes. |
 | `--name-match {exact,insensitive,fuzzy}` | Name-resolution strategy (default `insensitive`). |
 | `--quality-report {json,csv}` | Emit a machine-readable quality report alongside the SDR. Default filename `quality_report_<RSID>_<timestamp>.{json,csv}`. |
-| `--quality-policy PATH` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`. CLI flags always win over policy values. Hyphen/underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
-| `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `17` (`QUALITY`) if any issue at or above the threshold exists. The SDR and snapshot still emit normally. |
+| `--quality-policy PATH` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`, `naming`, `exceptions` (see [Policy file](#policy-file)). CLI flags always win over policy values. Hyphen/underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
+| `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `17` (`QUALITY`) if any non-excepted issue at or above the threshold exists. The severity is case-insensitive (`high` works). The SDR and snapshot still emit normally. |
 
 `--quality-report` or `--fail-on-quality` without `--audit-naming` / `--flag-stale` auto-enables both audits. Quality flags outside SDR generation (`--stats`, the list-actions, `--inventory-summary`, `--diff`) exit `USAGE` (2). In batch, `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
 
 The policy-file keys `max_issues` and `allow_partial` are not supported (the loader rejects them with `ConfigError`); the unrelated CLI flag `--max-issues` for `--diff` rendering still exists. `--quality-report` cannot be combined with generation's `--output -` JSON pipe (exit 15); use file output so both artifacts have destinations.
+
+### Rule IDs
+
+Every finding carries a stable `rule_id`, a sorted `component_ids` list, and an `occurrences` count, next to the existing `severity`, `category`, `type`, `item_id`, `item_name`, `issue`, and `details` keys.
+
+| Rule ID | Finding `type` | Default severity | Flags |
+|----|----|----|----|
+| `dq.stale_keyword.v1` | `stale_keyword` | MEDIUM (test, old, deprecated, legacy, obsolete, unused) or LOW (temp, backup, copy, archive) | `--flag-stale` |
+| `dq.version_suffix.v1` | `version_suffix` | LOW | `--flag-stale` |
+| `dq.date_pattern.v1` | `date_pattern` | LOW | `--flag-stale` |
+| `dq.naming_case_inconsistency.v1` | `case_inconsistency` | LOW | `--audit-naming` |
+| `dq.naming_convention.v1` | `naming_convention` | LOW | `--audit-naming` plus a policy `naming` rule |
+
+`dq.custom.unknown` is the fallback for a finding with no catalogued rule. The trailing `vN` changes only when a rule's meaning changes (what it flags or why). Wording and severity changes keep the same ID, so exceptions and filters keyed on a rule ID keep working.
+
+For `case_inconsistency`, `component_ids` lists every audited component whose case style differs from the majority style, and `occurrences` is their count. Per-component findings list one ID and have `occurrences` 1.
+
+### Policy file
+
+```json
+{
+  "fail_on_quality": "medium",
+  "quality_report": "json",
+  "naming": {
+    "dimensions": {"case": "snake_case"},
+    "metrics": {"case": "Title Case"},
+    "calculated_metrics": {"pattern": "CM - .+"}
+  },
+  "exceptions": [
+    {"rule_id": "dq.stale_keyword.v1", "component_id": "variables/evar12", "reason": "Kept for the 2024 migration audit."},
+    {"rule_id": "dq.naming_convention.v1", "component_type": "classifications", "reason": "Names come from the vendor feed."}
+  ]
+}
+```
+
+- **`fail_on_quality`**: a severity, case-insensitive.
+- **`naming`**: an object keyed by component type: `dimensions`, `metrics`, `segments`, `calculated_metrics`, `virtual_report_suites`, or `classifications`. Each rule sets `case`, `pattern`, or both.
+  - `case` is one of `snake_case` (`page_name`), `camelCase` (`pageName`), `PascalCase` (`PageName`), `Title Case` (every space-separated word that starts with a letter starts with a capital, as in `Page Name`), `kebab-case` (`page-name`), or `any` (no case check).
+  - `pattern` is a Python regular expression that the whole component name must match.
+  - Each component whose name breaks its type's rule produces one `dq.naming_convention.v1` finding at LOW severity. `details.violations` lists `case`, `pattern`, or both.
+  - Naming rules run only when the naming audit runs (`--audit-naming`, or the auto-enable described above). They apply to virtual report suites only when a `virtual_report_suites` rule is set.
+  - A component whose metadata says `standardComponent: true` (an Adobe standard component) is skipped. When the flag is absent, the component is checked.
+- **`exceptions`**: a list. Each entry needs a `rule_id` from the table above, a non-empty `reason`, and exactly one of `component_id` (one component) or `component_type` (a whole component type, using the `naming` type names). Wildcard rule IDs are not supported.
+  - A matching finding stays in the output with `excepted: true` and `exception_reason`. Human formats show it as `excepted (<reason>)`.
+  - Excepted findings do not count toward `--fail-on-quality`. `summary.by_severity` and `summary.total` count non-excepted findings only; `summary.excepted` counts the excepted ones.
+  - A `case_inconsistency` finding is excepted only when every component in its `component_ids` is covered by an exception for that rule.
+
+The loader is strict. Unknown keys (at the top level, in a naming rule, or in an exception), unknown component types, unknown case styles, invalid regular expressions, a missing or empty `reason`, an unknown or wildcard `rule_id`, an exception with both or neither of `component_id` / `component_type`, and duplicate exceptions all fail with exit `CONFIG` and a message naming the problem. With `--enable-cache`, a change to the naming rules or exceptions invalidates cached audits.
 
 ## Inventory and stats
 

@@ -13,7 +13,15 @@ from typing import Any
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.output._helpers import escape_pipe, render_provenance_line, render_provenance_pairs, stringify_cell
-from aa_auto_sdr.output.coverage import CoverageRow, CoverageState, coverage_rows, quality_status, quality_status_line
+from aa_auto_sdr.output.coverage import (
+    QUALITY_FINDING_HEADERS,
+    CoverageRow,
+    CoverageState,
+    coverage_rows,
+    quality_finding_rows,
+    quality_status,
+    quality_status_line,
+)
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -84,6 +92,16 @@ def _section(heading: str, items: list[Any], cls_name: str, coverage: CoverageRo
     return f"## {heading}\n\n{note}{_table(headers, rows)}"
 
 
+def _quality_parts(doc: SdrDocument) -> list[str]:
+    """Status line, then a findings table when the audit produced any."""
+    status = quality_status(doc.quality)
+    parts = [f"{quality_status_line(status)}\n"]
+    rows = quality_finding_rows(status)
+    if rows:
+        parts.append(_table(QUALITY_FINDING_HEADERS, [[_cell(c) for c in r] for r in rows]))
+    return parts
+
+
 def _render_note(doc: SdrDocument) -> list[str]:
     line = render_provenance_line(doc)
     return [] if line is None else [f"> {escape_pipe(line)}\n"]
@@ -99,7 +117,7 @@ def _document(doc: SdrDocument) -> str:
         "## Coverage\n",
         _coverage_table(coverage),
         "## Quality\n",
-        f"{quality_status_line(quality_status(doc.quality))}\n",
+        *_quality_parts(doc),
         "## Summary\n",
         _summary_table(doc),
     ]

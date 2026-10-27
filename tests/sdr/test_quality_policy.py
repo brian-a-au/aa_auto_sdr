@@ -130,7 +130,10 @@ class TestWriteQualityReport:
         issues = [Issue(SeverityLevel.LOW, "naming", "version_suffix", "evar6", "v_v2", "x", {})]
         write_quality_report(issues=issues, summary={"total": 1}, target=target, fmt="csv")
         lines = target.read_text().splitlines()
-        assert lines[0] == "severity,category,type,item_id,item_name,issue"
+        assert (
+            lines[0]
+            == "severity,category,type,item_id,item_name,issue,rule_id,component_ids,occurrences,excepted,exception_reason"
+        )
         assert lines[1].startswith("LOW,naming,version_suffix,")
 
     def test_csv_does_not_double_translate_newlines_on_windows(self, tmp_path: Path) -> None:
@@ -157,7 +160,10 @@ class TestWriteQualityReport:
         # Trailing empty string after the final \r\n is expected.
         assert rows[-1] == ""
         assert len(rows) == 4  # header + 2 issues + trailing empty
-        assert rows[0] == "severity,category,type,item_id,item_name,issue"
+        assert (
+            rows[0]
+            == "severity,category,type,item_id,item_name,issue,rule_id,component_ids,occurrences,excepted,exception_reason"
+        )
         assert rows[1].startswith("LOW,naming,")
         assert rows[2].startswith("HIGH,stale,")
 

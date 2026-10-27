@@ -29,6 +29,7 @@ from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
+from aa_auto_sdr.sdr.quality import QualityRules
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,7 @@ def run(
     name_match: str = "insensitive",  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     git_commit: bool = False,  # v1.15.0
     git_push: bool = False,  # v1.15.0
     git_message: str | None = None,  # v1.15.0
@@ -164,6 +166,7 @@ def run(
             name_match=name_match,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
@@ -214,6 +217,7 @@ def _run_impl(
     name_match: str = "insensitive",  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     git_commit: bool = False,  # v1.15.0
     git_push: bool = False,  # v1.15.0
     git_message: str | None = None,  # v1.15.0
@@ -430,6 +434,7 @@ def _run_impl(
                         audit_naming=audit_naming,
                         flag_stale=flag_stale,
                         fail_on_quality=_fail_on_quality,
+                        quality_rules=quality_rules,
                     )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -586,6 +591,7 @@ def _run_impl(
                 flag_stale=flag_stale,
                 fail_on_quality=_fail_on_quality,
                 quality_report=quality_report,
+                quality_rules=quality_rules,
                 git_commit=git_commit,
                 git_push=git_push,
                 git_message=git_message,

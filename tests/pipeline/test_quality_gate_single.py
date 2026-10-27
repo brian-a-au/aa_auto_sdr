@@ -132,7 +132,9 @@ def test_run_single_emits_quality_report_csv(
     )
     assert result.quality_report_path is not None
     text = result.quality_report_path.read_text()
-    assert text.startswith("severity,category,type,item_id,item_name,issue\n")
+    assert text.startswith(
+        "severity,category,type,item_id,item_name,issue,rule_id,component_ids,occurrences,excepted,exception_reason\n"
+    )
 
 
 def test_run_single_no_quality_flags_unchanged_behavior(

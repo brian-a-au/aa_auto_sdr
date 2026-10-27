@@ -23,7 +23,7 @@ from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.sdr import quality as quality_module
 from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, FetchOutcomeMeta, SdrDocument
-from aa_auto_sdr.sdr.quality import SeverityLevel
+from aa_auto_sdr.sdr.quality import QualityRules, SeverityLevel
 
 if TYPE_CHECKING:
     from aa_auto_sdr.api.cache import ValidationCache
@@ -88,6 +88,7 @@ def build_sdr(
     flag_stale: bool = False,  # NEW (v1.9.0)
     fail_on_quality: SeverityLevel | None = None,  # NEW (v1.12.0)
     cache: ValidationCache | None = None,  # NEW (v1.12.0)
+    quality_rules: QualityRules | None = None,
     vrs_source: VrsSource | None = None,
 ) -> SdrDocument:
     """Fetch components for `rsid` (per `component_filter`) and assemble an SdrDocument."""
@@ -182,6 +183,7 @@ def build_sdr(
             fail_on_quality=fail_on_quality,
             cache=cache,
             rsid=rsid,
+            rules=quality_rules,
         )
         doc = dataclasses.replace(doc, quality=quality)
 

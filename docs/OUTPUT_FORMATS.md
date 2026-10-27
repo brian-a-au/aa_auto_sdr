@@ -38,10 +38,14 @@ Where each format puts this:
 - **Excel**: a `Coverage` sheet directly after `Summary` (columns `Family`,
   `State`, `Count`, `Expansion Level`), then a `Quality` sheet. When an audit
   ran, the `Quality` sheet starts with a summary block (`Verdict`,
-  `Policy threshold`, `Total issues`, one row per severity), then a blank row,
-  then one row per issue (`severity`, `category`, `type`, `item_id`,
-  `item_name`, `issue`, `details`). When no audit ran, it holds a single row
-  saying so. The component sheets are unchanged.
+  `Policy threshold`, `Total issues`, `Excepted`, one row per severity), then
+  a blank row, then one row per issue (`severity`, `category`, `type`,
+  `item_id`, `item_name`, `issue`, `details`, `rule_id`, `component_ids`,
+  `occurrences`, `exception`). `component_ids` is joined with `, `.
+  `exception` reads `excepted (<reason>)` for a finding covered by a policy
+  exception and is empty otherwise. `Total issues` and the severity rows count
+  non-excepted findings only. When no audit ran, it holds a single row saying
+  so. The component sheets are unchanged.
 - **CSV**: `<stem>.coverage.csv` is always written (columns `family`, `state`,
   `count`, `expansion_level`). `<stem>.quality_issues.csv` is written only
   when an audit ran, with the same issue columns as the Excel sheet.
@@ -50,12 +54,19 @@ Where each format puts this:
   `Quality policy threshold`, and `Quality issues` rows. Component CSV columns
   are unchanged.
 - **Markdown and HTML**: a Coverage table and a one-line Quality status right
-  after the report-suite header. An empty component section prints its
+  after the report-suite header. When the audit found anything, a findings
+  table follows the status line (`Severity`, `Rule ID`, `Item`, `Issue`,
+  `Component IDs`, `Occurrences`, `Exception`), and the status line adds
+  "plus N excepted" when policy exceptions apply. An empty component section prints its
   family's state (for example "Not collected in this capture") instead of a
   bare "none". A section that has rows but is partial, degraded, or of
   unknown scope shows the state above its table.
 - **JSON**: carries `fetch_status`, `quality`, and `collected_components`,
   plus the derived top-level `coverage` object described below.
+  Each `quality.issues` entry keeps `component_ids` as a list and carries
+  `rule_id`, `occurrences`, `excepted`, and `exception_reason`;
+  `quality.summary.excepted` counts excepted findings. See
+  [CLI_REFERENCE.md](CLI_REFERENCE.md#rule-ids) for the rule IDs.
 
 ### SDR JSON `coverage` object
 

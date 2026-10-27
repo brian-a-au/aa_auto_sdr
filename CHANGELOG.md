@@ -29,6 +29,34 @@ All notable changes to this project will be documented in this file. Format foll
   that are not part of the new run are never deleted. CSV file names and
   locations are unchanged; the writer's returned paths and its
   `output_write` `count` now include the manifest.
+- Every quality finding now carries a stable `rule_id`
+  (`dq.stale_keyword.v1`, `dq.version_suffix.v1`, `dq.date_pattern.v1`,
+  `dq.naming_case_inconsistency.v1`, `dq.naming_convention.v1`; fallback
+  `dq.custom.unknown`), a sorted `component_ids` list, and an `occurrences`
+  count. The scheme matches `cja_auto_sdr`. Existing finding keys are
+  unchanged. The Excel `Quality` sheet, the CSV `quality_issues` file, and the
+  `--quality-report csv` file gain these as extra columns at the end.
+- Policy files accept `naming`: per-component-type rules with a `case` style
+  (`snake_case`, `camelCase`, `PascalCase`, `Title Case`, `kebab-case`,
+  `any`) and an optional full-match `pattern`. Violations produce LOW
+  `dq.naming_convention.v1` findings when the naming audit runs. Components
+  known to be Adobe standard components (`standardComponent: true`) are
+  skipped.
+- Policy files accept `exceptions`: a rule ID, a required reason, and one
+  component ID or component type. Matching findings stay visible with
+  `excepted: true` and `exception_reason`, show as `excepted (<reason>)` in
+  human formats, and do not count toward `--fail-on-quality`.
+  `quality.summary` adds an `excepted` count; `by_severity` and `total` count
+  non-excepted findings only.
+- The policy loader validates `naming` and `exceptions` strictly: unknown
+  keys or component types, bad case styles, invalid regular expressions,
+  missing reasons, unknown or wildcard rule IDs, and duplicate exceptions
+  exit `CONFIG` with a message naming the problem. `max_issues` and
+  `allow_partial` are still rejected.
+- Markdown and HTML reports list quality findings in a table under the
+  Quality status line when the audit found anything.
+- The validation cache key includes a hash of the policy naming rules and
+  exceptions, so a policy change invalidates cached audits.
 
 ### Changed
 - Automatic baselines skip filtered snapshots. Watch, `--compare-with-prev`,
@@ -45,6 +73,11 @@ All notable changes to this project will be documented in this file. Format foll
   `baseline_candidate_skipped` warning.
 - `--keep-last` and `--keep-since` pruning never deletes the newest full
   capture of a report suite.
+- Severity values are case-insensitive in `--fail-on-quality` and in the
+  policy file's `fail_on_quality` (`high` now works), matching
+  `cja_auto_sdr`. Uppercase values behave as before.
+- `--fail-on-quality` ignores findings covered by a policy exception. Without
+  `exceptions` in the policy, the gate behaves as before.
 
 ## [1.23.0] — 2026-10-27
 
