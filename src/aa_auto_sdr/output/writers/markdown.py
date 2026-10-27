@@ -13,6 +13,7 @@ from typing import Any
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.output._helpers import escape_pipe, stringify_cell
+from aa_auto_sdr.output.coverage import CoverageRow, CoverageState, coverage_rows, quality_status, quality_status_line
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -65,20 +66,33 @@ def _summary_table(doc: SdrDocument) -> str:
     return _table(["Field", "Value"], body_rows)
 
 
-def _section(heading: str, items: list[Any], cls_name: str) -> str:
+def _coverage_table(rows: list[CoverageRow]) -> str:
+    body = [
+        [escape_pipe(r.heading), escape_pipe(r.label), str(r.count), escape_pipe(r.expansion_level or "")] for r in rows
+    ]
+    return _table(["Family", "State", "Count", "Expansion level"], body)
+
+
+def _section(heading: str, items: list[Any], cls_name: str, coverage: CoverageRow) -> str:
     if not items:
-        return f"## {heading}\n\n_(none)_\n"
+        return f"## {heading}\n\n_{escape_pipe(coverage.label)}_\n"
     cls = getattr(models, cls_name)
     headers = [f.name for f in fields(cls)]
     rows = [[_cell(getattr(item, h)) for h in headers] for item in items]
-    return f"## {heading}\n\n{_table(headers, rows)}"
+    note = "" if coverage.state is CoverageState.COLLECTED else f"_{escape_pipe(coverage.label)}_\n\n"
+    return f"## {heading}\n\n{note}{_table(headers, rows)}"
 
 
 def _document(doc: SdrDocument) -> str:
     rs = doc.report_suite
+    coverage = coverage_rows(doc)
     parts = [
         f"# SDR — {rs.name} ({rs.rsid})\n",
         f"> Captured at {doc.captured_at.isoformat()} · tool version {doc.tool_version}\n",
+        "## Coverage\n",
+        _coverage_table(coverage),
+        "## Quality\n",
+        f"{quality_status_line(quality_status(doc.quality))}\n",
         "## Summary\n",
         _summary_table(doc),
     ]
@@ -90,8 +104,9 @@ def _document(doc: SdrDocument) -> str:
         "virtual_report_suites": doc.virtual_report_suites,
         "classifications": doc.classifications,
     }
+    coverage_by_family = {r.family: r for r in coverage}
     for heading, attr, cls_name in _COMPONENT_SECTIONS:
-        parts.append(_section(heading, components_map[attr], cls_name))
+        parts.append(_section(heading, components_map[attr], cls_name, coverage_by_family[attr]))
     return "\n".join(parts)
 
 

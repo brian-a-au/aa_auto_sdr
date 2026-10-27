@@ -271,7 +271,7 @@ Profiles live in `~/.aa/orgs/<name>/`. Snapshots are profile-scoped: `~/.aa/orgs
 
 | Format | Generate | Diff | List/Inspect | Inventory | Description |
 |--------|----------|------|--------------|-----------|-------------|
-| `excel` | ✅ (default) | ❌ | ❌ | ❌ | Single workbook, one sheet per component type |
+| `excel` | ✅ (default) | ❌ | ❌ | ❌ | Single workbook: Summary, Coverage, Quality, then one sheet per component type |
 | `csv` | ✅ | ❌ | ✅ | ✅ | Comma-separated values |
 | `json` | ✅ | ✅ | ✅ | ✅ | Machine-readable; jq pipelines |
 | `html` | ✅ | ❌ | ❌ | ❌ | Self-contained static report |
@@ -378,7 +378,7 @@ aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
 | Format | File pattern | Description |
 |--------|--------------|-------------|
 | Excel | `<RSID>.xlsx` | 7-sheet workbook |
-| CSV | `<RSID>.<component>.csv` | 7 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary |
+| CSV | `<RSID>.<component>.csv` | 8 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage; plus quality_issues when a quality audit ran |
 | JSON | `<RSID>.json` | Self-contained `SdrDocument` |
 | HTML | `<RSID>.html` | Self-contained static report |
 | Markdown | `<RSID>.md` | GFM, one H2 per component type |

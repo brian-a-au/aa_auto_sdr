@@ -475,7 +475,7 @@ Runs that reach logging setup also write a per-run log under `./logs/` (e.g. `lo
 
 ## Step 6: Understand the Output
 
-Open the generated Excel file. It contains **7 sheets** — a summary plus one sheet per component type. Every sheet has a frozen header row and an autofilter. The column tables below list the primary fields; component sheets also carry a trailing `extra` column that holds any API fields not broken out into their own column (often empty).
+Open the generated Excel file. It contains **9 sheets**: `Summary`, `Coverage` (what each component family's capture holds), `Quality` (the audit verdict and issues, or a note that no audit ran), and one sheet per component type. The Summary, Coverage, and component sheets have a frozen header row and an autofilter. The column tables below list the primary fields; component sheets also carry a trailing `extra` column that holds any API fields not broken out into their own column (often empty).
 
 ### Sheet 1: Summary
 
@@ -490,7 +490,15 @@ High-level information in a `Field` / `Value` layout:
 | Tool version | The `aa_auto_sdr` version that produced it |
 | Dimensions / Metrics / Segments / Calculated Metrics / Virtual Report Suites / Classifications | Component counts |
 
-### Sheet 2: Dimensions
+### Sheet 2: Coverage
+
+One row per component family with its `State`, row `Count`, and `Expansion Level` (only for a partial fetch). The state says whether the family was collected (with or without rows), left out of this capture, degraded, partial, or of unknown scope. See [Coverage and quality in reports](OUTPUT_FORMATS.md#coverage-and-quality-in-reports) for the full list.
+
+### Sheet 3: Quality
+
+When a quality audit ran (`--audit-naming`, `--flag-stale`, `--quality-report`, or `--fail-on-quality`), this sheet shows the verdict, the policy threshold, the issue total and counts by severity, then one row per issue. When no audit ran, it holds a single row saying so.
+
+### Sheet 4: Dimensions
 
 Every dimension (eVar, prop, event, and so on):
 
@@ -505,7 +513,7 @@ Every dimension (eVar, prop, event, and so on):
 | description | Documentation text (when available) |
 | tags | Associated tags |
 
-### Sheet 3: Metrics
+### Sheet 5: Metrics
 
 Every metric (numeric counter or rate):
 
@@ -521,7 +529,7 @@ Every metric (numeric counter or rate):
 | tags | Associated tags |
 | data_group | Data group (when available) |
 
-### Sheet 4: Segments
+### Sheet 6: Segments
 
 Every segment definition:
 
@@ -537,7 +545,7 @@ Every segment definition:
 | tags | Associated tags |
 | created / modified | Timestamps |
 
-### Sheet 5: Calculated Metrics
+### Sheet 7: Calculated Metrics
 
 Every calculated metric:
 
@@ -554,7 +562,7 @@ Every calculated metric:
 | definition | The formula definition (the API field is `definition`, not `formula`) |
 | tags / categories | Associated tags and categories |
 
-### Sheet 6: Virtual Report Suites
+### Sheet 8: Virtual Report Suites
 
 Every virtual report suite — a filtered view of a parent report suite:
 
@@ -569,7 +577,7 @@ Every virtual report suite — a filtered view of a parent report suite:
 | curated_components | Curated component list |
 | modified | Last modification timestamp |
 
-### Sheet 7: Classifications
+### Sheet 9: Classifications
 
 Classification datasets compatible with the report suite:
 

@@ -6,13 +6,56 @@
 
 | Format | Extension | File layout | Use case |
 |--------|-----------|-------------|----------|
-| `excel` | `.xlsx` | Single workbook with one sheet per component type | Human review; default format |
+| `excel` | `.xlsx` | Single workbook: `Summary`, `Coverage`, and `Quality` sheets, then one sheet per component type | Human review; default format |
 | `excel-template` | `.xlsx` | Auto-selected when `--template PATH` is passed. Opens an existing Adobe BRD/SDR `.xlsx`, fills component data into anchored sheets, preserves styles and formulas. | Customer-facing SDRs that must match the official template's look. |
-| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus a summary (7 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary). Report-suite metadata is rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
+| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus `summary` and `coverage` (8 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage), plus `quality_issues` when a quality audit ran. Report-suite metadata and the quality verdict are rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
 | `json` | `.json` | Single self-contained JSON file with the full SdrDocument, including `fetch_status`, `quality`, and `collected_components` (the families this capture requested) | Automation; jq pipelines; downstream tooling |
-| `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript | Sharing as a static report; PR/email attachments |
-| `markdown` | `.md` | Single GFM-flavored Markdown file with one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
+| `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript. Coverage and Quality sections follow the header. | Sharing as a static report; PR/email attachments |
+| `markdown` | `.md` | Single GFM-flavored Markdown file: Coverage and Quality sections, the summary, then one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
 | `notion` | `.notion` (nominal) | Publishes a Notion page; tracks RSID → page-id in `.notion_pages.json`. Requires `[notion]` extra plus `NOTION_TOKEN` / `NOTION_PARENT_PAGE_ID`. | Notion-based wikis; collaborative docs |
+
+## Coverage and quality in reports
+
+Every local report format (Excel, CSV, Markdown, HTML) states, for each of the
+six component families, what the capture actually holds. A reader can tell an
+empty family apart from one that was never fetched without opening the logs.
+
+| State | CSV `state` value | Meaning |
+|-------|-------------------|---------|
+| Collected | `collected` | Requested, fetched without problems, has rows. |
+| Collected — no components | `collected_empty` | Requested and fetched without problems; the report suite has none. |
+| Not collected in this capture | `excluded` | Left out of the capture scope (for example by a component filter). Zero rows here say nothing about the report suite. |
+| Fetch degraded — no data | `degraded` | Requested, but the fetch failed and was degraded to an empty section. |
+| Partial fetch (expansion level: …) | `partial` | Requested, but only part of the data came back. The expansion level is shown in its own column. |
+| Scope unknown — may not have been collected | `unknown_scope` | The input does not record its capture scope (only legacy inputs). The family may or may not have been requested, so zero rows are never shown as "Collected — no components". |
+
+The quality status is reported the same way: either "No quality audit ran." or
+the audit's verdict, policy threshold, issue total, and counts by severity.
+A `fail` verdict can be traced to the findings that caused it.
+
+Where each format puts this:
+
+- **Excel**: a `Coverage` sheet directly after `Summary` (columns `Family`,
+  `State`, `Count`, `Expansion Level`), then a `Quality` sheet. When an audit
+  ran, the `Quality` sheet starts with a summary block (`Verdict`,
+  `Policy threshold`, `Total issues`, one row per severity), then a blank row,
+  then one row per issue (`severity`, `category`, `type`, `item_id`,
+  `item_name`, `issue`, `details`). When no audit ran, it holds a single row
+  saying so. The component sheets are unchanged.
+- **CSV**: `<stem>.coverage.csv` is always written (columns `family`, `state`,
+  `count`, `expansion_level`). `<stem>.quality_issues.csv` is written only
+  when an audit ran, with the same issue columns as the Excel sheet.
+  `<stem>.summary.csv` gains `Quality verdict` (`not run`, `pass`, `fail`, or
+  `n/a` when the audit ran without `--fail-on-quality`),
+  `Quality policy threshold`, and `Quality issues` rows. Component CSV columns
+  are unchanged.
+- **Markdown and HTML**: a Coverage table and a one-line Quality status right
+  after the report-suite header. An empty component section prints its
+  family's state (for example "Not collected in this capture") instead of a
+  bare "none". A section that has rows but is partial, degraded, or of
+  unknown scope shows the state above its table.
+- **JSON** already carries `fetch_status`, `quality`, and
+  `collected_components` and is unchanged.
 
 ### Default
 
@@ -186,7 +229,7 @@ This means downstream `jq` / scripts see empty input on stdout (rather than corr
 [`sample_outputs/`](../sample_outputs/) in this repo contains a representative set:
 
 - `demo_prod.xlsx` / `.json` / `.html` / `.md` — one file per generation format
-- `demo_prod.<component>.csv` — seven CSV files
+- `demo_prod.<component>.csv` — eight CSV files (six component files plus `summary` and `coverage`)
 - `synthetic_snapshot_a.json` / `synthetic_snapshot_b.json` — two snapshots that differ by one renamed dimension and one removed metric
 - `diff_console.txt` / `diff_report.json` / `diff_report.md` — three of the four diff renderer outputs from those snapshots (the `pr-comment` renderer is not sampled)
 

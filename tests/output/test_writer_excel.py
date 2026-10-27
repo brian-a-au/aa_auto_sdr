@@ -171,6 +171,8 @@ def test_excel_nested_values_and_layout_preserve_document(doc, tmp_path: Path) -
         wb = load_workbook(stream)
     assert wb.sheetnames == [
         "Summary",
+        "Coverage",
+        "Quality",
         "Dimensions",
         "Metrics",
         "Segments",

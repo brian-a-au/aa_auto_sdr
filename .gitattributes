@@ -1,0 +1,3 @@
+# The CSV writer emits RFC 4180 CRLF line endings, and the committed samples
+# must match it byte for byte, so the CR is not trailing whitespace here.
+sample_outputs/*.csv whitespace=cr-at-eol

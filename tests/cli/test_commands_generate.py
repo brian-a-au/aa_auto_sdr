@@ -64,9 +64,9 @@ def test_generate_format_data_alias_writes_csv_and_json(
 
     rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="data", profile=None)
     assert rc == 0
-    # CSV produces 7 files; JSON produces 1
+    # CSV produces 8 files (no quality audit); JSON produces 1
     csv_files = sorted(p.name for p in tmp_path.glob("demo.prod.*.csv"))
-    assert len(csv_files) == 7
+    assert len(csv_files) == 8
     assert (tmp_path / "demo.prod.json").exists()
 
 
