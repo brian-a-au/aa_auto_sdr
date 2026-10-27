@@ -83,7 +83,7 @@ def test_read_failures_stop_before_fetch(tmp_path, monkeypatch, failure):
     fetcher.fetch_snapshot.assert_not_called()
 
 
-@pytest.mark.parametrize("payload", [dict(envelope(), schema="aa-sdr-snapshot/v5"), envelope("wrong")])
+@pytest.mark.parametrize("payload", [dict(envelope(), schema="aa-sdr-snapshot/v6"), envelope("wrong")])
 def test_nonrecoverable_history_blocks_fetch(tmp_path, payload):
     history(tmp_path, payload)
     fetcher = Mock()
@@ -156,7 +156,7 @@ def test_all_corrupt_then_real_saved_baseline_compares_next_cycle(tmp_path, thre
 
 
 def test_unsupported_suite_does_not_block_other_suite_or_later_cycles(tmp_path):
-    history(tmp_path, dict(envelope(), schema="aa-sdr-snapshot/v5"))
+    history(tmp_path, dict(envelope(), schema="aa-sdr-snapshot/v6"))
     calls = []
     events = []
 

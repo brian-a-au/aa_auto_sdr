@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Captures now record their scope. SDR JSON output and every new snapshot
+  carry a top-level `collected_components` list naming the component families
+  the capture requested. A degraded family is still listed; fetch health stays
+  in `fetch_status` / `degraded_components`.
+
+### Changed
+- Snapshots that leave out any component family are written as
+  `aa-sdr-snapshot/v5`. Full captures keep `aa-sdr-snapshot/v4` with the new
+  key, so older releases still read them. Older releases refuse v5 files with
+  a schema error instead of reading excluded families as deletions.
+- Snapshot loading accepts v1–v5. A v5 file without `collected_components`, or
+  any file whose list is malformed or omits a degraded or partial family, is
+  reported as corrupt. Files without the key load with unknown scope and are
+  never rewritten.
+
 ## [1.21.25] — 2026-10-27
 
 This patch makes captured SDRs and their automated outputs more complete and

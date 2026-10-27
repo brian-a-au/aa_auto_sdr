@@ -187,3 +187,50 @@ class TestComponentFilterFromArgs:
 
         f = ComponentFilter.from_args(metrics_only=True, dimensions_only=True)
         assert all([f.metrics, f.dimensions])
+
+
+class TestCollectedComponents:
+    """`collected_components` records what was requested, independent of fetch health."""
+
+    def test_full_build_collects_all_six_families(self) -> None:
+        from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES
+
+        doc = build_sdr(_mock_client(), "demo.prod", captured_at=datetime(2026, 10, 27, tzinfo=UTC), tool_version="x")
+        assert doc.collected_components == COMPONENT_FAMILIES
+
+    def test_metrics_only_collects_metrics(self) -> None:
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        doc = build_sdr(
+            _mock_client(),
+            "demo.prod",
+            captured_at=datetime(2026, 10, 27, tzinfo=UTC),
+            tool_version="x",
+            component_filter=ComponentFilter.from_args(metrics_only=True),
+        )
+        assert doc.collected_components == ("metrics",)
+
+    def test_dimensions_only_collects_dimensions(self) -> None:
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        doc = build_sdr(
+            _mock_client(),
+            "demo.prod",
+            captured_at=datetime(2026, 10, 27, tzinfo=UTC),
+            tool_version="x",
+            component_filter=ComponentFilter.from_args(dimensions_only=True),
+        )
+        assert doc.collected_components == ("dimensions",)
+
+    def test_component_filter_collected_is_sorted(self) -> None:
+        from aa_auto_sdr.sdr.builder import ComponentFilter
+
+        flt = ComponentFilter(
+            dimensions=True,
+            metrics=True,
+            segments=False,
+            calculated_metrics=False,
+            virtual_report_suites=True,
+            classifications=False,
+        )
+        assert flt.collected() == ("dimensions", "metrics", "virtual_report_suites")

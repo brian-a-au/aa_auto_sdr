@@ -9,7 +9,7 @@
 | `excel` | `.xlsx` | Single workbook with one sheet per component type | Human review; default format |
 | `excel-template` | `.xlsx` | Auto-selected when `--template PATH` is passed. Opens an existing Adobe BRD/SDR `.xlsx`, fills component data into anchored sheets, preserves styles and formulas. | Customer-facing SDRs that must match the official template's look. |
 | `csv` | `.csv` | Multi-file: one CSV per tabular component type plus a summary (7 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary). Report-suite metadata is rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
-| `json` | `.json` | Single self-contained JSON file with the full SdrDocument | Automation; jq pipelines; downstream tooling |
+| `json` | `.json` | Single self-contained JSON file with the full SdrDocument, including `fetch_status`, `quality`, and `collected_components` (the families this capture requested) | Automation; jq pipelines; downstream tooling |
 | `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript | Sharing as a static report; PR/email attachments |
 | `markdown` | `.md` | Single GFM-flavored Markdown file with one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
 | `notion` | `.notion` (nominal) | Publishes a Notion page; tracks RSID → page-id in `.notion_pages.json`. Requires `[notion]` extra plus `NOTION_TOKEN` / `NOTION_PARENT_PAGE_ID`. | Notion-based wikis; collaborative docs |

@@ -1,11 +1,12 @@
-"""Snapshot envelope schema (v4).
+"""Snapshot envelope schema (v4 for full captures, v5 for filtered ones).
 
-Envelope shape (canonical, v4):
+Envelope shape (canonical):
     {
-        "schema": "aa-sdr-snapshot/v4",
+        "schema": "aa-sdr-snapshot/v4" | "aa-sdr-snapshot/v5",
         "rsid": "<RSID>",
         "captured_at": "<ISO-8601 with offset>",
         "tool_version": "<x.y.z>",
+        "collected_components": [<component-type>, ...],
         "degraded_components": [<component-type>, ...],
         "partial_components": {<component-type>: <expansion_level>, ...},
         "quality": {
@@ -17,7 +18,15 @@ Envelope shape (canonical, v4):
         "components": { ... }
     }
 
-`degraded_components` and `partial_components` are ALWAYS present in v2-v4
+`collected_components` is the capture scope: the sorted families that were
+requested. A capture that collected all six families is written as v4 (older
+readers ignore the extra key safely). A filtered capture is written as v5,
+which older readers refuse, so they never read excluded families as
+deletions. v5 requires the key; v4 may carry it. Envelopes without it have
+unknown scope: `env.get("collected_components")` is None. Scope is never
+inferred from empty arrays and never written back to legacy files.
+
+`degraded_components` and `partial_components` are ALWAYS present in v2-v5
 envelopes (empty list/dict when nothing is degraded).
 
 `quality` (v3+) is null when no audit ran. v4 (v1.12.0) adds two additive
@@ -25,7 +34,7 @@ keys inside the quality block: `issues` (severity-tagged findings) and
 `summary` (counts + verdict). v3 envelopes still load on v1.12.0 — missing
 v4 keys are defaulted in-memory.
 
-Reader-side, v1-v4 envelopes are accepted. Forward-compat in-memory
+Reader-side, v1-v5 envelopes are accepted. Forward-compat in-memory
 defaults keep all callers indexing uniformly.
 
 Header fields are promoted out of `SdrDocument.to_dict()`; everything else
@@ -39,9 +48,10 @@ from datetime import datetime
 from typing import Any
 
 from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
-from aa_auto_sdr.sdr.document import SdrDocument
+from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, SdrDocument
 
 SCHEMA_VERSION = "aa-sdr-snapshot/v4"
+FILTERED_SCHEMA_VERSION = "aa-sdr-snapshot/v5"
 _REQUIRED_V2_KEYS = (
     "schema",
     "rsid",
@@ -58,7 +68,7 @@ _REQUIRED_V1_KEYS = (
     "tool_version",
     "components",
 )
-_SUPPORTED_SCHEMA_RE = re.compile(r"^aa-sdr-snapshot/v[1234](\.\d+)?$")
+_SUPPORTED_SCHEMA_RE = re.compile(r"^aa-sdr-snapshot/v[12345](\.\d+)?$")
 
 
 def _is_aware_iso_timestamp(value: str) -> bool:
@@ -74,8 +84,10 @@ def _is_aware_iso_timestamp(value: str) -> bool:
 
 
 def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Build a v4 envelope from an SdrDocument.
+    """Build an envelope from an SdrDocument: v4 for a full capture, v5 otherwise.
 
+    `collected_components` is hoisted to the top level. A document whose scope
+    is unknown (`None`) writes v4 without the key rather than inventing one.
     `degraded_components` and `partial_components` are always present;
     healthy snapshots carry empty list/dict respectively.
     `quality` is always present at top level (None when no audit ran).
@@ -95,11 +107,12 @@ def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = N
     # nested `components` payload to avoid duplication.
     quality = payload.pop("quality", None)
     payload.pop("fetch_status", None)
+    payload.pop("collected_components", None)
     degraded = sorted(ctype for ctype, meta in doc.fetch_status.items() if meta.status == "degraded")
     partial = {
         ctype: meta.expansion_level for ctype, meta in sorted(doc.fetch_status.items()) if meta.status == "partial"
     }
-    return {
+    envelope: dict[str, Any] = {
         "schema": SCHEMA_VERSION,
         "rsid": doc.report_suite.rsid,
         "captured_at": captured_at,
@@ -109,10 +122,16 @@ def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = N
         "quality": quality,  # NEW (v3)
         "components": payload,
     }
+    if doc.collected_components is not None:
+        collected = sorted(doc.collected_components)
+        envelope["collected_components"] = collected
+        if collected != list(COMPONENT_FAMILIES):
+            envelope["schema"] = FILTERED_SCHEMA_VERSION
+    return envelope
 
 
 def validate_envelope(env: dict[str, Any]) -> None:
-    """Raise SnapshotSchemaError if `env` is not a valid v1-v4 envelope.
+    """Raise SnapshotSchemaError if `env` is not a valid v1-v5 envelope.
 
     v1 envelopes do not require `degraded_components` / `partial_components`
     keys; this function defaults them in-memory (disk file unchanged) so every
@@ -124,6 +143,12 @@ def validate_envelope(env: dict[str, Any]) -> None:
 
     v3 envelopes carry `quality` but not the v4 inner `issues` + `summary`
     keys; defaulted in-memory so consumers can index them uniformly.
+
+    v5 envelopes must carry `collected_components`; v4 envelopes may, and then
+    it must list every family. When present it must be a list of unique known
+    family names that covers every degraded or partial family. It is never defaulted: an absent key means
+    scope is unknown, so readers use `env.get("collected_components")`, which
+    gives None. Fully shaped envelopes therefore pass through unmodified.
     """
     # Classify the discriminator before inspecting supported-version contents.
     # Unsupported string schemas must never be mistaken for recoverable damage.
@@ -137,7 +162,7 @@ def validate_envelope(env: dict[str, Any]) -> None:
     if not _SUPPORTED_SCHEMA_RE.match(schema):
         raise SnapshotSchemaError(
             f"unsupported snapshot schema {schema!r}; expected "
-            f"'aa-sdr-snapshot/v1'..'aa-sdr-snapshot/v4' (or vN.x minor bump)",
+            f"'aa-sdr-snapshot/v1'..'aa-sdr-snapshot/v5' (or vN.x minor bump)",
         )
     is_v1 = schema.startswith("aa-sdr-snapshot/v1")
     required = _REQUIRED_V1_KEYS if is_v1 else _REQUIRED_V2_KEYS
@@ -171,6 +196,10 @@ def validate_envelope(env: dict[str, Any]) -> None:
         _require_container(env["degraded_components"], list, "degraded_components")
     if "partial_components" in env:
         _require_container(env["partial_components"], dict, "partial_components")
+    if "collected_components" in env:
+        _require_collected_components(env)
+    elif schema.startswith("aa-sdr-snapshot/v5"):
+        raise SnapshotCorruptError("v5 snapshot envelope missing required key 'collected_components'")
     quality = env.get("quality")
     if quality is not None:
         _require_container(quality, dict, "quality")
@@ -202,3 +231,26 @@ def _require_mapping_rows(value: Any, field: str) -> None:
     _require_container(value, list, field)
     if any(not isinstance(row, dict) for row in value):
         raise SnapshotCorruptError(f"{field} rows must be dicts")
+
+
+def _require_collected_components(env: dict[str, Any]) -> None:
+    collected = env["collected_components"]
+    if not isinstance(collected, list):
+        raise SnapshotCorruptError("collected_components must be a list")
+    unknown = [name for name in collected if not isinstance(name, str) or name not in COMPONENT_FAMILIES]
+    if unknown:
+        raise SnapshotCorruptError(f"collected_components has unknown family names: {unknown!r}")
+    if len(set(collected)) != len(collected):
+        raise SnapshotCorruptError("collected_components has duplicate family names")
+    if env["schema"].startswith("aa-sdr-snapshot/v4") and sorted(collected) != list(COMPONENT_FAMILIES):
+        raise SnapshotCorruptError("v4 collected_components must list every family; filtered captures are v5")
+    # Membership tests, not sets: degraded rows are not type-checked upstream.
+    flagged = [*env.get("degraded_components", []), *env.get("partial_components", {})]
+    unknown_flagged = [name for name in flagged if name not in COMPONENT_FAMILIES]
+    if unknown_flagged:
+        raise SnapshotCorruptError(f"degraded or partial components name unknown family: {unknown_flagged!r}")
+    outside = [name for name in flagged if name not in collected]
+    if outside:
+        raise SnapshotCorruptError(
+            f"degraded or partial families missing from collected_components: {outside!r}",
+        )

@@ -3,10 +3,11 @@
 NO I/O. Side effects belong elsewhere (output writers, snapshot store).
 Component lists are sorted by ID for stable diffs.
 
-v1.2 — `ComponentFilter` lets generation skip API calls for excluded types.
-Filtered-out lists become empty in the document; snapshot envelopes always
-carry the full schema (with empty arrays for filtered types) so diffs across
-runs with different filters remain meaningful."""
+`ComponentFilter` lets generation skip API calls for excluded types.
+Filtered-out lists become empty in the document, and the document's
+`collected_components` records which families were actually requested. An
+empty list alone cannot tell "excluded" from "really empty", so anything that
+compares captures must read the scope, not the arrays."""
 
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.sdr import quality as quality_module
-from aa_auto_sdr.sdr.document import FetchOutcomeMeta, SdrDocument
+from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, FetchOutcomeMeta, SdrDocument
 from aa_auto_sdr.sdr.quality import SeverityLevel
 
 if TYPE_CHECKING:
@@ -70,6 +71,10 @@ class ComponentFilter:
                 classifications=False,
             )
         return cls()
+
+    def collected(self) -> tuple[str, ...]:
+        """Sorted family names this filter requests (the capture scope)."""
+        return tuple(name for name in COMPONENT_FAMILIES if getattr(self, name))
 
 
 def build_sdr(
@@ -147,6 +152,7 @@ def build_sdr(
         captured_at=captured_at,
         tool_version=tool_version,
         fetch_status=fetch_status,
+        collected_components=flt.collected(),
     )
     duration_ms = int((time.monotonic() - started) * 1000)
     component_count = (

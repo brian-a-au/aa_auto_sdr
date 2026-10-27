@@ -1,5 +1,13 @@
 {
   "captured_at": "2026-04-01T12:00:00+00:00",
+  "collected_components": [
+    "calculated_metrics",
+    "classifications",
+    "dimensions",
+    "metrics",
+    "segments",
+    "virtual_report_suites"
+  ],
   "components": {
     "calculated_metrics": [
       {

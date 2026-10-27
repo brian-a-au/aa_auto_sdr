@@ -134,3 +134,22 @@ def test_filtered_out_components_skip_fetch_status(fake_client) -> None:
             p.stop()
     # Filtered-out types skip the fetch entirely; no FetchOutcome → no fetch_status entry.
     assert doc.fetch_status == {}
+
+
+def test_degraded_vrs_stays_collected(fake_client) -> None:
+    """Scope says what was requested; fetch_status says how the fetch went."""
+    from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES
+
+    patches = _patch_fetchers(
+        vrs_outcome=models.FetchOutcome.degraded(),
+        classifications_outcome=models.FetchOutcome.healthy([]),
+    )
+    for p in patches:
+        p.start()
+    try:
+        doc = build_sdr(fake_client, "rs1", captured_at=datetime(2026, 10, 27, tzinfo=UTC), tool_version="x")
+    finally:
+        for p in patches:
+            p.stop()
+    assert doc.collected_components == COMPONENT_FAMILIES
+    assert doc.fetch_status["virtual_report_suites"].status == "degraded"

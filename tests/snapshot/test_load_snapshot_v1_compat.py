@@ -92,3 +92,13 @@ def test_load_snapshot_does_not_mutate_disk(tmp_path: Path) -> None:
     assert raw["schema"] == "aa-sdr-snapshot/v1"
     assert "degraded_components" not in raw
     assert "partial_components" not in raw
+
+
+def test_legacy_envelopes_load_with_unknown_scope(tmp_path: Path) -> None:
+    """No `collected_components` key → None in memory, never inferred from empty arrays."""
+    for writer in (_write_v1_envelope, _write_v2_envelope):
+        p = writer(tmp_path / "rs1" / f"{writer.__name__}.json")
+        before = p.read_bytes()
+        env = load_snapshot(p)
+        assert env.get("collected_components") is None
+        assert p.read_bytes() == before

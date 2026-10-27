@@ -131,3 +131,32 @@ def test_to_dict_includes_fetch_status() -> None:
     assert "fetch_status" in payload
     assert payload["fetch_status"]["virtual_report_suites"]["status"] == "degraded"
     assert payload["fetch_status"]["virtual_report_suites"]["expansion_level"] == "minimal"
+
+
+def _bare_doc(**kwargs) -> SdrDocument:
+    return SdrDocument(
+        report_suite=models.ReportSuite(rsid="x", name="X", timezone=None, currency=None, parent_rsid=None),
+        dimensions=[],
+        metrics=[],
+        segments=[],
+        calculated_metrics=[],
+        virtual_report_suites=[],
+        classifications=[],
+        captured_at=_ts(),
+        tool_version="0.1.0",
+        **kwargs,
+    )
+
+
+def test_to_dict_emits_collected_components_as_sorted_list() -> None:
+    doc = _bare_doc(collected_components=("metrics", "dimensions"))
+    assert doc.to_dict()["collected_components"] == ["dimensions", "metrics"]
+
+
+def test_to_dict_emits_none_for_unknown_scope() -> None:
+    assert _bare_doc(collected_components=None).to_dict()["collected_components"] is None
+
+
+def test_default_scope_is_unknown() -> None:
+    """A constructor that omits scope must never claim a full capture."""
+    assert _bare_doc().collected_components is None

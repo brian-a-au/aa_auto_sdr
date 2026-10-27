@@ -8,6 +8,17 @@ from typing import Any
 
 from aa_auto_sdr.api import models
 
+# Component families a capture can collect, sorted. The report suite itself is
+# always collected and is not a family.
+COMPONENT_FAMILIES: tuple[str, ...] = (
+    "calculated_metrics",
+    "classifications",
+    "dimensions",
+    "metrics",
+    "segments",
+    "virtual_report_suites",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class FetchOutcomeMeta:
@@ -32,7 +43,12 @@ class SdrDocument:
 
     `fetch_status` (v1.7.1+) is keyed by the plural envelope-component name
     (`"virtual_report_suites"`, `"classifications"`) and only populated for
-    non-`healthy` outcomes. Healthy fetches omit the key entirely."""
+    non-`healthy` outcomes. Healthy fetches omit the key entirely.
+
+    `collected_components` is the sorted tuple of families that were requested
+    and fetched (capture scope), independent of fetch health: a degraded family
+    is still collected. `None` means scope is unknown, which only legacy inputs
+    produce; the builder always sets it from its `ComponentFilter`."""
 
     report_suite: models.ReportSuite
     dimensions: list[models.Dimension]
@@ -45,6 +61,9 @@ class SdrDocument:
     tool_version: str
     fetch_status: dict[str, FetchOutcomeMeta] = field(default_factory=dict)
     quality: dict[str, Any] | None = None  # NEW (v1.9.0): None when no audit ran
+    # Defaults to unknown so a constructor that omits scope can never claim a
+    # full capture; build_sdr always passes it explicitly.
+    collected_components: tuple[str, ...] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Plain-dict shape used by JSON output and snapshots.
@@ -65,4 +84,7 @@ class SdrDocument:
             "tool_version": self.tool_version,
             "fetch_status": {ctype: asdict(meta) for ctype, meta in self.fetch_status.items()},
             "quality": self.quality,
+            "collected_components": (
+                sorted(self.collected_components) if self.collected_components is not None else None
+            ),
         }

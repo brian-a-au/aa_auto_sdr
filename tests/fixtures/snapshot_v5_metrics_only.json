@@ -1,0 +1,40 @@
+{
+  "captured_at": "2026-10-27T12:00:00+00:00",
+  "collected_components": [
+    "metrics"
+  ],
+  "components": {
+    "calculated_metrics": [],
+    "classifications": [],
+    "dimensions": [],
+    "metrics": [
+      {
+        "category": "Traffic",
+        "data_group": null,
+        "description": "Total page views",
+        "extra": {},
+        "id": "metrics/pageviews",
+        "name": "Page Views",
+        "precision": 0,
+        "segmentable": true,
+        "tags": [],
+        "type": "int"
+      }
+    ],
+    "report_suite": {
+      "currency": "USD",
+      "name": "Demo Production",
+      "parent_rsid": null,
+      "rsid": "demo.prod",
+      "timezone": "US/Pacific"
+    },
+    "segments": [],
+    "virtual_report_suites": []
+  },
+  "degraded_components": [],
+  "partial_components": {},
+  "quality": null,
+  "rsid": "demo.prod",
+  "schema": "aa-sdr-snapshot/v5",
+  "tool_version": "1.22.0"
+}

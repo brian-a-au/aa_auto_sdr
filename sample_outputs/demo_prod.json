@@ -34,6 +34,14 @@
       "rsid": "demo.prod"
     }
   ],
+  "collected_components": [
+    "calculated_metrics",
+    "classifications",
+    "dimensions",
+    "metrics",
+    "segments",
+    "virtual_report_suites"
+  ],
   "dimensions": [
     {
       "category": "Conversion",
