@@ -154,7 +154,8 @@ class TestWriteQualityReport:
         assert b"\r\r\n" not in raw
         # When read with newline="" (line terminators preserved), we get exactly
         # 3 lines: header + 2 rows.
-        text = target.read_text(newline="")
+        with target.open(encoding="utf-8", newline="") as fh:
+            text = fh.read()
         # csv.writer emits "\r\n"; assert each row ends with exactly that.
         rows = text.split("\r\n")
         # Trailing empty string after the final \r\n is expected.
