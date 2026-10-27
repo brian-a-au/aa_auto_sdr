@@ -145,9 +145,10 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `trending_window_resolved` — INFO. `cli/commands/trending.py::run`. Fires once per `--trending-window` invocation after the duration string is parsed. Carries `duration` (the spec string e.g. `30d`), `start_at` (ISO datetime), `end_at` (ISO datetime).
 - `trending_compute_complete` — INFO. `snapshot/trending.py::compute_trending`. Fires once per RSID after compute_trending returns. Carries `rsid`, `snapshot_count`, `total_changes`, `volatility_score`.
 
-### Snapshot comparison (1)
+### Snapshot comparison (2)
 
 - `diff_scope_mismatch` — WARNING. `snapshot/comparator.py::compare`. Fires once per comparison in which one capture collected a family and the other did not (for example a `--metrics-only` snapshot against a full one). Carries `rsid` and `not_compared` (the family names). Those families are suppressed as `excluded`, and changes to them since the last capture that collected them are not reported. Diff, watch, trending, and `--compare-with-prev` all go through `compare`, so a trending window logs it once per affected pair.
+- `baseline_candidate_skipped` — WARNING. `snapshot/resolver.py::resolve_covering_pair`. An older snapshot considered as `--compare-with-prev`'s baseline could not be read or validated and was passed over. Carries `rsid`, `snapshot_id` (file stem), and `error_class`.
 
 ### Watch / scheduled (4)
 
@@ -324,3 +325,4 @@ Most maintainers will not need this table. It records when each event and field 
 | Snapshot comparison: `diff_scope_mismatch` (WARNING); vocabulary: `not_compared` | v1.22.0 |
 | Watch: `settings_changes` field on `watch_cycle_complete` | v1.23.0 |
 | Template overflow sheet: `template_overflow_sheet_written` (WARNING); reuses `sheet` and `count` | v1.23.0 |
+| Covering baselines: `baseline_candidate_skipped` (WARNING) | v1.24.0 |

@@ -13,7 +13,10 @@ All notable changes to this project will be documented in this file. Format foll
   JSON gains `baseline_skipped`, watch `change` events gain
   `baseline: {captured_at, skipped}`, and trending points gain
   `baseline_captured_at`. Explicit `--diff` tokens, including
-  `<RSID>@previous`, stay literal.
+  `<RSID>@previous`, stay literal. Trending drift counts each change once
+  when a filtered snapshot sits inside the window. `--compare-with-prev`
+  passes over older snapshots it cannot read, with a
+  `baseline_candidate_skipped` warning.
 - `--keep-last` and `--keep-since` pruning never deletes the newest full
   capture of a report suite.
 

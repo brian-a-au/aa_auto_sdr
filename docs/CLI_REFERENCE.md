@@ -231,7 +231,7 @@ Like `--snapshot` but designed to be set as a default for every run. Combines wi
 After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires exactly one of `--keep-last` or `--keep-since`; it prunes the same store the run snapshots to (profile store, or the `default` fallback). Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set.
 
 - `--keep-last N` — keep the N most recent snapshots **per RSID**. The newest full capture (all component families collected) is always kept, even when older than the N most recent, so watch and `--compare-with-prev` still have a covering baseline.
-- `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10.
+- `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10. The newest full capture is kept here too.
 
 ```bash
 uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot --auto-prune --keep-last 5

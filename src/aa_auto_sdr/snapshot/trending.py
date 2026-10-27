@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.snapshot.baseline import scope_of, select_covering
+from aa_auto_sdr.snapshot.baseline import covers, scope_of, select_covering
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.models import Comparability, ComponentDiff
 from aa_auto_sdr.snapshot.retention import restore_iso
@@ -88,6 +88,8 @@ class SnapshotPoint:
     # The earlier snapshot this point was compared against: the newest one whose
     # scope covers this point's. None when no earlier snapshot covers it.
     baseline_captured_at: datetime | None = None
+    # This point's capture scope (sorted family names); None for legacy snapshots.
+    collected_components: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +141,12 @@ def _compute_drift_summary(series: list[SnapshotPoint]) -> DriftSummary:
 
     `volatility_score = total_changes / (starting_components * n_pairs)`,
     clamped to [0.0, 1.0]. Empty / single-snapshot series → zero drift.
+
+    Only counted points contribute (and `n_pairs` counts only them): a point
+    with no delta is skipped, and so is a point superseded by a later one that
+    compared against the same baseline and covers its scope. Otherwise a
+    filtered snapshot between two full ones would count its families'
+    changes twice (once itself, once again in the next full point).
     """
     if len(series) < 2:
         return DriftSummary(
@@ -148,16 +156,15 @@ def _compute_drift_summary(series: list[SnapshotPoint]) -> DriftSummary:
             churn_by_component_type=dict.fromkeys(_COMPONENT_TYPES, 0),
         )
 
+    counted = _drift_points(series)
     churn_by_type: dict[str, int] = dict.fromkeys(_COMPONENT_TYPES, 0)
-    for point in series[1:]:  # skip first point (no delta)
-        if point.delta_by_type is None:
-            continue
-        for ct, delta in point.delta_by_type.items():
+    for point in counted:
+        for ct, delta in (point.delta_by_type or {}).items():
             churn_by_type[ct] += delta.added + delta.removed + delta.modified
 
     total_changes = sum(churn_by_type.values())
     starting_components = series[0].counts.total()
-    n_pairs = len(series) - 1
+    n_pairs = len(counted)
 
     if starting_components == 0 or n_pairs == 0:
         volatility = 0.0
@@ -172,8 +179,24 @@ def _compute_drift_summary(series: list[SnapshotPoint]) -> DriftSummary:
         volatility_score=round(volatility, 3),
         most_active_component_type=most_active,
         churn_by_component_type=churn_by_type,
-        settings_changes=sum(point.settings_changes or 0 for point in series),
+        settings_changes=sum(point.settings_changes or 0 for point in counted),
     )
+
+
+def _drift_points(series: list[SnapshotPoint]) -> list[SnapshotPoint]:
+    """Points whose deltas enter drift (see `_compute_drift_summary`)."""
+    counted: list[SnapshotPoint] = []
+    for i, point in enumerate(series):
+        if point.delta_by_type is None:
+            continue
+        superseded = point.baseline_captured_at is not None and any(
+            later.baseline_captured_at == point.baseline_captured_at
+            and covers(later.collected_components, point.collected_components)
+            for later in series[i + 1 :]
+        )
+        if not superseded:
+            counted.append(point)
+    return counted
 
 
 def compute_trending(
@@ -283,6 +306,7 @@ def _to_snapshot_point(
         delta_by_type=delta_by_type,
         settings_changes=settings_changes,
         baseline_captured_at=baseline_captured_at,
+        collected_components=tuple(sorted(scope)) if (scope := scope_of(envelope)) is not None else None,
     )
 
 

@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.core.exceptions import SnapshotResolveError
+from aa_auto_sdr.core.exceptions import SnapshotError, SnapshotResolveError
 from aa_auto_sdr.core.json_io import read_json
 from aa_auto_sdr.snapshot.git import git_show
 from aa_auto_sdr.snapshot.schema import validate_envelope
@@ -114,6 +114,8 @@ def _resolve_path(path: Path) -> dict[str, Any]:
         env = read_json(path)
     except json.JSONDecodeError as exc:
         raise SnapshotResolveError(f"snapshot file {path} is not valid JSON: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise SnapshotResolveError(f"snapshot file {path} is not valid UTF-8: {exc}") from exc
     except OSError as exc:
         raise SnapshotResolveError(f"could not read snapshot file {path}: {exc}") from exc
     validate_envelope(env)
@@ -198,8 +200,20 @@ def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPa
     loaded: dict[int, Path] = {}
 
     def _candidates():
+        # Older files that cannot be used are passed over (as watch does);
+        # only the latest snapshot must load.
         for path in older:
-            env = _resolve_path(path)
+            try:
+                env = _resolve_path(path)
+            except SnapshotError as exc:
+                logger.warning(
+                    "baseline_candidate_skipped rsid=%s snapshot_id=%s error_class=%s; trying earlier history",
+                    rsid,
+                    path.stem,
+                    type(exc).__name__,
+                    extra={"rsid": rsid, "snapshot_id": path.stem, "error_class": type(exc).__name__},
+                )
+                continue
             loaded[id(env)] = path
             yield env
 
@@ -209,8 +223,16 @@ def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPa
             f"no earlier snapshot for {rsid} covers the latest snapshot's scope "
             f"(skipped {len(choice.skipped)} filtered snapshot(s)); diff explicit snapshots with --diff instead",
         )
+    baseline_path = loaded[id(choice.envelope)]
+    logger.debug(
+        "resolve_covering_pair rsid=%s snapshot_id=%s count=%s",
+        rsid,
+        baseline_path.stem,
+        len(choice.skipped),
+        extra={"rsid": rsid, "snapshot_id": baseline_path.stem, "count": len(choice.skipped)},
+    )
     return CoveringPair(
-        baseline_path=loaded[id(choice.envelope)],
+        baseline_path=baseline_path,
         baseline=choice.envelope,
         target_path=target_path,
         target=target,

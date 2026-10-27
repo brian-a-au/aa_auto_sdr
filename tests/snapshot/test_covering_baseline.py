@@ -215,3 +215,61 @@ def test_keep_last_never_prunes_the_newest_full_capture(tmp_path: Path, scopes, 
     removed = prune_snapshots(tmp_path, RetentionPolicy(keep_last=keep_last), rsid="rs1")
     assert removed == [paths[i] for i in deleted]
     assert all(p.exists() for i, p in enumerate(paths) if i not in deleted)
+
+
+def test_trending_drift_counts_a_filtered_family_change_once(tmp_path: Path) -> None:
+    """T2 (metrics-only) and T3 (full) both compare against T1; the metric added
+    by T2 must enter drift once, through T3, not twice."""
+    from aa_auto_sdr.snapshot.trending import WindowSpec, compute_trending
+
+    extra_metric = {"id": "metrics/visits", "name": "Visits"}
+    t2 = _snap(["metrics"], T2)
+    t2["components"]["metrics"].append(extra_metric)
+    t3 = _snap(FULL, T3)
+    t3["components"]["metrics"].append(extra_metric)
+    for env in (_snap(FULL, T1), t2, t3):
+        _write(tmp_path, env)
+    window = WindowSpec(
+        duration="30d", start_at=datetime(2026, 10, 1, tzinfo=UTC), end_at=datetime(2026, 11, 1, tzinfo=UTC)
+    )
+    report = compute_trending(snapshot_dir=tmp_path, rsid="rs1", window=window)
+    assert report.series[1].delta_by_type["metrics"].added == 1
+    assert report.series[2].delta_by_type["metrics"].added == 1
+    assert report.drift.churn_by_component_type["metrics"] == 1
+    assert report.drift.total_changes == 1
+    assert report.series[1].collected_components == ("metrics",)
+
+
+def test_compare_with_prev_skips_a_malformed_older_snapshot(tmp_path: Path, caplog) -> None:
+    a = _write(tmp_path, _snap(FULL, T1))
+    bad = tmp_path / "rs1" / (T2.replace(":", "-") + ".json")
+    bad.write_bytes(b"\xff not json")
+    _write(tmp_path, _snap(["metrics"], "2026-10-26T18:00:00+00:00"))
+    b = _write(tmp_path, _snap(FULL, T3))
+    caplog.set_level("WARNING", logger="aa_auto_sdr.snapshot.resolver")
+    pair = resolve_covering_pair("rs1", snapshot_dir=tmp_path)
+    assert (pair.baseline_path, pair.target_path) == (a, b)
+    assert any(r.getMessage().startswith("baseline_candidate_skipped") for r in caplog.records)
+
+
+def test_undecodable_latest_snapshot_is_a_resolve_error(tmp_path: Path) -> None:
+    _write(tmp_path, _snap(FULL, T1))
+    (tmp_path / "rs1" / (T3.replace(":", "-") + ".json")).write_bytes(b"\xff\xfe")
+    with pytest.raises(SnapshotResolveError):
+        resolve_covering_pair("rs1", snapshot_dir=tmp_path)
+
+
+def test_watch_baseline_event_reports_skipped_filtered_history(tmp_path: Path) -> None:
+    from aa_auto_sdr.cli.commands.watch import _SnapshotStoreAdapter
+    from aa_auto_sdr.pipeline.watch import _event_payload, run_one_cycle
+    from tests.pipeline.test_watch import _ctx, _FakeFetcher
+    from tests.snapshot.test_schema_v5 import _doc
+
+    filtered = _snap(["metrics"], T2)
+    filtered["rsid"] = "demo.prod"
+    filtered["components"]["report_suite"] = {"rsid": "demo.prod", "name": "Demo Production"}
+    _write(tmp_path, filtered)
+    ctx = _ctx(fetcher=_FakeFetcher(rsid_to_doc={"demo.prod": _doc()}), snapshot_store=_SnapshotStoreAdapter(tmp_path))
+    result = run_one_cycle(rsid="demo.prod", ctx=ctx)
+    assert result.kind == "baseline"
+    assert _event_payload(result, cycle_n=0)["baseline"] == {"captured_at": None, "skipped": [T2]}

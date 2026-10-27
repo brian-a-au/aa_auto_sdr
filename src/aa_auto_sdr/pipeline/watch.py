@@ -131,6 +131,9 @@ class CycleResult:
     # v1.15.0 — git operation outcome; None when ctx.git_commit is False
     # or when this cycle didn't get to git (e.g. fetch_error).
     git_op: GitOpResult | None = None
+    # captured_at of filtered history skipped while choosing a baseline; on a
+    # baseline cycle it explains why earlier history was not used.
+    baseline_skipped: tuple[str, ...] = ()
 
     @classmethod
     def baseline(
@@ -140,6 +143,7 @@ class CycleResult:
         snapshot_path: Path,
         started_at: datetime,
         ended_at: datetime,
+        baseline_skipped: tuple[str, ...] = (),
     ) -> CycleResult:
         return cls(
             kind="baseline",
@@ -147,6 +151,7 @@ class CycleResult:
             started_at=started_at,
             ended_at=ended_at,
             snapshot_path=snapshot_path,
+            baseline_skipped=baseline_skipped,
         )
 
     @classmethod
@@ -230,6 +235,7 @@ def run_one_cycle(*, rsid: str, ctx: WatchContext) -> CycleResult:
                 snapshot_path=snapshot_path,
                 started_at=started_at,
                 ended_at=ctx.clock.utcnow(),
+                baseline_skipped=tuple(skipped),
             )
         diff = compare(
             a=prev,
@@ -375,6 +381,9 @@ def _event_payload(result: CycleResult, *, cycle_n: int) -> dict[str, Any]:
         # str(Path) emits backslashes, which downstream consumers should not have
         # to handle.
         base["snapshot_path"] = result.snapshot_path.as_posix() if result.snapshot_path else ""
+        if result.baseline_skipped:
+            # Only filtered history existed, so this capture starts a new baseline.
+            base["baseline"] = {"captured_at": None, "skipped": list(result.baseline_skipped)}
     elif result.kind == "fetch_error":
         err = result.error
         base["error_type"] = type(err).__name__ if err is not None else "Unknown"
