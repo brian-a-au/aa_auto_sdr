@@ -204,6 +204,7 @@ INSTRUMENTED_MODULES = [
     Path("src/aa_auto_sdr/cli/commands/watch.py"),
     # v1.16.0
     Path("src/aa_auto_sdr/output/writers/excel_template.py"),
+    Path("src/aa_auto_sdr/cli/commands/render_from.py"),
 ]
 
 

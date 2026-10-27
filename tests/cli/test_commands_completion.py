@@ -44,6 +44,7 @@ def test_run_completion_lists_action_flags(capsys) -> None:
             "snapshot",
             "profile",
             "exit-codes",
+            "render-from",
         ):
             assert flag in out, f"{flag} missing from {shell} completion"
 

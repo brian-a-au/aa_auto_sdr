@@ -19,6 +19,7 @@ _FLAGS = (
     "--list-classification-datasets",
     "--batch",
     "--diff",
+    "--render-from",
     "--snapshot",
     "--profile-add",
     "--profile",

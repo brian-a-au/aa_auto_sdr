@@ -42,6 +42,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | Five output formats: Excel, CSV, JSON, HTML, Markdown |
 | | Four format aliases: `all`, `reports` (excel + markdown), `data` (csv + json), `ci` (json + markdown) |
 | | Multi-match name fan-out: a name matching N suites generates N SDRs |
+| | `--render-from TOKEN` re-renders saved SDR JSON or a snapshot in any local format, with no auth and no API calls ([CLI reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md#offline-render)) |
 | **Discovery & Inspection** | `--list-reportsuites`, `--list-virtual-reportsuites` |
 | | `--describe-reportsuite <RSID>` — metadata + per-component counts |
 | | `--list-{metrics,dimensions,segments,calculated-metrics,classification-datasets} <RSID>` |
@@ -489,7 +490,8 @@ aa_auto_sdr/
 │       │   └── models.py      # RunResult, BatchResult, BatchFailure
 │       ├── sdr/               # SDR assembly
 │       │   ├── builder.py     # pure: AaClient + RSID -> SdrDocument
-│       │   └── document.py    # SdrDocument boundary type
+│       │   ├── document.py    # SdrDocument boundary type
+│       │   └── rebuild.py     # pure: saved SDR JSON / snapshot dict -> SdrDocument (--render-from)
 │       └── snapshot/          # version control of SDR
 │           ├── store.py       # save/load + path convention
 │           ├── schema.py      # aa-sdr-snapshot envelope + validator

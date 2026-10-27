@@ -7,6 +7,7 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 - [Common options](#common-options) — global flags
 - [Exit codes](#exit-codes) — table + lookup commands
 - [Generation](#generation) — single, auto-batch, `--batch`, modifiers
+- [Offline render](#offline-render) — `--render-from` rebuilds reports from saved JSON or snapshots
 - [Discovery and inspection](#discovery-and-inspection) — list / describe / stats / interactive
 - [Snapshot](#snapshot) — capture, auto-snapshot, prune, list
 - [Git-versioned snapshots](#git-versioned-snapshots) — commit / push the snapshot trail
@@ -30,7 +31,7 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 |----|----|----|
 | `--format FMT` | generate, discovery/inspection, diff, stats, inventory, snapshot listing, trending, watch, profile list | Each command has its own allowlist: generation formats and aliases; json/csv for list/inspect; console/json/markdown/pr-comment for diff; table/json for stats, snapshots, and profile list; table/json/csv for inventory; console/json/markdown for trending; json/notion for watch. |
 | `--output PATH \| -` | list/inspect, diff, trending, single-SDR JSON pipe | File paths are used by list/inspect, diff, and trending. For single-SDR JSON stdout, use `--output -`; generation files go under `--output-dir` (default: cwd), and `--output PATH` does not choose their destination. |
-| `--output-dir DIR` | generate, batch | Output directory for SDR file(s). Default: cwd. |
+| `--output-dir DIR` | generate, batch, `--render-from` | Output directory for SDR file(s). Default: cwd. |
 | `--filter STR` | list/inspect | Case-insensitive substring on `name`. |
 | `--exclude STR` | list/inspect | Case-insensitive substring exclusion on `name`. |
 | `--sort FIELD` | list/inspect | Sort by allowlisted field per command. |
@@ -122,6 +123,55 @@ USAGE (2) if the path is missing, a directory, or non-`.xlsx`. USAGE (2) if comb
 ### `--template-organization NAME`
 
 Organization string written to `Glossary!C2` — the source-of-truth cell every other sheet's `C2` formula reads. Defaults to the report suite name. Requires `--template`.
+
+## Offline render
+
+### `aa_auto_sdr --render-from TOKEN`
+
+Rebuilds the SDR document from a saved capture and runs the normal writers. There is no authentication, no client, and no Adobe Analytics call, so it works without credentials. Use it to re-render an old capture in another format, fill a template from a snapshot, or regenerate reports after a writer change.
+
+`TOKEN` is one of:
+
+- an SDR JSON file (the `--format json` output);
+- any snapshot token `--diff` accepts: a snapshot file path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`, or `git:<ref>:<path>` (see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md) for the token forms). `<RSID>@...` tokens need `--profile` or `--snapshot-dir`.
+
+The output keeps the capture's own `captured_at`, `tool_version`, capture scope, fetch status, and quality block. A snapshot or SDR JSON that does not record scope (older files) keeps scope unknown: coverage rows say "Scope unknown", never "Collected — no components". The render step is recorded separately: JSON output gains `rendered_at` and `rendered_by_tool_version`, and the other formats add a "Rendered at … from a capture taken at …" line plus two summary rows. Normal generation output never carries these.
+
+Accepted with it: `--format` (any generation format or alias; default `excel`), `--output-dir`, `--output -` (JSON only), `--template` / `--template-organization`, `--profile`, `--snapshot-dir`, `--agent-mode`, and the logging flags (`--quiet`, `--log-level`, `--log-format`, `--color-theme`). Under `--agent-mode` the JSON document goes to stdout; a non-JSON `--format` writes files under `--output-dir`.
+
+Rejected with USAGE (2):
+
+- Positional RSIDs and every other top-level action (`--batch`, `--diff`, `--watch`, `--list-*`, `--describe-reportsuite`, `--stats`, `--inventory-summary`, `--trending-window`, `--compare-with-prev`, `--interactive`, snapshot lifecycle, profile and config actions, fast-path actions).
+- Flags that need a fresh capture: `--snapshot`, `--auto-snapshot`, `--auto-prune`, `--keep-last`, `--keep-since`, `--git-commit` / `--git-push` / `--git-message`, `--metrics-only`, `--dimensions-only`, `--dry-run`, `--audit-naming`, `--flag-stale`, `--quality-report`, `--quality-policy`, `--fail-on-quality`, `--name-match`, and the retry, cache, batch, and sampling flags.
+- Flags for other modes: list filters (`--filter`, `--exclude`, `--sort`, `--limit`), diff modifiers, `--interval`, `--watch-threshold`, `--open`, `--show-timings`, `--run-summary-json`, `--profile-overwrite`, `--yes`, and every Notion flag.
+- `--format notion`. Publish a saved capture to Notion with `--push-to-notion <JSON_FILE>` instead.
+
+Exit codes:
+
+| Code | When |
+|---|---|
+| `0` | Reports written (or JSON streamed to stdout). |
+| `1` | The file is not a snapshot envelope and is not valid SDR JSON: unknown shape, a row without a string `id`, duplicate ids in one family, a missing required field, or a field of the wrong type. `--push-to-notion` uses the same code for a bad payload. |
+| `2` | A flag conflict listed above, or a bad `--template`. |
+| `15` | Unknown `--format`, a non-JSON format with `--output -`, or a write failure. |
+| `16` | The token cannot be resolved or read (missing file, directory, invalid JSON, `<RSID>@...` without `--profile` / `--snapshot-dir`, git failure), or a snapshot envelope is unsupported or malformed (including the row problems listed for `1`). |
+
+With `--output -` (or `--agent-mode`), errors go to stderr as the JSON error envelope and stdout stays empty.
+
+```bash
+# Re-render a saved JSON SDR as Markdown
+aa_auto_sdr --render-from ./reports/demo.prod.json --format markdown --output-dir ./reports
+
+# Every local format from the latest snapshot in a profile's store
+aa_auto_sdr --render-from demo.prod@latest --profile prod --format all --output-dir ./reports
+
+# Fill Adobe's template from a snapshot committed to git
+aa_auto_sdr --render-from git:main:snapshots/demo.prod/2026-05-01T00-00-00+00-00.json \
+  --template ./aa_en_BRD_SDR_template.xlsx --output-dir ./reports
+
+# Stream the rebuilt JSON document
+aa_auto_sdr --render-from demo.prod@previous --snapshot-dir ./snapshots --format json --output - | jq .collected_components
+```
 
 ## Discovery and inspection
 

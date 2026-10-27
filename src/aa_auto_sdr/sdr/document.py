@@ -34,6 +34,18 @@ class FetchOutcomeMeta:
 
 
 @dataclass(frozen=True, slots=True)
+class RenderProvenance:
+    """When and by which tool version a saved capture was re-rendered.
+
+    Set only on documents rebuilt by `--render-from`. The capture's own
+    `captured_at` / `tool_version` are kept unchanged on the document; this
+    records the separate render step."""
+
+    rendered_at: datetime
+    tool_version: str
+
+
+@dataclass(frozen=True, slots=True)
 class SdrDocument:
     """Boundary type produced by builder, consumed by output writers and snapshots.
 
@@ -48,7 +60,11 @@ class SdrDocument:
     `collected_components` is the sorted tuple of families that were requested
     and fetched (capture scope), independent of fetch health: a degraded family
     is still collected. `None` means scope is unknown, which only legacy inputs
-    produce; the builder always sets it from its `ComponentFilter`."""
+    produce; the builder always sets it from its `ComponentFilter`.
+
+    `rendered` is None for a live capture. `--render-from` sets it, and
+    `to_dict()` then adds `rendered_at` / `rendered_by_tool_version`; a live
+    capture's dict never carries those keys."""
 
     report_suite: models.ReportSuite
     dimensions: list[models.Dimension]
@@ -64,6 +80,7 @@ class SdrDocument:
     # Defaults to unknown so a constructor that omits scope can never claim a
     # full capture; build_sdr always passes it explicitly.
     collected_components: tuple[str, ...] | None = None
+    rendered: RenderProvenance | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Plain-dict shape used by JSON output and snapshots.
@@ -72,7 +89,7 @@ class SdrDocument:
         (FetchOutcomeMeta entries unpacked via asdict). Bundled v1.12.0
         correctness fix; pre-v1.12.0 builds silently dropped these.
         """
-        return {
+        payload: dict[str, Any] = {
             "report_suite": asdict(self.report_suite),
             "dimensions": [asdict(d) for d in self.dimensions],
             "metrics": [asdict(m) for m in self.metrics],
@@ -88,3 +105,7 @@ class SdrDocument:
                 sorted(self.collected_components) if self.collected_components is not None else None
             ),
         }
+        if self.rendered is not None:
+            payload["rendered_at"] = self.rendered.rendered_at.isoformat()
+            payload["rendered_by_tool_version"] = self.rendered.tool_version
+        return payload

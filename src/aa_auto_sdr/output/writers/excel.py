@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.core.atomic_io import atomic_write_path
-from aa_auto_sdr.output._helpers import stringify_cell
+from aa_auto_sdr.output._helpers import render_provenance_pairs, stringify_cell
 from aa_auto_sdr.output.coverage import coverage_rows, quality_status, quality_status_line
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -106,6 +106,7 @@ def _summary_df(doc: SdrDocument):
             ("Timezone", doc.report_suite.timezone or ""),
             ("Captured at", doc.captured_at.isoformat()),
             ("Tool version", doc.tool_version),
+            *render_provenance_pairs(doc),
             ("Dimensions", len(doc.dimensions)),
             ("Metrics", len(doc.metrics)),
             ("Segments", len(doc.segments)),

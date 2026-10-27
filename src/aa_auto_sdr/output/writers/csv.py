@@ -16,7 +16,7 @@ from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.output._helpers import neutralize_formula, stringify_cell
+from aa_auto_sdr.output._helpers import neutralize_formula, render_provenance_pairs, stringify_cell
 from aa_auto_sdr.output.coverage import coverage_rows, quality_status
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -64,6 +64,7 @@ def _summary_rows(doc: SdrDocument) -> list[tuple[str, str]]:
         ("Parent RSID", doc.report_suite.parent_rsid or ""),
         ("Captured at", doc.captured_at.isoformat()),
         ("Tool version", doc.tool_version),
+        *render_provenance_pairs(doc),
         ("Dimensions", str(len(doc.dimensions))),
         ("Metrics", str(len(doc.metrics))),
         ("Segments", str(len(doc.segments))),

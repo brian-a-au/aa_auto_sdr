@@ -171,6 +171,22 @@ uv run aa_auto_sdr <RSID> --format json --output - | python -c "..."
 - `--output -` combined with `--batch` is rejected with exit 15 (multiple SDRs cannot share a single stream — use `--output-dir`).
 - `--quality-report` cannot be combined with `--output -` (exit 15). The quality report is a file artifact, so use normal file-output mode and `--output-dir` instead.
 
+## Rendering a saved capture (`--render-from`)
+
+`--render-from TOKEN` rebuilds the document from saved SDR JSON (the `--format json` output) or a snapshot (path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`, or `git:<ref>:<path>`) and runs the same writers, with no API calls. Every rule on this page applies: `--format` and its aliases, `--output-dir`, `--output -` for JSON only, and `--template` for template fill. `--format notion` is rejected; use `--push-to-notion` to publish a saved capture.
+
+Component content is identical to what generation wrote for the same capture. The capture's `captured_at`, `tool_version`, coverage states, and quality status are kept. An input that does not record its scope keeps `unknown_scope` coverage. The render step is added on top:
+
+- **JSON**: two extra top-level keys, `rendered_at` (ISO-8601 with offset) and `rendered_by_tool_version`. A live capture's JSON never has them.
+- **Excel, CSV, Markdown, HTML**: the summary gains `Rendered at` and `Rendered by tool version` rows, and the Markdown and HTML headers add one line, "Rendered at … by tool version … from a capture taken at … by tool version …".
+
+```bash
+uv run aa_auto_sdr --render-from ./reports/<RSID>.json --format all --output-dir /tmp/sdr
+uv run aa_auto_sdr --render-from <RSID>@latest --profile prod --format json --output -
+```
+
+See [`CLI_REFERENCE.md`](CLI_REFERENCE.md#offline-render) for accepted flags and exit codes.
+
 ## Batch generation file layout
 
 `--batch` produces N output files per format, all in the same `--output-dir`:

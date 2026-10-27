@@ -18,6 +18,19 @@ All notable changes to this project will be documented in this file. Format foll
   columns the writer cannot fill; and each component family's coverage state
   (collected, excluded, degraded, partial, or unknown scope), using the same
   states as the other report formats.
+- `--render-from TOKEN` renders reports offline from a saved capture. `TOKEN`
+  is SDR JSON (`--format json` output) or any snapshot token `--diff` accepts
+  (path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`,
+  `git:<ref>:<path>`). It rebuilds the document and runs the normal writers,
+  including template fill, with the usual `--format`, `--output-dir`, and
+  `--output -` rules. It needs no credentials and makes no Adobe Analytics
+  calls. The capture's `captured_at`, `tool_version`, scope, fetch status, and
+  quality are kept, and inputs that never recorded scope keep it unknown. JSON
+  output gains `rendered_at` and `rendered_by_tool_version`; the other formats
+  show the render time next to the capture time. Inputs are validated (rows
+  without `id`, duplicate ids, missing or wrong-typed fields): a bad snapshot
+  exits 16 and bad SDR JSON exits 1. Flags that need a fresh capture or belong
+  to another mode, and `--format notion`, are rejected with exit 2.
 
 ### Fixed
 - `--summary` diffs and `pr-comment` output now show report-suite setting

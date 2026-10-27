@@ -90,6 +90,26 @@ uv run aa_auto_sdr <RSID1> <RSID2> <RSID3> --format ci
 uv run aa_auto_sdr <RSID> --format json --run-summary-json -
 ```
 
+### Offline render
+
+`--render-from TOKEN` rebuilds an SDR from a saved capture and runs the normal writers. It needs no credentials and makes no Adobe Analytics calls. `TOKEN` is an SDR JSON file (`--format json` output) or any snapshot token `--diff` accepts (path, `<RSID>@<ts>`, `<RSID>@latest`, `<RSID>@previous`, `git:<ref>:<path>`; `<RSID>@...` needs `--profile` or `--snapshot-dir`).
+
+```bash
+# Re-render saved SDR JSON as Markdown
+uv run aa_auto_sdr --render-from ./reports/<RSID>.json --format markdown --output-dir /reports
+
+# Rebuilt JSON on stdout (the --agent-mode default for this command)
+uv run aa_auto_sdr --render-from <RSID>@latest --profile prod --agent-mode | jq .collected_components
+
+# Template fill from a snapshot
+uv run aa_auto_sdr --render-from ./snapshots/<RSID>/<ts>.json --template ./template.xlsx --output-dir /reports
+```
+
+- Output keeps the capture's `captured_at`, `tool_version`, `collected_components` (null stays null for inputs that never recorded scope), `fetch_status`, and `quality`. JSON output adds `rendered_at` and `rendered_by_tool_version`; other formats add matching summary rows and a header line.
+- Accepted flags: `--format` (generation formats and aliases; default `excel`), `--output-dir`, `--output -` (JSON only, else exit 15), `--template`, `--template-organization`, `--profile`, `--snapshot-dir`, `--agent-mode`, and the logging flags.
+- Rejected with `2`: positional RSIDs, every other top-level action, `--format notion` (use `--push-to-notion`), and flags that need a fresh capture or belong to another mode (snapshot, retention, git, component filters, `--dry-run`, audit and quality flags, `--name-match`, retry/cache/batch/sampling flags, list filters, diff modifiers, watch modifiers, `--open`, `--show-timings`, `--run-summary-json`, `--yes`, Notion flags). Full list: [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md#offline-render).
+- Exits: `0` written; `1` file is not a snapshot envelope and not valid SDR JSON (unknown shape, row without `id`, duplicate ids in a family, missing or wrong-typed field); `15` bad `--format`, non-JSON with `--output -`, or write failure; `16` token cannot be resolved or read, or an envelope is unsupported or malformed. On the stdout path errors go to stderr as the JSON error envelope and stdout stays empty.
+
 ### Parallel batch
 
 `aa_auto_sdr --batch <RSID...>` accepts `--workers N` (1..16, default 1)
@@ -696,6 +716,7 @@ Explicit user choices always win — `--agent-mode --format excel` keeps `excel`
 ```bash
 # Direct stdout command families:
 uv run aa_auto_sdr --list-reportsuites --agent-mode
+uv run aa_auto_sdr --render-from <RSID>@latest --profile prod --agent-mode
 uv run aa_auto_sdr --diff <a> <b> --agent-mode
 uv run aa_auto_sdr --list-metrics <RSID> --agent-mode
 
@@ -716,6 +737,7 @@ uv run aa_auto_sdr --config-status                       # full credential resol
 |---------------------------|----------------|-------|
 | Single SDR                | Limited        | Preset applies for `--log-format json`; `--output -` is suppressed (no stdout-capable format); artifacts are written under `--output-dir DIR` (default cwd). **`--output PATH` is silently ignored for SDR generation** — only `--output-dir DIR` controls the artifact destination. To override the destination under agent-mode, pass `--output-dir /path/to/dir`. |
 | Batch SDR                 | Limited        | Same as Single SDR — `--output-dir DIR` controls destination, `--output PATH` ignored. One artifact set per RSID. |
+| Offline render (`--render-from`) | ✅       | `--agent-mode` streams the rebuilt SDR JSON on stdout (`--format json --output -`). An explicit non-JSON `--format` writes files under `--output-dir DIR` instead. Never authenticates. |
 | Discovery / Inspection    | ✅              | JSON or CSV on stdout; prefer exact RSIDs for unattended inspection. |
 | Diff Family               | ✅              | JSON on stdout for `--diff` (the only stdout-capable diff format under the agent contract). PR-comment markdown (`--format pr-comment`) also writes to stdout when `--output PATH` is omitted — the agent-mode preset's implicit `--output -` does not suppress this, since `output=None` and `output="-"` follow the same stdout-write code path in the diff command. Agents using `--format pr-comment` should pipe to a file, pass an explicit `--output PATH`, or use `$GITHUB_STEP_SUMMARY` (auto-append on CI). |
 | Stats                     | ✅              | JSON on stdout (`--format json`). |
