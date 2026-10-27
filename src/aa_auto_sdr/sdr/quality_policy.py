@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -179,7 +180,7 @@ def load_policy(path: Path) -> QualityPolicy:
     top-level keys (incl. dropped `max_issues` / `allow_partial`), invalid
     enum values, or a malformed `naming` / `exceptions` section.
     """
-    if not path.exists():
+    if not os.path.exists(path):
         raise ConfigError(f"--quality-policy file not found: {path}")
     try:
         raw = json.loads(path.read_text())

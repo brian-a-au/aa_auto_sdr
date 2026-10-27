@@ -2,7 +2,7 @@
 
 - Read and follow the repository-root `AGENTS.md` before editing. It is the
   authoritative project and tool contract.
-- This is a Python 3.14+ CLI managed with `uv`. Install the development
+- This is a Python 3.11+ CLI managed with `uv`. Install the development
   environment with `uv sync --all-extras`.
 - Preserve the core safety invariant: the tool is read-only against the Adobe
   Analytics 2.0 API. Never add an SDK or HTTP call that creates, updates, or

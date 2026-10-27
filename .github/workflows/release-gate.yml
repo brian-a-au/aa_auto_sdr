@@ -19,14 +19,17 @@ jobs:
           # The default (true) strips pre-built wheels from the saved cache,
           # so every run re-downloads them from PyPI despite a cache hit.
           prune-cache: false
+          # Pin the interpreter. requires-python is >=3.11, so without this uv
+          # would pick the runner's system Python (3.12 on ubuntu-latest).
+          python-version: "3.14"
       - name: Install dependencies
         run: uv sync --locked --all-extras
       - name: Tests + coverage gate
         run: uv run --locked pytest -q
       - name: Ruff check
-        run: uv run --locked ruff check src/ tests/ scripts/
+        run: uv run --locked ruff check src/ tests/ scripts/ benchmarks/
       - name: Ruff format check
-        run: uv run --locked ruff format --check src/ tests/ scripts/
+        run: uv run --locked ruff format --check src/ tests/ scripts/ benchmarks/
       - name: Version sync
         run: uv run --locked python scripts/check_version_sync.py
       - name: Build wheel + sdist
@@ -35,9 +38,16 @@ jobs:
         run: uv run --locked python scripts/check_distribution_readme_links.py dist/*.whl dist/*.tar.gz
       - name: Smoke-install the wheel
         run: |
-          # Use uv-managed Python 3.14 (system python on GH runners is 3.12, below our >=3.14 floor).
-          # --seed installs pip into the venv so we can use the same install path a real user would.
-          uv venv --python 3.14 --seed /tmp/install_smoke
-          /tmp/install_smoke/bin/pip install dist/*.whl
-          /tmp/install_smoke/bin/aa_auto_sdr -V
-          /tmp/install_smoke/bin/aa_auto_sdr --exit-codes
+          set -euo pipefail
+          # Install on every supported Python. --seed installs pip into the venv
+          # so we use the same install path a real user would: pip resolves the
+          # dependencies, not uv.lock. Keep this list in sync with the pyproject
+          # classifiers; tests/meta/test_python_version_matrix.py checks it.
+          for py in 3.11 3.12 3.13 3.14 3.15; do
+            venv="/tmp/install_smoke_${py}"
+            uv venv --python "$py" --seed "$venv"
+            "$venv/bin/pip" install dist/*.whl
+            "$venv/bin/aa_auto_sdr" -V
+            "$venv/bin/aa_auto_sdr" --exit-codes
+            "$venv/bin/python" -m aa_auto_sdr --help >/dev/null
+          done

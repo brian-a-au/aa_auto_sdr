@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.1] — 2026-10-27
+
+This patch lets you install and run aa_auto_sdr on Python 3.11, 3.12, and
+3.13 as well as 3.14 and 3.15. It matches the same change in cja_auto_sdr
+v3.13.2, so both tools now need Python 3.11 or later.
+
+### Changed
+- The minimum Python version is now 3.11. It was 3.14. CI runs the full test
+  suite on every version from 3.11 through 3.15 on Linux, macOS, and Windows.
+  It also installs the wheel with pip on each of those versions. Output is the
+  same on every supported version.
+
+### Fixed
+- On Python 3.11 to 3.13, a path under a folder you can't open no longer
+  crashes with a `PermissionError` traceback. The tool now treats the path as
+  missing, as it already did on 3.14. For example, `--diff locked/a.json b.json`
+  now prints `snapshot file not found` and exits with code 16. The fix covers
+  snapshot, profile, credential, template, quality policy, and Notion registry
+  paths.
+
 ## [1.24.0] — 2026-10-27
 
 This release finishes the capture-trust work and aligns aa_auto_sdr with

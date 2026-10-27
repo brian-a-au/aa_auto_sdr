@@ -2,7 +2,7 @@
 
 <img width="900" alt="Adobe Analytics Solution Design Reference Generator" src="https://github.com/user-attachments/assets/28bea7c7-918b-4402-802b-b4a34f4cd77f" />
 
-[![PyPI version](https://img.shields.io/pypi/v/aa-auto-sdr.svg)](https://pypi.org/project/aa-auto-sdr/)&nbsp;[![Tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)&nbsp;[![Lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)&nbsp;[![Version Sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)&nbsp;[![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-blue.svg)](https://www.python.org/downloads/)&nbsp;[![Coverage](https://img.shields.io/badge/coverage-99%25-brightgreen.svg)](https://github.com/brian-a-au/aa_auto_sdr/tree/main/tests)&nbsp;[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)&nbsp;[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)&nbsp;[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/brian-a-au/aa_auto_sdr/blob/main/LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/aa-auto-sdr.svg)](https://pypi.org/project/aa-auto-sdr/)&nbsp;[![Tests](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/tests.yml)&nbsp;[![Lint](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/lint.yml)&nbsp;[![Version Sync](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml/badge.svg)](https://github.com/brian-a-au/aa_auto_sdr/actions/workflows/version-sync.yml)&nbsp;[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)&nbsp;[![Coverage](https://img.shields.io/badge/coverage-99%25-brightgreen.svg)](https://github.com/brian-a-au/aa_auto_sdr/tree/main/tests)&nbsp;[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)&nbsp;[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)&nbsp;[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/brian-a-au/aa_auto_sdr/blob/main/LICENSE)
 
 A production-ready Python CLI that automates the creation of Solution Design Reference (SDR) documentation from your Adobe Analytics implementation. Read-only against Adobe Analytics. API 2.0 only.
 
@@ -442,7 +442,7 @@ when the fetch degrades; exit code stays 0 to preserve pipeline behavior.
 
 ## Requirements
 
-- Python 3.14+
+- Python 3.11+
 - Adobe Developer Console project with **Adobe Analytics API** access (OAuth Server-to-Server)
 - Integration added to an Adobe Analytics **Product Profile** in Admin Console
 - Network connectivity to Adobe APIs

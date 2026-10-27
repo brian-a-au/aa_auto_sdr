@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -224,10 +225,10 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
     if template is None:
         return int(ExitCode.OK)
 
-    if not template.exists():
+    if not os.path.exists(template):
         print(f"error: Template not found: {template}", file=sys.stderr)
         return int(ExitCode.USAGE)
-    if not template.is_file():
+    if not os.path.isfile(template):
         print(f"error: Template path is not a file: {template}", file=sys.stderr)
         return int(ExitCode.USAGE)
     if template.suffix.lower() != ".xlsx":

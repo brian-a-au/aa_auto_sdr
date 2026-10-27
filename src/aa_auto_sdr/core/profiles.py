@@ -26,7 +26,7 @@ def _profile_dir(name: str, base: Path | None) -> Path:
 def read_profile(name: str, *, base: Path | None = None) -> dict[str, Any]:
     """Read a profile's config.json. Raises ConfigError if missing."""
     path = _profile_dir(name, base) / "config.json"
-    if not path.exists():
+    if not os.path.exists(path):
         raise ConfigError(f"Profile '{name}' not found at {path}")
     with path.open(encoding="utf-8") as fh:
         data = json.load(fh)
@@ -45,9 +45,9 @@ def write_profile(name: str, data: dict[str, Any], *, base: Path | None = None) 
 def list_profiles(*, base: Path | None = None) -> list[str]:
     """List profile names in sorted order."""
     root = (base or default_base()) / "orgs"
-    if not root.exists():
+    if not os.path.exists(root):
         logger.debug("list_profiles count=0", extra={"count": 0})
         return []
-    out = sorted(p.name for p in root.iterdir() if p.is_dir())
+    out = sorted(p.name for p in root.iterdir() if os.path.isdir(p))
     logger.debug("list_profiles count=%s", len(out), extra={"count": len(out)})
     return out

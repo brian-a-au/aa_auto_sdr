@@ -41,11 +41,13 @@ import random
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from aa_auto_sdr.core.exceptions import ApiError, TransientApiError, VrsEndpointShapeError
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 OnAttemptCb = Callable[[int, int, float, BaseException], None]
 
@@ -95,7 +97,7 @@ def is_retryable(exc: BaseException) -> bool:
     )
 
 
-def with_retries[T](
+def with_retries(
     fn: Callable[[], T],
     *,
     policy: RetryPolicy,
@@ -130,7 +132,7 @@ def with_retries[T](
             attempt += 1
 
 
-def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str | None = None) -> T:
+def classify_transient_sdk_call(fn: Callable[[], T], *, component_type: str | None = None) -> T:
     """Run ``fn``, classifying SDK-shape failures as ``TransientApiError``.
 
     Per spike (docs/superpowers/spikes/2026-05-08-aanalytics2-resilience-spike.md):
@@ -163,7 +165,7 @@ def classify_transient_sdk_call[T](fn: Callable[[], T], *, component_type: str |
         raise TransientApiError(f"{ctx}transient SDK failure: {type(e).__name__}: {e}") from e
 
 
-def classify_permanent_vrs_shape_error[T](fn: Callable[[], T]) -> T:
+def classify_permanent_vrs_shape_error(fn: Callable[[], T]) -> T:
     """Run ``fn``; re-raise ``KeyError('content')`` as ``VrsEndpointShapeError``.
 
     Wraps the ``client.handle.getVirtualReportSuites`` call inside

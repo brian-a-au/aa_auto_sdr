@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -159,7 +160,7 @@ def run_push_to_notion(
     notion_company: str | None = None,
 ) -> int:
     path = Path(json_file)
-    if not path.exists():
+    if not os.path.exists(path):
         print(
             f"error: --push-to-notion: file not found: {json_file}",
             file=sys.stderr,

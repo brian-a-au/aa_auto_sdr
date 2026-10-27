@@ -9,6 +9,7 @@ in-payload `captured_at` field keeps the proper colon form."""
 from __future__ import annotations
 
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -150,7 +151,7 @@ def list_snapshots(snapshot_dir: Path, *, rsid: str | None = None) -> list[Path]
     no matching snapshots."""
     if rsid is not None:
         rs_dir = snapshot_dir / rsid
-        if not rs_dir.exists():
+        if not os.path.exists(rs_dir):
             logger.debug(
                 "list_snapshots rsid=%s count=0 (dir missing)",
                 rsid,
@@ -165,13 +166,13 @@ def list_snapshots(snapshot_dir: Path, *, rsid: str | None = None) -> list[Path]
             extra={"count": len(files), "rsid": rsid},
         )
         return files
-    if not snapshot_dir.exists():
+    if not os.path.exists(snapshot_dir):
         logger.debug(
             "list_snapshots cross-rsid count=0 (dir missing)",
             extra={"count": 0},
         )
         return []
-    files = sorted(p for rs in snapshot_dir.iterdir() if rs.is_dir() for p in rs.glob("*.json"))
+    files = sorted(p for rs in snapshot_dir.iterdir() if os.path.isdir(rs) for p in rs.glob("*.json"))
     logger.debug(
         "list_snapshots cross-rsid count=%s",
         len(files),
@@ -189,7 +190,7 @@ def _newest_full_capture(files: list[Path]) -> Path | None:
     for path in sorted(files, reverse=True):
         try:
             envelope = load_snapshot(path)
-        except OSError, ValueError, SnapshotSchemaError:
+        except (OSError, ValueError, SnapshotSchemaError):
             continue
         if is_full(scope_of(envelope)):
             return path
@@ -250,6 +251,6 @@ def prune_snapshots(
 
 def _list_rsids(snapshot_dir: Path) -> list[str]:
     """List RSID subdirectories under `snapshot_dir`. Returns [] if missing."""
-    if not snapshot_dir.exists():
+    if not os.path.exists(snapshot_dir):
         return []
-    return sorted(p.name for p in snapshot_dir.iterdir() if p.is_dir())
+    return sorted(p.name for p in snapshot_dir.iterdir() if os.path.isdir(p))

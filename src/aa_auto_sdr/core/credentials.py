@@ -68,7 +68,7 @@ def _from_dotenv(working_dir: Path) -> Credentials | None:
     except ImportError:
         return None
     path = working_dir / ".env"
-    if not path.exists():
+    if not os.path.exists(path):
         return None
     # .env files use the UPPERCASE env-var contract (ORG_ID, ...) per .env.example;
     # normalize to the lowercase keys `_from_dict` expects, mirroring `_from_env`.
@@ -78,7 +78,7 @@ def _from_dotenv(working_dir: Path) -> Credentials | None:
 
 def _from_config_json(working_dir: Path) -> Credentials | None:
     path = working_dir / "config.json"
-    if not path.exists():
+    if not os.path.exists(path):
         return None
     import json as _json
 
@@ -209,7 +209,7 @@ def resolution_chain(
         # Match only when the profile would actually resolve — existence alone
         # is not enough (an incomplete config.json makes resolve() raise).
         ok = False
-        if path.exists():
+        if os.path.exists(path):
             try:
                 ok = _is_complete(_from_profile(chosen_profile, profiles_base))
             except Exception:
@@ -230,14 +230,14 @@ def resolution_chain(
 
     # 3. dotenv file in cwd
     dotenv_path = working_dir / ".env"
-    dotenv_creds = _from_dotenv(working_dir) if dotenv_path.exists() else None
+    dotenv_creds = _from_dotenv(working_dir) if os.path.exists(dotenv_path) else None
     dotenv_ok = not matched_yet and dotenv_creds is not None and _is_complete(dotenv_creds)
     entries.append(ResolutionEntry(priority=3, source=".env (cwd)", matched=dotenv_ok))
     matched_yet = matched_yet or dotenv_ok
 
     # 4. config.json (cwd)
     cfg_path = working_dir / "config.json"
-    cfg_creds = _from_config_json(working_dir) if cfg_path.exists() else None
+    cfg_creds = _from_config_json(working_dir) if os.path.exists(cfg_path) else None
     cfg_ok = not matched_yet and cfg_creds is not None and _is_complete(cfg_creds)
     entries.append(ResolutionEntry(priority=4, source="config.json (cwd)", matched=cfg_ok))
 

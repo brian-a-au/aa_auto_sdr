@@ -10,7 +10,7 @@
 uv sync
 ```
 
-Python 3.14+ required. See [`README.md`](README.md) for first-time install.
+Python 3.11+ required. See [`README.md`](README.md) for first-time install.
 
 ### Auth: Environment Variables
 

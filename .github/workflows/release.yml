@@ -43,6 +43,9 @@ jobs:
           # The default (true) strips pre-built wheels from the saved cache,
           # so every run re-downloads them from PyPI despite a cache hit.
           prune-cache: false
+          # Pin the interpreter. requires-python is >=3.11, so without this uv
+          # would pick the runner's system Python (3.12 on ubuntu-latest).
+          python-version: "3.14"
 
       # Guard against a mistyped tag publishing a mislabeled artifact. version.py
       # is the single source of truth; check_version_sync.py already keeps
@@ -63,8 +66,8 @@ jobs:
           fi
           echo "tag/version match: $TAG"
 
-      # Builds sdist + wheel into dist/. uv provisions Python per requires-python
-      # (>=3.14) and runs hatchling in an isolated build env.
+      # Builds sdist + wheel into dist/. uv runs hatchling in an isolated build env
+      # on the pinned Python above.
       - name: Build sdist + wheel
         run: uv build
 

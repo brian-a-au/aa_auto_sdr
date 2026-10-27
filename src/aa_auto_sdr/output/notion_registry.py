@@ -10,6 +10,7 @@ The old flat shape ``{rsid: page_id}`` still loads.
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 
@@ -44,7 +45,7 @@ def _normalize_entry(value: object) -> dict:
 
 
 def load_registry(path: Path) -> dict[str, dict]:
-    if not path.exists():
+    if not os.path.exists(path):
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))

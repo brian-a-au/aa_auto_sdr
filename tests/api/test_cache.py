@@ -4,11 +4,31 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 
 import pytest
 
+from aa_auto_sdr.api import cache as cache_mod
 from aa_auto_sdr.api.cache import ValidationCache
+
+
+class _FakeClock:
+    """Stands in for the cache module's `time`. The tests move it forward by
+    hand, so TTL checks don't depend on the OS clock. Windows `monotonic()`
+    before Python 3.13 only updates every ~15.6 ms, so a real 1.01 s sleep
+    could read as less than 1 s."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+@pytest.fixture
+def fake_clock(monkeypatch: pytest.MonkeyPatch) -> _FakeClock:
+    clock = _FakeClock()
+    monkeypatch.setattr(cache_mod, "time", clock)
+    return clock
 
 
 def test_init_validates_max_size() -> None:
@@ -58,11 +78,12 @@ def test_lru_bump_on_get_protects_recently_used() -> None:
     assert cache.get("k3") == "v3"
 
 
-def test_ttl_expiration() -> None:
+def test_ttl_expiration(fake_clock: _FakeClock) -> None:
     cache = ValidationCache(ttl_seconds=1)
     cache.put("k1", "v1")
+    fake_clock.now += 1.0  # exactly the TTL: still fresh
     assert cache.get("k1") == "v1"
-    time.sleep(1.01)
+    fake_clock.now += 0.01
     assert cache.get("k1") is None
     assert cache.stats()["expires"] == 1
 
@@ -132,10 +153,10 @@ def test_put_emits_evict_log_record_on_overflow(caplog: pytest.LogCaptureFixture
     assert len(evict_records) == 1
 
 
-def test_get_emits_expire_log_record(caplog: pytest.LogCaptureFixture) -> None:
+def test_get_emits_expire_log_record(caplog: pytest.LogCaptureFixture, fake_clock: _FakeClock) -> None:
     cache = ValidationCache(ttl_seconds=1)
     cache.put("k1", "v1")
-    time.sleep(1.01)
+    fake_clock.now += 1.01
     with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.api.cache"):
         cache.get("k1")
     expire_records = [r for r in caplog.records if getattr(r, "cache_event", None) == "expire"]

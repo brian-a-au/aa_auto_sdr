@@ -123,7 +123,7 @@ def is_git_repository(path: Path) -> bool:
     """
     try:
         return _probe_git_repository(path)
-    except OSError, subprocess.TimeoutExpired, RuntimeError:
+    except (OSError, subprocess.TimeoutExpired, RuntimeError):
         return False
 
 
@@ -369,7 +369,7 @@ def git_commit_snapshot(
         # (modern git's exit-code 128) as a spurious failure.
         rsid_dir = snapshot_dir / rsid
         try:
-            if not rsid_dir.exists():
+            if not os.path.exists(rsid_dir):
                 tracked = _run_git(["ls-files", "--", f"{rsid}/"], cwd=snapshot_dir, timeout_s=timeout_s)
                 if tracked.returncode != 0:
                     return GitOpResult(
