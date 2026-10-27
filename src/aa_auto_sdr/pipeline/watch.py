@@ -264,13 +264,15 @@ def _should_emit(result: CycleResult, *, threshold: int) -> bool:
 
     Rules:
       * baseline / fetch_error → always emit.
-      * diffed → emit when total_changes >= threshold. threshold=0 means emit
-                 every cycle including zero-change (heartbeat).
+      * diffed → emit when total_changes >= threshold or any report-suite
+                 setting changed (settings ignore the component threshold).
+                 threshold=0 means emit every cycle including zero-change
+                 (heartbeat).
     """
     if result.kind in ("baseline", "fetch_error"):
         return True
     assert result.diff is not None  # type guard — kind == "diffed"
-    if threshold == 0:
+    if threshold == 0 or result.diff.settings_changes > 0:
         return True
     return _total_changes(result.diff) >= threshold
 
@@ -281,16 +283,17 @@ def _should_publish(result: CycleResult, *, threshold: int) -> bool:
     Rules:
       * baseline → always publish (establishes the initial page).
       * fetch_error → never publish (no snapshot available).
-      * diffed → publish when total_changes >= max(threshold, 1).
-                 Zero-change cycles are never published regardless of threshold
-                 because publishing an unchanged SDR is noise.
+      * diffed → publish when total_changes >= max(threshold, 1) or any
+                 report-suite setting changed. Zero-change cycles are never
+                 published regardless of threshold because publishing an
+                 unchanged SDR is noise.
     """
     if result.kind == "baseline":
         return True
     if result.kind == "fetch_error":
         return False
     assert result.diff is not None  # type guard — kind == "diffed"
-    return _total_changes(result.diff) >= max(threshold, 1)
+    return result.diff.settings_changes > 0 or _total_changes(result.diff) >= max(threshold, 1)
 
 
 def _iso_z(ts: datetime) -> str:
@@ -332,6 +335,7 @@ def _diff_summary(diff: DiffReport) -> dict[str, Any]:
         "modified": modified,
         "unchanged": unchanged,
         "by_type": by_type,
+        "settings_changes": diff.settings_changes,
     }
 
 

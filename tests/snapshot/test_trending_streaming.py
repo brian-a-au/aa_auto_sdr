@@ -32,12 +32,12 @@ def test_trending_loads_each_snapshot_once(monkeypatch, tmp_path):
 
     def fake_compare(**_kwargs):
         events.append("compare")
-        return type("D", (), {"components": []})()
+        return type("D", (), {"components": [], "settings_changes": 0})()
 
     monkeypatch.setattr(trending, "load_snapshot", fake_load)
     # Stub the per-snapshot helpers so only the load loop is under test.
     monkeypatch.setattr(trending, "compare", fake_compare)
-    monkeypatch.setattr(trending, "_to_snapshot_point", lambda snap, _delta: snap)
+    monkeypatch.setattr(trending, "_to_snapshot_point", lambda snap, *_rest: snap)
     monkeypatch.setattr(
         trending,
         "_compute_drift_summary",

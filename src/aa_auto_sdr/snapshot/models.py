@@ -78,3 +78,6 @@ class DiffReport:
     report_suite_deltas: list[FieldDelta] = field(default_factory=list)
     components: list[ComponentDiff] = field(default_factory=list)
     rsid_mismatch: bool = False
+    # Changed report-suite fields, one per field. Kept apart from component
+    # churn: it never enters component totals or the warn/watch thresholds.
+    settings_changes: int = 0

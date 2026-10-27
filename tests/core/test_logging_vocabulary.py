@@ -116,6 +116,7 @@ VOCAB = {
     "likely_cause",
     # capture scope — comparisons across captures with different scope
     "not_compared",
+    "settings_changes",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -148,7 +149,7 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "trending_compute_complete": {"rsid", "snapshot_count", "total_changes", "volatility_score"},
     # v1.14.0 — watch / scheduled mode
     "watch_loop_start": {"rsids", "interval", "watch_threshold"},
-    "watch_cycle_complete": {"cycle", "rsid", "change_count", "emitted"},
+    "watch_cycle_complete": {"cycle", "rsid", "change_count", "settings_changes", "emitted"},
     "watch_loop_stop": {"reason", "cycles_completed"},
     # v1.15.0 — git integration
     "git_init_repo": {"path", "initial_commit"},

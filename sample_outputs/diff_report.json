@@ -85,5 +85,6 @@
     }
   ],
   "report_suite_deltas": [],
-  "rsid_mismatch": false
+  "rsid_mismatch": false,
+  "settings_changes": 0
 }

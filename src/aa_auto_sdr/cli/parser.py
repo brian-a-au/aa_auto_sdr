@@ -433,7 +433,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         metavar="N",
-        help=("Minimum total change count to emit a `change` event. 0 emits every cycle (heartbeat). Default 1."),
+        help=(
+            "Minimum total component change count to emit a `change` event. 0 emits every cycle "
+            "(heartbeat). Default 1. A report-suite setting change always emits."
+        ),
     )
 
     # v1.15.0 — git integration modifiers (NOT in any mutex group)
