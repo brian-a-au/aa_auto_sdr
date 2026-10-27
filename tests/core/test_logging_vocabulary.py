@@ -114,6 +114,8 @@ VOCAB = {
     "overflow_rows",
     # v1.16.1 additions — VRS exhaust operator hint
     "likely_cause",
+    # capture scope — comparisons across captures with different scope
+    "not_compared",
 }
 
 # Canonical events whose presence in a message string mandates a fixed set of
@@ -133,6 +135,8 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     # SDK's extended_info=False rows lack parentRsid, so the fallback rung
     # could only ever return empty and was removed.
     "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
+    # Capture scope: a comparison across captures that collected different families.
+    "diff_scope_mismatch": {"rsid", "not_compared"},
     # v1.12.0 — quality engine
     "quality_policy_loaded": {"policy_path"},
     # v1.12.1 — rsid added to quality_audit_complete + quality_gate_evaluated

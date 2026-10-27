@@ -15,8 +15,10 @@ All notable changes to this project will be documented in this file. Format foll
   snapshot without scope that has an empty family against rows is suppressed
   as "capture scope unknown (legacy snapshot)"; one with rows counts as
   collected. A family collected on both sides that really became empty still
-  reports its removals. `--compare-with-prev`, `--watch`, and
-  `--trending-window` use the same rules.
+  reports its removals. Two snapshots without scope still diff normally.
+  `--compare-with-prev`, `--watch`, and `--trending-window` use the same
+  rules, and each comparison across different scopes logs a
+  `diff_scope_mismatch` warning.
 - Diff JSON components carry an additive `comparability` value (`comparable`,
   `excluded`, `unknown`, `degraded`, or `partial`). Watch `summary.by_type`
   entries carry `comparability`, plus `suppression_reason` when suppressed.
@@ -27,7 +29,10 @@ All notable changes to this project will be documented in this file. Format foll
 ### Changed
 - `--metrics-only` and `--dimensions-only` can now be combined with
   `--snapshot` and `--auto-snapshot`. The snapshot records its scope, so later
-  diffs no longer read the excluded families as deletions.
+  diffs no longer read the excluded families as deletions. Baselines are still
+  chosen by time: a filtered snapshot between two full ones hides changes to
+  the families it left out, so keep filtered snapshots in a separate
+  `--snapshot-dir` when you also run watch or trending.
 - Snapshots that leave out any component family are written as
   `aa-sdr-snapshot/v5`. Full captures keep `aa-sdr-snapshot/v4` with the new
   key, so older releases still read them. Older releases refuse v5 files with

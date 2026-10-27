@@ -112,6 +112,23 @@ def compare(
             cd = dataclasses.replace(cd, suppressed=True, suppression_reason=reason, comparability=comparability)
         components.append(cd)
 
+    # Families one capture collected and the other did not: their changes in
+    # the gap are never compared, so say so once per comparison.
+    not_compared = sorted(
+        c.component_type
+        for c in components
+        if c.comparability == "excluded" and c.suppression_reason != "not collected in either snapshot"
+    )
+    if not_compared:
+        rsid = b.get("rsid") or a.get("rsid") or ""
+        logger.warning(
+            "diff_scope_mismatch rsid=%s not_compared=%s; changes to these families since the last "
+            "capture that collected them are not reported",
+            rsid,
+            ",".join(not_compared),
+            extra={"rsid": rsid, "not_compared": not_compared},
+        )
+
     report = DiffReport(
         a_rsid=a["rsid"],
         b_rsid=b["rsid"],
@@ -198,7 +215,8 @@ def _suppression_for(
     A legacy side (no `collected_components`) counts as collected when it has
     rows; an empty legacy family against rows cannot be told apart from an
     exclusion, so it is suppressed as unknown, after the spec §4.7 degraded and
-    partial rules, which name a more specific cause.
+    partial rules, which name a more specific cause. Two legacy sides diff
+    normally.
     """
     left_scope = _scope_of(component_type, a)
     right_scope = _scope_of(component_type, b)
@@ -221,6 +239,10 @@ def _suppression_for(
 
     left_rows = bool(a["components"].get(component_type))
     right_rows = bool(b["components"].get(component_type))
+    # Two scope-less sides are both full captures: released CLIs never wrote
+    # filtered snapshots, so only a single scope-less side is ambiguous.
+    if left_scope == right_scope == "unknown":
+        return "comparable", None
     if (left_scope == "unknown" and not left_rows and right_rows) or (
         right_scope == "unknown" and not right_rows and left_rows
     ):

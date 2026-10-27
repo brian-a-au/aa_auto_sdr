@@ -194,3 +194,39 @@ def test_excluded_and_unknown_sections_carry_no_raw_rows() -> None:
     payload = json.loads(render_json(compare(_env(collected=FULL), _env(collected=["metrics"]))))
     segments = next(c for c in payload["components"] if c["component_type"] == "segments")
     assert segments["removed"] == []
+
+
+def test_two_legacy_snapshots_diff_normally() -> None:
+    """Released CLIs never wrote filtered snapshots, so two scope-less sides are full captures."""
+    report = compare(_env(collected=None), _env(collected=None, populated=("metrics",)))
+    segments = _section(report, "segments")
+    assert not segments.suppressed
+    assert segments.comparability == "comparable"
+    assert [item.id for item in segments.removed] == ["s_1"]
+
+
+def test_scope_mismatch_logs_one_warning(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("WARNING", logger="aa_auto_sdr.snapshot.comparator")
+    compare(_env(collected=FULL), _env(collected=["metrics"]))
+    records = [r for r in caplog.records if r.getMessage().startswith("diff_scope_mismatch")]
+    assert len(records) == 1
+    assert records[0].levelname == "WARNING"
+    assert records[0].rsid == "rs1"
+    assert records[0].not_compared == [
+        "calculated_metrics",
+        "classifications",
+        "dimensions",
+        "segments",
+        "virtual_report_suites",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("a_scope", "b_scope"),
+    [(FULL, FULL), (["metrics"], ["metrics"]), (None, FULL)],
+    ids=["full-pair", "same-filter", "legacy-vs-full"],
+)
+def test_matching_scope_logs_no_warning(caplog: pytest.LogCaptureFixture, a_scope, b_scope) -> None:
+    caplog.set_level("WARNING", logger="aa_auto_sdr.snapshot.comparator")
+    compare(_env(collected=a_scope), _env(collected=b_scope))
+    assert not [r for r in caplog.records if r.getMessage().startswith("diff_scope_mismatch")]

@@ -151,7 +151,11 @@ and `v4` files without the key remain readable; their scope is unknown
 `--metrics-only` / `--dimensions-only` may be combined with `--snapshot` /
 `--auto-snapshot`; diffs, watch, trending, and `--compare-with-prev` suppress
 families a side did not collect (`comparability: "excluded"`) instead of
-reporting removals. See `docs/SNAPSHOT_DIFF.md` for the rules and
+reporting removals, and log a `diff_scope_mismatch` WARNING. Baselines
+(`@previous`, watch's previous snapshot, trending pairs, `--keep-last`) are
+chosen by time, not scope: a filtered snapshot between two full ones hides
+changes to its excluded families. Keep filtered snapshots in a separate
+`--snapshot-dir`, or diff explicit snapshot paths. See `docs/SNAPSHOT_DIFF.md` for the rules and
 `CHANGELOG.md` for the per-version field additions.
 
 ### Name resolution

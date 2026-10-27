@@ -37,6 +37,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `company_id` | str | `api/client.py` bootstrap-success record — the resolved AA `globalCompanyId`. |
 | `company_id_source` | str — `explicit`/`first_of_n` | `api/client.py` bootstrap-success record — provenance of the chosen company id. |
 | `client_id_prefix` | str (8 chars) | `api/client.py` post-configure DEBUG record — first 8 chars of the OAuth client id; full client id is never logged. |
+| `not_compared` | list[str] — component family names | `diff_scope_mismatch` — families one capture collected and the other did not. |
 | `reason` | str — discriminator | `auth_failure` records — short stable reason code (`no_companies` / `missing_global_company_id`). |
 | `command` | str — dispatch attribute name | Emitted on `command_start` / `command_complete` un-prefixed records from `cli/commands/*`. Values match dispatch attribute names (e.g., `generate`, `batch`, `diff`, `list_metrics`). Vocabulary meta-test enforces presence of *some* `command` extra on cli/commands/*.py INFO records, not a fixed enum. |
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the INFO record from `core/credentials.resolve()` indicating which source matched. |
@@ -141,6 +142,10 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 - `trending_window_resolved` — INFO. `cli/commands/trending.py::run`. Fires once per `--trending-window` invocation after the duration string is parsed. Carries `duration` (the spec string e.g. `30d`), `start_at` (ISO datetime), `end_at` (ISO datetime).
 - `trending_compute_complete` — INFO. `snapshot/trending.py::compute_trending`. Fires once per RSID after compute_trending returns. Carries `rsid`, `snapshot_count`, `total_changes`, `volatility_score`.
+
+### Snapshot comparison (1)
+
+- `diff_scope_mismatch` — WARNING. `snapshot/comparator.py::compare`. Fires once per comparison in which one capture collected a family and the other did not (for example a `--metrics-only` snapshot against a full one). Carries `rsid` and `not_compared` (the family names). Those families are suppressed as `excluded`, and changes to them since the last capture that collected them are not reported. Diff, watch, trending, and `--compare-with-prev` all go through `compare`, so a trending window logs it once per affected pair.
 
 ### Watch / scheduled (4)
 
@@ -313,3 +318,4 @@ Most maintainers will not need this table. It records when each event and field 
 | Notion registry debug: `notion_registry_property_missing`, `notion_registry_skipped`; Notion prune: `notion_prune_planned`, `notion_page_archived`, `notion_page_archive_failed`, `notion_prune_complete`; Notion repair: `notion_property_created`, `notion_repair_type_conflict`, `notion_repair_complete`, `notion_repair_error`, `notion_repair_failed`; Notion watch: `notion_watch_publish_failed`; vocabulary: `notion_property_name`, `want_type`, `have_type`, `properties_added` | v1.20.0 |
 | `notion_registry_multi_source` (WARNING); `notion_repair_planned` (INFO); vocabulary: `add`, `conflicts` | v1.20.1 |
 | Notion create-database: `notion_create_planned` (INFO), `notion_database_created` (INFO), `notion_create_existing_registry` (WARNING), `notion_create_failed` (WARNING) | v1.21.0 |
+| Snapshot comparison: `diff_scope_mismatch` (WARNING); vocabulary: `not_compared` | v1.22.0 |

@@ -184,9 +184,11 @@ Before diffing a component family, the comparator decides whether the two sides 
 | A side has unknown scope (no `collected_components`), its list is empty, and the other side has rows | `unknown` | `capture scope unknown (legacy snapshot)` |
 | Anything else | `comparable` | — (normal diff) |
 
-A side with unknown scope that has rows counts as collected, since the rows show the family was fetched. Two empty lists are comparable and give zero changes. So a filtered capture never produces false additions or removals, while a family that was collected on both sides and really became empty still reports its removals. The cost of the unknown rule: a family that really was empty in a snapshot without scope and is populated now shows as suppressed, with that label, rather than as additions.
+A side with unknown scope that has rows counts as collected, since the rows show the family was fetched. Two empty lists are comparable and give zero changes. When both sides have unknown scope, the family diffs normally: released versions never wrote filtered snapshots, so two snapshots without scope are both full captures. So a filtered capture never produces false additions or removals, while a family that was collected on both sides and really became empty still reports its removals. The cost of the unknown rule: a family that really was empty in a snapshot without scope and is populated now shows as suppressed, with that label, rather than as additions.
 
 `--compare-with-prev`, `--watch`, and `--trending-window` all use the same comparator, so the same rules apply there.
+
+**Filtered snapshots in a history.** The previous snapshot is chosen by time alone: `<RSID>@previous` and `@latest`, the watch baseline, and each consecutive trending pair do not look at scope, and `--keep-last` counts filtered snapshots like any other. If a filtered snapshot sits between two full ones, the next comparison marks the families it left out as `not collected in source`, and changes to those families between the two full captures are never reported. Each such comparison logs a `diff_scope_mismatch` warning naming the families. To compare full captures across a filtered one, pass both snapshot paths (or `<RSID>@<timestamp>` tokens) to `--diff` explicitly, and keep filtered snapshots in a separate `--snapshot-dir` if you mix them with watch or trending.
 
 ### RSID mismatch warning
 
