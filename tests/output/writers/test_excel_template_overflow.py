@@ -345,6 +345,7 @@ def test_overflow_skips_columns_the_template_lacks_and_empty_values(
     (row,) = _table(load_workbook(out)["Overflow"], "Template Sheet")
     assert row == {
         "Template Sheet": "metrics-segments",
+        "Reason": "clipped",
         "Component Type": "Segment",
         "Component ID": "s_blank",
         "Type": "Segment",
@@ -358,3 +359,111 @@ def test_overflow_sheet_name_counts_past_existing_suffixes(synthetic_template_pa
     wb.save(synthetic_template_path)
     out = _write(synthetic_template_path, tmp_path / "out.xlsx", _doc(segments=[_seg(i) for i in range(51)]))
     assert "Overflow (3)" in load_workbook(out).sheetnames
+
+
+# --- skipped sheets also send their rows to Overflow ----------------------
+
+
+def test_missing_props_sheet_sends_every_prop_to_overflow(synthetic_template_path: Path, tmp_path: Path) -> None:
+    wb = load_workbook(synthetic_template_path)
+    wb["props"].title = "props (old)"  # renamed: anchor no longer resolves
+    wb.save(synthetic_template_path)
+    props = [_dim(f"variables/prop{i}", f"Prop {i}") for i in range(1, 8)]
+    evars = [_dim("variables/evar1", "Customer ID")]
+    out = _write(synthetic_template_path, tmp_path / "out.xlsx", _doc(dimensions=props + evars))
+    wb = load_workbook(out)
+
+    overflow = _table(wb["Overflow"], "Template Sheet")
+    assert {o["Component ID"] for o in overflow} == {f"prop{i}" for i in range(1, 8)}
+    assert {o["Template Sheet"] for o in overflow} == {"props"}
+    assert {o["Reason"] for o in overflow} == {"sheet missing or unanchored"}
+    row = next(o for o in overflow if o["Component ID"] == "prop3")
+    assert row["Component Type"] == "Dimension"
+    assert row["Variable Name"] == "Prop 3"
+    assert row["Variable Description"] == "Prop 3 desc"
+
+    cov = wb["Template Coverage"]
+    summary = {r["Measure"]: r["Value"] for r in _table(cov, "Measure")}
+    assert summary["Rows from skipped sheets"] == 7
+    assert summary["Rows clipped by soft cap"] == 0
+    assert summary["Rows sent to Overflow"] == 7
+    assert summary["Components"] == 8
+    assert summary["Rows matched"] + summary["Rows appended"] + summary["Rows sent to Overflow"] == 8
+    sheets = {r["Template Sheet"]: r for r in _table(cov, "Template Sheet")}
+    assert sheets["props"]["Rows In Overflow"] == 7
+
+
+def test_skipped_and_clipped_rows_carry_distinct_reasons(synthetic_template_path: Path, tmp_path: Path) -> None:
+    wb = load_workbook(synthetic_template_path)
+    wb["eVars"]["C6"].value = "Variable"  # no id column header
+    wb.save(synthetic_template_path)
+    doc = _doc(
+        dimensions=[_dim("variables/evar1", "Customer ID")],
+        calculated_metrics=[_calc(i) for i in range(52)],
+    )
+    out = _write(synthetic_template_path, tmp_path / "out.xlsx", doc)
+    wb = load_workbook(out)
+    overflow = _table(wb["Overflow"], "Template Sheet")
+    reasons = {(o["Template Sheet"], o["Reason"]) for o in overflow}
+    assert reasons == {("eVars", "sheet has no id column"), ("metrics-segments", "clipped")}
+    summary = {r["Measure"]: r["Value"] for r in _table(wb["Template Coverage"], "Measure")}
+    assert summary["Rows clipped by soft cap"] == 2
+    assert summary["Rows from skipped sheets"] == 1
+    assert summary["Components"] == 53
+    assert summary["Rows matched"] + summary["Rows appended"] + summary["Rows sent to Overflow"] == 53
+
+
+def test_missing_metrics_segments_sheet_sends_rows_to_overflow(synthetic_template_path: Path, tmp_path: Path) -> None:
+    wb = load_workbook(synthetic_template_path)
+    del wb["metrics-segments"]
+    wb.save(synthetic_template_path)
+    out = _write(
+        synthetic_template_path,
+        tmp_path / "out.xlsx",
+        _doc(calculated_metrics=[_calc(0)], segments=[_seg(0)]),
+    )
+    overflow = _table(load_workbook(out)["Overflow"], "Template Sheet")
+    by_id = {o["Component ID"]: o for o in overflow}
+    assert set(by_id) == {"cm_0000", "s_0000"}
+    assert by_id["cm_0000"]["Format"] == "Percent"
+    assert by_id["s_0000"]["Name"] == "Seg 0"
+    assert {o["Reason"] for o in overflow} == {"sheet missing or unanchored"}
+
+
+def test_report_sheet_names_avoid_case_insensitive_collisions(
+    synthetic_template_path: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    wb = load_workbook(synthetic_template_path)
+    wb.create_sheet("overflow")["A1"] = "lower notes"
+    wb.create_sheet("template coverage")["A1"] = "lower coverage"
+    wb.save(synthetic_template_path)
+    caplog.set_level(logging.WARNING, logger=_LOGGER)
+    out = _write(synthetic_template_path, tmp_path / "out.xlsx", _doc(segments=[_seg(i) for i in range(51)]))
+    wb = load_workbook(out)
+    assert wb["overflow"]["A1"].value == "lower notes"
+    assert wb["template coverage"]["A1"].value == "lower coverage"
+    assert "Overflow (2)" in wb.sheetnames
+    assert "Template Coverage (2)" in wb.sheetnames
+    written = [r for r in caplog.records if r.message.startswith("template_overflow_sheet_written ")]
+    assert written[0].sheet == "Overflow (2)"
+    summary = {r["Measure"]: r["Value"] for r in _table(wb["Template Coverage (2)"], "Measure")}
+    assert summary["Overflow sheet"] == "Overflow (2)"
+
+
+def test_fill_without_overflow_leaves_untouched_template_cells_identical(
+    synthetic_template_path: Path, tmp_path: Path
+) -> None:
+    _decorate_template(synthetic_template_path)
+    before = load_workbook(synthetic_template_path)
+    out = _write(synthetic_template_path, tmp_path / "out.xlsx", _doc())  # nothing to fill
+    after = load_workbook(out)
+    assert after.sheetnames == [*before.sheetnames, "Template Coverage"]
+    for name in before.sheetnames:
+        old, new = before[name], after[name]
+        for row in old.iter_rows():
+            for cell in row:
+                if name == "Glossary" and cell.coordinate == "C2":
+                    continue  # org name is always written
+                twin = new[cell.coordinate]
+                assert (twin.value, twin.style_id) == (cell.value, cell.style_id), (name, cell.coordinate)
+        assert (new.max_row, new.max_column) == (old.max_row, old.max_column)

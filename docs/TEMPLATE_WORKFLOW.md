@@ -226,10 +226,10 @@ Adobe's template ships with example calc metrics and segments (Average Time Spen
 
 The writer appends up to two sheets after the template's own sheets. Neither touches a template region, so template formulas, styles, and defined names are unchanged.
 
-- **`Overflow`** is created only when a soft cap clipped rows. Row 1 is a header. Each row is one clipped component: `Template Sheet` (the sheet it was clipped from), `Component Type` (`Dimension`, `Metric`, `Calculated Metric`, or `Segment`), `Component ID` (the ID the writer matches on: the bare ID such as `evar120` for eVars, props, and events, and the AA ID for calculated metrics and segments), then one column per template column the sheet would have filled (for example `Variable Name`, `Name`, `Description`, `Format`). Every row the API supplied is in either its template sheet or `Overflow`.
-- **`Template Coverage`** is always created. It has three blocks separated by a blank row: a `Measure` / `Value` summary (rows matched, rows appended, rows sent to Overflow, the Overflow sheet name, sheets skipped, and the quality audit status), one row per template sheet (status `filled` or `skipped`, the skip reason, how many components were meant for the sheet, rows matched, appended, and sent to overflow, template columns the writer cannot fill, and writer columns the template lacks), and one row per component family with the same coverage state the other report formats show (collected, excluded, degraded, partial, or unknown scope) plus the template sheets that family fills.
+- **`Overflow`** is created only when some rows could not go into their template sheet: either a soft cap clipped them, or the template sheet meant for them was skipped (missing, renamed, unanchored, or without its ID column). Row 1 is a header. Each row is one component: `Template Sheet` (the template sheet it belongs in, by its expected name), `Reason` (`clipped`, `sheet missing or unanchored`, or `sheet has no id column`), `Component Type` (`Dimension`, `Metric`, `Calculated Metric`, or `Segment`), `Component ID` (the ID the writer matches on: the bare ID such as `evar120` for eVars, props, and events, and the AA ID for calculated metrics and segments), then one column per template column the sheet would have filled (for example `Variable Name`, `Name`, `Description`, `Format`). For a skipped sheet there is no header row to read, so every column the writer fills for that sheet is included. Every row the API supplied is in either its template sheet or `Overflow`. One limit applies: on `eVars`, `props`, and `custom events (metrics)`, IDs are matched without regard to case, so two components whose IDs differ only in case are treated as one and only the last of them is written.
+- **`Template Coverage`** is always created. It has three blocks separated by a blank row: a `Measure` / `Value` summary (components, rows matched, rows appended, rows sent to Overflow split into rows clipped by the soft cap and rows from skipped sheets, the Overflow sheet name, sheets skipped, and the quality audit status; rows matched, appended, and sent to Overflow add up to the component count), one row per template sheet (status `filled` or `skipped`, the skip reason, how many components were meant for the sheet, rows matched, appended, and sent to overflow, template columns the writer cannot fill, and writer columns the template lacks), and one row per component family with the same coverage state the other report formats show (collected, excluded, degraded, partial, or unknown scope) plus the template sheets that family fills.
 
-If the template already has a sheet with either name, the writer leaves it alone and uses `Overflow (2)` or `Template Coverage (2)`.
+If the template already has a sheet with either name, in any letter case, the writer leaves it alone and uses `Overflow (2)` or `Template Coverage (2)`.
 
 A separate sheet was chosen over a block inside an existing sheet because every existing sheet belongs to the template: a block there could collide with formulas, print areas, or the customer's own rows.
 
@@ -289,7 +289,7 @@ Six events fire during a template-fill run. All have structured extras for log-s
 | `template_sheet_skipped` | WARNING | Expected sheet missing or anchor check failed | `sheet`, `reason` (`missing_or_unanchored` / `no_id_column`) |
 | `template_overflow` | WARNING | One or more rows appended past `max_row` (default-styled) | `sheet`, `overflow_rows` |
 | `template_sheet_clipped` | WARNING | Soft cap kept rows out of a template sheet (they go to `Overflow`) | `sheet`, `rows_dropped`, `soft_cap` |
-| `template_overflow_sheet_written` | WARNING | Clipped rows were written to the `Overflow` sheet (once per write) | `sheet` (the Overflow sheet name), `count` |
+| `template_overflow_sheet_written` | WARNING | Clipped rows or rows for skipped sheets were written to the `Overflow` sheet (once per write) | `sheet` (the Overflow sheet name), `count` |
 
 Health checklist for a "did this work?" assertion in CI / agents:
 
@@ -306,7 +306,7 @@ Health checklist for a "did this work?" assertion in CI / agents:
 3. The writer normalizes API IDs (`variables/<stem>` → `<stem>`, `metrics/<stem>` → `<stem>`) and builds a `wanted = {lower_id: component}` dict.
 4. The writer walks pre-existing data rows, matches by lowercased ID, fills in place via `_write_row` (which honors the non-empty rule — never writes `None` or empty over a styled cell).
 5. Remaining unmatched components are appended past `max_row`, soft-capped at +50 rows. Rows past the cap are kept for the `Overflow` sheet.
-6. The writer appends the `Overflow` sheet (only if something was clipped) and the `Template Coverage` sheet.
+6. The writer appends the `Overflow` sheet (only if something was clipped or a sheet was skipped) and the `Template Coverage` sheet.
 7. `wb.save(target)` writes the result. Styles, formulas, defined names, and untouched cells all survive.
 
 Only one module imports `openpyxl` ([`output/writers/excel_template.py`](../src/aa_auto_sdr/output/writers/excel_template.py)), and the import is method-scoped so the fast-path entry stays cheap.

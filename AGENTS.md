@@ -403,7 +403,7 @@ Without `--yes`, all three modes only preview and make no changes (including on 
 
 Hands-on workflow guide: [`docs/TEMPLATE_WORKFLOW.md`](docs/TEMPLATE_WORKFLOW.md) — covers first-run, batch, snapshot/git composition, coverage map, and the six `template_*` log events used as health signals in unattended runs.
 
-A filled workbook also carries two appended sheets that agents can read without parsing logs. `Template Coverage` is always present: it counts rows matched, appended, and sent to overflow, lists skipped sheets (missing or unanchored) and template columns the writer cannot fill, and gives each component family's coverage state. `Overflow` is present only when a template sheet hit its `max_row + 50` soft cap: it holds every clipped row with its source sheet, component type, component ID, and the values the template sheet would have received. Overflow never changes the exit code.
+A filled workbook also carries two appended sheets that agents can read without parsing logs. `Template Coverage` is always present: it counts rows matched, appended, and sent to overflow, lists skipped sheets (missing or unanchored) and template columns the writer cannot fill, and gives each component family's coverage state. `Overflow` is present only when a template sheet hit its `max_row + 50` soft cap or a template sheet was skipped: it holds every such row with its template sheet, a `Reason` (`clipped`, `sheet missing or unanchored`, `sheet has no id column`), component type, component ID, and the values the template sheet would have received. Overflow never changes the exit code.
 
 | Flag | Semantics |
 |------|-----------|

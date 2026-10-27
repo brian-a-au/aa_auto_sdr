@@ -32,7 +32,14 @@ TEMPLATE_SHEETS_BY_FAMILY: dict[str, tuple[str, ...]] = {
     "calculated_metrics": ("metrics-segments",),
 }
 
-_OVERFLOW_KEY_HEADERS = ("Template Sheet", "Component Type", "Component ID")
+_OVERFLOW_KEY_HEADERS = ("Template Sheet", "Reason", "Component Type", "Component ID")
+
+# Overflow `Reason` values: why a row is not in its template sheet.
+REASON_CLIPPED = "clipped"
+SKIP_REASONS: dict[str, str] = {
+    "missing_or_unanchored": "sheet missing or unanchored",
+    "no_id_column": "sheet has no id column",
+}
 _SHEET_HEADERS = (
     "Template Sheet",
     "Status",
@@ -51,9 +58,12 @@ SetCell = Callable[..., None]
 
 @dataclass(frozen=True, slots=True)
 class OverflowRow:
-    """One row the soft cap kept out of its template sheet."""
+    """One row that is not in its template sheet: clipped by the soft cap,
+    or meant for a template sheet that was skipped. `reason` is
+    `REASON_CLIPPED` or a `SKIP_REASONS` value."""
 
     source_sheet: str
+    reason: str
     component_type: str
     component_id: str
     values: dict[str, Any]
@@ -90,11 +100,14 @@ def column_gaps(
 
 
 def unique_sheet_name(wb, base: str) -> str:
-    """`base`, or `base (2)`, `base (3)`, ... when the template already uses it."""
-    if base not in wb.sheetnames:
+    """`base`, or `base (2)`, `base (3)`, ... when the template already uses it.
+
+    Excel sheet names are case-insensitive, so `overflow` blocks `Overflow`."""
+    taken = {name.lower() for name in wb.sheetnames}
+    if base.lower() not in taken:
         return base
     n = 2
-    while f"{base} ({n})" in wb.sheetnames:
+    while f"{base} ({n})".lower() in taken:
         n += 1
     return f"{base} ({n})"
 
@@ -102,11 +115,10 @@ def unique_sheet_name(wb, base: str) -> str:
 def write_overflow_sheet(wb, rows: list[OverflowRow], set_cell: SetCell) -> str:
     """Append the Overflow sheet and return its name.
 
-    Columns: the row's source template sheet, component type and id, then
-    every template column any overflow row carries a value for, in order of
-    first appearance."""
-    name = unique_sheet_name(wb, OVERFLOW_SHEET)
-    ws = wb.create_sheet(name)
+    Columns: the row's source template sheet, why it is here, component type
+    and id, then every template column any overflow row carries a value for,
+    in order of first appearance."""
+    ws = wb.create_sheet(unique_sheet_name(wb, OVERFLOW_SHEET))
     value_headers: list[str] = []
     for row in rows:
         for header in row.values:
@@ -116,13 +128,12 @@ def write_overflow_sheet(wb, rows: list[OverflowRow], set_cell: SetCell) -> str:
     for col, header in enumerate(headers, start=1):
         set_cell(ws, row=1, col=col, value=header)
     for r, row in enumerate(rows, start=2):
-        set_cell(ws, row=r, col=1, value=row.source_sheet)
-        set_cell(ws, row=r, col=2, value=row.component_type)
-        set_cell(ws, row=r, col=3, value=row.component_id)
+        for col, value in enumerate((row.source_sheet, row.reason, row.component_type, row.component_id), start=1):
+            set_cell(ws, row=r, col=col, value=value)
         for header, value in row.values.items():
             set_cell(ws, row=r, col=len(_OVERFLOW_KEY_HEADERS) + 1 + value_headers.index(header), value=value)
     ws.freeze_panes = "A2"
-    return name
+    return ws.title
 
 
 def write_coverage_sheet(
@@ -136,8 +147,7 @@ def write_coverage_sheet(
 
     Three blocks separated by a blank row: a Measure/Value summary, one row
     per template sheet, and one row per component family."""
-    name = unique_sheet_name(wb, COVERAGE_SHEET)
-    ws = wb.create_sheet(name)
+    ws = wb.create_sheet(unique_sheet_name(wb, COVERAGE_SHEET))
     row = 1
 
     def put(values: Iterable[Any]) -> None:
@@ -147,13 +157,17 @@ def write_coverage_sheet(
                 set_cell(ws, row=row, col=col, value=value)
         row += 1
 
-    overflow_total = sum(len(r.overflow) for r in reports)
+    overflow = [o for r in reports for o in r.overflow]
+    clipped = sum(1 for o in overflow if o.reason == REASON_CLIPPED)
     put(["Template Coverage"])
     row += 1
     put(["Measure", "Value"])
+    put(["Components", sum(r.components for r in reports)])
     put(["Rows matched", sum(r.rows_matched for r in reports)])
     put(["Rows appended", sum(r.rows_appended for r in reports)])
-    put(["Rows sent to Overflow", overflow_total])
+    put(["Rows sent to Overflow", len(overflow)])
+    put(["Rows clipped by soft cap", clipped])
+    put(["Rows from skipped sheets", len(overflow) - clipped])
     put(["Overflow sheet", overflow_sheet or "none"])
     put(["Sheets skipped", sum(1 for r in reports if r.status == "skipped")])
     put(["Quality", quality_status_line(quality_status(doc.quality))])
@@ -187,4 +201,4 @@ def write_coverage_sheet(
                 ", ".join(TEMPLATE_SHEETS_BY_FAMILY.get(cov.family, ())) or "not in template",
             ]
         )
-    return name
+    return ws.title

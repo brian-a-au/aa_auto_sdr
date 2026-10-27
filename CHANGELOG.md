@@ -26,11 +26,14 @@ All notable changes to this project will be documented in this file. Format foll
   sheet still holds at most 50 rows past its last existing row, but the rows
   past that cap now go to an `Overflow` sheet appended after the template's
   own sheets, instead of being dropped with only a `template_sheet_clipped`
-  log line. Each overflow row keeps the template sheet it was clipped from,
-  its component type and ID, and the values the template sheet would have
-  received. This matters most on `metrics-segments`, where calculated metrics
-  are written first and could push every segment out of the workbook. The
-  `Overflow` sheet is created only when something was clipped, and a new
+  log line. Components meant for a template sheet that was skipped (missing,
+  renamed, or unanchored), which were also left out of the workbook, now go
+  there too. Each overflow row keeps the template sheet it belongs in, a
+  `Reason` (`clipped` or the skip reason), its component type and ID, and the
+  values the template sheet would have received. This matters most on
+  `metrics-segments`, where calculated metrics are written first and could
+  push every segment out of the workbook. The
+  `Overflow` sheet is created only when either happens, and a new
   `template_overflow_sheet_written` warning reports how many rows it holds.
   Overflow does not change the exit code.
 

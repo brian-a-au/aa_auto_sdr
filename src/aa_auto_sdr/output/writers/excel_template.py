@@ -27,6 +27,8 @@ from typing import Any
 from aa_auto_sdr.core.atomic_io import atomic_write_path
 from aa_auto_sdr.output._template_anchors import ANCHORS, SheetAnchor, resolve_sheet
 from aa_auto_sdr.output._template_report import (
+    REASON_CLIPPED,
+    SKIP_REASONS,
     OverflowRow,
     SheetFillReport,
     column_gaps,
@@ -107,27 +109,36 @@ class ExcelTemplateWriter:
           stripping; never blank-overwrite an existing styled cell.
         - Soft cap: never append past max_row + 50 rows. Rows past the cap are
           returned as overflow rows for the Overflow sheet, never dropped.
+        - Skipped sheet: every component meant for it is returned as an
+          overflow row, so a missing sheet never loses rows either.
         """
         components = list(components)
+        writer_map = {id_column_header: get_id, **column_map}
+
+        def skipped(reason: str, **gaps: tuple[str, ...]) -> SheetFillReport:
+            _log_sheet_skipped(anchor.sheet_name, reason)
+            return SheetFillReport(
+                anchor.sheet_name,
+                "skipped",
+                reason=reason,
+                components=len(components),
+                overflow=[
+                    _overflow_row(
+                        anchor.sheet_name, SKIP_REASONS[reason], component_type, get_id(c), None, writer_map, c
+                    )
+                    for c in components
+                ],
+                **gaps,
+            )
+
         resolved = resolve_sheet(wb, anchor)
         if resolved is None:
-            _log_sheet_skipped(anchor.sheet_name, "missing_or_unanchored")
-            return SheetFillReport(
-                anchor.sheet_name, "skipped", reason="missing_or_unanchored", components=len(components)
-            )
+            return skipped("missing_or_unanchored")
 
         ws = wb[resolved.sheet_name]
         unsupported, missing = column_gaps(resolved.columns, column_map)
         if id_column_header not in resolved.columns:
-            _log_sheet_skipped(anchor.sheet_name, "no_id_column")
-            return SheetFillReport(
-                anchor.sheet_name,
-                "skipped",
-                reason="no_id_column",
-                components=len(components),
-                unsupported_columns=unsupported,
-                missing_columns=missing,
-            )
+            return skipped("no_id_column", unsupported_columns=unsupported, missing_columns=missing)
 
         report = SheetFillReport(
             anchor.sheet_name,
@@ -162,10 +173,11 @@ class ExcelTemplateWriter:
                 report.overflow.append(
                     _overflow_row(
                         anchor.sheet_name,
+                        REASON_CLIPPED,
                         component_type,
                         get_id(comp),
                         resolved.columns,
-                        {id_column_header: get_id, **column_map},
+                        writer_map,
                         comp,
                     )
                 )
@@ -264,8 +276,16 @@ class ExcelTemplateWriter:
         resolved = resolve_sheet(wb, anchor)
         if resolved is None:
             _log_sheet_skipped(anchor.sheet_name, "missing_or_unanchored")
+            reason = SKIP_REASONS["missing_or_unanchored"]
             return SheetFillReport(
-                anchor.sheet_name, "skipped", reason="missing_or_unanchored", components=len(entries)
+                anchor.sheet_name,
+                "skipped",
+                reason="missing_or_unanchored",
+                components=len(entries),
+                overflow=[
+                    _overflow_row(anchor.sheet_name, reason, ctype, cid, None, cmap, comp)
+                    for ctype, cid, comp, cmap in entries
+                ],
             )
 
         unsupported, missing = column_gaps(resolved.columns, calc_map)
@@ -288,7 +308,9 @@ class ExcelTemplateWriter:
         for component_type, comp_id, comp, column_map in entries:
             if append_row > soft_cap:
                 report.overflow.append(
-                    _overflow_row(anchor.sheet_name, component_type, comp_id, resolved.columns, column_map, comp)
+                    _overflow_row(
+                        anchor.sheet_name, REASON_CLIPPED, component_type, comp_id, resolved.columns, column_map, comp
+                    )
                 )
                 continue
             _write_row(ws, row=append_row, columns=resolved.columns, column_map=column_map, comp=comp)
@@ -408,23 +430,28 @@ def _log_sheet_filled(report: SheetFillReport, soft_cap: int) -> None:
 
 def _overflow_row(
     sheet: str,
+    reason: str,
     component_type: str,
     component_id: str,
-    columns: dict[str, int],
+    columns: dict[str, int] | None,
     column_map: dict[str, Callable[[Any], Any]],
     comp: Any,
 ) -> OverflowRow:
-    """Capture the values the template sheet would have received, keyed by
-    the template's own column headers, for a row kept out by the soft cap."""
+    """Capture the values a template sheet would have received, keyed by the
+    template's column headers, for a row that is not in that sheet.
+
+    `columns` is the resolved sheet's header map, which limits values to
+    columns the sheet has. It is None for a skipped sheet, where there is no
+    header map, so every column the writer would fill is kept."""
     values: dict[str, Any] = {}
     for header, getter in column_map.items():
-        if header not in columns:
+        if columns is not None and header not in columns:
             continue
         value = getter(comp)
         if value is None or not str(value).strip():
             continue
         values[header] = value
-    return OverflowRow(sheet, component_type, component_id, values)
+    return OverflowRow(sheet, reason, component_type, component_id, values)
 
 
 def _write_row(
