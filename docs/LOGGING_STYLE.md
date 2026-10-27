@@ -76,7 +76,8 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `cycle` | int | Watch-mode cycle index (0-based). |
 | `interval` | str | Watch-mode interval spec (e.g. `1h`). |
 | `watch_threshold` | int | Watch-mode `--watch-threshold` value. |
-| `change_count` | int | Watch-mode per-cycle change count emitted on `change` events. |
+| `change_count` | int | Watch-mode per-cycle component change count emitted on `change` events. |
+| `settings_changes` | int | Watch-mode per-cycle count of changed report-suite fields on `change` events; never part of `change_count`. |
 | `emitted` | bool | Whether the watch cycle emitted a `change` event (vs. suppressed by threshold). |
 | `cycles_completed` | int | Watch-loop terminal record — total cycles completed before stop. |
 | `rsids` | int / list[str] | Watch-loop start record — count or list of RSIDs being watched. |
@@ -151,7 +152,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 - `watch_snapshot_skipped` — WARNING. The watch adapter skips recognized malformed history while preserving the file. Carries `rsid`, `snapshot_id` (file path), and `error_class`, plus categorical `reason` (`invalid_json`, `invalid_utf8`, or `malformed_envelope`); omits exception contents. Watch tries earlier history or establishes a baseline.
 - `watch_loop_start` — INFO. `cli/commands/watch.py::run`. Fires once at watch dispatch entry. Carries `rsids` (count), `interval` (str), `watch_threshold`.
-- `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted `change` event on stdout (baseline / error events are observable via their stdout NDJSON and do not double-log). Carries `cycle`, `rsid`, `change_count`, `emitted`.
+- `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted `change` event on stdout (baseline / error events are observable via their stdout NDJSON and do not double-log). Carries `cycle`, `rsid`, `change_count`, `settings_changes`, `emitted`. A cycle with `change_count=0` and `settings_changes>0` fired on a report-suite setting change.
 - `watch_loop_stop` — INFO. `cli/commands/watch.py::run`. Fires once at loop termination (SIGINT/SIGTERM, max_cycles, or fatal). Carries `reason` (sigint|max_cycles|fatal), `cycles_completed`.
 
 ### Git integration
@@ -319,3 +320,4 @@ Most maintainers will not need this table. It records when each event and field 
 | `notion_registry_multi_source` (WARNING); `notion_repair_planned` (INFO); vocabulary: `add`, `conflicts` | v1.20.1 |
 | Notion create-database: `notion_create_planned` (INFO), `notion_database_created` (INFO), `notion_create_existing_registry` (WARNING), `notion_create_failed` (WARNING) | v1.21.0 |
 | Snapshot comparison: `diff_scope_mismatch` (WARNING); vocabulary: `not_compared` | v1.22.0 |
+| Watch: `settings_changes` field on `watch_cycle_complete` | v1.23.0 |

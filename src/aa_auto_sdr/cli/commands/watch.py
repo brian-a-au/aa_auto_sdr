@@ -308,16 +308,19 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
                 return
             summary = payload.get("summary") or {}
             change_count = summary.get("added", 0) + summary.get("removed", 0) + summary.get("modified", 0)
+            settings_changes = summary.get("settings_changes", 0)
             logger.info(
-                "watch_cycle_complete cycle=%d rsid=%s change_count=%d emitted=%s",
+                "watch_cycle_complete cycle=%d rsid=%s change_count=%d settings_changes=%d emitted=%s",
                 payload.get("cycle", 0),
                 payload.get("rsid", "?"),
                 change_count,
+                settings_changes,
                 True,
                 extra={
                     "cycle": payload.get("cycle", 0),
                     "rsid": payload.get("rsid", "?"),
                     "change_count": change_count,
+                    "settings_changes": settings_changes,
                     "emitted": True,
                 },
             )

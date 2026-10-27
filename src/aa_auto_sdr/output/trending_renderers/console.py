@@ -44,11 +44,11 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
         out.write("(no snapshots in window)\n")
         return
 
-    # Header: timestamp + 6 component-count cols + 3 delta cols.
+    # Header: timestamp + 6 component-count cols + 3 delta cols + settings delta.
     out.write(
         f"{'Captured (UTC)':<20}  "
         f"{'dim':>5} {'met':>5} {'seg':>5} {'cal':>5} {'vrs':>5} {'cls':>5}  "
-        f"{'Δadd':>5} {'Δrem':>5} {'Δmod':>5}\n",
+        f"{'Δadd':>5} {'Δrem':>5} {'Δmod':>5} {'Δset':>5}\n",
     )
     for point in report.series:
         ts = point.captured_at.strftime("%Y-%m-%dT%H:%M")
@@ -65,7 +65,7 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
             f"{ts:<20}  "
             f"{c.dimensions:>5} {c.metrics:>5} {c.segments:>5} "
             f"{c.calculated_metrics:>5} {c.virtual_report_suites:>5} {c.classifications:>5}  "
-            f"{d_add:>5} {d_rem:>5} {d_mod:>5}\n",
+            f"{d_add:>5} {d_rem:>5} {d_mod:>5} {'—' if point.settings_changes is None else point.settings_changes:>5}\n",
         )
 
     notes = [(point, not_comparable_by_reason(point)) for point in report.series]

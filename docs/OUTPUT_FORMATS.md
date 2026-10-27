@@ -93,7 +93,7 @@ The `notion` format is opt-in only — it is **not** included in the `all`, `rep
 
 **Parallel batch:** `--batch --format notion --workers N>1` is supported. A process-level lock serializes all `.notion_pages.json` writes so concurrent workers do not race. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically.
 
-**Watch:** `--watch --format notion` is supported. Notion publishes on the baseline cycle and on cycles where `total_changes >= --watch-threshold`. Zero-change cycles and fetch-error cycles never publish. If Notion raises during a cycle, a `notion_watch_publish_failed` WARNING fires and the loop continues.
+**Watch:** `--watch --format notion` is supported. Notion publishes on the baseline cycle, on cycles where `total_changes >= --watch-threshold`, and on any cycle with a report-suite setting change. Zero-change cycles and fetch-error cycles never publish. If Notion raises during a cycle, a `notion_watch_publish_failed` WARNING fires and the loop continues.
 
 ### Registry database (opt-in)
 

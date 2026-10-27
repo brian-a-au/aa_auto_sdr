@@ -74,10 +74,17 @@ def _settings_block(report: DiffReport, *, summary: bool) -> str:
         return line + "\n"
     rows = [line, "", "| Setting | Before | After |", "|---|---|---|"]
     rows.extend(
-        f"| `{escape_pipe(d.field)}` | {escape_pipe(stringify_cell(d.before))} | {escape_pipe(stringify_cell(d.after))} |"
+        f"| `{escape_pipe(d.field)}` | {_settings_cell(d.before)} | {_settings_cell(d.after)} |"
         for d in report.report_suite_deltas
     )
     return "\n".join(rows) + "\n"
+
+
+def _settings_cell(value: object) -> str:
+    text = stringify_cell(value)
+    if len(text) > _INLINE_VALUE_CAP:
+        text = text[:_INLINE_VALUE_CAP] + "…"
+    return escape_pipe(text)
 
 
 def _header(report: DiffReport, *, labels: tuple[str, str] | None = None) -> str:

@@ -316,3 +316,37 @@ def test_recovered_diff_spans_older_capture_to_fresh_capture(tmp_path):
     assert result.diff.components[1].removed[0].id == "retired"
     assert first.read_bytes() == b"{"
     assert second.read_bytes() == b"\xff"
+
+
+@pytest.mark.parametrize("threshold", [0, 5])
+def test_settings_only_cycle_commits_and_publishes(tmp_path, monkeypatch, threshold):
+    """A setting-only change drives the whole loop: event, git commit, and Notion publish."""
+    from dataclasses import replace
+
+    from aa_auto_sdr.snapshot.git import GitOpResult
+    from aa_auto_sdr.snapshot.store import save_snapshot
+
+    save_snapshot(document("rs_a", 1), snapshot_dir=tmp_path)
+    current = document("rs_a", 2)
+    current = replace(current, report_suite=replace(current.report_suite, currency="EUR"))
+    events = []
+    publisher = Mock()
+    commit = Mock(return_value=GitOpResult(ok=True, committed=True, commit_sha="abc", pushed=False))
+    monkeypatch.setattr("aa_auto_sdr.pipeline.watch.git_commit_snapshot", commit)
+    ctx = WatchContext(
+        SimpleNamespace(fetch_snapshot=lambda _rsid: current),
+        _SnapshotStoreAdapter(tmp_path),
+        Mock(utcnow=lambda: datetime.now(UTC)),
+        Mock(),
+        SimpleNamespace(emit=events.append),
+        git_commit=True,
+        snapshot_dir=tmp_path,
+        notion_publisher=publisher,
+    )
+    run_watch_loop(ctx=ctx, rsids=["rs_a"], interval=timedelta(0), threshold=threshold, stop=StopToken(), max_cycles=1)
+    assert [e["event"] for e in events] == ["change"]
+    assert events[0]["summary"]["settings_changes"] == 1
+    assert events[0]["summary"]["added"] == events[0]["summary"]["removed"] == events[0]["summary"]["modified"] == 0
+    assert commit.call_count == 1
+    assert "settings:   1 changed" in commit.call_args.kwargs["message"]
+    assert publisher.publish.call_count == 1

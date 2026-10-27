@@ -279,3 +279,18 @@ def test_watch_logs_eligible_summary_count(caplog, real_change) -> None:
     assert len(records) == 1
     assert records[0].change_count == int(real_change)
     assert inj.emitter.events[0]["summary"]["removed"] == 0
+
+
+def test_watch_settings_only_change_emits_and_logs_settings(caplog) -> None:
+    inj = _comparison_injection({})
+    inj.fetcher.rsid_to_doc["rs_a"]["components"]["report_suite"]["currency"] = "EUR"
+    ns = build_parser().parse_args(["rs_a", "--watch", "--interval", "1h", "--watch-threshold", "5"])
+    with caplog.at_level(logging.INFO, logger="aa_auto_sdr.cli.commands.watch"):
+        assert watch_run(ns, _injected=inj) == ExitCode.OK
+    assert [e["event"] for e in inj.emitter.events] == ["change"]
+    assert inj.emitter.events[0]["summary"]["settings_changes"] == 1
+    records = [r for r in caplog.records if r.msg.startswith("watch_cycle_complete")]
+    assert len(records) == 1
+    assert records[0].change_count == 0
+    assert records[0].settings_changes == 1
+    assert "settings_changes=1" in records[0].getMessage()

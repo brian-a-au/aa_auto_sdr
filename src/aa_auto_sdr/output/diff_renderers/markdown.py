@@ -46,7 +46,7 @@ def render_markdown(
         # Summary mode: per-component-type count rows, no per-item detail.
         buf.write("## Summary\n\n")
         if report.report_suite_deltas:
-            fields = ", ".join(f"`{escape_pipe(d.field)}`" for d in report.report_suite_deltas)
+            fields = ", ".join(f"`{d.field}`" for d in report.report_suite_deltas)
             buf.write(f"**Report suite settings:** {report.settings_changes} changed ({fields})\n\n")
         if quiet:
             buf.write("| Component | Added | Removed | Modified |\n")

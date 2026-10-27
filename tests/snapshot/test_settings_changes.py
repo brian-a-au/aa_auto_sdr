@@ -128,3 +128,14 @@ def test_trending_counts_settings_separately(tmp_path: Path) -> None:
     assert json.loads(render_json([report]))["drift"]["settings_changes"] == 1
     for text in (render_console([report]), render_markdown([report])):
         assert "Settings changes" in text
+        assert "Δset" in text
+    md_rows = [line for line in render_markdown([report]).splitlines() if line.startswith("| 2026-10-26")]
+    assert md_rows[0].rstrip(" |").endswith("| 1")
+
+
+def test_pr_comment_settings_table_escapes_and_caps_values() -> None:
+    a, b = _pair("name", "Old", "New | " + "x" * 500)
+    rendered = render_report(compare(a, b), fmt="pr-comment")
+    row = next(line for line in rendered.splitlines() if line.startswith("| `name`"))
+    assert "New \\| " in row
+    assert "x" * 500 not in row

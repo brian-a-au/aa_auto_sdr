@@ -17,6 +17,10 @@ def render_markdown(reports: list[TrendingReport]) -> str:
     return out.getvalue()
 
 
+def _settings_cell(point) -> str:
+    return "—" if point.settings_changes is None else str(point.settings_changes)
+
+
 def _render_one(report: TrendingReport, out: StringIO) -> None:
     name_part = f" — {report.name}" if report.name else ""
     out.write(f"# Trending: {report.rsid}{name_part}\n\n")
@@ -28,8 +32,8 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
         out.write("_No snapshots in window._\n")
         return
 
-    out.write("| Captured | dim | met | seg | cal | vrs | cls | Δadd | Δrem | Δmod |\n")
-    out.write("|----------|-----|-----|-----|-----|-----|-----|------|------|------|\n")
+    out.write("| Captured | dim | met | seg | cal | vrs | cls | Δadd | Δrem | Δmod | Δset |\n")
+    out.write("|----------|-----|-----|-----|-----|-----|-----|------|------|------|------|\n")
     for point in report.series:
         ts = point.captured_at.strftime("%Y-%m-%dT%H:%M")
         c = point.counts
@@ -42,7 +46,7 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
         out.write(
             f"| {ts} | {c.dimensions} | {c.metrics} | {c.segments} | "
             f"{c.calculated_metrics} | {c.virtual_report_suites} | {c.classifications} | "
-            f"{d_add} | {d_rem} | {d_mod} |\n",
+            f"{d_add} | {d_rem} | {d_mod} | {_settings_cell(point)} |\n",
         )
 
     notes = [(point, not_comparable_by_reason(point)) for point in report.series]

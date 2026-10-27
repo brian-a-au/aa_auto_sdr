@@ -154,7 +154,7 @@ aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod --format p
 | `--extended-fields` | Include description/tags/category in compare (off by default) |
 | `--quiet-diff` | Show only changed sections |
 | `--reverse-diff` | Swap a and b before compare |
-| `--warn-threshold N` | Exit `3` when total changes ≥ N (CI signal) |
+| `--warn-threshold N` | Exit `3` when total component changes ≥ N (CI signal) |
 | `--color-theme {default,accessible}` | Diff color palette |
 
 ## Trending, watch & git audit trail
@@ -177,7 +177,7 @@ aa_auto_sdr demo.prod --auto-snapshot --git-commit --profile prod
 aa_auto_sdr demo.prod --watch --interval 1h --git-commit --git-push --profile prod
 ```
 
-Watch event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), `error` (per-RSID fetch failure — loop continues). SIGINT exits `0`.
+Watch event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`, or when any report-suite setting changed), `error` (per-RSID fetch failure — loop continues). SIGINT exits `0`.
 
 ## Inventory rollup
 
