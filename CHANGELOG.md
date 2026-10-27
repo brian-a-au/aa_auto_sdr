@@ -25,6 +25,16 @@ All notable changes to this project will be documented in this file. Format foll
   Trending `delta_by_type` entries carry both, and the console and Markdown
   trending tables name the families that were not comparable. Watch Git
   commit messages label such families "not comparable" instead of `+0 -0 ~0`.
+- Excel, CSV, Markdown, and HTML reports now show, for each component family,
+  whether it was collected with rows, collected empty, left out of the
+  capture, degraded, partial (with its expansion level), or of unknown scope,
+  and whether a quality audit ran with its verdict and issues. Excel gains
+  `Coverage` and `Quality` sheets after `Summary`. CSV gains
+  `<stem>.coverage.csv` and, when an audit ran, `<stem>.quality_issues.csv`;
+  `<stem>.summary.csv` gains quality verdict, threshold, and issue-count rows.
+  Markdown and HTML gain Coverage and Quality sections after the header, and
+  empty component sections print the family's state instead of "none". JSON
+  output is unchanged.
 
 ### Changed
 - `--metrics-only` and `--dimensions-only` can now be combined with

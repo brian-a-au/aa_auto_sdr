@@ -2,6 +2,21 @@
 
 > Captured at 2026-04-26T12:00:00+00:00 · tool version 1.0.0
 
+## Coverage
+
+| Family | State | Count | Expansion level |
+| --- | --- | --- | --- |
+| Dimensions | Collected | 4 |  |
+| Metrics | Collected | 3 |  |
+| Segments | Collected | 2 |  |
+| Calculated Metrics | Collected | 1 |  |
+| Virtual Report Suites | Collected | 1 |  |
+| Classifications | Collected | 1 |  |
+
+## Quality
+
+No quality audit ran.
+
 ## Summary
 
 | Field | Value |

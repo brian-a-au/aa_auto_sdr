@@ -78,7 +78,7 @@ asserts the committed tree matches the script's current output via
 | `demo_prod.json` | JSON | Full SdrDocument as JSON. |
 | `demo_prod.html` | HTML | Single self-contained file with inline CSS. |
 | `demo_prod.md` | Markdown | GFM-flavored. |
-| `demo_prod.<component>.csv` | CSV | One file per component type (seven files). |
+| `demo_prod.<component>.csv` | CSV | One file per component type plus `summary` and `coverage` (eight files). `quality_issues` is added only when a quality audit runs. |
 
 ### Diff outputs
 

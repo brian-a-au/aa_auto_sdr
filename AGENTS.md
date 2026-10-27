@@ -67,7 +67,7 @@ Supports `--filter`, `--exclude`, `--sort`, `--limit`.
 | Format value | Output produced                       |
 |--------------|---------------------------------------|
 | `excel`      | `.xlsx` workbook (default)            |
-| `csv`        | CSV file(s)                           |
+| `csv`        | CSV file set: `<RSID>.<component>.csv` per component, plus `summary`, `coverage`, and `quality_issues` (only when a quality audit ran) |
 | `json`       | JSON file                             |
 | `html`       | HTML report                           |
 | `markdown`   | Markdown file                         |

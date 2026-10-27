@@ -1,4 +1,4 @@
-"""CSV writer: 7 files per RS, header-only when component is empty, BOM-encoded."""
+"""CSV writer: 8 files per RS (9 with a quality audit), header-only when component is empty, BOM-encoded."""
 
 import csv as _csv
 import json
@@ -41,10 +41,10 @@ def doc():
     )
 
 
-def test_csv_writer_returns_seven_paths(doc, tmp_path: Path) -> None:
+def test_csv_writer_returns_eight_paths_without_quality_audit(doc, tmp_path: Path) -> None:
     target = tmp_path / "out.csv"
     paths = CsvWriter().write(doc, target)
-    assert len(paths) == 7
+    assert len(paths) == 8
 
 
 def test_csv_writer_filenames_match_component_types(doc, tmp_path: Path) -> None:
@@ -54,6 +54,7 @@ def test_csv_writer_filenames_match_component_types(doc, tmp_path: Path) -> None
     assert names == sorted(
         [
             "out.summary.csv",
+            "out.coverage.csv",
             "out.dimensions.csv",
             "out.metrics.csv",
             "out.segments.csv",

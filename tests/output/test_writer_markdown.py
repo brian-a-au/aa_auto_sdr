@@ -88,8 +88,9 @@ def test_markdown_segments_definition_inline_as_json_in_backticks(doc, tmp_path:
     assert "container" in content
 
 
-def test_markdown_empty_section_renders_none_marker(tmp_path: Path) -> None:
-    """Build a doc with no metrics/segments/etc. and verify the (none) marker renders."""
+def test_markdown_empty_section_renders_scope_state(tmp_path: Path) -> None:
+    """A doc with no components and unknown scope renders the scope state,
+    never a bare (none) marker that reads as collected-empty."""
     from aa_auto_sdr.api import models as m
     from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -113,7 +114,8 @@ def test_markdown_empty_section_renders_none_marker(tmp_path: Path) -> None:
     target = tmp_path / "empty.md"
     MarkdownWriter().write(minimal, target)
     content = target.read_text(encoding="utf-8")
-    assert "_(none)_" in content
+    assert "_(none)_" not in content
+    assert "_Scope unknown — may not have been collected_" in content
 
 
 def test_markdown_escapes_pipe_characters_in_cells(tmp_path: Path) -> None:

@@ -78,7 +78,7 @@ grep "component_fetch" logs/SDR_*.log | grep duration_ms=$(seq -s'\|' 1000 5000)
 
 ```
 2026-05-06 12:35:01 - aa_auto_sdr.output.writers.excel - INFO - output_write format=excel output_path=output/demo.prod.xlsx count=1 duration_ms=820
-2026-05-06 12:35:02 - aa_auto_sdr.output.writers.csv - INFO - output_write format=csv output_path=output/demo.prod_summary.csv count=7 duration_ms=140
+2026-05-06 12:35:02 - aa_auto_sdr.output.writers.csv - INFO - output_write format=csv output_path=output/demo.prod_summary.csv count=8 duration_ms=140
 ```
 
 CSV emits ONE record with `count=7` (the writer produces a summary file plus six per-component files); other formats emit `count=1`. To verify the run wrote everything expected:

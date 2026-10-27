@@ -1,7 +1,8 @@
 """CSV writer — one file per component type, UTF-8 with BOM, atomic writes.
 
-Self-registers with the registry on import. Returns one Path per file written
-(7 paths per SdrDocument: summary + 6 component types)."""
+Self-registers with the registry on import. Returns one Path per file written:
+summary, coverage, and the 6 component types (8 paths), plus quality_issues
+when a quality audit ran (9 paths)."""
 
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.output._helpers import neutralize_formula, stringify_cell
+from aa_auto_sdr.output.coverage import coverage_rows, quality_status
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -49,7 +51,11 @@ def _atomic_write_text(path: Path, content: str, *, encoding: str) -> None:
         raise
 
 
+_QUALITY_ISSUE_HEADERS = ["severity", "category", "type", "item_id", "item_name", "issue", "details"]
+
+
 def _summary_rows(doc: SdrDocument) -> list[tuple[str, str]]:
+    quality = quality_status(doc.quality)
     return [
         ("RSID", doc.report_suite.rsid),
         ("Name", doc.report_suite.name),
@@ -64,7 +70,14 @@ def _summary_rows(doc: SdrDocument) -> list[tuple[str, str]]:
         ("Calculated Metrics", str(len(doc.calculated_metrics))),
         ("Virtual Report Suites", str(len(doc.virtual_report_suites))),
         ("Classifications", str(len(doc.classifications))),
+        ("Quality verdict", (quality.verdict or "n/a") if quality.audited else "not run"),
+        ("Quality policy threshold", quality.threshold or ""),
+        ("Quality issues", str(quality.total) if quality.audited else ""),
     ]
+
+
+def _coverage_csv_rows(doc: SdrDocument) -> list[list[str]]:
+    return [[r.family, r.state.value, str(r.count), r.expansion_level or ""] for r in coverage_rows(doc)]
 
 
 def _component_rows(items: list[Any]) -> tuple[list[str], list[list[str]]]:
@@ -117,6 +130,12 @@ class CsvWriter:
         _atomic_write_text(summary_path, summary_body, encoding="utf-8-sig")
         paths.append(summary_path)
 
+        # Coverage (always) — per-family capture state
+        coverage_path = parent / f"{stem}.coverage.csv"
+        coverage_body = _encode_csv(["family", "state", "count", "expansion_level"], _coverage_csv_rows(doc))
+        _atomic_write_text(coverage_path, coverage_body, encoding="utf-8-sig")
+        paths.append(coverage_path)
+
         # Component lists
         component_attr_map = {
             "dimensions": doc.dimensions,
@@ -137,6 +156,14 @@ class CsvWriter:
             body = _encode_csv(headers, rows)
             _atomic_write_text(file_path, body, encoding="utf-8-sig")
             paths.append(file_path)
+
+        # Quality findings — only when an audit ran
+        quality = quality_status(doc.quality)
+        if quality.audited:
+            issues_path = parent / f"{stem}.quality_issues.csv"
+            issue_rows = [[stringify_cell(i.get(h)) for h in _QUALITY_ISSUE_HEADERS] for i in quality.issues]
+            _atomic_write_text(issues_path, _encode_csv(_QUALITY_ISSUE_HEADERS, issue_rows), encoding="utf-8-sig")
+            paths.append(issues_path)
 
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(

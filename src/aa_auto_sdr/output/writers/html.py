@@ -13,6 +13,7 @@ from typing import Any
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.output._helpers import escape_html, stringify_cell
+from aa_auto_sdr.output.coverage import CoverageRow, CoverageState, coverage_rows, quality_status, quality_status_line
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -40,6 +41,7 @@ th { position: sticky; top: 0; background: #fafafa; }
 tbody tr:nth-child(even) { background: #fafafa; }
 code { font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 0.8rem;
        background: #f5f5f5; padding: 0.05rem 0.25rem; border-radius: 2px; }
+p.state { color: #555; }
 td.long { max-width: 24rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 """
 
@@ -75,16 +77,28 @@ def _table_html(headers: list[str], rows: list[list[str]]) -> str:
     return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
 
 
-def _section_html(heading: str, items: list[Any], cls_name: str) -> str:
+def _section_html(heading: str, items: list[Any], cls_name: str, coverage: CoverageRow) -> str:
     cls = getattr(models, cls_name)
     headers = [f.name for f in fields(cls)]
+    state = f'<p class="state"><em>{escape_html(coverage.label)}</em></p>'
     if not items:
-        return f'<section><h2>{escape_html(heading)} <span class="count">0</span></h2><p><em>(none)</em></p></section>'
+        return f'<section><h2>{escape_html(heading)} <span class="count">0</span></h2>{state}</section>'
     rows = [[stringify_cell(getattr(item, h)) for h in headers] for item in items]
+    note = "" if coverage.state is CoverageState.COLLECTED else state
     return (
         f'<section><h2>{escape_html(heading)} <span class="count">{len(items)}</span></h2>'
-        f"{_table_html(headers, rows)}</section>"
+        f"{note}{_table_html(headers, rows)}</section>"
     )
+
+
+def _coverage_section_html(rows: list[CoverageRow]) -> str:
+    body = [[r.heading, r.label, str(r.count), r.expansion_level or ""] for r in rows]
+    return f"<section><h2>Coverage</h2>{_table_html(['Family', 'State', 'Count', 'Expansion level'], body)}</section>"
+
+
+def _quality_section_html(doc: SdrDocument) -> str:
+    line = quality_status_line(quality_status(doc.quality))
+    return f"<section><h2>Quality</h2><p>{escape_html(line)}</p></section>"
 
 
 def _summary_section_html(doc: SdrDocument) -> str:
@@ -96,7 +110,9 @@ def _summary_section_html(doc: SdrDocument) -> str:
 def _document_html(doc: SdrDocument) -> str:
     rs = doc.report_suite
     title = f"SDR — {rs.name} ({rs.rsid})"
-    sections = [_summary_section_html(doc)]
+    coverage = coverage_rows(doc)
+    coverage_by_family = {r.family: r for r in coverage}
+    sections = [_coverage_section_html(coverage), _quality_section_html(doc), _summary_section_html(doc)]
     components_map: dict[str, list[Any]] = {
         "dimensions": doc.dimensions,
         "metrics": doc.metrics,
@@ -106,7 +122,7 @@ def _document_html(doc: SdrDocument) -> str:
         "classifications": doc.classifications,
     }
     for heading, attr, cls_name in _COMPONENT_SECTIONS:
-        sections.append(_section_html(heading, components_map[attr], cls_name))
+        sections.append(_section_html(heading, components_map[attr], cls_name, coverage_by_family[attr]))
     body_inner = (
         f"<header><h1>{escape_html(rs.name)}</h1>"
         f'<p class="meta">RSID <code>{escape_html(rs.rsid)}</code> · '
