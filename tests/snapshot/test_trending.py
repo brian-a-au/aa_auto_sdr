@@ -52,13 +52,22 @@ class TestSummarizeDiff:
 
     def test_suppressed_component_diff_returns_zeros(self) -> None:
         # Suppressed sections (degraded/partial) should not contribute to drift counts.
+        # They keep their comparability and reason so renderers can say why.
         cd = ComponentDiff(
             component_type="dimensions",
             suppressed=True,
-            suppression_reason="degraded",
+            suppression_reason="fetch degraded",
+            comparability="degraded",
         )
         result = _summarize_diff(cd)
-        assert result == LifecycleDelta(added=0, removed=0, modified=0, unchanged=0)
+        assert result == LifecycleDelta(
+            added=0,
+            removed=0,
+            modified=0,
+            unchanged=0,
+            comparability="degraded",
+            suppression_reason="fetch degraded",
+        )
 
 
 def _point(

@@ -1,7 +1,8 @@
-"""Consumers of snapshot envelopes run over v5 files without crashing.
+"""Consumers of snapshot envelopes run over v5 files end to end.
 
-Capture scope is persisted but not yet interpreted: diff, watch, and trending
-output over a v5 file must match what the same data gives under v4.
+Rule-by-rule scope behavior lives in test_comparator_scope.py; these tests
+check the CLI-facing paths (token resolution, every diff renderer, trending,
+a watch cycle) over real v5 files.
 """
 
 from __future__ import annotations
@@ -12,7 +13,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from aa_auto_sdr.cli.commands.diff import compute_report, render_report
-from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.store import load_snapshot
 from aa_auto_sdr.snapshot.trending import compute_trending
 
@@ -32,24 +32,28 @@ def _write(path: Path, env: dict) -> Path:
     return path
 
 
-def test_diff_over_v5_renders_every_format_like_v4(tmp_path: Path) -> None:
+def test_diff_over_v5_renders_every_format(tmp_path: Path) -> None:
     v5 = json.loads(V5_FIXTURE.read_text())
     later = json.loads(V5_FIXTURE.read_text())
     later["captured_at"] = "2026-10-28T12:00:00+00:00"
     later["components"]["metrics"] = []
     a5, b5 = _write(tmp_path / "a5.json", v5), _write(tmp_path / "b5.json", later)
-    a4, b4 = _write(tmp_path / "a4.json", _as_v4(v5)), _write(tmp_path / "b4.json", _as_v4(later))
-    kwargs = {
-        "profile": None,
-        "snapshot_dir": None,
-        "reverse": False,
-        "ignore_fields": frozenset(),
-        "extended_fields": False,
-    }
-    report5 = compute_report(a=str(a5), b=str(b5), **kwargs)
-    report4 = compute_report(a=str(a4), b=str(b4), **kwargs)
+    report = compute_report(
+        a=str(a5),
+        b=str(b5),
+        profile=None,
+        snapshot_dir=None,
+        reverse=False,
+        ignore_fields=frozenset(),
+        extended_fields=False,
+    )
+    sections = {c.component_type: c for c in report.components}
+    assert [item.id for item in sections["metrics"].removed] == ["metrics/pageviews"]
+    assert sections["dimensions"].comparability == "excluded"
     for fmt in ("json", "console", "markdown", "pr-comment"):
-        assert render_report(report5, fmt=fmt) == render_report(report4, fmt=fmt)
+        rendered = render_report(report, fmt=fmt)
+        assert "metrics/pageviews" in rendered
+        assert fmt == "json" or "not collected in either snapshot" in rendered
 
 
 def test_trending_over_mixed_v4_and_v5(tmp_path: Path) -> None:
@@ -88,10 +92,3 @@ def test_watch_cycle_over_v5_baseline(tmp_path: Path) -> None:
     assert payload["summary"]["added"] == payload["summary"]["removed"] == payload["summary"]["modified"] == 0
     saved = load_snapshot(result.snapshot_path)
     assert saved["schema"] == "aa-sdr-snapshot/v5"
-
-
-def test_compare_v5_against_v4_full_is_unchanged_behavior() -> None:
-    """PR 4 does not interpret scope yet: an excluded family still diffs as today."""
-    v5 = json.loads(V5_FIXTURE.read_text())
-    v4 = _as_v4(v5)
-    assert compare(v5, v4) == compare(_as_v4(v5), v4)

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.snapshot.comparator import compare
-from aa_auto_sdr.snapshot.models import ComponentDiff
+from aa_auto_sdr.snapshot.models import Comparability, ComponentDiff
 from aa_auto_sdr.snapshot.retention import restore_iso
 from aa_auto_sdr.snapshot.store import list_snapshots, load_snapshot
 
@@ -71,6 +71,8 @@ class LifecycleDelta:
     removed: int = 0
     modified: int = 0
     unchanged: int = 0
+    comparability: Comparability = "comparable"
+    suppression_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,16 +106,26 @@ class TrendingReport:
 
 def _summarize_diff(cd: ComponentDiff) -> LifecycleDelta:
     """Flatten ComponentDiff into a 4-count LifecycleDelta. Suppressed
-    sections contribute zeros — we don't want degraded fetches to inflate
-    drift scores."""
+    sections contribute zeros — we don't want degraded fetches or filtered
+    captures to inflate drift scores — and keep their comparability and
+    reason so renderers can say the family was not comparable."""
     if cd.suppressed:
-        return LifecycleDelta()
+        return LifecycleDelta(comparability=cd.comparability, suppression_reason=cd.suppression_reason)
     return LifecycleDelta(
         added=len(cd.added),
         removed=len(cd.removed),
         modified=len(cd.modified),
         unchanged=cd.unchanged_count,
     )
+
+
+def not_comparable_by_reason(point: SnapshotPoint) -> dict[str, list[str]]:
+    """Group a point's non-comparable families by reason, for renderer footnotes."""
+    grouped: dict[str, list[str]] = {}
+    for ct, delta in (point.delta_by_type or {}).items():
+        if delta.comparability != "comparable":
+            grouped.setdefault(delta.suppression_reason or delta.comparability, []).append(ct)
+    return grouped
 
 
 def _compute_drift_summary(series: list[SnapshotPoint]) -> DriftSummary:

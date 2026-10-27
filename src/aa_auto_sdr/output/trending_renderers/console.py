@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 
-from aa_auto_sdr.snapshot.trending import TrendingReport
+from aa_auto_sdr.snapshot.trending import TrendingReport, not_comparable_by_reason
 
 _COMPONENT_TYPE_ABBREV = {
     "dimensions": "dim",
@@ -67,6 +67,14 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
             f"{c.calculated_metrics:>5} {c.virtual_report_suites:>5} {c.classifications:>5}  "
             f"{d_add:>5} {d_rem:>5} {d_mod:>5}\n",
         )
+
+    notes = [(point, not_comparable_by_reason(point)) for point in report.series]
+    notes = [(point, grouped) for point, grouped in notes if grouped]
+    if notes:
+        out.write("\nNot comparable (excluded from the deltas above):\n")
+        for point, grouped in notes:
+            ts = point.captured_at.strftime("%Y-%m-%dT%H:%M")
+            out.writelines(f"  {ts}  {', '.join(families)} — {reason}\n" for reason, families in grouped.items())
 
     # Drift summary footer.
     out.write("\nDRIFT SUMMARY\n")

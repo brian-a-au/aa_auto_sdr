@@ -387,10 +387,11 @@ Current schema: `aa-sdr-snapshot/v4` for a full capture, `aa-sdr-snapshot/v5` fo
 
 …plus a `quality` block (`issues`, `summary`) populated when the quality engine runs.
 
-When `--diff` compares two snapshots and either side has a degraded or
-partial-with-mismatched-level fetch for a component type, that section's
+When `--diff` compares two snapshots and a component type cannot be compared
+(one side did not collect it, its fetch was degraded or partial at a different
+level, or a snapshot without scope has it empty against rows), that section's
 diff is suppressed with a single annotation rather than rendering false
-"modified" rows. Older majors (`v1`–`v3`) load forward-compat with missing
+added, removed, or "modified" rows. Older majors (`v1`–`v3`) load forward-compat with missing
 fields defaulted. See [`docs/SNAPSHOT_DIFF.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/SNAPSHOT_DIFF.md) for the full schema and `CHANGELOG.md` for version history.
 
 ### Fetch-quality signal

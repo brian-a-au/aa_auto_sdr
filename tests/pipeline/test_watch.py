@@ -1388,7 +1388,13 @@ def test_suppressed_counts_preserve_raw_comparator_evidence(component_type, degr
     assert not _should_publish(result, threshold=1)
     summary = _event_payload(result, cycle_n=0)["summary"]
     assert (summary["added"], summary["removed"], summary["modified"], summary["unchanged"]) == (0, 0, 0, 2)
-    assert summary["by_type"][component_type] == {"added": 0, "removed": 0, "modified": 0}
+    assert summary["by_type"][component_type] == {
+        "added": 0,
+        "removed": 0,
+        "modified": 0,
+        "comparability": "degraded",
+        "suppression_reason": "fetch degraded",
+    }
     assert (left, right) == before
     assert ctx.snapshot_store.saved == [("rs_a", right)]
 
@@ -1457,7 +1463,13 @@ def test_mixed_real_and_suppressed_changes_use_one_eligible_change(monkeypatch, 
         assert len(events) == len(publishes) == len(messages) == 1
         summary = events[0]["summary"]
         assert (summary["added"], summary["removed"], summary["modified"], summary["unchanged"]) == (0, 0, 1, 1)
-        assert summary["by_type"]["classifications"] == {"added": 0, "removed": 0, "modified": 0}
+        assert summary["by_type"]["classifications"] == {
+            "added": 0,
+            "removed": 0,
+            "modified": 0,
+            "comparability": "degraded",
+            "suppression_reason": "fetch degraded",
+        }
         assert "+0 -0 ~1" in messages[0]
 
 

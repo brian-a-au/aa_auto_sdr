@@ -100,7 +100,7 @@ def test_nonrecoverable_history_blocks_fetch(tmp_path, payload):
 
 def document(rsid, cycle):
     from aa_auto_sdr.api.models import ReportSuite
-    from aa_auto_sdr.sdr.document import SdrDocument
+    from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, SdrDocument
 
     return SdrDocument(
         ReportSuite(rsid=rsid, name="Suite", timezone="UTC", currency="USD", parent_rsid=None),
@@ -112,6 +112,7 @@ def document(rsid, cycle):
         [],
         datetime(2026, 2, cycle, tzinfo=UTC),
         "1.0",
+        collected_components=COMPONENT_FAMILIES,  # a full capture, as build_sdr produces
     )
 
 

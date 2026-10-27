@@ -147,9 +147,12 @@ Snapshot envelope schema is `aa-sdr-snapshot/v4` for a full capture and
 top-level `collected_components` list (the families the capture requested);
 the SDR JSON output carries the same key. Older majors (`v1`, `v2`, `v3`)
 and `v4` files without the key remain readable; their scope is unknown
-(`collected_components` absent), never inferred from empty arrays. See
-`docs/SNAPSHOT_DIFF.md` for the rules and `CHANGELOG.md` for the per-version
-field additions.
+(`collected_components` absent), never inferred from empty arrays.
+`--metrics-only` / `--dimensions-only` may be combined with `--snapshot` /
+`--auto-snapshot`; diffs, watch, trending, and `--compare-with-prev` suppress
+families a side did not collect (`comparability: "excluded"`) instead of
+reporting removals. See `docs/SNAPSHOT_DIFF.md` for the rules and
+`CHANGELOG.md` for the per-version field additions.
 
 ### Name resolution
 
@@ -288,7 +291,7 @@ Behavior:
   for all RSIDs → `NOT_FOUND` (13).
 - Window upper bound is "now at compute time," not "the most recent
   snapshot's timestamp."
-- Suppressed component sections (degraded / partial fetches) contribute zeros to drift counts so degraded snapshots don't inflate scores.
+- Component sections that are not comparable (not collected on a side, unknown legacy scope, degraded or partial fetches) contribute zeros to drift counts, so filtered or degraded snapshots don't inflate scores. Each `delta_by_type` entry carries `comparability` and `suppression_reason`.
 
 Drift in `aa_auto_sdr` is per-RSID lifecycle churn and is always included in `--trending-window` output; no separate opt-in flag is needed.
 
@@ -321,6 +324,12 @@ Event types (schema `aa-watch-event/v1`, NDJSON on stdout):
 
 - `baseline` — first cycle for an RSID; always emitted (no prior snapshot to diff against).
 - `change` — subsequent cycle where `total_changes >= watch_threshold`.
+
+`summary.by_type.<family>` entries carry `added`, `removed`, `modified`, and
+`comparability` (`comparable`, `excluded`, `unknown`, `degraded`, or
+`partial`). Entries that are not comparable also carry `suppression_reason`
+(for example `not collected in target`). Their zero counts mean "not
+comparable", not "no changes", and they never count toward the threshold.
 - `error` — per-RSID fetch failure within a cycle; loop continues.
 
 Before fetching, watch skips recognized malformed history with a warning and
