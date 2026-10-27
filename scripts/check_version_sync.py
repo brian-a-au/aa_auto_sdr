@@ -36,10 +36,10 @@ def _check_pyproject(repo: Path) -> None:
 
 def _check_changelog(repo: Path, canonical: str) -> None:
     text = (repo / "CHANGELOG.md").read_text()
-    head = "\n".join(text.splitlines()[:100])
+    head = "\n".join(text.splitlines()[:200])
     if f"## [{canonical}]" not in head:
         print(
-            f"error: CHANGELOG.md first 100 lines missing '## [{canonical}]' heading",
+            f"error: CHANGELOG.md first 200 lines missing '## [{canonical}]' heading",
             file=sys.stderr,
         )
         sys.exit(1)

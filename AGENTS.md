@@ -182,6 +182,16 @@ between two full ones hides nothing. Diff JSON carries `baseline_skipped`
 Explicit `--diff` tokens (`@previous`, `@<ts>`, paths) stay literal. See `docs/SNAPSHOT_DIFF.md` for the rules and
 `CHANGELOG.md` for the per-version field additions.
 
+SDR JSON output (file or stdout, including `--agent-mode`) adds derived
+fields that snapshots never carry. Each calculated metric has
+`formula_summary`, each segment has `definition_summary`, and both have
+`metric_references` and `segment_references` (sorted ID lists). A top-level
+`references` object lists, per calculated metric, segment, and virtual
+report suite, its direct `references` (`status` `resolved` or `unresolved`)
+and `referenced_by`. Summaries show definition parts outside the supported
+grammar as `[unparsed: <func>]`. See `docs/OUTPUT_FORMATS.md`
+("Definition summaries and references").
+
 ### Name resolution
 
 `aa_auto_sdr <RSID_OR_NAME>` accepts `--name-match {exact,insensitive,fuzzy}` (default: `insensitive`).

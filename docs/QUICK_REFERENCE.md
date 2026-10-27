@@ -394,7 +394,7 @@ aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
 | Format | File pattern | Description |
 |--------|--------------|-------------|
 | Excel | `<RSID>.xlsx` | 7-sheet workbook |
-| CSV | `<RSID>.<component>.csv` | 8 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage; plus quality_issues when a quality audit ran; then `<RSID>._manifest.json` (SHA-256, rows, and bytes per file) written last |
+| CSV | `<RSID>.<component>.csv` | 9 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage, references; plus quality_issues when a quality audit ran; then `<RSID>._manifest.json` (SHA-256, rows, and bytes per file) written last |
 | JSON | `<RSID>.json` | Self-contained `SdrDocument` |
 | HTML | `<RSID>.html` | Self-contained static report |
 | Markdown | `<RSID>.md` | GFM, one H2 per component type |

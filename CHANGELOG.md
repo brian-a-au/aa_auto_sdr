@@ -68,6 +68,24 @@ All notable changes to this project will be documented in this file. Format foll
   finding of its rule, to catch typos.
 - `Title Case` naming rules allow lowercase small words (a, an, and, as, at,
   by, for, in, of, on, or, per, the, to, vs, via, with) after the first word.
+- Segments gain a `definition_summary` column and calculated metrics gain a
+  `formula_summary` column: a one-line readable form of the definition, such
+  as `Visit where variables/visitnumber > 1 AND metrics/pageviews exists` or
+  `metrics/orders / metrics/visits[segment s_222]`. Both families also gain
+  `metric_references` and `segment_references` (sorted IDs; lists in JSON,
+  joined with `, ` in tabular formats). The names match `cja_auto_sdr`. The
+  full definition JSON is still included. The summary covers a conservative
+  part of the AA 2.0 grammar; anything else shows raw as `[unparsed: <func>]`.
+  Depth and size limits keep very deep or very large definitions safe.
+- A references appendix lists, for each calculated metric, segment, and
+  virtual report suite, what it references and what references it, resolved
+  against the capture. IDs missing from the capture are labeled `unresolved`.
+  It appears as a `References` sheet in Excel, `<stem>.references.csv`, a
+  `References` section in Markdown and HTML, and a top-level `references`
+  block in JSON. CSV output is now nine section files plus the manifest
+  (ten section files with a quality audit), and the manifest lists
+  `references.csv`.
+  Snapshots are unchanged.
 
 ### Changed
 - Automatic baselines skip filtered snapshots. Watch, `--compare-with-prev`,

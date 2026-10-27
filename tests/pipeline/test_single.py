@@ -155,9 +155,11 @@ def test_payload_conversion_and_output_parity(mock_client, tmp_path, monkeypatch
     )
     assert len(documents) == conversions
     if "json" in formats:
+        from aa_auto_sdr.sdr.definitions import enrich_payload
+
         expected = real(documents[0])
         expected_path = tmp_path / "expected.json"
-        write_json(expected_path, expected)
+        write_json(expected_path, enrich_payload(documents[0], expected))
         assert (tmp_path / "outputs/demo.prod.json").read_bytes() == expected_path.read_bytes()
         assert payloads[0] == expected  # envelope promotion must not mutate the shared payload
     if snapshot:

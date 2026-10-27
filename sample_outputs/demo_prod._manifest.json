@@ -30,17 +30,17 @@
       "sheet": "Metrics"
     },
     {
-      "bytes": 539,
+      "bytes": 1016,
       "name": "demo_prod.segments.csv",
       "rows": 2,
-      "sha256": "8e8f514b96170d965520b0a4839ece2e6c3a86788a07639e880a210763d79200",
+      "sha256": "ad8e691819061ebd32a43212ab76f0e3eff16a0614ca5d651a110466eb8d4ba6",
       "sheet": "Segments"
     },
     {
-      "bytes": 291,
+      "bytes": 621,
       "name": "demo_prod.calculated_metrics.csv",
       "rows": 1,
-      "sha256": "b5b20e5f4215bbe87a8fd3e50f61e8f6d65073bf25bd91ee412f74c161fb2f03",
+      "sha256": "912e803ea07778568413b2f3640021652890e0203bfaac9750a09a339affec0f",
       "sheet": "Calculated Metrics"
     },
     {
@@ -56,6 +56,13 @@
       "rows": 1,
       "sha256": "0d3b5fa0775d2b254e633d495368f6f7832fe18c4844ba72f189ab3d15e4ee02",
       "sheet": "Classifications"
+    },
+    {
+      "bytes": 657,
+      "name": "demo_prod.references.csv",
+      "rows": 6,
+      "sha256": "70de0779965058fc524de0019fc4fe184d15a43d8288dcacaa1c93bd63964140",
+      "sheet": "References"
     }
   ],
   "generated_at": "2026-04-26T12:00:00+00:00",

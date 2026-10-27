@@ -6,12 +6,12 @@
 
 | Format | Extension | File layout | Use case |
 |--------|-----------|-------------|----------|
-| `excel` | `.xlsx` | Single workbook: `Summary`, `Coverage`, and `Quality` sheets, then one sheet per component type | Human review; default format |
+| `excel` | `.xlsx` | Single workbook: `Summary`, `Coverage`, and `Quality` sheets, one sheet per component type, then a `References` sheet | Human review; default format |
 | `excel-template` | `.xlsx` | Auto-selected when `--template PATH` is passed. Opens an existing Adobe BRD/SDR `.xlsx`, fills component data into anchored sheets, preserves styles and formulas. | Customer-facing SDRs that must match the official template's look. |
-| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus `summary` and `coverage` (8 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage), plus `quality_issues` when a quality audit ran, and a `<stem>._manifest.json` completion manifest written last ([CSV bundle publication](#csv-bundle-publication-and-manifest)). Report-suite metadata and the quality verdict are rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
-| `json` | `.json` | Single self-contained JSON file with the full SdrDocument, including `fetch_status`, `quality`, `collected_components` (the families this capture requested), and a derived `coverage` object ([below](#sdr-json-coverage-object)) | Automation; jq pipelines; downstream tooling |
+| `csv` | `.csv` | Multi-file: one CSV per tabular component type plus `summary`, `coverage`, and `references` (9 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage, references), plus `quality_issues` when a quality audit ran, and a `<stem>._manifest.json` completion manifest written last ([CSV bundle publication](#csv-bundle-publication-and-manifest)). Report-suite metadata and the quality verdict are rolled into `summary.csv`. | Spreadsheet integration; tabular tooling |
+| `json` | `.json` | Single self-contained JSON file with the full SdrDocument, including `fetch_status`, `quality`, `collected_components` (the families this capture requested), a derived `coverage` object ([below](#sdr-json-coverage-object)), and the derived `references` block ([below](#references-appendix)) | Automation; jq pipelines; downstream tooling |
 | `html` | `.html` | Single self-contained HTML file with inline CSS, no JavaScript. Coverage and Quality sections follow the header. | Sharing as a static report; PR/email attachments |
-| `markdown` | `.md` | Single GFM-flavored Markdown file: Coverage and Quality sections, the summary, then one H2 per component type | PR comments; wiki-friendly; readable in GitHub |
+| `markdown` | `.md` | Single GFM-flavored Markdown file: Coverage and Quality sections, the summary, one H2 per component type, then a References section | PR comments; wiki-friendly; readable in GitHub |
 | `notion` | `.notion` (nominal) | Publishes a Notion page; tracks RSID → page-id in `.notion_pages.json`. Requires `[notion]` extra plus `NOTION_TOKEN` / `NOTION_PARENT_PAGE_ID`. | Notion-based wikis; collaborative docs |
 
 ## Coverage and quality in reports
@@ -47,14 +47,13 @@ Where each format puts this:
   exception and is empty otherwise. `Total issues` and the severity rows count
   non-excepted findings only. An `Excepted` row follows the severity rows only
   when some finding is excepted. When no audit ran, it holds a single row saying
-  so. The component sheets are unchanged.
+  so.
 - **CSV**: `<stem>.coverage.csv` is always written (columns `family`, `state`,
   `count`, `expansion_level`). `<stem>.quality_issues.csv` is written only
   when an audit ran, with the same issue columns as the Excel sheet.
   `<stem>.summary.csv` gains `Quality verdict` (`not run`, `pass`, `fail`, or
   `n/a` when the audit ran without `--fail-on-quality`),
-  `Quality policy threshold`, and `Quality issues` rows. Component CSV columns
-  are unchanged.
+  `Quality policy threshold`, and `Quality issues` rows.
 - **Markdown and HTML**: a Coverage table and a one-line Quality status right
   after the report-suite header. When the audit found anything, a findings
   table follows the status line (`Severity`, `Rule ID`, `Item`, `Issue`,
@@ -131,7 +130,8 @@ do not change: the files stay flat in the output directory as
 ```
 
 - `files` lists every CSV file the run wrote, in write order: summary,
-  coverage, the six component files, then quality_issues when an audit ran.
+  coverage, the six component files, references, then quality_issues when an
+  audit ran.
   `sha256` and `bytes` describe the file as written (UTF-8 with BOM). `rows`
   counts data rows, not the header row. `sheet` is the section title.
 - If any section fails to render, nothing is published. The files from the
@@ -156,6 +156,109 @@ do not change: the files stay flat in the output directory as
   process is killed (for example by SIGKILL or a power loss), a
   `.<stem>.csv-*` directory can be left behind. It is not cleaned up
   automatically and is safe to delete.
+
+## Definition summaries and references
+
+Segment and calculated-metric definitions are nested JSON trees. Every
+report format adds a one-line readable summary of each definition and the
+IDs it references. The full definition JSON stays in its `definition`
+column or field; the summary is a reading aid, not a replacement.
+
+### New columns and fields
+
+| Family | Field | Contents |
+|--------|-------|----------|
+| Calculated metrics | `formula_summary` | The formula as arithmetic, for example `metrics/orders / metrics/visits[segment s_222]` |
+| Segments | `definition_summary` | The rule as text, for example `Visit where variables/visitnumber > 1 AND metrics/pageviews exists` |
+| Both | `metric_references` | Sorted metric and calculated-metric IDs the definition names |
+| Both | `segment_references` | Sorted segment IDs the definition names |
+
+In Excel, CSV, Markdown, and HTML the three columns come after the existing
+columns, and the reference lists are joined with `, `. In JSON they are added
+to each segment and calculated-metric object, and the reference fields are
+lists. The names match `cja_auto_sdr`.
+
+Reference IDs are collected from the whole definition, including parts the
+summarizer does not understand: `name` on `metric` and `event` nodes, and
+`segment_id` on `segment` nodes.
+
+### What the summary understands
+
+The summary covers a conservative part of the Adobe Analytics 2.0
+definition grammar. Anything else is shown raw as `[unparsed: <func>]`,
+for example `[unparsed: if]` or `[unparsed: sequence]`, so a summary never
+describes more than it can read. A known node that is missing a required
+key, or has a value of the wrong type, is shown the same way. A malformed
+definition never stops a report.
+
+Calculated metrics (`definition.formula`):
+
+| Node (`func`) | Summary |
+|---------------|---------|
+| `metric` | The metric ID from `name` |
+| `number` | The literal from `val` |
+| `add`, `subtract`, `multiply`, `divide` | `a + b`, `a - b`, `a * b`, `a / b` from `col1` and `col2`, in that order |
+| `negate` | `-a` from `col` |
+| `abs`, `round`, `ceil`, `floor` | `ABS(a)`, `ROUND(a)`, `CEIL(a)`, `FLOOR(a)` from `col` |
+| `segment` | `a[segment <segment_id>]`: the metric in `metric` filtered by a segment |
+
+`*` and `/` bind tighter than `+` and `-`. Parentheses are added where
+precedence needs them, and around a right operand of the same precedence
+unless the chain is the same associative operator. So `a - (b - c)` and
+`a / (b * c)` keep their meaning, while `a + b + c` stays flat.
+
+Segments (`definition.container`):
+
+| Node (`func`) | Summary |
+|---------------|---------|
+| `container` with `context` `hits`, `visits`, `visitors` | `Hit where …`, `Visit where …`, `Visitor where …`; a nested container is wrapped in parentheses |
+| `and`, `or` (`preds`) | `a AND b`, `a OR b`, in order. A child of the other operator is wrapped in parentheses |
+| `not` (`pred`) | `NOT (…)` |
+| `without` (`pred`) | `EXCLUDE (…)` |
+| `streq`, `not-streq` | `<subject> = 'x'`, `<subject> != 'x'` (string in `str`) |
+| `contains`, `not-contains`, `starts-with`, `not-starts-with`, `ends-with`, `not-ends-with` | `contains 'x'`, `does not contain`, `starts with`, `does not start with`, `ends with`, `does not end with` |
+| `eq`, `ne`, `gt`, `lt`, `ge`, `le` | `=`, `!=`, `>`, `<`, `>=`, `<=` (number in `num`) |
+| `exists`, `not-exists` | `<subject> exists`, `<subject> does not exist` |
+| `event-exists`, `not-event-exists` | `<metric> exists`, `<metric> does not exist` (from `evt`) |
+| `segment` | `segment <segment_id>` |
+
+The subject is the `name` of an `attr` or `event` node in `val`. Strings
+are quoted with `'`; a `'` or `\` inside a string is escaped with `\`.
+
+### Limits
+
+- Summaries stop descending after 64 levels; the deeper part shows
+  `[unparsed: depth limit]`.
+- A definition with more than 1,000 nodes is summarized as
+  `[unparsed: definition exceeds 1000 nodes]`.
+- Reference collection visits at most 50,000 nodes, 256 levels deep, and
+  never visits the same object twice.
+
+### References appendix
+
+For each calculated metric, segment, and virtual report suite, the appendix
+lists what it references and what references it. A virtual report suite
+references the segments in its `segment_list`. References are resolved
+against the capture: a metric ID resolves to a captured calculated metric or
+metric, and a segment ID to a captured segment. An ID that is not in the
+capture is labeled `unresolved`. This only means the target was not in this
+capture. It may live outside the report suite, belong to a family that was
+not collected, or be one the API did not return; the tool cannot tell which.
+
+Only direct references are listed. A reference cycle (segment A uses B and B
+uses A) shows up as two rows and is never followed.
+
+| Format | Where | Shape |
+|--------|-------|-------|
+| Excel | `References` sheet after `Classifications` | One row per reference: `Family`, `ID`, `Name`, `Relation` (`references` or `referenced by`), `Kind` (`metric` or `segment`, on `references` rows), `Target Family`, `Target ID`, `Target Name`, `Status` (`resolved` or `unresolved`). An empty sheet keeps its header row. |
+| CSV | `<stem>.references.csv`, always written | The same rows with raw keys: `family`, `id`, `name`, `relation` (`references` or `referenced_by`), `kind`, `target_family`, `target_id`, `target_name`, `status` |
+| Markdown, HTML | `References` section after the component sections | The Excel table, or "No references found." |
+| JSON | Top-level `references` object | `calculated_metrics`, `segments`, `virtual_report_suites`: one object per component with `id`, `name`, `references` (each `kind`, `id`, `family`, `name`, `status`; `family` and `name` are null when unresolved), and `referenced_by` (each `family`, `id`, `name`) |
+
+The JSON written to a file and to stdout (`--output -`, `--agent-mode`)
+carries the derived fields and the `references` block. Snapshots do not:
+they hold only captured data, so these fields never show up in a diff.
+`--render-from` accepts JSON that contains them and ignores them.
 
 ### Default
 
@@ -349,7 +452,7 @@ This means downstream `jq` / scripts see empty input on stdout (rather than corr
 [`sample_outputs/`](../sample_outputs/) in this repo contains a representative set:
 
 - `demo_prod.xlsx` / `.json` / `.html` / `.md` — one file per generation format
-- `demo_prod.<component>.csv` — eight CSV files (six component files plus `summary` and `coverage`)
+- `demo_prod.<component>.csv` — nine CSV files (six component files plus `summary`, `coverage`, and `references`), and `demo_prod._manifest.json`, which lists them
 - `synthetic_snapshot_a.json` / `synthetic_snapshot_b.json` — two snapshots that differ by one renamed dimension and one removed metric
 - `diff_console.txt` / `diff_report.json` / `diff_report.md` — three of the four diff renderer outputs from those snapshots (the `pr-comment` renderer is not sampled)
 

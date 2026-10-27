@@ -6,13 +6,21 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
-from aa_auto_sdr.output._helpers import escape_html, render_provenance_line, render_provenance_pairs, stringify_cell
+from aa_auto_sdr.output._helpers import (
+    REFERENCE_HEADINGS,
+    component_headers,
+    component_values,
+    escape_html,
+    reference_display_rows,
+    render_provenance_line,
+    render_provenance_pairs,
+    stringify_cell,
+)
 from aa_auto_sdr.output.coverage import (
     QUALITY_FINDING_HEADERS,
     CoverageRow,
@@ -86,18 +94,24 @@ def _table_html(headers: list[str], rows: list[list[str]]) -> str:
     return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
 
 
-def _section_html(heading: str, items: list[Any], cls_name: str, coverage: CoverageRow) -> str:
-    cls = getattr(models, cls_name)
-    headers = [f.name for f in fields(cls)]
+def _section_html(heading: str, attr: str, items: list[Any], cls_name: str, coverage: CoverageRow) -> str:
+    headers = component_headers(attr, getattr(models, cls_name))
     state = f'<p class="state"><em>{escape_html(coverage.label)}</em></p>'
     if not items:
         return f'<section><h2>{escape_html(heading)} <span class="count">0</span></h2>{state}</section>'
-    rows = [[stringify_cell(getattr(item, h)) for h in headers] for item in items]
+    rows = [[stringify_cell(v) for v in component_values(attr, item)] for item in items]
     note = "" if coverage.state is CoverageState.COLLECTED else state
     return (
         f'<section><h2>{escape_html(heading)} <span class="count">{len(items)}</span></h2>'
         f"{note}{_table_html(headers, rows)}</section>"
     )
+
+
+def _references_section_html(doc: SdrDocument) -> str:
+    rows = reference_display_rows(doc)
+    if not rows:
+        return '<section><h2>References</h2><p class="state"><em>No references found.</em></p></section>'
+    return f"<section><h2>References</h2>{_table_html(list(REFERENCE_HEADINGS), rows)}</section>"
 
 
 def _coverage_section_html(rows: list[CoverageRow]) -> str:
@@ -139,7 +153,8 @@ def _document_html(doc: SdrDocument) -> str:
         "classifications": doc.classifications,
     }
     for heading, attr, cls_name in _COMPONENT_SECTIONS:
-        sections.append(_section_html(heading, components_map[attr], cls_name, coverage_by_family[attr]))
+        sections.append(_section_html(heading, attr, components_map[attr], cls_name, coverage_by_family[attr]))
+    sections.append(_references_section_html(doc))
     body_inner = (
         f"<header><h1>{escape_html(rs.name)}</h1>"
         f'<p class="meta">RSID <code>{escape_html(rs.rsid)}</code> · '

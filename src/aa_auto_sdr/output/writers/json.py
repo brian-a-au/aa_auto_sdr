@@ -25,7 +25,11 @@ class JsonWriter:
         started = time.monotonic()
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
         payload = doc.to_dict()
-        write_json(target, payload)
+        # The file carries the derived definition fields and the references
+        # appendix; the retained payload stays plain so snapshots never do.
+        from aa_auto_sdr.sdr.definitions import enrich_payload
+
+        write_json(target, enrich_payload(doc, payload))
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
             "output_write format=json output_path=%s count=1 duration_ms=%s",

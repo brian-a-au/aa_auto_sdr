@@ -1,0 +1,105 @@
+{
+  "calculated_metrics": {
+    "conversion_rate": {
+      "func": "calc-metric",
+      "version": [1, 0, 0],
+      "formula": {
+        "func": "divide",
+        "description": "Orders / Visits",
+        "col1": {"func": "metric", "name": "metrics/orders", "description": "Orders"},
+        "col2": {"func": "metric", "name": "metrics/visits", "description": "Visits"}
+      }
+    },
+    "mobile_revenue_per_order_pct": {
+      "func": "calc-metric",
+      "version": [1, 0, 0],
+      "formula": {
+        "func": "multiply",
+        "col1": {
+          "func": "divide",
+          "col1": {
+            "func": "segment",
+            "segment_id": "s300000_mobile",
+            "metric": {"func": "metric", "name": "metrics/revenue"}
+          },
+          "col2": {
+            "func": "add",
+            "col1": {"func": "metric", "name": "metrics/orders"},
+            "col2": {"func": "number", "val": 1}
+          }
+        },
+        "col2": {"func": "number", "val": 100}
+      }
+    },
+    "if_based": {
+      "func": "calc-metric",
+      "version": [1, 0, 0],
+      "formula": {
+        "func": "if",
+        "description": "If",
+        "cond": {"func": "gt", "col1": {"func": "metric", "name": "metrics/visits"}, "col2": {"func": "number", "val": 0}},
+        "then": {"func": "metric", "name": "cm300000_rate"},
+        "else": {"func": "number", "val": 0}
+      }
+    }
+  },
+  "segments": {
+    "mobile_hits": {
+      "func": "segment",
+      "version": [1, 0, 0],
+      "container": {
+        "func": "container",
+        "context": "hits",
+        "pred": {
+          "func": "streq",
+          "str": "Mobile Phone",
+          "val": {"func": "attr", "name": "variables/mobiledevicetype"},
+          "description": "Mobile Device Type"
+        }
+      }
+    },
+    "engaged_visits": {
+      "func": "segment",
+      "version": [1, 0, 0],
+      "container": {
+        "func": "container",
+        "context": "visits",
+        "pred": {
+          "func": "and",
+          "preds": [
+            {"func": "gt", "num": 3, "val": {"func": "attr", "name": "variables/pagedepth"}},
+            {
+              "func": "or",
+              "preds": [
+                {"func": "contains", "str": "pricing", "val": {"func": "attr", "name": "variables/page"}},
+                {"func": "event-exists", "evt": {"func": "event", "name": "metrics/orders"}}
+              ]
+            },
+            {
+              "func": "without",
+              "pred": {
+                "func": "container",
+                "context": "hits",
+                "pred": {"func": "streq", "str": "Internal", "val": {"func": "attr", "name": "variables/evar5"}}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "sequential": {
+      "func": "segment",
+      "version": [1, 0, 0],
+      "container": {
+        "func": "container",
+        "context": "visitors",
+        "pred": {
+          "func": "sequence",
+          "stream": [
+            {"func": "container", "context": "hits", "pred": {"func": "exists", "val": {"func": "attr", "name": "variables/evar1"}}}
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,7 @@
+﻿family,id,name,relation,kind,target_family,target_id,target_name,status
+calculated_metrics,cm_1,Conversion Rate,references,metric,metrics,metrics/orders,Orders,resolved
+calculated_metrics,cm_1,Conversion Rate,references,metric,metrics,metrics/visits,Visits,resolved
+calculated_metrics,cm_1,Conversion Rate,references,segment,segments,s_222,Returning Visitors,resolved
+segments,s_222,Returning Visitors,references,metric,metrics,metrics/pageviews,Page Views,resolved
+segments,s_222,Returning Visitors,referenced_by,,calculated_metrics,cm_1,Conversion Rate,resolved
+virtual_report_suites,vrs_eu,EU Visitors Only,references,segment,,s_eu,,unresolved

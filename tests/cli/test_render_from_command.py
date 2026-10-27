@@ -180,7 +180,9 @@ def test_output_dash_pipes_json_to_stdout(tmp_path: Path, capsys) -> None:
     payload = json.loads(captured.out)
     payload.pop("rendered_at")
     payload.pop("rendered_by_tool_version")
-    assert payload == json.loads(json.dumps(doc.to_dict()))
+    from aa_auto_sdr.sdr.definitions import enrich_payload
+
+    assert payload == json.loads(json.dumps(enrich_payload(doc, doc.to_dict())))
     assert not list(tmp_path.glob("demo.prod.*.json"))
 
 

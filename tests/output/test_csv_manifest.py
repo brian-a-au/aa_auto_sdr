@@ -43,6 +43,7 @@ _SECTIONS = [
     ("calculated_metrics", "Calculated Metrics"),
     ("virtual_report_suites", "Virtual Report Suites"),
     ("classifications", "Classifications"),
+    ("references", "References"),
 ]
 
 
@@ -76,7 +77,7 @@ def _manifest(directory: Path, stem: str = "demo.prod") -> dict:
 def test_manifest_is_written_last_and_returned(tmp_path: Path) -> None:
     paths = CsvWriter().write(_doc(), tmp_path / "demo.prod.csv")
     assert paths[-1] == tmp_path / "demo.prod._manifest.json"
-    assert len(paths) == 9
+    assert len(paths) == 10
 
 
 def test_manifest_shape_and_entries(tmp_path: Path) -> None:
@@ -188,5 +189,5 @@ def test_parallel_writes_into_one_directory(tmp_path: Path) -> None:
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(lambda r: writer.write(_doc(rsid=r), tmp_path / f"{r}.csv"), rsids))
     for rsid in rsids:
-        assert len(_manifest(tmp_path, rsid)["files"]) == 8
+        assert len(_manifest(tmp_path, rsid)["files"]) == 9
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".")] == []
