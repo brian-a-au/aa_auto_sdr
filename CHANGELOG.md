@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.23.0] — 2026-10-27
+
+This release adds offline rendering and makes monitoring and template output
+more complete. `--render-from` rebuilds reports from a saved SDR JSON file or
+snapshot without credentials. Report-suite setting changes now count and
+trigger watch on their own. Template fill keeps every row: rows past a sheet's
+soft cap, or meant for a missing template sheet, go to an `Overflow` sheet,
+and every filled workbook reports its coverage.
 
 ### Added
 - Report-suite setting changes (timezone, currency, name, and so on) are now
