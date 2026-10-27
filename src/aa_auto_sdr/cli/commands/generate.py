@@ -367,6 +367,7 @@ def _run_impl(
                 if fmt == "csv":
                     # CSV mode produces one file per component type.
                     print(f"  {output_dir / f'{canonical_rsid}.<component>.csv'}")
+                    print(f"  {output_dir / f'{canonical_rsid}._manifest.json'} (CSV completion manifest)")
                 elif fmt == "notion":
                     from aa_auto_sdr.output.notion_registry import REGISTRY_FILENAME
 

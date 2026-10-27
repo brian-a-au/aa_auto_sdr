@@ -10,8 +10,9 @@ All notable changes to this project will be documented in this file. Format foll
   (aa's values: `collected`, `collected_empty`, `excluded`, `degraded`,
   `partial`, `unknown_scope`), `count`, and a human-readable `detail`.
   `coverage.quality` gives the audit `state` (`ran` or `not_run`), `detail`,
-  `issue_count`, `severity_counts`, and `gate` (`{threshold, verdict}` with
-  `pass`, `fail`, or `n/a`). Snapshot envelopes do not carry it and are
+  `issue_count`, `severity_counts`, and `gate` (`null` without a
+  `--fail-on-quality` threshold, else `{threshold, verdict}` with `pass` or
+  `fail`). Snapshot envelopes do not carry it and are
   unchanged.
 - Diff JSON, and each `--compare-with-prev` JSON report, has a new top-level
   `coverage` object that says what the diff compared: `compare_fields`,
@@ -20,7 +21,7 @@ All notable changes to this project will be documented in this file. Format foll
   `settings_policy` (`reported`), `show_only`, and `limitations` (stable IDs
   such as `warn_threshold_counts_components_only` and
   `baseline_chosen_by_time`). Watch events are unchanged.
-- The CSV writer now stages every file in a hidden directory next to the
+- The CSV writer now stages every file in a dot-prefixed directory next to the
   target and publishes them together, ending with a `<stem>._manifest.json`
   completion manifest (`manifest_version`, `complete`, `generated_at`, and
   `name`, `sheet`, `sha256`, `rows`, and `bytes` per file). If a section

@@ -292,9 +292,11 @@ Limitation IDs:
 
 - `warn_threshold_counts_components_only`: always present. `--warn-threshold` counts added, removed, and modified components in comparable sections only.
 - `baseline_chosen_by_time`: a side was `<RSID>@latest` or `<RSID>@previous` (always the case with `--compare-with-prev`). The store picks those snapshots by time, not by capture scope.
-- `excluded_families_not_compared`: at least one family has `comparability: "excluded"`.
+- `excluded_families_not_compared`: at least one family has `comparability: "excluded"`. This includes a family that neither side collected.
 - `suppressed_families_not_compared`: at least one family is `unknown`, `degraded`, or `partial` and was not compared.
 - `show_only_does_not_narrow_warn_threshold`: `--show-only` was given. It hides sections from the output, but `--warn-threshold` still counts every comparable section.
+
+`compare_fields` and `settings_fields` come from the current tool's models, not from the keys in the two snapshots. A field that is present only in older snapshots is still compared (unless it is ignored), but it is not listed.
 
 Each `--compare-with-prev` JSON result's `report` is a diff JSON document, so it carries `coverage` too. Watch events do not.
 

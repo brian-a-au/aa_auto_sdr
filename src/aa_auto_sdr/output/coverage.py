@@ -174,9 +174,9 @@ class QualityState(StrEnum):
 def quality_json(status: QualityStatus) -> dict[str, Any]:
     """JSON form of a quality status: `{state, detail, issue_count, severity_counts, gate}`.
 
-    `gate` is None when no audit ran. Otherwise it is `{threshold, verdict}`
-    with aa's verdict values (`pass`, `fail`, `n/a`) and a null threshold
-    when no `--fail-on-quality` policy applied."""
+    `gate` is None unless a `--fail-on-quality` threshold applied (as in
+    cja_auto_sdr). Then it is `{threshold, verdict}` with aa's existing
+    summary verdict values (`pass`, `fail`)."""
     if not status.audited:
         return {
             "state": QualityState.NOT_RUN.value,
@@ -190,7 +190,7 @@ def quality_json(status: QualityStatus) -> dict[str, Any]:
         "detail": quality_status_line(status),
         "issue_count": status.total,
         "severity_counts": dict(status.by_severity or {}),
-        "gate": {"threshold": status.threshold, "verdict": status.verdict or "n/a"},
+        "gate": ({"threshold": status.threshold, "verdict": status.verdict} if status.threshold is not None else None),
     }
 
 

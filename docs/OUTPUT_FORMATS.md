@@ -89,16 +89,18 @@ block in `cja_auto_sdr`; the state values are aa's.
   `cja_auto_sdr` and is never written today, because an audit that raises
   fails the whole run instead of producing a document. When no audit ran,
   `issue_count` and `gate` are `null` and `severity_counts` is `{}`.
-- `quality.gate` is `{threshold, verdict}` whenever an audit ran. `verdict` is
-  `pass` or `fail` with `--fail-on-quality`, and `n/a` (with a `null`
-  `threshold`) without it.
+- `quality.gate` is `null` unless a `--fail-on-quality` threshold applied, as
+  in `cja_auto_sdr`. With a threshold it is `{threshold, verdict}`, and
+  `verdict` is `pass` or `fail`. These lowercase values are aa's existing
+  `quality.summary.verdict` values; `cja_auto_sdr` uses `PASS`, `FAIL`, and
+  `NOT_EVALUATED` instead.
 - `coverage` is derived output. Snapshot envelopes never carry it, and
   `--render-from` ignores it in its input and derives it again.
 
 ### CSV bundle publication and manifest
 
-The CSV writer renders every file of a run into a hidden staging directory
-(`.<stem>.csv-*`) next to the target. It then moves the files into place
+The CSV writer renders every file of a run into a dot-prefixed staging
+directory (`.<stem>.csv-*`) next to the target. It then moves the files into place
 together and writes `<stem>._manifest.json` last. File names and locations
 do not change: the files stay flat in the output directory as
 `<stem>.<section>.csv`.
@@ -134,6 +136,13 @@ do not change: the files stay flat in the output directory as
   shape matches the `_manifest.json` in `cja_auto_sdr`. The stem prefix is
   aa's own, because aa writes CSV files flat instead of into a per-run
   directory.
+- Use one writer per output stem. Two separate processes that write the same
+  RSID into the same directory at the same time can interleave their files.
+  A single batch run is safe, because each report suite has its own stem.
+- The staging directory is removed when the write finishes or fails. If the
+  process is killed (for example by SIGKILL or a power loss), a
+  `.<stem>.csv-*` directory can be left behind. It is not cleaned up
+  automatically and is safe to delete.
 
 ### Default
 

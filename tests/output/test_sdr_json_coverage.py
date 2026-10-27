@@ -171,7 +171,8 @@ def test_quality_ran_with_gate() -> None:
 def test_quality_ran_without_gate_policy() -> None:
     quality = _doc(quality=_quality(verdict="n/a", threshold=None)).to_dict()["coverage"]["quality"]
     assert quality["state"] == "ran"
-    assert quality["gate"] == {"threshold": None, "verdict": "n/a"}
+    # No --fail-on-quality threshold: no gate, as in cja_auto_sdr.
+    assert quality["gate"] is None
     assert quality["detail"].startswith("Quality audit ran with no gate policy")
 
 

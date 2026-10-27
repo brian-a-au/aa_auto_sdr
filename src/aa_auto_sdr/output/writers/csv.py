@@ -169,7 +169,7 @@ def _publish_bundle(
 ) -> list[Path]:
     """Stage every section, then publish them and the manifest last.
 
-    Every file is rendered into a hidden staging directory next to the
+    Every file is rendered into a dot-prefixed staging directory next to the
     target first, so a failure while rendering leaves the published files
     untouched. The old manifest is removed before members are replaced and
     the new one is published last: a consumer that finds
