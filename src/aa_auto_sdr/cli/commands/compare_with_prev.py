@@ -191,7 +191,7 @@ def _run_multiple(
                 max_issues=max_issues,
                 ignore_fields=ignore_fields,
                 extended_fields=extended_fields,
-                baseline_by_time=True,
+                baseline_by_time=False,  # covering baseline: chosen by scope
             )
             result = {"rsid": rsid, "exit_code": code}
             if fmt == "json":

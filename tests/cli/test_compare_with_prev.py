@@ -203,7 +203,11 @@ def test_single_json_matches_diff(tmp_path, capsys):
     assert cmd.run(rsids=["rs1"], **kwargs) == 0
     single = capsys.readouterr().out
     assert diff_cmd.run(a="rs1@previous", b="rs1@latest", **kwargs) == 0
-    assert capsys.readouterr().out == single
+    literal = json.loads(capsys.readouterr().out)
+    # Same pair when no filtered history exists; only the explicit time-relative
+    # tokens carry the `baseline_chosen_by_time` limitation.
+    literal["coverage"]["limitations"].remove("baseline_chosen_by_time")
+    assert literal == json.loads(single)
     assert "schema" not in json.loads(single)
 
 

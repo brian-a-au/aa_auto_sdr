@@ -99,7 +99,8 @@ def run(
             max_issues=max_issues,
             ignore_fields=ignore_fields,
             extended_fields=extended_fields,
-            baseline_by_time=is_time_relative_token(a) or is_time_relative_token(b),
+            # A covering baseline (--compare-with-prev) is chosen by scope, not time.
+            baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
         )
         write_output(rendered, output)
 

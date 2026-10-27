@@ -291,7 +291,7 @@ The top-level `coverage` object says what the comparison compared, so a reader c
 Limitation IDs:
 
 - `warn_threshold_counts_components_only`: always present. `--warn-threshold` counts added, removed, and modified components in comparable sections only.
-- `baseline_chosen_by_time`: a side was `<RSID>@latest` or `<RSID>@previous` (always the case with `--compare-with-prev`). The store picks those snapshots by time, not by capture scope.
+- `baseline_chosen_by_time`: an explicit `--diff` side was `<RSID>@latest` or `<RSID>@previous`. Those tokens pick snapshots by time, not by capture scope. `--compare-with-prev` never reports it, because it chooses a covering baseline.
 - `excluded_families_not_compared`: at least one family has `comparability: "excluded"`. This includes a family that neither side collected.
 - `suppressed_families_not_compared`: at least one family is `unknown`, `degraded`, or `partial` and was not compared.
 - `show_only_does_not_narrow_warn_threshold`: `--show-only` was given. It hides sections from the output, but `--warn-threshold` still counts every comparable section.

@@ -177,7 +177,7 @@ def test_compare_with_prev_multi_json_reports_carry_coverage(tmp_path: Path, cap
         cov = result["report"]["coverage"]
         assert cov["ignored_fields"] == []
         assert cov["show_only"] == ["metrics"]
-        assert "baseline_chosen_by_time" in cov["limitations"]
+        assert "baseline_chosen_by_time" not in cov["limitations"]  # covering baseline
 
 
 def test_compare_with_prev_single_json_carries_coverage(tmp_path: Path, capsys) -> None:
@@ -185,4 +185,25 @@ def test_compare_with_prev_single_json_carries_coverage(tmp_path: Path, capsys) 
     rc = cwp_cmd.run(rsids=["rs1"], profile=None, snapshot_dir=tmp_path, format_name="json", output="-")
     assert rc == 0
     cov = json.loads(capsys.readouterr().out)["coverage"]
-    assert "baseline_chosen_by_time" in cov["limitations"]
+    assert "baseline_chosen_by_time" not in cov["limitations"]  # covering baseline
+
+
+def test_compare_with_prev_baseline_is_not_chosen_by_time(tmp_path, capsys) -> None:
+    """--compare-with-prev picks a covering baseline, so the time-only limitation does not apply."""
+    import json as _json
+
+    from aa_auto_sdr.cli.commands import compare_with_prev, diff
+    from tests.snapshot.test_comparator_scope import FULL, _env
+    from tests.snapshot.test_covering_baseline import T1, T2, T3, _write
+
+    for env in (_env(collected=FULL, captured_at=T1), _env(collected=["metrics"], captured_at=T2)):
+        _write(tmp_path, env)
+    _write(tmp_path, _env(collected=FULL, captured_at=T3))
+    for rsids in (["rs1"], ["rs1", "rs1"]):
+        compare_with_prev.run(rsids=rsids, profile=None, snapshot_dir=tmp_path, format_name="json", output="-")
+        payload = _json.loads(capsys.readouterr().out)
+        reports = [r["report"] for r in payload["results"]] if "results" in payload else [payload]
+        for report in reports:
+            assert "baseline_chosen_by_time" not in report["coverage"]["limitations"]
+    diff.run(a="rs1@previous", b="rs1@latest", format_name="json", output="-", profile=None, snapshot_dir=tmp_path)
+    assert "baseline_chosen_by_time" in _json.loads(capsys.readouterr().out)["coverage"]["limitations"]
