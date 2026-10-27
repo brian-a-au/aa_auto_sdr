@@ -1,0 +1,63 @@
+{
+  "complete": true,
+  "files": [
+    {
+      "bytes": 334,
+      "name": "demo_prod.summary.csv",
+      "rows": 16,
+      "sha256": "ca1508ae40176624c822ac657b65b01848a15db8f69dd0d7cc6a7d91c07a51da",
+      "sheet": "Summary"
+    },
+    {
+      "bytes": 208,
+      "name": "demo_prod.coverage.csv",
+      "rows": 6,
+      "sha256": "5a01ced9c617c503ab6a0fbba92e1bba058196a69a4ad2ea818eada529242bf7",
+      "sheet": "Coverage"
+    },
+    {
+      "bytes": 345,
+      "name": "demo_prod.dimensions.csv",
+      "rows": 4,
+      "sha256": "e0beebd2bc08c4460c7916c64bf940d91c615f4cc9e77284e68efc282ae8e492",
+      "sheet": "Dimensions"
+    },
+    {
+      "bytes": 281,
+      "name": "demo_prod.metrics.csv",
+      "rows": 3,
+      "sha256": "d6b0688880c886f2e86ed0b0cec87a896dd2c301a05bc3e6aa9346fe3d95d63e",
+      "sheet": "Metrics"
+    },
+    {
+      "bytes": 539,
+      "name": "demo_prod.segments.csv",
+      "rows": 2,
+      "sha256": "8e8f514b96170d965520b0a4839ece2e6c3a86788a07639e880a210763d79200",
+      "sheet": "Segments"
+    },
+    {
+      "bytes": 291,
+      "name": "demo_prod.calculated_metrics.csv",
+      "rows": 1,
+      "sha256": "b5b20e5f4215bbe87a8fd3e50f61e8f6d65073bf25bd91ee412f74c161fb2f03",
+      "sheet": "Calculated Metrics"
+    },
+    {
+      "bytes": 202,
+      "name": "demo_prod.virtual_report_suites.csv",
+      "rows": 1,
+      "sha256": "1c0a1ff38b6cd0640553f85b3c04e7f585d0d23b391767411ca4754dbef7313a",
+      "sheet": "Virtual Report Suites"
+    },
+    {
+      "bytes": 60,
+      "name": "demo_prod.classifications.csv",
+      "rows": 1,
+      "sha256": "0d3b5fa0775d2b254e633d495368f6f7832fe18c4844ba72f189ab3d15e4ee02",
+      "sheet": "Classifications"
+    }
+  ],
+  "generated_at": "2026-04-26T12:00:00+00:00",
+  "manifest_version": "1.0"
+}

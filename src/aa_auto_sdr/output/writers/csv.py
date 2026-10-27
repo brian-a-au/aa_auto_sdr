@@ -1,27 +1,43 @@
-"""CSV writer — one file per component type, UTF-8 with BOM, atomic writes.
+"""CSV writer — one file per component type, UTF-8 with BOM, staged writes.
 
 Self-registers with the registry on import. Returns one Path per file written:
-summary, coverage, and the 6 component types (8 paths), plus quality_issues
-when a quality audit ran (9 paths)."""
+summary, coverage, and the 6 component types (8 files), plus quality_issues
+when a quality audit ran, then the `<stem>._manifest.json` completion
+manifest last (9 or 10 paths). Files are staged and published together; see
+`_publish_bundle`."""
 
 from __future__ import annotations
 
 import csv as _csv
+import hashlib
 import io
+import json
 import logging
 import os
+import shutil
 import tempfile
 import time
 from dataclasses import fields
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.output._helpers import neutralize_formula, render_provenance_pairs, stringify_cell
-from aa_auto_sdr.output.coverage import coverage_rows, quality_status
+from aa_auto_sdr.output.coverage import FAMILY_HEADINGS, coverage_rows, quality_status
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
 logger = logging.getLogger(__name__)
+
+# Completion manifest: `<stem>._manifest.json`, next to the section files.
+CSV_MANIFEST_SUFFIX = "_manifest.json"
+CSV_MANIFEST_VERSION = "1.0"
+
+
+def _utcnow() -> datetime:
+    """Manifest `generated_at` clock. A seam so sample outputs stay deterministic."""
+    return datetime.now(UTC)
+
 
 _COMPONENT_FIELDS: dict[str, str] = {
     "dimensions": "Dimension",
@@ -31,24 +47,6 @@ _COMPONENT_FIELDS: dict[str, str] = {
     "virtual_report_suites": "VirtualReportSuite",
     "classifications": "ClassificationDataset",
 }
-
-
-def _atomic_write_text(path: Path, content: str, *, encoding: str) -> None:
-    """Write `content` to `path` atomically. Used by csv writer (and reusable)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_str = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=str(path.parent),
-    )
-    tmp = Path(tmp_str)
-    try:
-        with os.fdopen(fd, "w", encoding=encoding, newline="") as fh:
-            fh.write(content)
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
 
 
 _QUALITY_ISSUE_HEADERS = ["severity", "category", "type", "item_id", "item_name", "issue", "details"]
@@ -123,48 +121,7 @@ class CsvWriter:
         stem = output_path.stem if output_path.suffix == self.extension else output_path.name
         parent = output_path.parent
 
-        paths: list[Path] = []
-
-        # Summary
-        summary_path = parent / f"{stem}.summary.csv"
-        summary_body = _encode_csv(["field", "value"], [list(r) for r in _summary_rows(doc)])
-        _atomic_write_text(summary_path, summary_body, encoding="utf-8-sig")
-        paths.append(summary_path)
-
-        # Coverage (always) — per-family capture state
-        coverage_path = parent / f"{stem}.coverage.csv"
-        coverage_body = _encode_csv(["family", "state", "count", "expansion_level"], _coverage_csv_rows(doc))
-        _atomic_write_text(coverage_path, coverage_body, encoding="utf-8-sig")
-        paths.append(coverage_path)
-
-        # Component lists
-        component_attr_map = {
-            "dimensions": doc.dimensions,
-            "metrics": doc.metrics,
-            "segments": doc.segments,
-            "calculated_metrics": doc.calculated_metrics,
-            "virtual_report_suites": doc.virtual_report_suites,
-            "classifications": doc.classifications,
-        }
-
-        for field_name, items in component_attr_map.items():
-            file_path = parent / f"{stem}.{field_name}.csv"
-            if items:
-                headers, rows = _component_rows(items)
-            else:
-                headers = _component_headers_for_empty(field_name)
-                rows = []
-            body = _encode_csv(headers, rows)
-            _atomic_write_text(file_path, body, encoding="utf-8-sig")
-            paths.append(file_path)
-
-        # Quality findings — only when an audit ran
-        quality = quality_status(doc.quality)
-        if quality.audited:
-            issues_path = parent / f"{stem}.quality_issues.csv"
-            issue_rows = [[stringify_cell(i.get(h)) for h in _QUALITY_ISSUE_HEADERS] for i in quality.issues]
-            _atomic_write_text(issues_path, _encode_csv(_QUALITY_ISSUE_HEADERS, issue_rows), encoding="utf-8-sig")
-            paths.append(issues_path)
+        paths = _publish_bundle(_sections(doc), parent=parent, stem=stem)
 
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(
@@ -181,6 +138,80 @@ class CsvWriter:
             },
         )
         return paths
+
+
+def _sections(doc: SdrDocument) -> list[tuple[str, str, list[str], list[list[str]]]]:
+    """(file key, sheet name, headers, rows) for every file in the bundle, in order."""
+    sections: list[tuple[str, str, list[str], list[list[str]]]] = [
+        ("summary", "Summary", ["field", "value"], [list(r) for r in _summary_rows(doc)]),
+        ("coverage", "Coverage", ["family", "state", "count", "expansion_level"], _coverage_csv_rows(doc)),
+    ]
+    for field_name, heading in FAMILY_HEADINGS.items():
+        items = getattr(doc, field_name)
+        if items:
+            headers, rows = _component_rows(items)
+        else:
+            headers, rows = _component_headers_for_empty(field_name), []
+        sections.append((field_name, heading, headers, rows))
+    # Quality findings — only when an audit ran
+    quality = quality_status(doc.quality)
+    if quality.audited:
+        issue_rows = [[stringify_cell(i.get(h)) for h in _QUALITY_ISSUE_HEADERS] for i in quality.issues]
+        sections.append(("quality_issues", "Quality Issues", _QUALITY_ISSUE_HEADERS, issue_rows))
+    return sections
+
+
+def _publish_bundle(
+    sections: list[tuple[str, str, list[str], list[list[str]]]],
+    *,
+    parent: Path,
+    stem: str,
+) -> list[Path]:
+    """Stage every section, then publish them and the manifest last.
+
+    Every file is rendered into a hidden staging directory next to the
+    target first, so a failure while rendering leaves the published files
+    untouched. The old manifest is removed before members are replaced and
+    the new one is published last: a consumer that finds
+    `<stem>._manifest.json` knows every file it lists was published by the
+    same run. Replacing several files is not atomic as a set; a failure while
+    publishing leaves no manifest. Files not in the new run are never deleted.
+    The manifest is stem-scoped so several report suites can share a directory."""
+    parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f".{stem}.csv-", dir=str(parent)))
+    try:
+        names: list[str] = []
+        entries: list[dict[str, Any]] = []
+        for key, sheet, headers, rows in sections:
+            name = f"{stem}.{key}.csv"
+            data = _encode_csv(headers, rows).encode("utf-8-sig")
+            (staging / name).write_bytes(data)
+            names.append(name)
+            entries.append(
+                {
+                    "name": name,
+                    "sheet": sheet,
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                    "rows": len(rows),
+                    "bytes": len(data),
+                }
+            )
+        manifest_name = f"{stem}.{CSV_MANIFEST_SUFFIX}"
+        manifest = {
+            "manifest_version": CSV_MANIFEST_VERSION,
+            "complete": True,
+            "generated_at": _utcnow().isoformat(),
+            "files": entries,
+        }
+        (staging / manifest_name).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+        (parent / manifest_name).unlink(missing_ok=True)
+        for name in names:
+            os.replace(staging / name, parent / name)
+        os.replace(staging / manifest_name, parent / manifest_name)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return [parent / name for name in names] + [parent / manifest_name]
 
 
 register_writer("csv", CsvWriter())

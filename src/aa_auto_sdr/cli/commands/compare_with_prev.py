@@ -189,6 +189,9 @@ def _run_multiple(
                 changes_only=changes_only,
                 show_only=show_only,
                 max_issues=max_issues,
+                ignore_fields=ignore_fields,
+                extended_fields=extended_fields,
+                baseline_by_time=True,
             )
             result = {"rsid": rsid, "exit_code": code}
             if fmt == "json":

@@ -19,8 +19,9 @@ from aa_auto_sdr.output.diff_renderers.json import render_json
 from aa_auto_sdr.output.diff_renderers.markdown import render_markdown
 from aa_auto_sdr.output.diff_renderers.pr_comment import render_pr_comment
 from aa_auto_sdr.snapshot.comparator import compare
+from aa_auto_sdr.snapshot.diff_coverage import diff_coverage
 from aa_auto_sdr.snapshot.models import DiffReport
-from aa_auto_sdr.snapshot.resolver import resolve_snapshot
+from aa_auto_sdr.snapshot.resolver import is_time_relative_token, resolve_snapshot
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,9 @@ def run(
             changes_only=changes_only,
             show_only=show_only,
             max_issues=max_issues,
+            ignore_fields=ignore_fields,
+            extended_fields=extended_fields,
+            baseline_by_time=is_time_relative_token(a) or is_time_relative_token(b),
         )
         write_output(rendered, output)
 
@@ -192,11 +196,24 @@ def render_report(
     changes_only: bool = False,
     show_only: frozenset[str] = frozenset(),
     max_issues: int | None = None,
+    ignore_fields: frozenset[str] = frozenset(),
+    extended_fields: bool = False,
+    baseline_by_time: bool = False,
 ) -> str:
-    """Apply presentation flags to a copy, preserving the complete report."""
+    """Apply presentation flags to a copy, preserving the complete report.
+
+    JSON gains a `coverage` object built from the full report and the
+    compare options, so it describes the whole comparison, not the filtered view."""
     report = filter_for_render(full_report, changes_only=changes_only, show_only=show_only, max_issues=max_issues)
     if fmt == "json":
-        return render_json(report, summary=summary, labels=labels)
+        coverage = diff_coverage(
+            full_report,
+            ignore_fields=ignore_fields,
+            extended_fields=extended_fields,
+            show_only=show_only,
+            baseline_by_time=baseline_by_time,
+        )
+        return render_json(report, summary=summary, labels=labels, coverage=coverage)
     if fmt == "pr-comment":
         return render_pr_comment(report, summary=summary, labels=labels)
     renderer = render_console if fmt == "console" else render_markdown

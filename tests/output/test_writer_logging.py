@@ -63,7 +63,7 @@ def _bootstrap():
     ("format_name", "expected_count"),
     [
         ("excel", 1),
-        ("csv", 8),
+        ("csv", 9),  # 8 section files + the manifest
         ("json", 1),
         ("html", 1),
         ("markdown", 1),
