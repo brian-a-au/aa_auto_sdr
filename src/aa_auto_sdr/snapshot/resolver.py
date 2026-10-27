@@ -16,10 +16,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.core.exceptions import SnapshotResolveError
+from aa_auto_sdr.core.exceptions import SnapshotError, SnapshotResolveError
 from aa_auto_sdr.core.json_io import read_json
 from aa_auto_sdr.snapshot.git import git_show
 from aa_auto_sdr.snapshot.schema import validate_envelope
@@ -113,6 +114,8 @@ def _resolve_path(path: Path) -> dict[str, Any]:
         env = read_json(path)
     except json.JSONDecodeError as exc:
         raise SnapshotResolveError(f"snapshot file {path} is not valid JSON: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise SnapshotResolveError(f"snapshot file {path} is not valid UTF-8: {exc}") from exc
     except OSError as exc:
         raise SnapshotResolveError(f"could not read snapshot file {path}: {exc}") from exc
     validate_envelope(env)
@@ -162,3 +165,76 @@ def _resolve_git(token: str, *, repo_root: Path | None) -> dict[str, Any]:
         raise SnapshotResolveError(f"{token} did not decode as JSON: {exc}") from exc
     validate_envelope(env)
     return env
+
+
+@dataclass(frozen=True, slots=True)
+class CoveringPair:
+    """The newest snapshot and the newest earlier snapshot whose scope covers it."""
+
+    baseline_path: Path
+    baseline: dict[str, Any]
+    target_path: Path
+    target: dict[str, Any]
+    skipped: tuple[str, ...]
+
+
+def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPair:
+    """Resolve `--compare-with-prev`'s pair: the latest snapshot and its covering baseline.
+
+    Unlike the literal `<rsid>@previous` token, earlier snapshots that did not
+    collect every family the latest one collected are skipped (see
+    snapshot/baseline.py) and reported in `skipped`."""
+    from aa_auto_sdr.snapshot.baseline import scope_of, select_covering
+
+    if snapshot_dir is None:
+        raise SnapshotResolveError(f"'{rsid}' requires --profile or --snapshot-dir (snapshots are profile-scoped)")
+    rs_dir = snapshot_dir / rsid
+    files = sorted(rs_dir.glob("*.json")) if rs_dir.exists() else []
+    if not files:
+        raise SnapshotResolveError(f"no snapshots for {rsid} in {rs_dir}")
+    if len(files) < 2:
+        raise SnapshotResolveError(f"only one snapshot for {rsid}; a comparison needs at least two")
+    target_path = files[-1]
+    target = _resolve_path(target_path)
+    older = list(reversed(files[:-1]))
+    loaded: dict[int, Path] = {}
+
+    def _candidates():
+        # Older files that cannot be used are passed over (as watch does);
+        # only the latest snapshot must load.
+        for path in older:
+            try:
+                env = _resolve_path(path)
+            except SnapshotError as exc:
+                logger.warning(
+                    "baseline_candidate_skipped rsid=%s snapshot_id=%s error_class=%s; trying earlier history",
+                    rsid,
+                    path.stem,
+                    type(exc).__name__,
+                    extra={"rsid": rsid, "snapshot_id": path.stem, "error_class": type(exc).__name__},
+                )
+                continue
+            loaded[id(env)] = path
+            yield env
+
+    choice = select_covering(_candidates(), scope_of(target))
+    if choice.envelope is None:
+        raise SnapshotResolveError(
+            f"no earlier snapshot for {rsid} covers the latest snapshot's scope "
+            f"(skipped {len(choice.skipped)} filtered snapshot(s)); diff explicit snapshots with --diff instead",
+        )
+    baseline_path = loaded[id(choice.envelope)]
+    logger.debug(
+        "resolve_covering_pair rsid=%s snapshot_id=%s count=%s",
+        rsid,
+        baseline_path.stem,
+        len(choice.skipped),
+        extra={"rsid": rsid, "snapshot_id": baseline_path.stem, "count": len(choice.skipped)},
+    )
+    return CoveringPair(
+        baseline_path=baseline_path,
+        baseline=choice.envelope,
+        target_path=target_path,
+        target=target,
+        skipped=choice.skipped,
+    )

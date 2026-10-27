@@ -5,6 +5,7 @@
   "b_captured_at": "2026-04-26T12:00:00+00:00",
   "b_rsid": "demo.prod",
   "b_tool_version": "1.0.0",
+  "baseline_skipped": [],
   "components": [
     {
       "added": [],

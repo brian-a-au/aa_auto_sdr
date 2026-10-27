@@ -81,3 +81,6 @@ class DiffReport:
     # Changed report-suite fields, one per field. Kept apart from component
     # churn: it never enters component totals or the warn/watch thresholds.
     settings_changes: int = 0
+    # `captured_at` of newer snapshots skipped while choosing a covering
+    # baseline (watch, --compare-with-prev); empty for explicit --diff tokens.
+    baseline_skipped: list[str] = field(default_factory=list)

@@ -138,6 +138,7 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
     # Capture scope: a comparison across captures that collected different families.
     "diff_scope_mismatch": {"rsid", "not_compared"},
+    "baseline_candidate_skipped": {"rsid", "snapshot_id", "error_class"},
     # v1.12.0 — quality engine
     "quality_policy_loaded": {"policy_path"},
     # v1.12.1 — rsid added to quality_audit_complete + quality_gate_evaluated

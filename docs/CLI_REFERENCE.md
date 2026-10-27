@@ -230,8 +230,8 @@ Like `--snapshot` but designed to be set as a default for every run. Combines wi
 
 After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires exactly one of `--keep-last` or `--keep-since`; it prunes the same store the run snapshots to (profile store, or the `default` fallback). Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set.
 
-- `--keep-last N` — keep the N most recent snapshots **per RSID**.
-- `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10.
+- `--keep-last N` — keep the N most recent snapshots **per RSID**. The newest full capture (all component families collected) is always kept, even when older than the N most recent, so watch and `--compare-with-prev` still have a covering baseline.
+- `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10. The newest full capture is kept here too.
 
 ```bash
 uv run aa_auto_sdr <RSID> --profile prod --auto-snapshot --auto-prune --keep-last 5
@@ -334,7 +334,7 @@ For deeper coverage see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md).
 | Flag | Behavior |
 |----|----|
 | `--trending-window DURATION` | Rollup across snapshots in a profile-scoped window (`Nh\|Nd\|Nw`). Reads existing snapshots; no API contact. |
-| `--compare-with-prev` | Sugar for `--diff <RSID>@previous <RSID>@latest`, scoped by `--profile` or `--snapshot-dir`. |
+| `--compare-with-prev` | Diff the latest snapshot against its baseline, scoped by `--profile` or `--snapshot-dir`. The baseline is the newest earlier snapshot whose scope covers the latest one, so filtered snapshots in between are skipped (listed in JSON `baseline_skipped`). Usually the same pair as `--diff <RSID>@previous <RSID>@latest`. |
 | `--snapshot-dir PATH` | Override the active snapshot directory. Honored by `--snapshot`, `--auto-snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, and `--watch`. |
 
 ```bash

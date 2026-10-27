@@ -35,7 +35,11 @@ def run(
     warn_threshold: int | None = None,
     color_theme: str = "default",
 ) -> int:
-    """Run --diff for each RSID with synthesized @previous/@latest tokens."""
+    """Run --diff for each RSID: the latest snapshot against its covering baseline.
+
+    The baseline is the newest earlier snapshot whose scope covers the latest
+    one (see snapshot/baseline.py), so a filtered snapshot in between never
+    hides changes. Labels and logs still read `@previous` / `@latest`."""
     started_ms = time.monotonic()
     logger.info(
         "command_start command=compare_with_prev",
@@ -95,6 +99,7 @@ def run(
                 max_issues=max_issues,
                 warn_threshold=warn_threshold,
                 color_theme=color_theme,
+                covering_rsid=rsid,
             )
             worst = max(worst, rc)
         exit_code = worst
@@ -159,6 +164,7 @@ def _run_multiple(
                 reverse=reverse,
                 ignore_fields=ignore_fields,
                 extended_fields=extended_fields,
+                covering_rsid=rsid,
             )
         except SnapshotError as exc:
             code = ExitCode.SNAPSHOT.value

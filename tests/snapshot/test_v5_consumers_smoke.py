@@ -75,9 +75,10 @@ def test_trending_over_mixed_v4_and_v5(tmp_path: Path) -> None:
     assert report.drift.total_changes == 0
 
 
-def test_watch_cycle_over_v5_baseline(tmp_path: Path) -> None:
+def test_watch_with_only_filtered_history_starts_a_new_baseline(tmp_path: Path) -> None:
+    """Watch captures every family, so a filtered (v5) snapshot cannot be its baseline."""
     from aa_auto_sdr.cli.commands.watch import _SnapshotStoreAdapter
-    from aa_auto_sdr.pipeline.watch import _event_payload, run_one_cycle
+    from aa_auto_sdr.pipeline.watch import run_one_cycle
     from tests.pipeline.test_watch import _ctx, _FakeFetcher
     from tests.snapshot.test_schema_v5 import _doc
 
@@ -87,8 +88,6 @@ def test_watch_cycle_over_v5_baseline(tmp_path: Path) -> None:
     shutil.copy(V5_FIXTURE, rs_dir / "2026-10-26T12-00-00+00-00.json")
     fetcher = _FakeFetcher(rsid_to_doc={"demo.prod": _doc(collected=("metrics",))})
     result = run_one_cycle(rsid="demo.prod", ctx=_ctx(fetcher=fetcher, snapshot_store=store))
-    assert result.kind == "diffed", result
-    payload = _event_payload(result, cycle_n=1)
-    assert payload["summary"]["added"] == payload["summary"]["removed"] == payload["summary"]["modified"] == 0
+    assert result.kind == "baseline", result
     saved = load_snapshot(result.snapshot_path)
     assert saved["schema"] == "aa-sdr-snapshot/v5"
