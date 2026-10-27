@@ -2,14 +2,27 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.21.25] — 2026-10-27
+
+This patch makes captured SDRs and their automated outputs more complete and
+more resilient: dimension and metric metadata survive the SDK boundary,
+multi-suite previous comparisons produce one complete result, and a local
+output failure no longer stops the rest of a batch.
+
+### Changed
+- The minimum supported `aanalytics2` version is now 0.5.4, the first release
+  whose dimension and metric methods both return raw responses.
+- Multi-suite `--compare-with-prev` JSON is now a single
+  `aa-compare-with-prev/v1` envelope instead of one JSON document per suite.
+  Consumers that split concatenated documents should read the envelope's
+  ordered `results` instead.
 
 ### Fixed
 - Preserve dimension and metric tags and raw metadata that the SDK's default
   DataFrame selection omitted. Metric `data_group` is retained when supplied;
   `standardComponent` and unmodeled metadata stay in `extra` (absent means
-  unknown). Requires aanalytics2 >=0.5.4. Malformed raw component responses
-  now produce contextual API errors rather than empty inventories.
+  unknown). Malformed raw component responses now produce contextual API
+  errors rather than empty inventories.
 - Existing snapshots remain compatible with no schema change. The first new
   capture can show newly visible tags, data groups, and `extra` metadata under
   `--extended-fields`; default diff suppression is unchanged.
