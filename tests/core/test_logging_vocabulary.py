@@ -161,6 +161,8 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "template_sheet_skipped": {"sheet", "reason"},
     "template_overflow": {"sheet", "overflow_rows"},
     "template_sheet_clipped": {"sheet", "rows_dropped", "soft_cap"},
+    # Clipped rows kept in the appended Overflow sheet (`sheet` is its name).
+    "template_overflow_sheet_written": {"sheet", "count"},
     # v1.16.1 — VRS exhaust operator hint
     "vrs_unavailable": {"rsid", "component_type", "likely_cause"},
 }

@@ -38,6 +38,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `company_id_source` | str — `explicit`/`first_of_n` | `api/client.py` bootstrap-success record — provenance of the chosen company id. |
 | `client_id_prefix` | str (8 chars) | `api/client.py` post-configure DEBUG record — first 8 chars of the OAuth client id; full client id is never logged. |
 | `not_compared` | list[str] — component family names | `diff_scope_mismatch` — families one capture collected and the other did not. |
+| `sheet` | str — workbook sheet name | Template-fill records. On `template_overflow_sheet_written` it is the name of the appended Overflow sheet; on the other `template_*` events it is the template sheet being filled. |
 | `reason` | str — discriminator | `auth_failure` records — short stable reason code (`no_companies` / `missing_global_company_id`). |
 | `command` | str — dispatch attribute name | Emitted on `command_start` / `command_complete` un-prefixed records from `cli/commands/*`. Values match dispatch attribute names (e.g., `generate`, `batch`, `diff`, `list_metrics`). Vocabulary meta-test enforces presence of *some* `command` extra on cli/commands/*.py INFO records, not a fixed enum. |
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the INFO record from `core/credentials.resolve()` indicating which source matched. |
@@ -169,7 +170,8 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `template_sheet_filled sheet=<name> rows_matched=<n> rows_appended=<n>` — INFO. Fired once per resolved data sheet after the fill loop. Extras: `sheet`, `rows_matched`, `rows_appended`.
 - `template_sheet_skipped sheet=<name> reason=<missing_or_unanchored|no_id_column>` — WARNING. Fired when a data sheet can't be resolved (missing or anchor check failed). Extras: `sheet`, `reason`.
 - `template_overflow sheet=<name> overflow_rows=<n>` — WARNING. Fired when any rows were appended past `max_row` (default-styled). Extras: `sheet`, `overflow_rows`.
-- `template_sheet_clipped sheet=<name> rows_dropped=<n> soft_cap=<n>` — WARNING. Fired when the soft cap (`max_row + 50`) drops API entries. Extras: `sheet`, `rows_dropped`, `soft_cap`.
+- `template_sheet_clipped sheet=<name> rows_dropped=<n> soft_cap=<n>` — WARNING. Fired when the soft cap (`max_row + 50`) keeps API entries out of a template sheet. Those rows are not lost: they are written to the Overflow sheet. `rows_dropped` counts the rows clipped from this sheet. Extras: `sheet`, `rows_dropped`, `soft_cap`.
+- `template_overflow_sheet_written sheet=<name> count=<n>` — WARNING. Fired once per `write()` when any rows were clipped by a soft cap or were meant for a skipped template sheet, after those rows are written to the appended Overflow sheet. `sheet` is the Overflow sheet's name (`Overflow`, or `Overflow (2)` when the template already has an `Overflow` sheet); `count` is the total number of rows it holds, both kinds together. Not to be confused with `template_overflow`, which reports rows appended inside a template sheet. Extras: `sheet`, `count`.
 
 ## De-dup rule
 
@@ -321,3 +323,4 @@ Most maintainers will not need this table. It records when each event and field 
 | Notion create-database: `notion_create_planned` (INFO), `notion_database_created` (INFO), `notion_create_existing_registry` (WARNING), `notion_create_failed` (WARNING) | v1.21.0 |
 | Snapshot comparison: `diff_scope_mismatch` (WARNING); vocabulary: `not_compared` | v1.22.0 |
 | Watch: `settings_changes` field on `watch_cycle_complete` | v1.23.0 |
+| Template overflow sheet: `template_overflow_sheet_written` (WARNING); reuses `sheet` and `count` | v1.23.0 |
