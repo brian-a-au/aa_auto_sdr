@@ -123,7 +123,7 @@ def is_git_repository(path: Path) -> bool:
     """
     try:
         return _probe_git_repository(path)
-    except OSError, subprocess.TimeoutExpired, RuntimeError:
+    except (OSError, subprocess.TimeoutExpired, RuntimeError):
         return False
 
 

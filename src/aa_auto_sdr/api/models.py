@@ -8,7 +8,9 @@ via the spike at docs/superpowers/spikes/2026-04-25-aanalytics2-shape-spike.md.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,7 +173,7 @@ FetchStatus = Literal["healthy", "partial", "degraded"]
 
 
 @dataclass(frozen=True, slots=True)
-class FetchOutcome[T]:
+class FetchOutcome(Generic[T]):
     """Boundary value carrying fetched rows + a status classification.
 
     Used only by the two graceful-degrade fetchers so the builder can record

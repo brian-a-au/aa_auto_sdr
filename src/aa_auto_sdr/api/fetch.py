@@ -18,7 +18,7 @@ import time
 from collections.abc import Callable
 from copy import deepcopy
 from difflib import SequenceMatcher
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 import pandas as pd
 
@@ -47,8 +47,10 @@ _FUZZY_THRESHOLD = 0.85
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
 
-def _retry_and_normalize[T](
+
+def _retry_and_normalize(
     fn: Callable[[], T],
     *,
     policy: RetryPolicy,
@@ -163,14 +165,9 @@ def _int(d: dict[str, Any], key: str, default: int = 0) -> int:
     val = d.get(key)
     if val is None:
         return default
-    # Python 3.14 accepts both `except (T, V):` and `except T, V:` and parses them
-    # to the same AST. ruff format prefers the bare-comma form, but the
-    # parenthesized form is the canonical Python 3 syntax and survives older
-    # tooling / stricter linters. `# fmt: skip` on the except line keeps ruff
-    # format from reverting back to the bare-comma form.
     try:
         return int(val)
-    except (TypeError, ValueError):  # fmt: skip
+    except (TypeError, ValueError):
         return default
 
 

@@ -102,7 +102,7 @@ class SensitiveDataFilter(logging.Filter):
         if isinstance(record.msg, str):
             try:
                 rendered = record.getMessage()
-            except (TypeError, ValueError):  # fmt: skip
+            except (TypeError, ValueError):
                 # %-format mismatch (rare; usually a malformed call site).
                 # Falling back to raw msg is safer than dropping the record.
                 rendered = record.msg
@@ -213,7 +213,7 @@ class JSONFormatter(logging.Formatter):
             payload["exc_text"] = record.exc_text
         try:
             return json.dumps(payload, default=str)
-        except (TypeError, ValueError):  # fmt: skip
+        except (TypeError, ValueError):
             return json.dumps(
                 {
                     "timestamp": payload["timestamp"],

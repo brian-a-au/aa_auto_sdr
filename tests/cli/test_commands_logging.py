@@ -409,7 +409,7 @@ def test_command_emits_start_and_complete(
     fn = getattr(mod, fn_name)
     try:
         fn(**args)
-    except (SystemExit, Exception):  # fmt: skip
+    except (SystemExit, Exception):
         # Some entry functions may raise on missing fixtures (input(),
         # missing files, etc). Lifecycle records still fire around the call.
         # Parens preserved (would otherwise be stripped under PEP 758) to

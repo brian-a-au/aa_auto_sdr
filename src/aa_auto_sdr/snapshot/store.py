@@ -189,7 +189,7 @@ def _newest_full_capture(files: list[Path]) -> Path | None:
     for path in sorted(files, reverse=True):
         try:
             envelope = load_snapshot(path)
-        except OSError, ValueError, SnapshotSchemaError:
+        except (OSError, ValueError, SnapshotSchemaError):
             continue
         if is_full(scope_of(envelope)):
             return path
