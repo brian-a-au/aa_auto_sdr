@@ -61,7 +61,7 @@ def atomic_write_path(destination: Path, serializer: Callable[[Path], None]) -> 
     # Direct writes historically followed output symlinks. Preserve that
     # successful-write behavior while staging beside the linked target so the
     # final replacement remains on the same filesystem.
-    replacement = destination.resolve(strict=False) if destination.is_symlink() else destination
+    replacement = destination.resolve(strict=False) if os.path.islink(destination) else destination
     staged = _create_staging_path(replacement, suffix=destination.suffix or ".tmp")
     try:
         serializer(staged)

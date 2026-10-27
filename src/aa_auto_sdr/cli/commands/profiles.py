@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -156,7 +157,7 @@ def import_run(
     exit_code = ExitCode.GENERIC.value
     try:
         src = Path(file_path).expanduser()
-        if not src.exists():
+        if not os.path.exists(src):
             print(f"error: file not found: {src}", flush=True)
             exit_code = ExitCode.CONFIG.value
             return exit_code
@@ -175,7 +176,7 @@ def import_run(
             return exit_code
 
         target_dir = (base or profiles.default_base()) / "orgs" / name
-        if target_dir.exists() and not overwrite:
+        if os.path.exists(target_dir) and not overwrite:
             print(
                 f"error: profile '{name}' already exists at {target_dir}. Pass --profile-overwrite to replace.",
                 flush=True,

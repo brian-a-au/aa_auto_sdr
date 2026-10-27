@@ -86,7 +86,7 @@ def _dispatch(
         env, path = _resolve_rsid_at(token, profile_snapshot_dir=profile_snapshot_dir)
         return env, str(path)
     path = Path(token).expanduser()
-    if path.exists():
+    if os.path.exists(path):
         env = _resolve_path(path)
         return env, str(path)
     # Token doesn't match any known form. Use the spec §4 message when the token
@@ -110,13 +110,13 @@ def _looks_like_path(token: str) -> bool:
     """Heuristic: tokens with a path separator or that point to an existing file are paths."""
     if os.sep in token or token.startswith(("./", "~")):
         return True
-    return Path(token).exists()
+    return os.path.exists(token)
 
 
 def _resolve_path(path: Path) -> dict[str, Any]:
-    if not path.exists():
+    if not os.path.exists(path):
         raise SnapshotResolveError(f"snapshot file not found: {path}")
-    if path.is_dir():
+    if os.path.isdir(path):
         raise SnapshotResolveError(f"expected snapshot file but got directory: {path}")
     try:
         env = read_json(path)
@@ -141,7 +141,7 @@ def _resolve_rsid_at(
     if not rsid or not spec:
         raise SnapshotResolveError(f"could not parse '{token}' as <rsid>@<spec>")
     rs_dir = profile_snapshot_dir / rsid
-    if not rs_dir.exists():
+    if not os.path.exists(rs_dir):
         raise SnapshotResolveError(f"no snapshots for {rsid} in profile dir {profile_snapshot_dir}")
     files = sorted(rs_dir.glob("*.json"))
     if not files:
@@ -154,7 +154,7 @@ def _resolve_rsid_at(
         return _resolve_path(files[-2]), files[-2]
     # exact timestamp
     target = rs_dir / f"{spec}.json"
-    if not target.exists():
+    if not os.path.exists(target):
         raise SnapshotResolveError(f"snapshot {token} not found at {target}")
     return _resolve_path(target), target
 
@@ -197,7 +197,7 @@ def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPa
     if snapshot_dir is None:
         raise SnapshotResolveError(f"'{rsid}' requires --profile or --snapshot-dir (snapshots are profile-scoped)")
     rs_dir = snapshot_dir / rsid
-    files = sorted(rs_dir.glob("*.json")) if rs_dir.exists() else []
+    files = sorted(rs_dir.glob("*.json")) if os.path.exists(rs_dir) else []
     if not files:
         raise SnapshotResolveError(f"no snapshots for {rsid} in {rs_dir}")
     if len(files) < 2:

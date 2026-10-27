@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import time
 from datetime import UTC, datetime
@@ -176,7 +177,7 @@ def _load_token(token: str, *, profile: str | None, snapshot_dir: Path | None) -
     ``<RSID>@<spec>``, and its not-found messages), which only accepts
     envelopes. Raises SnapshotError subclasses."""
     path = Path(token).expanduser()
-    if path.is_file():
+    if os.path.isfile(path):
         try:
             with path.open(encoding="utf-8") as fh:
                 return json.load(fh)
