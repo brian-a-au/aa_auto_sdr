@@ -309,16 +309,23 @@ def _event_name(kind: CycleKind) -> str:
 
 
 def _diff_summary(diff: DiffReport) -> dict[str, Any]:
-    """Aggregate counts (added/removed/modified/unchanged) + per-component-type breakdown."""
+    """Aggregate counts (added/removed/modified/unchanged) + per-component-type breakdown.
+
+    Each `by_type` entry carries `comparability`; suppressed entries also carry
+    `suppression_reason` so consumers never read their zeros as "no changes"."""
     added = removed = modified = unchanged = 0
-    by_type: dict[str, dict[str, int]] = {}
+    by_type: dict[str, dict[str, Any]] = {}
     for c in diff.components:
         a, r, m = (0, 0, 0) if c.suppressed else (len(c.added), len(c.removed), len(c.modified))
         added += a
         removed += r
         modified += m
         unchanged += 0 if c.suppressed else c.unchanged_count
-        by_type[c.component_type] = {"added": a, "removed": r, "modified": m}
+        entry: dict[str, Any] = {"added": a, "removed": r, "modified": m, "comparability": c.comparability}
+        if c.suppressed:
+            # Zero counts on a suppressed family mean "not comparable", not "no changes".
+            entry["suppression_reason"] = c.suppression_reason
+        by_type[c.component_type] = entry
     return {
         "added": added,
         "removed": removed,

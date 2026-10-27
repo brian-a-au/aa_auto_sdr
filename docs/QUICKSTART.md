@@ -438,7 +438,7 @@ uv run aa_auto_sdr demo.prod --metrics-only       # metrics only
 uv run aa_auto_sdr demo.prod --dimensions-only    # dimensions only
 ```
 
-> These cannot be combined with `--snapshot` / `--auto-snapshot` — a filtered snapshot would produce misleading diffs.
+> Combined with `--snapshot` / `--auto-snapshot`, a filtered run saves a snapshot that records its scope. Later diffs mark the families it left out as "not collected" instead of reporting them as removed.
 
 ### 5.4 Choose Where Output Lands
 

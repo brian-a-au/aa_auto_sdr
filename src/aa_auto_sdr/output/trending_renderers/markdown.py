@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from io import StringIO
 
-from aa_auto_sdr.snapshot.trending import TrendingReport
+from aa_auto_sdr.snapshot.trending import TrendingReport, not_comparable_by_reason
 
 
 def render_markdown(reports: list[TrendingReport]) -> str:
@@ -44,6 +44,14 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
             f"{c.calculated_metrics} | {c.virtual_report_suites} | {c.classifications} | "
             f"{d_add} | {d_rem} | {d_mod} |\n",
         )
+
+    notes = [(point, not_comparable_by_reason(point)) for point in report.series]
+    notes = [(point, grouped) for point, grouped in notes if grouped]
+    if notes:
+        out.write("\n**Not comparable** (excluded from the deltas above):\n\n")
+        for point, grouped in notes:
+            ts = point.captured_at.strftime("%Y-%m-%dT%H:%M")
+            out.writelines(f"- {ts}: {', '.join(families)} — {reason}\n" for reason, families in grouped.items())
 
     out.write("\n## Drift\n\n")
     drift = report.drift

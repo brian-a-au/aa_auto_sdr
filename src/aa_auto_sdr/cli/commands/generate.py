@@ -247,19 +247,6 @@ def _run_impl(
         )
         return ExitCode.USAGE.value
 
-    if (metrics_only or dimensions_only) and (snapshot or auto_snapshot):
-        msg = (
-            "error: --metrics-only / --dimensions-only cannot be combined with "
-            "--snapshot / --auto-snapshot — filtered snapshots produce misleading diffs"
-        )
-        _emit_pipe_or_print(
-            is_pipe=is_pipe,
-            exc=None,
-            message=msg,
-            exit_code=ExitCode.USAGE.value,
-        )
-        return ExitCode.USAGE.value
-
     if is_pipe and quality_report:
         # Pure argument conflict: the quality report is a file artifact and
         # there is no stdout slot for it on the pipe path (stdout carries the

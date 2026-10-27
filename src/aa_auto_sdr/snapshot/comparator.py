@@ -17,6 +17,7 @@ from typing import Any
 
 from aa_auto_sdr.snapshot.models import (
     AddedRemovedItem,
+    Comparability,
     ComponentDiff,
     DiffReport,
     FieldDelta,
@@ -96,10 +97,37 @@ def compare(
             b_components.get(ctype, []),
             ignore_fields=effective_ignore,
         )
-        suppressed, reason = _suppression_for(ctype, a, b)
-        if suppressed:
-            cd = dataclasses.replace(cd, suppressed=True, suppression_reason=reason)
+        comparability, reason = _suppression_for(ctype, a, b)
+        if comparability in ("excluded", "unknown"):
+            # One side holds no data for this family, so the raw lists are an
+            # artifact of the gap, not evidence. Degraded and partial sections
+            # keep their raw rows (both sides were fetched).
+            cd = ComponentDiff(
+                component_type=ctype,
+                suppressed=True,
+                suppression_reason=reason,
+                comparability=comparability,
+            )
+        elif comparability != "comparable":
+            cd = dataclasses.replace(cd, suppressed=True, suppression_reason=reason, comparability=comparability)
         components.append(cd)
+
+    # Families one capture collected and the other did not: their changes in
+    # the gap are never compared, so say so once per comparison.
+    not_compared = sorted(
+        c.component_type
+        for c in components
+        if c.comparability == "excluded" and c.suppression_reason != "not collected in either snapshot"
+    )
+    if not_compared:
+        rsid = b.get("rsid") or a.get("rsid") or ""
+        logger.warning(
+            "diff_scope_mismatch rsid=%s not_compared=%s; changes to these families since the last "
+            "capture that collected them are not reported",
+            rsid,
+            ",".join(not_compared),
+            extra={"rsid": rsid, "not_compared": not_compared},
+        )
 
     report = DiffReport(
         a_rsid=a["rsid"],
@@ -179,21 +207,55 @@ def _suppression_for(
     component_type: str,
     a: dict[str, Any],
     b: dict[str, Any],
-) -> tuple[bool, str | None]:
-    """Apply spec §4.7 suppression rules. Returns (suppressed, reason)."""
+) -> tuple[Comparability, str | None]:
+    """Decide whether a section is comparable. Returns (comparability, reason).
+
+    Capture scope is checked first: a family one side did not collect is never
+    diffed, so filtered captures cannot produce false additions or removals.
+    A legacy side (no `collected_components`) counts as collected when it has
+    rows; an empty legacy family against rows cannot be told apart from an
+    exclusion, so it is suppressed as unknown, after the spec §4.7 degraded and
+    partial rules, which name a more specific cause. Two legacy sides diff
+    normally.
+    """
+    left_scope = _scope_of(component_type, a)
+    right_scope = _scope_of(component_type, b)
+    if left_scope == "excluded" and right_scope == "excluded":
+        return "excluded", "not collected in either snapshot"
+    if left_scope == "excluded":
+        return "excluded", "not collected in source"
+    if right_scope == "excluded":
+        return "excluded", "not collected in target"
+
     left_degraded = component_type in a.get("degraded_components", [])
     right_degraded = component_type in b.get("degraded_components", [])
     if left_degraded or right_degraded:
-        return True, "fetch degraded"
+        return "degraded", "fetch degraded"
     left_level = a.get("partial_components", {}).get(component_type)
     right_level = b.get("partial_components", {}).get(component_type)
-    if left_level is None and right_level is None:
-        return False, None
-    if left_level == right_level:
-        # both partial at the same level — comparable, fall through to normal diff
-        return False, None
-    level = left_level or right_level
-    return True, f"fetch partial (expansion_level={level})"
+    if left_level != right_level:
+        return "partial", f"fetch partial (expansion_level={left_level or right_level})"
+    # Same partial level on both sides is comparable; only scope can still block it.
+
+    left_rows = bool(a["components"].get(component_type))
+    right_rows = bool(b["components"].get(component_type))
+    # Two scope-less sides are both full captures: released CLIs never wrote
+    # filtered snapshots, so only a single scope-less side is ambiguous.
+    if left_scope == right_scope == "unknown":
+        return "comparable", None
+    if (left_scope == "unknown" and not left_rows and right_rows) or (
+        right_scope == "unknown" and not right_rows and left_rows
+    ):
+        return "unknown", "capture scope unknown (legacy snapshot)"
+    return "comparable", None
+
+
+def _scope_of(component_type: str, env: dict[str, Any]) -> str:
+    """`collected`, `excluded`, or `unknown` (legacy envelope without scope)."""
+    collected = env.get("collected_components")
+    if collected is None:
+        return "unknown"
+    return "collected" if component_type in collected else "excluded"
 
 
 def _diff_dict(

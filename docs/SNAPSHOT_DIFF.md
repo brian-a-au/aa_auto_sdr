@@ -67,7 +67,7 @@ Reading rules:
 | `v1`–`v4` without the key | absent | Scope is unknown. It is never inferred from empty arrays, and the file is never rewritten. |
 | any | — | A family in `degraded_components` or `partial_components` must also be in `collected_components` when the list is present. |
 
-The SDR JSON output (`--format json`) carries the same `collected_components` list. The CLI still refuses `--metrics-only` / `--dimensions-only` together with `--snapshot` / `--auto-snapshot` (exit 2), and `--watch` always captures every family, so CLI-written snapshots are full v4 captures.
+The SDR JSON output (`--format json`) carries the same `collected_components` list. Filtered runs (`--metrics-only` / `--dimensions-only` with `--snapshot` / `--auto-snapshot`) write v5 snapshots; `--watch` always captures every family. How diffs use the scope is described under [Comparability](#comparability-capture-scope-and-fetch-quality).
 
 ### Schema compatibility
 
@@ -170,6 +170,26 @@ Other lists (e.g. `definition` clauses in segments) are compared positionally.
 
 These rules were adopted from the sister project `cja_auto_sdr`'s diff comparator after observing they suppressed the most common false-positive categories in real-world snapshot history.
 
+### Comparability (capture scope and fetch quality)
+
+Before diffing a component family, the comparator decides whether the two sides can be compared at all. When they cannot, the section is suppressed: it counts toward no totals or thresholds, renderers show its `suppression_reason` instead of rows, and it carries a `comparability` value. For `excluded` and `unknown` sections the JSON `added` / `removed` / `modified` lists are empty, because one side holds no data for the family. For `degraded` and `partial` sections the JSON keeps the raw rows as evidence. The rules apply in this order; the first match wins.
+
+| Situation for the family | `comparability` | `suppression_reason` |
+| --- | --- | --- |
+| Neither side collected it | `excluded` | `not collected in either snapshot` |
+| The source did not collect it | `excluded` | `not collected in source` |
+| The target did not collect it | `excluded` | `not collected in target` |
+| Either side's fetch was degraded | `degraded` | `fetch degraded` |
+| The sides were fetched at different partial expansion levels | `partial` | `fetch partial (expansion_level=…)` |
+| A side has unknown scope (no `collected_components`), its list is empty, and the other side has rows | `unknown` | `capture scope unknown (legacy snapshot)` |
+| Anything else | `comparable` | — (normal diff) |
+
+A side with unknown scope that has rows counts as collected, since the rows show the family was fetched. Two empty lists are comparable and give zero changes. When both sides have unknown scope, the family diffs normally: released versions never wrote filtered snapshots, so two snapshots without scope are both full captures. So a filtered capture never produces false additions or removals, while a family that was collected on both sides and really became empty still reports its removals. The cost of the unknown rule: a family that really was empty in a snapshot without scope and is populated now shows as suppressed, with that label, rather than as additions.
+
+`--compare-with-prev`, `--watch`, and `--trending-window` all use the same comparator, so the same rules apply there.
+
+**Filtered snapshots in a history.** The previous snapshot is chosen by time alone: `<RSID>@previous` and `@latest`, the watch baseline, and each consecutive trending pair do not look at scope, and `--keep-last` counts filtered snapshots like any other. If a filtered snapshot sits between two full ones, the next comparison marks the families it left out as `not collected in source`, and changes to those families between the two full captures are never reported. Each such comparison logs a `diff_scope_mismatch` warning naming the families. To compare full captures across a filtered one, pass both snapshot paths (or `<RSID>@<timestamp>` tokens) to `--diff` explicitly, and keep filtered snapshots in a separate `--snapshot-dir` if you mix them with watch or trending.
+
 ### RSID mismatch warning
 
 If you diff snapshots of *different* report suites (e.g. `demo.prod` vs `demo.staging`), the report sets `rsid_mismatch=True`. Renderers surface a `⚠ RSID mismatch` banner. The diff still runs — sometimes you genuinely want to compare two RSes — but the warning is loud.
@@ -225,7 +245,8 @@ Metrics: +0 added, -1 removed, ~0 modified, 32 unchanged
       "modified": [{"id": "evar15", "name": "Page Type", "deltas": [...]}],
       "unchanged_count": 124,
       "suppressed": false,
-      "suppression_reason": null
+      "suppression_reason": null,
+      "comparability": "comparable"
     },
     ...
   ],
@@ -233,7 +254,7 @@ Metrics: +0 added, -1 removed, ~0 modified, 32 unchanged
 }
 ```
 
-Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`. Keys are emitted alphabetically sorted (shown grouped above for readability). `report_suite_deltas` carries the report-suite header changes (timezone, currency, etc.) and is an empty list when the header is unchanged; it is also emptied in `--summary` mode. Each component carries `suppressed` / `suppression_reason` — non-null only when the §4.7 suppression rules skip that component's per-item diff.
+Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`. Keys are emitted alphabetically sorted (shown grouped above for readability). `report_suite_deltas` carries the report-suite header changes (timezone, currency, etc.) and is an empty list when the header is unchanged; it is also emptied in `--summary` mode. Each component carries `suppressed` / `suppression_reason` — non-null only when the [comparability rules](#comparability-capture-scope-and-fetch-quality) skip that component's per-item diff — and `comparability` (`comparable`, `excluded`, `unknown`, `degraded`, or `partial`).
 
 ### `markdown`
 
@@ -427,7 +448,7 @@ aa_auto_sdr --trending-window 30d <RSID> --profile prod --format json --output -
 
 `--trending-window <DURATION>` reads existing snapshots from the active snapshot store (no API contact) and reports component counts and lifecycle changes across the window. Its drift summary includes total changes, a volatility score, the most active component type, and churn by component type; it does not summarize quality findings. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the active snapshot directory for capture (`--snapshot` / `--auto-snapshot`), `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, and `--watch`.
 
-Trending renderers live under `output/trending_renderers/` (`console`, `json`, `markdown`); select with `--format`.
+Trending renderers live under `output/trending_renderers/` (`console`, `json`, `markdown`); select with `--format`. Families that were not comparable between two snapshots contribute zero churn. JSON carries `comparability` and `suppression_reason` in each `delta_by_type` entry, and the console and Markdown tables add a "Not comparable" note naming the families and the reason.
 
 ## Watch: foreground monitoring loop
 
@@ -438,9 +459,12 @@ aa_auto_sdr --watch --interval 1h <RSID> --profile prod
 `--watch` runs a foreground loop that captures a fresh snapshot at each `--interval` tick, diffs it against the prior baseline, and emits NDJSON events to stdout (`aa-watch-event/v1`). Event types: `baseline` (first cycle), `change` (when at least `--watch-threshold` components differ; default 1), `error`.
 
 Watch counts only comparable component changes after applying `--ignore-fields`
-and the default extended-field filtering. Sections suppressed by degraded fetches
-or mismatched partial-fetch levels contribute zero counts, including unchanged
-counts, while their `summary.by_type` entries remain present. Captured snapshots
+and the default extended-field filtering. Sections that are not comparable (a
+family one side did not collect, unknown legacy scope, degraded fetches, or
+mismatched partial-fetch levels) contribute zero counts, including unchanged
+counts, while their `summary.by_type` entries remain present. Every `by_type`
+entry carries `comparability`; suppressed entries also carry
+`suppression_reason`, so their zeros read as "not comparable", not "no changes". Captured snapshots
 retain the raw data and availability markers; suppression does not establish
 that unavailable components are unchanged.
 

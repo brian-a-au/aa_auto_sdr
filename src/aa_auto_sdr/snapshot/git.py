@@ -285,6 +285,9 @@ def generate_commit_message(
             counts = by_type.get(ct)
             if not counts:
                 continue
+            if counts.get("suppression_reason"):
+                lines.append(f"{ct + ':':<12}not comparable ({counts['suppression_reason']})")
+                continue
             a = counts.get("added", 0)
             r = counts.get("removed", 0)
             m = counts.get("modified", 0)

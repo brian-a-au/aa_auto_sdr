@@ -78,56 +78,38 @@ class TestGenerationModifiers:
         )
         assert rc == ExitCode.USAGE.value
 
-    def test_metrics_only_with_snapshot_rejected(
+    @pytest.mark.parametrize(
+        ("flag", "expected"),
+        [("metrics_only", ["metrics"]), ("dimensions_only", ["dimensions"])],
+    )
+    @pytest.mark.parametrize("mode", ["snapshot", "auto_snapshot"])
+    @patch("aa_auto_sdr.cli.commands.generate.AaClient")
+    def test_filtered_snapshot_writes_v5(
         self,
+        mock_client_cls,
         env_creds,
         tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
+        flag: str,
+        expected: list[str],
+        mode: str,
     ) -> None:
-        """v1.2 — metrics-only + snapshot would produce misleading filtered envelopes."""
+        """Filtered captures persist their scope as v5 instead of being refused."""
+        raw = json.loads(FIXTURE.read_text())
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+        snaps = tmp_path / "snaps"
         rc = cmd.run(
             rsid="demo.prod",
-            output_dir=tmp_path,
-            format_name="excel",
+            output_dir=tmp_path / "out",
+            format_name="json",
             profile=None,
-            metrics_only=True,
-            snapshot=True,
+            snapshot_dir=snaps,
+            **{flag: True, mode: True},
         )
-        assert rc == ExitCode.USAGE.value
-        assert "filtered snapshots" in capsys.readouterr().err
-
-    def test_metrics_only_with_auto_snapshot_rejected(
-        self,
-        env_creds,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        rc = cmd.run(
-            rsid="demo.prod",
-            output_dir=tmp_path,
-            format_name="excel",
-            profile=None,
-            metrics_only=True,
-            auto_snapshot=True,
-        )
-        assert rc == ExitCode.USAGE.value
-
-    def test_dimensions_only_with_snapshot_rejected(
-        self,
-        env_creds,
-        tmp_path: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        rc = cmd.run(
-            rsid="demo.prod",
-            output_dir=tmp_path,
-            format_name="excel",
-            profile=None,
-            dimensions_only=True,
-            snapshot=True,
-        )
-        assert rc == ExitCode.USAGE.value
-        assert "filtered snapshots" in capsys.readouterr().err
+        assert rc == ExitCode.OK.value
+        (snapshot_file,) = (snaps / "demo.prod").glob("*.json")
+        env = json.loads(snapshot_file.read_text())
+        assert env["schema"] == "aa-sdr-snapshot/v5"
+        assert env["collected_components"] == expected
 
 
 class TestDryRun:

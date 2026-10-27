@@ -68,3 +68,24 @@ class TestGenerateCommitMessage:
         subject = msg.splitlines()[0]
         assert "rs_short" in subject
         assert "…" not in subject
+
+
+def test_not_comparable_family_is_labelled_in_commit_body() -> None:
+    msg = generate_commit_message(
+        rsid="rs_a",
+        captured_at="2026-10-27T15:00:00Z",
+        change_summary={
+            "by_type": {
+                "metrics": {"added": 1, "removed": 0, "modified": 0, "comparability": "comparable"},
+                "segments": {
+                    "added": 0,
+                    "removed": 0,
+                    "modified": 0,
+                    "comparability": "excluded",
+                    "suppression_reason": "not collected in target",
+                },
+            },
+        },
+    )
+    assert "metrics:    +1 -0 ~0" in msg
+    assert "segments:   not comparable (not collected in target)" in msg

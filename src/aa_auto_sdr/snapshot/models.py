@@ -6,7 +6,9 @@ consumed by output.diff_renderers.*."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+Comparability = Literal["comparable", "excluded", "unknown", "degraded", "partial"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +47,12 @@ class ComponentDiff:
     annotation in place of per-row tables. JSON renderer's serialized shape
     is unchanged-but-additive: existing fields preserved, new fields appear.
     See spec §4.7.
+
+    `comparability` names why a section is or is not comparable:
+    `comparable`, `excluded` (a side did not collect the family), `unknown`
+    (a legacy side has no scope and an empty family against rows),
+    `degraded`, or `partial`. Every value other than `comparable` comes with
+    `suppressed=True`.
     """
 
     component_type: str  # "dimensions", "metrics", "segments", ...
@@ -54,6 +62,7 @@ class ComponentDiff:
     unchanged_count: int = 0
     suppressed: bool = False
     suppression_reason: str | None = None
+    comparability: Comparability = "comparable"
 
 
 @dataclass(frozen=True, slots=True)

@@ -157,7 +157,7 @@ def test_discovered_file_disappearance_is_an_error(tmp_path, monkeypatch):
 
 def _document(rsid, day):
     from aa_auto_sdr.api.models import ReportSuite
-    from aa_auto_sdr.sdr.document import SdrDocument
+    from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, SdrDocument
 
     return SdrDocument(
         ReportSuite(rsid=rsid, name="Suite", timezone="UTC", currency="USD", parent_rsid=None),
@@ -169,6 +169,7 @@ def _document(rsid, day):
         [],
         datetime(2026, 2, day, tzinfo=UTC),
         "1.0",
+        collected_components=COMPONENT_FAMILIES,  # a full capture, as build_sdr produces
     )
 
 
