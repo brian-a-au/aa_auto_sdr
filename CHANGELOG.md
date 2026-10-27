@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.24.0] — 2026-10-27
+
+This release finishes the capture-trust work and aligns aa_auto_sdr with
+cja_auto_sdr v3.13.x. Automatic baselines never let a filtered snapshot hide
+changes. Quality findings carry stable rule IDs, policy files can set naming
+rules per component type and reasoned exceptions, and calculated metrics and
+segments gain readable definition summaries and a references appendix. SDR and
+diff JSON gain cja-style `coverage` objects, and CSV output is published as a
+staged bundle with a `_manifest.json`.
+
+Upgrade notes: CSV runs now also write `<stem>.references.csv` and
+`<stem>._manifest.json`. New CSV and Excel columns are added after the existing
+ones. `--compare-with-prev` may now pick an older baseline than
+`<RSID>@previous` when filtered snapshots sit in between.
 
 ### Added
 - SDR JSON has a new top-level `coverage` object, shaped like the one in
