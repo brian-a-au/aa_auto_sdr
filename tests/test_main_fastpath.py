@@ -269,3 +269,13 @@ def test_exit_codes_standalone_still_fast_paths(capsys) -> None:
     rc = main(["--exit-codes"])
     assert rc == 0
     assert capsys.readouterr().out.strip()
+
+
+def test_help_lists_render_from() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--help"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "--render-from TOKEN" in result.stdout

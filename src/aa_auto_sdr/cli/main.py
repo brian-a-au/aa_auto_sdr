@@ -352,6 +352,147 @@ def _reject_standalone_mode_conflicts(ns: argparse.Namespace, mode_flag: str, *,
     return int(ExitCode.OK)
 
 
+# Flags that cannot combine with --render-from (beyond the top-level actions
+# argparse already rejects through the mutually exclusive group). Each is
+# "set" when its value differs from the parser default. They either need a
+# fresh capture (generation, snapshots, audits, git, retries, name lookup) or
+# belong to another mode (diff, watch, batch, list/inspect, Notion).
+_RENDER_FROM_CONFLICTS: tuple[tuple[str, str], ...] = (
+    ("snapshot", "--snapshot"),
+    ("auto_snapshot", "--auto-snapshot"),
+    ("auto_prune", "--auto-prune"),
+    ("keep_last", "--keep-last"),
+    ("keep_since", "--keep-since"),
+    ("git_commit", "--git-commit"),
+    ("git_push", "--git-push"),
+    ("git_message", "--git-message"),
+    ("metrics_only", "--metrics-only"),
+    ("dimensions_only", "--dimensions-only"),
+    ("dry_run", "--dry-run"),
+    ("audit_naming", "--audit-naming"),
+    ("flag_stale", "--flag-stale"),
+    ("quality_report", "--quality-report"),
+    ("quality_policy", "--quality-policy"),
+    ("fail_on_quality", "--fail-on-quality"),
+    ("name_match", "--name-match"),
+    ("interval", "--interval"),
+    ("watch_threshold", "--watch-threshold"),
+    ("workers", "--workers"),
+    ("fail_fast", "--fail-fast"),
+    ("sample_size", "--sample"),
+    ("sample_seed", "--sample-seed"),
+    ("sample_stratified", "--sample-stratified"),
+    ("enable_cache", "--enable-cache"),
+    ("clear_cache", "--clear-cache"),
+    ("cache_ttl", "--cache-ttl"),
+    ("cache_size", "--cache-size"),
+    ("max_retries", "--max-retries"),
+    ("retry_base_delay", "--retry-base-delay"),
+    ("retry_max_delay", "--retry-max-delay"),
+    ("filter", "--filter"),
+    ("exclude", "--exclude"),
+    ("sort", "--sort"),
+    ("limit", "--limit"),
+    ("side_by_side", "--side-by-side"),
+    ("summary", "--summary"),
+    ("ignore_fields", "--ignore-fields"),
+    ("quiet_diff", "--quiet-diff"),
+    ("diff_labels", "--diff-labels"),
+    ("reverse_diff", "--reverse-diff"),
+    ("warn_threshold", "--warn-threshold"),
+    ("changes_only", "--changes-only"),
+    ("show_only", "--show-only"),
+    ("max_issues", "--max-issues"),
+    ("extended_fields", "--extended-fields"),
+    ("open", "--open"),
+    ("show_timings", "--show-timings"),
+    ("run_summary_json", "--run-summary-json"),
+    ("profile_overwrite", "--profile-overwrite"),
+    ("yes", "--yes"),
+    ("push_to_notion", "--push-to-notion"),
+    ("notion_force_new", "--notion-force-new"),
+    ("notion_registry_database", "--notion-registry-database"),
+    ("no_notion_registry", "--no-notion-registry"),
+    ("notion_prune_orphans", "--notion-prune-orphans"),
+    ("notion_repair_database", "--notion-repair-database"),
+    ("notion_create_database", "--notion-create-database"),
+    ("notion_company", "--notion-company"),
+    ("notion_database_title", "--notion-database-title"),
+)
+
+
+# Flags --render-from honors. Together with _RENDER_FROM_CONFLICTS and the
+# actions group, every parser destination is classified; a meta-test fails on
+# any new flag that is in neither list. Positional `rsids` is rejected by its
+# own check in _reject_render_from_conflicts.
+_RENDER_FROM_ACCEPTED: frozenset[str] = frozenset(
+    {
+        "format",
+        "output",
+        "output_dir",
+        "template",
+        "template_organization",
+        "profile",
+        "snapshot_dir",
+        "agent_mode",
+        "quiet",
+        "log_level",
+        "log_format",
+        "color_theme",
+    }
+)
+
+
+def _reject_render_from_conflicts(ns: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Reject --render-from combined with positional RSIDs, --format notion, or
+    any flag in :data:`_RENDER_FROM_CONFLICTS`. Returns OK or USAGE."""
+    if getattr(ns, "rsids", None):
+        print(
+            "error: --render-from does not accept positional RSIDs (it renders the given saved capture)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    if getattr(ns, "format", None) == "notion":
+        print(
+            "error: --render-from does not publish to Notion; use --push-to-notion <JSON_FILE> instead",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    for attr, flag in _RENDER_FROM_CONFLICTS:
+        if getattr(ns, attr, None) != parser.get_default(attr):
+            print(f"error: --render-from cannot be combined with {flag}", file=sys.stderr)
+            return int(ExitCode.USAGE)
+    return int(ExitCode.OK)
+
+
+def _dispatch_render_from(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: list[str]) -> int:
+    """Validate and run --render-from (offline render of a saved capture)."""
+    rc = _reject_render_from_conflicts(ns, parser)
+    if rc != int(ExitCode.OK):
+        return rc
+    rc = _validate_template_modifiers(ns)
+    if rc != int(ExitCode.OK):
+        return rc
+    # JSON is the one stdout-capable format, so --agent-mode pipes it.
+    resolved_output = resolve_agent_output_path(
+        ns,
+        argv=argv,
+        output_format=(ns.format or "excel"),
+        stdout_formats=frozenset({"json"}),
+    )
+    from aa_auto_sdr.cli.commands import render_from as render_cmd
+
+    return render_cmd.run(
+        token=ns.render_from,
+        output_dir=Path("-") if resolved_output == "-" else ns.output_dir,
+        format_name=ns.format or "excel",
+        profile=ns.profile,
+        snapshot_dir=ns.snapshot_dir,
+        template_path=getattr(ns, "template", None),
+        template_organization=getattr(ns, "template_organization", None),
+    )
+
+
 def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     """Reject mutually-incompatible Notion flag combinations.
 
@@ -587,6 +728,11 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     ``return X.value`` in the dispatch chain. Verbatim move — no behavior
     changes inside this helper. ``parser`` is threaded through so the
     no-args USAGE branch can still call ``parser.print_usage(sys.stderr)``."""
+    # --render-from owns the whole run and validates its own flag set first,
+    # so every rejection names --render-from.
+    if getattr(ns, "render_from", None) is not None:
+        return _dispatch_render_from(ns, parser, argv)
+
     rc = _validate_watch_modifiers(ns)
     if rc != int(ExitCode.OK):
         return rc

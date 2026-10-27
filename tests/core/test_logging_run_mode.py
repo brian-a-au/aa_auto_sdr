@@ -71,6 +71,7 @@ def _ns(**overrides: Any) -> argparse.Namespace:
         ({"stats": True}, "stats"),
         ({"interactive": True}, "interactive"),
         ({"rsids": ["RS1"]}, "single"),
+        ({"render_from": "x.json"}, "render"),
         ({}, "other"),
     ],
 )

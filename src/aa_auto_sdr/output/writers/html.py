@@ -12,7 +12,7 @@ from typing import Any
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
-from aa_auto_sdr.output._helpers import escape_html, stringify_cell
+from aa_auto_sdr.output._helpers import escape_html, render_provenance_line, render_provenance_pairs, stringify_cell
 from aa_auto_sdr.output.coverage import CoverageRow, CoverageState, coverage_rows, quality_status, quality_status_line
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -65,6 +65,7 @@ def _summary_pairs(doc: SdrDocument) -> list[tuple[str, str]]:
         ("Currency", doc.report_suite.currency or ""),
         ("Captured at", doc.captured_at.isoformat()),
         ("Tool version", doc.tool_version),
+        *render_provenance_pairs(doc),
     ]
 
 
@@ -107,6 +108,11 @@ def _summary_section_html(doc: SdrDocument) -> str:
     return f"<section><h2>Summary</h2>{_table_html(['Field', 'Value'], rows)}</section>"
 
 
+def _render_note_html(doc: SdrDocument) -> str:
+    line = render_provenance_line(doc)
+    return "" if line is None else f'<p class="meta">{escape_html(line)}</p>'
+
+
 def _document_html(doc: SdrDocument) -> str:
     rs = doc.report_suite
     title = f"SDR — {rs.name} ({rs.rsid})"
@@ -127,7 +133,7 @@ def _document_html(doc: SdrDocument) -> str:
         f"<header><h1>{escape_html(rs.name)}</h1>"
         f'<p class="meta">RSID <code>{escape_html(rs.rsid)}</code> · '
         f"captured {escape_html(doc.captured_at.isoformat())} · "
-        f"tool {escape_html(doc.tool_version)}</p></header>" + "".join(sections)
+        f"tool {escape_html(doc.tool_version)}</p>{_render_note_html(doc)}</header>" + "".join(sections)
     )
     return (
         f"<!doctype html>\n"

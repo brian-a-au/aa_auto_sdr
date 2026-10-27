@@ -179,6 +179,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Diff two snapshots. Tokens: <path> | <rsid>@<ts>|@latest|@previous | git:<ref>:<path>",
     )
     actions.add_argument(
+        "--render-from",
+        metavar="TOKEN",
+        default=None,
+        help=(
+            "Render reports offline from saved SDR JSON (--format json output) or a snapshot "
+            "(<path> | <rsid>@<ts>|@latest|@previous | git:<ref>:<path>). No auth, no API calls."
+        ),
+    )
+    actions.add_argument(
         "--exit-codes",
         action="store_true",
         help="List every exit code with a one-line meaning",

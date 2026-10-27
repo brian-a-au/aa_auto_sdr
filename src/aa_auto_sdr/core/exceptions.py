@@ -86,3 +86,8 @@ class SnapshotCorruptError(SnapshotSchemaError):
 
 class OutputError(AaAutoSdrError):
     """An output writer failed (I/O, formatting, etc.)."""
+
+
+class SdrPayloadError(AaAutoSdrError):
+    """A saved SDR JSON payload (the `--format json` shape) is malformed or
+    is not a shape `--render-from` recognizes."""

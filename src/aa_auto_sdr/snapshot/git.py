@@ -27,7 +27,13 @@ def git_show(*, ref: str, path: str, repo_root: Path) -> str:
     """Read `<path>` at git `<ref>` from `repo_root`. Returns file content as string.
 
     Raises SnapshotResolveError on any non-zero exit (unknown ref, missing path,
-    not a git repo). The CLI command will format the message for the user."""
+    not a git repo). The CLI command will format the message for the user.
+
+    A ref or path starting with '-' is rejected before git runs, so it can never
+    be parsed as a git option."""
+    for label, value in (("ref", ref), ("path", path)):
+        if value.startswith("-"):
+            raise SnapshotResolveError(f"git {label} {value!r} must not start with '-'")
     started = time.monotonic()
     try:
         result = subprocess.run(

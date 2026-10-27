@@ -12,6 +12,7 @@ Single-page command cheat sheet for `aa_auto_sdr`. Grouped by mode, copy-paste r
 | **Discovery** | List report suites and virtual report suites visible to your credentials | Table (also CSV, JSON) |
 | **Inspection** | Drill into one report suite's components, metadata, or quick counts | Table (also CSV, JSON) |
 | **Snapshot & Diff** | Capture a normalized snapshot and diff any two — version control for SDR | Console (also JSON, Markdown, PR-comment) |
+| **Offline render** | Rebuild reports from saved SDR JSON or a snapshot, with no auth and no API calls | Excel (also CSV, JSON, HTML, Markdown, template-fill) |
 | **Inventory Rollup** | Aggregate component counts across many report suites | Table (also CSV, JSON) |
 | **Quality** | Severity-tagged naming and stale-component audits, promotable to a CI gate | Adds to the SDR; JSON/CSV report |
 
@@ -20,6 +21,8 @@ Single-page command cheat sheet for `aa_auto_sdr`. Grouped by mode, copy-paste r
 **Discovery** and **Inspection** explore what exists without building a full SDR. Use them for pre-SDR exploration, quick audits, and scripting.
 
 **Snapshot & Diff** captures normalized state and reports what changed between any two points. Use it for change tracking, drift detection, and migration sign-off.
+
+**Offline render** re-runs the writers on a saved capture. Use it to change format, fill a template from a snapshot, or regenerate reports without credentials.
 
 **Inventory Rollup** aggregates counts across report suites for an org-wide overview. Use it for landscape audits and governance.
 
@@ -156,6 +159,19 @@ aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod --format p
 | `--reverse-diff` | Swap a and b before compare |
 | `--warn-threshold N` | Exit `3` when total component changes ≥ N (CI signal) |
 | `--color-theme {default,accessible}` | Diff color palette |
+
+### Offline render
+
+```bash
+# Re-render saved SDR JSON in every local format (no auth, no API calls)
+aa_auto_sdr --render-from ./reports/<RSID>.json --format all --output-dir ./reports
+
+# Render the latest snapshot in a profile's store
+aa_auto_sdr --render-from <RSID>@latest --profile prod --format markdown
+
+# Fill Adobe's template from a snapshot
+aa_auto_sdr --render-from ./snapshots/<RSID>/<ts>.json --template ./aa_en_BRD_SDR_template.xlsx
+```
 
 ## Trending, watch & git audit trail
 

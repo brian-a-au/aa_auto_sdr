@@ -122,7 +122,7 @@ def test_filename_for_diff() -> None:
 
 
 @pytest.mark.parametrize(
-    "mode", ["discovery", "inspect", "snapshot", "profile", "config", "stats", "interactive", "other"]
+    "mode", ["discovery", "inspect", "snapshot", "profile", "config", "stats", "interactive", "render", "other"]
 )
 def test_filename_catchall(mode: str) -> None:
     name = _log_filename(mode, _ns(), "20260428_120000")

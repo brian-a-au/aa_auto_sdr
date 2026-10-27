@@ -26,6 +26,7 @@ def _print_help() -> int:
         "  aa_auto_sdr --batch <RSID...>        Same as above; explicit form still supported\n"
         "  aa_auto_sdr --diff <a> <b>           Compare two snapshots (path|@ts|@latest|@previous|git:ref:path)\n"
         "  aa_auto_sdr <RSID> --snapshot --profile P  Generate + persist snapshot under ~/.aa/orgs/P/snapshots/\n"
+        "  aa_auto_sdr --render-from TOKEN      Re-render reports offline from saved SDR JSON or a snapshot (no auth)\n"
         "  aa_auto_sdr --list-reportsuites      List all report suites visible to the org\n"
         "  aa_auto_sdr --list-metrics <RSID>    List metrics (also: --list-dimensions/segments/...)\n"
         "  aa_auto_sdr --describe-reportsuite <RSID>  Print metadata + per-component counts\n"

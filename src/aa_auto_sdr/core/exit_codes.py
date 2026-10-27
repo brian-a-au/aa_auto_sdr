@@ -51,6 +51,11 @@ exception handler. Inspect stderr for context.
 
 Likely causes:
 - An internal bug or unexpected condition in the tool itself.
+- `--render-from` or `--push-to-notion` was given a file that is neither a
+  valid snapshot envelope nor valid SDR JSON (unknown shape, a row without
+  `id`, duplicate ids in one family, a missing or wrong-typed field, or a
+  report-suite rsid that is not a plain file-name token). Fix or regenerate
+  the input file; this is not an internal bug.
 
 What to try:
 - Re-run with the same arguments and capture full stderr.
@@ -166,6 +171,9 @@ Likely causes:
 - Snapshot envelope schema is missing or an unrecognized major (expected `aa-sdr-snapshot/v1` through `v5`).
 - `<RSID>@<spec>` token used without `--profile`.
 - `git:<ref>:<path>` ref or path doesn't exist in the current repo.
+- `--render-from` input cannot be read (missing file, invalid JSON), or the
+  snapshot envelope has malformed rows (missing `id`, duplicate ids,
+  wrong-typed fields).
 
 What to try:
 - Verify the path with `ls`.

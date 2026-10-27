@@ -108,6 +108,9 @@ def document_to_envelope(doc: SdrDocument, *, payload: dict[str, Any] | None = N
     quality = payload.pop("quality", None)
     payload.pop("fetch_status", None)
     payload.pop("collected_components", None)
+    # Render provenance (set only by --render-from) is not part of a capture.
+    payload.pop("rendered_at", None)
+    payload.pop("rendered_by_tool_version", None)
     degraded = sorted(ctype for ctype, meta in doc.fetch_status.items() if meta.status == "degraded")
     partial = {
         ctype: meta.expansion_level for ctype, meta in sorted(doc.fetch_status.items()) if meta.status == "partial"

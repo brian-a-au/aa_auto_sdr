@@ -12,7 +12,7 @@ from typing import Any
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
-from aa_auto_sdr.output._helpers import escape_pipe, stringify_cell
+from aa_auto_sdr.output._helpers import escape_pipe, render_provenance_line, render_provenance_pairs, stringify_cell
 from aa_auto_sdr.output.coverage import CoverageRow, CoverageState, coverage_rows, quality_status, quality_status_line
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -55,6 +55,7 @@ def _summary_table(doc: SdrDocument) -> str:
         ("Currency", doc.report_suite.currency or ""),
         ("Captured at", doc.captured_at.isoformat()),
         ("Tool version", doc.tool_version),
+        *render_provenance_pairs(doc),
         ("Dimensions", str(len(doc.dimensions))),
         ("Metrics", str(len(doc.metrics))),
         ("Segments", str(len(doc.segments))),
@@ -83,12 +84,18 @@ def _section(heading: str, items: list[Any], cls_name: str, coverage: CoverageRo
     return f"## {heading}\n\n{note}{_table(headers, rows)}"
 
 
+def _render_note(doc: SdrDocument) -> list[str]:
+    line = render_provenance_line(doc)
+    return [] if line is None else [f"> {escape_pipe(line)}\n"]
+
+
 def _document(doc: SdrDocument) -> str:
     rs = doc.report_suite
     coverage = coverage_rows(doc)
     parts = [
         f"# SDR — {rs.name} ({rs.rsid})\n",
         f"> Captured at {doc.captured_at.isoformat()} · tool version {doc.tool_version}\n",
+        *_render_note(doc),
         "## Coverage\n",
         _coverage_table(coverage),
         "## Quality\n",

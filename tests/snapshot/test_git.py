@@ -66,3 +66,21 @@ def test_git_show_raises_outside_repo(tmp_path: Path) -> None:
     """Run against a directory that isn't a git repo."""
     with pytest.raises(SnapshotResolveError):
         git_show(ref="HEAD", path="anything.json", repo_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("ref", "path"),
+    [
+        ("--output=/tmp/pwned", "x.json"),
+        ("-p", "x.json"),
+        ("HEAD", "-x.json"),
+        ("HEAD", "--help"),
+    ],
+)
+def test_git_show_rejects_option_like_ref_or_path(ref: str, path: str, tmp_path: Path, monkeypatch) -> None:
+    def _no_subprocess(*args, **kwargs):
+        raise AssertionError("git must not be invoked for an option-like ref or path")
+
+    monkeypatch.setattr(subprocess, "run", _no_subprocess)
+    with pytest.raises(SnapshotResolveError, match="must not start with '-'"):
+        git_show(ref=ref, path=path, repo_root=tmp_path)
