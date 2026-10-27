@@ -13,7 +13,7 @@ Diffs run on the **normalized model**, not on rendered files — renaming a colu
 
 ## Snapshot file format
 
-Schema: `aa-sdr-snapshot/v4`. Sorted keys, atomic writes, git-diff-friendly out of the box. Loaders read older majors (`v1`, `v2`, `v3`) forward-compat — see `CHANGELOG.md` for the per-version field additions.
+Schema: `aa-sdr-snapshot/v4` for a full capture, `aa-sdr-snapshot/v5` for a filtered one. Sorted keys, atomic writes, git-diff-friendly out of the box. Loaders read older majors (`v1`, `v2`, `v3`) and `v4` files without `collected_components` forward-compat — see `CHANGELOG.md` for the per-version field additions.
 
 ```json
 {
@@ -21,6 +21,10 @@ Schema: `aa-sdr-snapshot/v4`. Sorted keys, atomic writes, git-diff-friendly out 
   "rsid": "demo.prod",
   "captured_at": "2026-04-26T17:29:01+00:00",
   "tool_version": "X.Y.Z",
+  "collected_components": [
+    "calculated_metrics", "classifications", "dimensions",
+    "metrics", "segments", "virtual_report_suites"
+  ],
   "degraded_components": [],
   "partial_components": {},
   "quality": {
@@ -43,7 +47,31 @@ Schema: `aa-sdr-snapshot/v4`. Sorted keys, atomic writes, git-diff-friendly out 
 
 `degraded_components` (a list of component types whose fetch returned no data) and `partial_components` (a map of component type → reduced expansion level) are always present — empty by default. The `quality` block is `null` when no audit ran; when populated it carries `naming_audit`, `stale_components`, `issues`, and `summary`.
 
-The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load forward-compat: `v1` envelopes load with `degraded_components` / `partial_components` defaulted to empty and `quality` defaulted to `null`.
+### Capture scope (`collected_components`)
+
+`collected_components` is the sorted list of component families the capture requested. An empty array under `components` cannot tell "this family was excluded" apart from "this family really has no rows", so the scope list records which one it is. Scope says what was requested, not how the fetch went: a degraded family is still listed here and also appears in `degraded_components`.
+
+Which schema a new snapshot gets depends on its scope:
+
+| Capture | `schema` | Why |
+| --- | --- | --- |
+| All six families collected | `aa-sdr-snapshot/v4` | Older readers ignore the extra key, so full captures stay readable by them. |
+| Any family left out | `aa-sdr-snapshot/v5` | Older readers refuse v5 with a schema error instead of reading excluded families as deletions. |
+
+Reading rules:
+
+| Envelope | `collected_components` | Result |
+| --- | --- | --- |
+| `v5` | required | Missing, not a list, unknown or duplicate names → `SnapshotCorruptError`. |
+| `v4` | optional | Same checks when present, and the list must name all six families. |
+| `v1`–`v4` without the key | absent | Scope is unknown. It is never inferred from empty arrays, and the file is never rewritten. |
+| any | — | A family in `degraded_components` or `partial_components` must also be in `collected_components` when the list is present. |
+
+The SDR JSON output (`--format json`) carries the same `collected_components` list. The CLI still refuses `--metrics-only` / `--dimensions-only` together with `--snapshot` / `--auto-snapshot` (exit 2), and `--watch` always captures every family, so CLI-written snapshots are full v4 captures.
+
+### Schema compatibility
+
+The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v6`, `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load forward-compat: `v1` envelopes load with `degraded_components` / `partial_components` defaulted to empty and `quality` defaulted to `null`.
 
 ## Storage convention
 

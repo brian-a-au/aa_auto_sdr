@@ -185,7 +185,7 @@ def test_malformed_containers_are_corrupt_without_defaulting(path, value) -> Non
     assert env == before
 
 
-@pytest.mark.parametrize("schema", ["aa-sdr-snapshot/v5", "foreign/v1"])
+@pytest.mark.parametrize("schema", ["aa-sdr-snapshot/v6", "foreign/v1"])
 def test_unsupported_string_schema_is_not_corruption(schema) -> None:
     from aa_auto_sdr.core.exceptions import SnapshotCorruptError
 

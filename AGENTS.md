@@ -142,9 +142,14 @@ Both flags are independent (either alone, or both together). Default
 behavior (both off) leaves the `quality` field as `None` (absent from
 JSON output).
 
-Snapshot envelope schema is `aa-sdr-snapshot/v4`. Older majors (`v1`,
-`v2`, `v3`) remain readable with missing fields defaulted. See
-`CHANGELOG.md` for the per-version field additions.
+Snapshot envelope schema is `aa-sdr-snapshot/v4` for a full capture and
+`aa-sdr-snapshot/v5` for a filtered one. Every new envelope carries a
+top-level `collected_components` list (the families the capture requested);
+the SDR JSON output carries the same key. Older majors (`v1`, `v2`, `v3`)
+and `v4` files without the key remain readable; their scope is unknown
+(`collected_components` absent), never inferred from empty arrays. See
+`docs/SNAPSHOT_DIFF.md` for the rules and `CHANGELOG.md` for the per-version
+field additions.
 
 ### Name resolution
 

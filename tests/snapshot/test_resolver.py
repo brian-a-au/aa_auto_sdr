@@ -204,3 +204,29 @@ def test_resolve_rsid_at_unknown_rsid_dir_raises(tmp_path: Path) -> None:
     """An rsid whose snapshot subdir does not exist under the profile dir → error."""
     with pytest.raises(SnapshotResolveError, match="no snapshots for"):
         resolve_snapshot("ghost.rsid@latest", profile_snapshot_dir=tmp_path, repo_root=None)
+
+
+def test_resolve_git_token_loads_v5(tmp_path: Path) -> None:
+    """A filtered (v5) snapshot tracked in git resolves with its scope intact."""
+    import shutil
+
+    for cmd in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "config", "user.email", "t@t"],
+        ["git", "config", "user.name", "t"],
+        ["git", "config", "commit.gpgsign", "false"],
+    ):
+        subprocess.run(cmd, cwd=tmp_path, check=True)
+    shutil.copy(Path(__file__).parent.parent / "fixtures" / "snapshot_v5_metrics_only.json", tmp_path / "snap.json")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "x"], cwd=tmp_path, check=True)
+    env = resolve_snapshot("git:HEAD:snap.json", profile_snapshot_dir=None, repo_root=tmp_path)
+    assert env["schema"] == "aa-sdr-snapshot/v5"
+    assert env["collected_components"] == ["metrics"]
+
+
+def test_resolve_path_token_legacy_has_unknown_scope(tmp_path: Path) -> None:
+    snap = tmp_path / "snap.json"
+    _write_snapshot(snap, "demo.prod", "2026-04-26T17:29:01+00:00")
+    env = resolve_snapshot(str(snap), profile_snapshot_dir=None, repo_root=None)
+    assert env.get("collected_components") is None

@@ -376,7 +376,7 @@ surface immediately.
 
 ### Snapshot envelope
 
-Current schema: `aa-sdr-snapshot/v4`. Snapshot files carry two top-level fetch-quality keys:
+Current schema: `aa-sdr-snapshot/v4` for a full capture, `aa-sdr-snapshot/v5` for a filtered one. Every new snapshot carries a top-level `collected_components` list naming the families the capture requested (see [`docs/SNAPSHOT_DIFF.md`](docs/SNAPSHOT_DIFF.md#capture-scope-collected_components)). Snapshot files also carry two top-level fetch-quality keys:
 
 - `degraded_components: list[str]` — component types whose fetch returned no
   data (e.g., when Adobe's VRS endpoint flapped). Empty by default.
