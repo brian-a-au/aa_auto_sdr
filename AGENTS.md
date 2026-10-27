@@ -253,8 +253,8 @@ Naming audits (`--audit-naming`, `--flag-stale`) are severity-tagged and machine
 | Flag | Effect |
 |------|--------|
 | `--quality-report {json,csv}` | Emit a standalone quality report alongside SDR output. Default filename `quality_report_<RSID>_<timestamp>.{json,csv}`. |
-| `--quality-policy <path>` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`. CLI flags always win over policy values. Hyphen / underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
-| `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `ExitCode.QUALITY` (17) if any issue at or above the threshold exists. SDR output and snapshot still emit normally. |
+| `--quality-policy <path>` | Load a JSON policy file. Top-level keys: `fail_on_quality`, `quality_report`, `naming`, `exceptions`. CLI flags always win over policy values. Hyphen / underscore canonicalization; optional `quality_policy` / `quality` envelope nesting. |
+| `--fail-on-quality {CRITICAL,HIGH,MEDIUM,LOW,INFO}` | Exit `ExitCode.QUALITY` (17) if any non-excepted issue at or above the threshold exists. Case-insensitive. SDR output and snapshot still emit normally. |
 
 Severity ladder (most severe first):
 
@@ -263,20 +263,39 @@ Severity ladder (most severe first):
 | CRITICAL | (reserved) | future use |
 | HIGH | (reserved) | future use |
 | MEDIUM | `stale_keyword` | test, old, deprecated, legacy, obsolete, unused |
-| LOW | `stale_keyword`, `version_suffix`, `date_pattern`, `case_inconsistency` | temp, backup, copy, archive; `_v2`; `_20240101`; mixed case styles |
+| LOW | `stale_keyword`, `version_suffix`, `date_pattern`, `case_inconsistency`, `naming_convention` | temp, backup, copy, archive; `_v2`; `_20240101`; mixed case styles; a name that breaks a policy naming rule |
 | INFO | (reserved) | future use |
+
+Finding fields. Every entry in `quality.issues` (SDR JSON, snapshots, and `--quality-report json`) has `severity`, `category`, `type`, `item_id`, `item_name`, `issue`, `details`, plus:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `rule_id` | str | `dq.stale_keyword.v1`, `dq.version_suffix.v1`, `dq.date_pattern.v1`, `dq.naming_case_inconsistency.v1`, `dq.naming_convention.v1`; fallback `dq.custom.unknown`. `vN` changes only when a rule's meaning changes. |
+| `component_ids` | list[str] | Sorted affected component IDs. JSON and `--quality-report` keep the full list; CSV, Excel, Markdown, and HTML join them with `, ` and show at most 50, then `… (+N more)`. |
+| `occurrences` | int | Number of affected components, counted across all audited types. |
+| `excepted` | bool | True when a policy exception covers the finding. |
+| `exception_reason` | str or null | The exception's `reason`; null when not excepted. |
+
+`quality.summary` keeps `by_severity` and `total` for non-excepted findings and adds `excepted` (count of excepted findings). The gate verdict ignores excepted findings. The `--quality-report csv` columns are `severity,category,type,item_id,item_name,issue,rule_id,component_ids,occurrences,excepted,exception_reason`.
+
+Policy keys `naming` and `exceptions`:
+
+- `naming`: `{<type>: {"case": <style>, "pattern": <regex>}}`. `<type>` is one of `dimensions`, `metrics`, `segments`, `calculated_metrics`, `virtual_report_suites`, `classifications`. `case` is one of `snake_case`, `camelCase`, `PascalCase`, `Title Case`, `kebab-case`, `any`. `snake_case`, `camelCase`, `PascalCase`, and `kebab-case` are ASCII-only. `Title Case` allows lowercase a, an, and, as, at, by, for, in, of, on, or, per, the, to, vs, via, with after the first word. `pattern` is a user-supplied regex that must fully match the component name. Either key is optional, but a rule needs at least one. Violations produce `dq.naming_convention.v1` findings (LOW). Evaluated only in the naming audit, which a policy with `naming` rules always turns on (`quality_auto_enabled` with `reason=policy_naming`). Components with `standardComponent: true` are skipped; absent means checked, so use exceptions for flagged Adobe built-ins.
+- `exceptions`: `[{"rule_id": ..., "component_id": ... | "component_type": ..., "reason": ...}]`. `reason` is required and non-empty; exactly one of `component_id` / `component_type`; `rule_id` must be a catalogued rule ID (no wildcards). An exception that covers no finding logs a `quality_exception_unmatched` WARNING.
+- Schema errors (unknown keys, bad case styles, invalid regex, missing reason, unknown rule IDs, duplicate exceptions) exit `CONFIG` (10).
 
 Behavior:
 
 - **Auto-enable.** `--quality-report` or `--fail-on-quality` without
-  `--audit-naming` / `--flag-stale` auto-enables both audits.
+  `--audit-naming` / `--flag-stale` auto-enables both audits. A policy
+  with `naming` rules always turns on `--audit-naming`.
 - **Mode-scoping.** Quality flags outside SDR generation (`--stats`,
   the discovery/inspection list-actions, `--inventory-summary`,
   `--diff`) exit `USAGE` (2).
 - **Batch precedence.** `PARTIAL_SUCCESS` (14) outranks `QUALITY` (17).
   Build failures are more actionable than quality verdicts; users
   fixing partial failures re-run and then see the gate.
-- **Cache.** `quality.run_audits` is the production caller of `ValidationCache`. Cache key includes the severity-table version so mapping changes invalidate.
+- **Cache.** `quality.run_audits` is the production caller of `ValidationCache`. The cache is in memory for one run. Its key includes the severity-table version and a hash of the policy naming rules and exceptions.
 
 Note on `--max-issues`: there are *two* concepts with the same surface name. The CLI flag `--max-issues N` for `--diff` rendering is real and valid (caps per-component added/removed/modified counts in the rendered diff). The policy-file key `max_issues` (and `allow_partial`) are NOT supported keys in `--quality-policy` files — the loader rejects them with `ConfigError`.
 

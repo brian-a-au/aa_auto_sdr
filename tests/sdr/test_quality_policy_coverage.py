@@ -36,7 +36,10 @@ def test_write_quality_report_csv_to_stdout(capsys: pytest.CaptureFixture[str]) 
     write_quality_report(issues=issues, summary={"total": 1}, target="-", fmt="csv")
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert lines[0] == "severity,category,type,item_id,item_name,issue"
+    assert (
+        lines[0]
+        == "severity,category,type,item_id,item_name,issue,rule_id,component_ids,occurrences,excepted,exception_reason"
+    )
     assert lines[1].startswith("LOW,naming,version_suffix,")
 
 

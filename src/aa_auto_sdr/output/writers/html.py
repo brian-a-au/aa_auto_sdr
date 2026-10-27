@@ -13,7 +13,15 @@ from typing import Any
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.output._helpers import escape_html, render_provenance_line, render_provenance_pairs, stringify_cell
-from aa_auto_sdr.output.coverage import CoverageRow, CoverageState, coverage_rows, quality_status, quality_status_line
+from aa_auto_sdr.output.coverage import (
+    QUALITY_FINDING_HEADERS,
+    CoverageRow,
+    CoverageState,
+    coverage_rows,
+    quality_finding_rows,
+    quality_status,
+    quality_status_line,
+)
 from aa_auto_sdr.output.registry import register_writer
 from aa_auto_sdr.sdr.document import SdrDocument
 
@@ -98,8 +106,11 @@ def _coverage_section_html(rows: list[CoverageRow]) -> str:
 
 
 def _quality_section_html(doc: SdrDocument) -> str:
-    line = quality_status_line(quality_status(doc.quality))
-    return f"<section><h2>Quality</h2><p>{escape_html(line)}</p></section>"
+    status = quality_status(doc.quality)
+    line = quality_status_line(status)
+    rows = quality_finding_rows(status)
+    table = _table_html(QUALITY_FINDING_HEADERS, rows) if rows else ""
+    return f"<section><h2>Quality</h2><p>{escape_html(line)}</p>{table}</section>"
 
 
 def _summary_section_html(doc: SdrDocument) -> str:

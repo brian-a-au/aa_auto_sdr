@@ -779,6 +779,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     quality_grp.add_argument(
         "--fail-on-quality",
+        type=str.upper,
         choices=("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"),
         default=None,
         help="Exit with code 17 if any issue at or above this severity exists.",

@@ -82,6 +82,8 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `emitted` | bool | Whether the watch cycle emitted a `change` event (vs. suppressed by threshold). |
 | `cycles_completed` | int | Watch-loop terminal record — total cycles completed before stop. |
 | `rsids` | int / list[str] | Watch-loop start record — count or list of RSIDs being watched. |
+| `rule_id` | str | Quality rule ID (for example `dq.stale_keyword.v1`) on `quality_exception_unmatched`. |
+| `component_id` | str \| None | Component ID named by a policy exception; None when the exception targets a component type. |
 | `likely_cause` | str | VRS exhaust hint pointing at empty-tenant / permanent-endpoint shape error. Emitted on `vrs_unavailable` WARNING records only. |
 
 For the version each field was introduced, see [Appendix A — Event and field introductions](#appendix-a--event-and-field-introductions).
@@ -133,11 +135,12 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 - `batch_sampled` — INFO. `pipeline/batch.py::run_batch`. Fires once per `--batch` invocation that actually applies sampling (`--sample N` where `N < len(batch)`). No-op sampling (`N >= len(batch)`) suppresses the record. Carries `count` (post-sample size, what actually runs), `count_total` (pre-sample size), `sample_size` (the user-requested N), `sample_seed` (int or None), and `sample_strategy` (`random` or `stratified`).
 
-### Quality severity engine (3)
+### Quality severity engine (5)
 
 - `quality_audit_complete` — INFO. `sdr/quality.py::run_audits`. Fires once per audit run, regardless of whether `--fail-on-quality` was set. Carries `rsid`, `quality_total` (number of issues found) and `quality_by_severity` (dict mapping severity name to count).
 - `quality_gate_evaluated` — INFO. `sdr/quality.py::run_audits`. Fires only when `--fail-on-quality` was passed. Carries `rsid`, `threshold` (the configured severity name) and `verdict` (`pass`, `fail`, or `n/a`).
-- `quality_auto_enabled` — INFO. `cli/main.py::_dispatch`. Fires when the user passes `--quality-report` or `--fail-on-quality` without explicit `--audit-naming` / `--flag-stale`; auto-enables both. Carries `audit_naming` (bool) and `flag_stale` (bool).
+- `quality_auto_enabled` — INFO. `cli/main.py::_dispatch`. Fires when the tool turns an audit on for the user. Carries `audit_naming` (bool), `flag_stale` (bool), and `reason`: `quality_flags` when `--quality-report` or `--fail-on-quality` was passed without `--audit-naming` / `--flag-stale` (both audits are enabled), or `policy_naming` when the `--quality-policy` file has `naming` rules and `--audit-naming` was off (only the naming audit is enabled).
+- `quality_exception_unmatched` — WARNING. `sdr/quality.py::run_audits`. Fires once per policy exception that covered no finding of its rule in this report suite, which usually means a typo in `component_id` or `rule_id`. Silent when the exception's audit did not run. Not repeated on a validation-cache hit. Carries `rsid`, `rule_id`, `component_id`, and `component_type` (one of the last two is None).
 - `quality_policy_loaded` — INFO. `sdr/quality_policy.py`. Carries `policy_path`.
 
 ### Drift / trending windows (2)
@@ -326,3 +329,4 @@ Most maintainers will not need this table. It records when each event and field 
 | Watch: `settings_changes` field on `watch_cycle_complete` | v1.23.0 |
 | Template overflow sheet: `template_overflow_sheet_written` (WARNING); reuses `sheet` and `count` | v1.23.0 |
 | Covering baselines: `baseline_candidate_skipped` (WARNING) | v1.24.0 |
+| Quality conventions: `quality_exception_unmatched` (WARNING); `reason` (`quality_flags` / `policy_naming`) on `quality_auto_enabled`; vocabulary: `rule_id`, `component_id` | v1.24.0 |

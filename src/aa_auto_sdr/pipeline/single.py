@@ -14,7 +14,7 @@ from aa_auto_sdr.output import registry
 from aa_auto_sdr.output.notion_client_guard import resolve_notion_company
 from aa_auto_sdr.pipeline.models import RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter, build_sdr
-from aa_auto_sdr.sdr.quality import SeverityLevel
+from aa_auto_sdr.sdr.quality import QualityRules, SeverityLevel
 from aa_auto_sdr.snapshot.git import GitOpResult
 
 if TYPE_CHECKING:
@@ -35,6 +35,7 @@ def run_single(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: SeverityLevel | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0 — "json" | "csv" | None
+    quality_rules: QualityRules | None = None,
     cache: ValidationCache | None = None,  # v1.12.0
     vrs_source: VrsSource | None = None,
     # v1.15.0 — git integration
@@ -92,6 +93,7 @@ def run_single(
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
+            quality_rules=quality_rules,
             cache=cache,
             vrs_source=vrs_source,
         )
@@ -185,4 +187,9 @@ def _rehydrate_issue(d: dict):
         item_name=d["item_name"],
         issue=d["issue"],
         details=d.get("details", {}),
+        rule_id=d.get("rule_id"),
+        component_ids=tuple(d.get("component_ids") or ()),
+        occurrences=int(d.get("occurrences", 1)),
+        excepted=bool(d.get("excepted", False)),
+        exception_reason=d.get("exception_reason"),
     )

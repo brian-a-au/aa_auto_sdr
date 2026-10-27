@@ -30,6 +30,7 @@ from aa_auto_sdr.pipeline.sampling import sample_rsids
 from aa_auto_sdr.pipeline.single import run_single
 from aa_auto_sdr.pipeline.workers import run_parallel
 from aa_auto_sdr.sdr.builder import ComponentFilter
+from aa_auto_sdr.sdr.quality import QualityRules
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ def run_batch(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -137,6 +139,7 @@ def run_batch(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             cache=cache,
             vrs_source=vrs_source,
             git_commit=git_commit,
@@ -169,6 +172,7 @@ def run_batch(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
@@ -214,6 +218,7 @@ def _run_sequential(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     cache: ValidationCache | None = None,  # v1.12.0
     vrs_source: VrsSource | None = None,
     # v1.15.0 — git integration
@@ -278,6 +283,7 @@ def _run_sequential(
                 flag_stale=flag_stale,
                 fail_on_quality=_foq,
                 quality_report=quality_report,
+                quality_rules=quality_rules,
                 cache=cache,
                 vrs_source=vrs_source,
                 git_commit=git_commit,

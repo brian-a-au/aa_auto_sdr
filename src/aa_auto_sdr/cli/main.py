@@ -78,7 +78,11 @@ def _apply_quality_auto_enable(ns: argparse.Namespace) -> None:
     Per spec §3.9: `--quality-report` or `--fail-on-quality` need at least one
     audit to produce findings. If neither audit flag is on, enable both and
     emit `quality_auto_enabled` (spec §3.12) so users see the implicit toggle
-    in the log stream.
+    in the log stream (`reason=quality_flags`).
+
+    Policy `naming` rules only run inside the naming audit, so a policy that
+    sets them always turns `--audit-naming` on (`reason=policy_naming`),
+    whatever the other flags say.
     """
     if (getattr(ns, "quality_report", None) or getattr(ns, "fail_on_quality", None)) and not (
         getattr(ns, "audit_naming", False) or getattr(ns, "flag_stale", False)
@@ -86,8 +90,18 @@ def _apply_quality_auto_enable(ns: argparse.Namespace) -> None:
         ns.audit_naming = True
         ns.flag_stale = True
         logger.info(
-            "quality_auto_enabled audit_naming=true flag_stale=true",
-            extra={"audit_naming": True, "flag_stale": True},
+            "quality_auto_enabled audit_naming=true flag_stale=true reason=quality_flags",
+            extra={"audit_naming": True, "flag_stale": True, "reason": "quality_flags"},
+        )
+        return
+    rules = getattr(ns, "quality_rules", None)
+    if rules is not None and rules.naming and not getattr(ns, "audit_naming", False):
+        ns.audit_naming = True
+        flag_stale = bool(getattr(ns, "flag_stale", False))
+        logger.info(
+            "quality_auto_enabled audit_naming=true flag_stale=%s reason=policy_naming",
+            str(flag_stale).lower(),
+            extra={"audit_naming": True, "flag_stale": flag_stale, "reason": "policy_naming"},
         )
 
 
@@ -862,6 +876,9 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             return ExitCode.CONFIG.value
         explicit = {tok.lstrip("-").replace("-", "_") for tok in argv if tok.startswith("--")}
         apply_policy_defaults(cli_namespace=ns, policy=policy, explicitly_set=explicit)
+        # Naming rules + reasoned exceptions have no CLI equivalent; they
+        # travel to the quality engine as one object.
+        ns.quality_rules = policy.rules
         logger.info(
             "quality_policy_loaded policy_path=%s fail_on_quality=%s quality_report=%s",
             ns.quality_policy,
@@ -1304,6 +1321,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             sample_stratified=ns.sample_stratified,
             fail_on_quality=ns.fail_on_quality,
             quality_report=ns.quality_report,
+            quality_rules=getattr(ns, "quality_rules", None),
             git_commit=getattr(ns, "git_commit", False),
             git_push=getattr(ns, "git_push", False),
             git_message=getattr(ns, "git_message", None),
@@ -1349,6 +1367,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         name_match=ns.name_match,
         fail_on_quality=ns.fail_on_quality,
         quality_report=ns.quality_report,
+        quality_rules=getattr(ns, "quality_rules", None),
         git_commit=getattr(ns, "git_commit", False),
         git_push=getattr(ns, "git_push", False),
         git_message=getattr(ns, "git_message", None),

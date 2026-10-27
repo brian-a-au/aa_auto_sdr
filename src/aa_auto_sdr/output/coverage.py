@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from aa_auto_sdr.output._helpers import stringify_cell
 from aa_auto_sdr.sdr.document import SdrDocument
-from aa_auto_sdr.sdr.quality import SeverityLevel
+from aa_auto_sdr.sdr.quality import SeverityLevel, rule_id_for
 
 # Report order (matches the component sections in every writer), with the
 # human heading for each family.
@@ -116,12 +117,14 @@ class QualityStatus:
     total: int = 0
     by_severity: dict[str, int] | None = None
     issues: tuple[dict[str, Any], ...] = ()
+    excepted: int = 0
 
 
 def quality_status(quality: dict[str, Any] | None) -> QualityStatus:
     """Summarize `SdrDocument.quality`. `None` means no audit ran.
 
-    Tolerates older quality blocks that predate `issues` / `summary`."""
+    Tolerates older quality blocks that predate `issues` / `summary` /
+    `excepted`. Counts and totals cover non-excepted findings only."""
     if quality is None:
         return QualityStatus(audited=False)
     issues = tuple(i for i in quality.get("issues") or [] if isinstance(i, dict))
@@ -134,17 +137,106 @@ def quality_status(quality: dict[str, Any] | None) -> QualityStatus:
     else:
         for issue in issues:
             sev = str(issue.get("severity", ""))
-            if sev in by_severity:
+            if sev in by_severity and not issue.get("excepted"):
                 by_severity[sev] += 1
+    excepted_raw = summary.get("excepted")
+    excepted = int(excepted_raw) if excepted_raw is not None else sum(1 for i in issues if i.get("excepted"))
     total = summary.get("total")
     return QualityStatus(
         audited=True,
         verdict=summary.get("verdict"),
         threshold=summary.get("policy_threshold"),
-        total=int(total) if total is not None else len(issues),
+        total=int(total) if total is not None else len(issues) - excepted,
         by_severity=by_severity,
         issues=issues,
+        excepted=excepted,
     )
+
+
+# Issue-table columns for Excel and the CSV quality_issues file. The first
+# seven are the original columns; the rest are additive.
+QUALITY_ISSUE_COLUMNS: list[str] = [
+    "severity",
+    "category",
+    "type",
+    "item_id",
+    "item_name",
+    "issue",
+    "details",
+    "rule_id",
+    "component_ids",
+    "occurrences",
+    "exception",
+]
+
+
+def issue_rule_id(issue: dict[str, Any]) -> str:
+    """The finding's rule ID; derived from `type` for blocks that predate rule IDs."""
+    return str(issue.get("rule_id") or rule_id_for(str(issue.get("type", ""))))
+
+
+def issue_exception_label(issue: dict[str, Any]) -> str:
+    """`excepted (<reason>)` for an excepted finding, else empty."""
+    if not issue.get("excepted"):
+        return ""
+    reason = issue.get("exception_reason") or ""
+    return f"excepted ({reason})" if reason else "excepted"
+
+
+# Human formats show at most this many component IDs per finding; JSON and
+# --quality-report keep the full list.
+COMPONENT_IDS_DISPLAY_CAP = 50
+
+
+def _capped_ids(ids: list[Any]) -> str:
+    shown = ", ".join(str(i) for i in ids[:COMPONENT_IDS_DISPLAY_CAP])
+    extra = len(ids) - COMPONENT_IDS_DISPLAY_CAP
+    return f"{shown}… (+{extra} more)" if extra > 0 else shown
+
+
+def quality_issue_cells(issue: dict[str, Any]) -> list[str]:
+    """One issue as display strings, in QUALITY_ISSUE_COLUMNS order."""
+    ids = issue.get("component_ids") or []
+    occurrences = issue.get("occurrences")
+    by_col: dict[str, str] = {
+        "rule_id": issue_rule_id(issue),
+        "component_ids": _capped_ids(ids),
+        "occurrences": "" if occurrences is None else str(occurrences),
+        "exception": issue_exception_label(issue),
+    }
+    return [by_col[c] if c in by_col else stringify_cell(issue.get(c)) for c in QUALITY_ISSUE_COLUMNS]
+
+
+# Compact columns for the Markdown and HTML findings tables.
+QUALITY_FINDING_HEADERS: list[str] = [
+    "Severity",
+    "Rule ID",
+    "Item",
+    "Issue",
+    "Component IDs",
+    "Occurrences",
+    "Exception",
+]
+
+
+def quality_finding_rows(status: QualityStatus) -> list[list[str]]:
+    """Rows for the Markdown / HTML findings table, in QUALITY_FINDING_HEADERS order."""
+    rows: list[list[str]] = []
+    for issue in status.issues:
+        cells = dict(zip(QUALITY_ISSUE_COLUMNS, quality_issue_cells(issue), strict=True))
+        item = cells["item_id"] + (f" ({cells['item_name']})" if cells["item_name"] else "")
+        rows.append(
+            [
+                cells["severity"],
+                cells["rule_id"],
+                item,
+                cells["issue"],
+                cells["component_ids"],
+                cells["occurrences"],
+                cells["exception"],
+            ],
+        )
+    return rows
 
 
 def quality_status_line(status: QualityStatus) -> str:
@@ -154,6 +246,8 @@ def quality_status_line(status: QualityStatus) -> str:
     noun = "issue" if status.total == 1 else "issues"
     counts = ", ".join(f"{sev} {n}" for sev, n in (status.by_severity or {}).items())
     findings = f"{status.total} {noun}" + (f" ({counts})" if counts else "")
+    if status.excepted:
+        findings += f", plus {status.excepted} excepted"
     if status.verdict in (None, "", "n/a"):
         return f"Quality audit ran with no gate policy: {findings}."
     threshold = f" at threshold {status.threshold}" if status.threshold else ""

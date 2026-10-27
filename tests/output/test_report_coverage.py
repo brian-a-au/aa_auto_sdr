@@ -340,7 +340,8 @@ def test_csv_quality_issues_traces_verdict(metrics_only_doc: SdrDocument, tmp_pa
     paths = CsvWriter().write(metrics_only_doc, tmp_path / "out.csv")
     assert tmp_path / "out.quality_issues.csv" in paths
     rows = _read_csv(tmp_path / "out.quality_issues.csv")
-    assert rows[0] == ["severity", "category", "type", "item_id", "item_name", "issue", "details"]
+    assert rows[0][:7] == ["severity", "category", "type", "item_id", "item_name", "issue", "details"]
+    assert rows[0][7:] == ["rule_id", "component_ids", "occurrences", "exception"]
     assert len(rows) == 3
     assert rows[1][0] == "HIGH"
     assert rows[1][3] == "variables/evar1"

@@ -43,6 +43,7 @@ from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
 from aa_auto_sdr.pipeline._results import output_bytes
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult
+from aa_auto_sdr.sdr.quality import QualityRules
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,7 @@ def run(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -181,6 +183,7 @@ def run(
             sample_stratified=sample_stratified,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
@@ -240,6 +243,7 @@ def _run_impl(
     sample_stratified: bool = False,  # v1.10.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -522,6 +526,7 @@ def _run_impl(
             sample_stratified=sample_stratified,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,

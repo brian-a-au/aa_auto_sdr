@@ -52,9 +52,10 @@ class TestFailOnQualityChoices:
         ns = build_parser().parse_args(["rs1", "--fail-on-quality", sev])
         assert ns.fail_on_quality == sev
 
-    def test_lowercase_rejected(self) -> None:
-        with pytest.raises(SystemExit):
-            build_parser().parse_args(["rs1", "--fail-on-quality", "high"])
+    def test_lowercase_accepted_and_normalized(self) -> None:
+        # Case-insensitive, matching cja_auto_sdr.
+        ns = build_parser().parse_args(["rs1", "--fail-on-quality", "high"])
+        assert ns.fail_on_quality == "HIGH"
 
     def test_unknown_severity_rejected(self) -> None:
         with pytest.raises(SystemExit):

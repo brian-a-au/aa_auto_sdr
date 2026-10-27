@@ -30,6 +30,7 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline._results import error_exit_code, output_bytes
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult, RunResult
 from aa_auto_sdr.sdr.builder import ComponentFilter
+from aa_auto_sdr.sdr.quality import QualityRules
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ def _run_single_for_batch(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -107,6 +109,7 @@ def _run_single_for_batch(
         flag_stale=flag_stale,
         fail_on_quality=foq,
         quality_report=quality_report,
+        quality_rules=quality_rules,
         cache=cache,  # type: ignore[arg-type]
         vrs_source=vrs_source,
         git_commit=git_commit,
@@ -138,6 +141,7 @@ def _run_with_worker_id(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -175,6 +179,7 @@ def _run_with_worker_id(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
@@ -213,6 +218,7 @@ def run_parallel(
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
+    quality_rules: QualityRules | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -282,6 +288,7 @@ def run_parallel(
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
+            quality_rules=quality_rules,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
