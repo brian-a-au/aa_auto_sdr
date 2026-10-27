@@ -2,7 +2,16 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.22.0] — 2026-10-27
+
+This release makes every capture say what it collected, and makes comparisons
+and reports respect that. Filtered runs can now be saved as snapshots without
+their left-out families showing up as deletions, and every report shows the
+state of each component family and of the quality audit.
+
+Upgrade note: snapshots from filtered runs use the new
+`aa-sdr-snapshot/v5` schema, which older releases refuse to read. Full
+captures stay on `aa-sdr-snapshot/v4` and remain readable by older releases.
 
 ### Added
 - Captures now record their scope. SDR JSON output and every new snapshot
