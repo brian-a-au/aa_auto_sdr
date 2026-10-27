@@ -137,6 +137,7 @@ def compare(
         a_tool_version=a["tool_version"],
         b_tool_version=b["tool_version"],
         report_suite_deltas=rs_deltas,
+        settings_changes=len(rs_deltas),
         components=components,
         rsid_mismatch=a["rsid"] != b["rsid"],
     )

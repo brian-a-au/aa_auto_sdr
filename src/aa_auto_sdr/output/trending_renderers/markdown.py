@@ -59,6 +59,7 @@ def _render_one(report: TrendingReport, out: StringIO) -> None:
         out.write("_Drift not computed._\n")
         return
     out.write(f"- **Total changes:** {drift.total_changes}\n")
+    out.write(f"- **Settings changes:** {drift.settings_changes} (report-suite fields; not in total)\n")
     out.write(
         f"- **Volatility score:** {drift.volatility_score:.3f} (0.0=stable, 1.0=fully churned per pair)\n",
     )

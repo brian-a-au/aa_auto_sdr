@@ -83,6 +83,7 @@ class SnapshotPoint:
     tool_version: str
     counts: ComponentCounts
     delta_by_type: dict[str, LifecycleDelta] | None = None  # None for the first point
+    settings_changes: int | None = None  # changed report-suite fields vs prev; None for the first point
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +94,7 @@ class DriftSummary:
     volatility_score: float  # 0.0–1.0
     most_active_component_type: str | None
     churn_by_component_type: dict[str, int] = field(default_factory=dict)
+    settings_changes: int = 0  # report-suite field changes; never part of total_changes
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +168,7 @@ def _compute_drift_summary(series: list[SnapshotPoint]) -> DriftSummary:
         volatility_score=round(volatility, 3),
         most_active_component_type=most_active,
         churn_by_component_type=churn_by_type,
+        settings_changes=sum(point.settings_changes or 0 for point in series),
     )
 
 
@@ -193,6 +196,7 @@ def compute_trending(
     for p in matching:
         snap = load_snapshot(p)
         delta_by_type: dict[str, LifecycleDelta] | None = None
+        settings_changes: int | None = None
         if prev is not None:
             diff = compare(
                 a=prev,
@@ -201,7 +205,8 @@ def compute_trending(
                 extended_fields=extended_fields,
             )
             delta_by_type = {cd.component_type: _summarize_diff(cd) for cd in diff.components}
-        series.append(_to_snapshot_point(snap, delta_by_type))
+            settings_changes = diff.settings_changes
+        series.append(_to_snapshot_point(snap, delta_by_type, settings_changes))
         prev = snap
         last = snap
 
@@ -241,6 +246,7 @@ def _path_in_window(path: Path, window: WindowSpec) -> bool:
 def _to_snapshot_point(
     envelope: dict[str, Any],
     delta_by_type: dict[str, LifecycleDelta] | None,
+    settings_changes: int | None = None,
 ) -> SnapshotPoint:
     """Convert a snapshot envelope dict into a SnapshotPoint."""
     components = envelope.get("components", {})
@@ -259,6 +265,7 @@ def _to_snapshot_point(
         tool_version=envelope.get("tool_version", ""),
         counts=counts,
         delta_by_type=delta_by_type,
+        settings_changes=settings_changes,
     )
 
 

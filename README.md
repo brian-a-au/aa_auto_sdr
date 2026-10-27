@@ -59,7 +59,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | | Four diff renderers: console (ANSI-colored), JSON, Markdown, **`pr-comment`** (compact GFM with collapsible `<details>` for GitHub PRs) |
 | | Diff modifiers: `--side-by-side`, `--summary`, `--ignore-fields description,tags` |
 | | Diff polish: `--quiet-diff`, `--diff-labels A=… B=…`, `--reverse-diff`, `--changes-only`, `--show-only TYPES`, `--max-issues N` |
-| | `--warn-threshold N` exits 3 when total changes ≥ N (CI signal) |
+| | `--warn-threshold N` exits 3 when total component changes ≥ N (CI signal) |
 | | `$GITHUB_STEP_SUMMARY` auto-append for `--diff` when env var is set |
 | | Identity by component ID, never by name (a name change is *modification*) |
 | | Value normalization (whitespace, NaN/None/`""`, order-insensitive `tags`/`categories`) suppresses false-positive diffs |
@@ -348,7 +348,7 @@ uv run aa_auto_sdr rs_prod_us --watch --interval 1h --agent-mode | jq -c .
 uv run aa_auto_sdr rs_prod_us --watch --interval 1h --format notion
 ```
 
-Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0. With `--format notion`, Notion publishes on the baseline cycle and on `change` events; zero-change and error cycles are skipped.
+Three event types: `baseline` (first cycle, always emitted), `change` (when `total_changes >= --watch-threshold`, or when any report-suite setting changed), and `error` (per-RSID fetch failure — loop continues). SIGINT exits 0. With `--format notion`, Notion publishes on the baseline cycle and on `change` events; zero-change and error cycles are skipped.
 
 ### Git-versioned snapshot audit trail
 

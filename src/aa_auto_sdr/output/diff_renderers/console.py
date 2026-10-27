@@ -68,6 +68,9 @@ def render_console(
 
     if summary:
         # Summary mode: per-component-type counts only.
+        if report.report_suite_deltas:
+            fields = ", ".join(d.field for d in report.report_suite_deltas)
+            buf.write(colors.warn(f"Report suite settings: {report.settings_changes} changed ({fields})") + "\n")
         for cd in report.components:
             label = _TYPE_LABELS.get(cd.component_type, cd.component_type)
             if cd.suppressed:

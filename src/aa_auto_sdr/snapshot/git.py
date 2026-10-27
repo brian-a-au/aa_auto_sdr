@@ -292,6 +292,9 @@ def generate_commit_message(
             r = counts.get("removed", 0)
             m = counts.get("modified", 0)
             lines.append(f"{ct + ':':<12}+{a} -{r} ~{m}")
+        settings = change_summary.get("settings_changes")
+        if settings:
+            lines.append(f"{'settings:':<12}{settings} changed")
         body = "\n".join(lines) if lines else "Snapshot updated (no per-type counts available)"
 
     parts = [subject, "", body]

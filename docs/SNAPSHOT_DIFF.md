@@ -250,11 +250,12 @@ Metrics: +0 added, -1 removed, ~0 modified, 32 unchanged
     },
     ...
   ],
-  "rsid_mismatch": false
+  "rsid_mismatch": false,
+  "settings_changes": 1
 }
 ```
 
-Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`. Keys are emitted alphabetically sorted (shown grouped above for readability). `report_suite_deltas` carries the report-suite header changes (timezone, currency, etc.) and is an empty list when the header is unchanged; it is also emptied in `--summary` mode. Each component carries `suppressed` / `suppression_reason` — non-null only when the [comparability rules](#comparability-capture-scope-and-fetch-quality) skip that component's per-item diff — and `comparability` (`comparable`, `excluded`, `unknown`, `degraded`, or `partial`).
+Sorted keys, stable shape, jq-friendly. Pipe-safe via `--output -`. Keys are emitted alphabetically sorted (shown grouped above for readability). `report_suite_deltas` carries the report-suite header changes (timezone, currency, etc.) and is an empty list when the header is unchanged; it is also emptied in `--summary` mode. `settings_changes` counts those changed fields (one per field) and is kept in `--summary` mode. It is never added to component totals. Each component carries `suppressed` / `suppression_reason` — non-null only when the [comparability rules](#comparability-capture-scope-and-fetch-quality) skip that component's per-item diff — and `comparability` (`comparable`, `excluded`, `unknown`, `degraded`, or `partial`).
 
 ### `markdown`
 
@@ -394,7 +395,7 @@ aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | 
 - `--quiet-diff` — suppress unchanged-count trailers.
 - `--diff-labels Source=Before Target=After` — override the default Source/Target labels.
 - `--reverse-diff` — swap a/b before compare.
-- `--warn-threshold N` — exit `3` (WARN) if total changes are `>= N`. Useful in CI.
+- `--warn-threshold N` — exit `3` (WARN) if total component changes are `>= N`. Report-suite setting changes are always shown (every format, including `--summary` and `pr-comment`) but do not count. Useful in CI.
 - `--color-theme {default,accessible}` — console diff color palette.
 
 ## Sugar for the common diff
@@ -456,7 +457,7 @@ Trending renderers live under `output/trending_renderers/` (`console`, `json`, `
 aa_auto_sdr --watch --interval 1h <RSID> --profile prod
 ```
 
-`--watch` runs a foreground loop that captures a fresh snapshot at each `--interval` tick, diffs it against the prior baseline, and emits NDJSON events to stdout (`aa-watch-event/v1`). Event types: `baseline` (first cycle), `change` (when at least `--watch-threshold` components differ; default 1), `error`.
+`--watch` runs a foreground loop that captures a fresh snapshot at each `--interval` tick, diffs it against the prior baseline, and emits NDJSON events to stdout (`aa-watch-event/v1`). Event types: `baseline` (first cycle), `change` (when at least `--watch-threshold` components differ, default 1, or when any report-suite setting changed), `error`. `summary.settings_changes` counts changed setting fields; setting changes ignore the threshold and never enter component counts.
 
 Watch counts only comparable component changes after applying `--ignore-fields`
 and the default extended-field filtering. Sections that are not comparable (a

@@ -258,7 +258,7 @@ Exit codes: `0`, `3` (`--warn-threshold` exceeded), `15` (bad format/output comb
 | `--quiet-diff` | Suppress unchanged trailers; show only changed sections. |
 | `--diff-labels A=… B=…` | Override "Source" / "Target" labels in renderer output. |
 | `--reverse-diff` | Swap a and b before compare. |
-| `--warn-threshold N` | Exit 3 (`WARN`) if total changes ≥ N. Diff itself still runs. |
+| `--warn-threshold N` | Exit 3 (`WARN`) if total component changes ≥ N. Report-suite setting changes are always shown but do not count. Diff itself still runs. |
 | `--changes-only` | In rendered output, drop component types with no changes. |
 | `--show-only TYPES` | Restrict diff output to listed types (CSV: `metrics,dimensions`). |
 | `--max-issues N` | Cap each component's added/removed/modified to N items in render. |
@@ -305,7 +305,7 @@ aa_auto_sdr <RSID> --watch --interval 1h --profile prod
 |----|----|
 | `--watch` | Foreground monitoring loop. Each cycle: fetch, snapshot, diff, emit one NDJSON event on stdout (`aa-watch-event/v1`). Event types: `baseline` / `change` / `error`. SIGINT/SIGTERM exit 0. |
 | `--interval Nh\|Nd\|Nw` | Required with `--watch`. |
-| `--watch-threshold N` | Minimum total change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). |
+| `--watch-threshold N` | Minimum total component change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). A report-suite setting change always emits a `change` event, whatever the threshold. |
 
 Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy` and `--fail-on-quality` (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
 
@@ -506,8 +506,9 @@ aa_auto_sdr --notion-repair-database --yes
 
 ### Watch with Notion
 
-`--watch --format notion` publishes baseline captures and changes meeting
-`total_changes >= max(--watch-threshold, 1)`. A failed publication remains pending
+`--watch --format notion` publishes baseline captures, changes meeting
+`total_changes >= max(--watch-threshold, 1)`, and any cycle with a report-suite
+setting change. A failed publication remains pending
 and is retried once after each later successful capture, including unchanged
 cycles. A newer eligible capture replaces the pending snapshot; below-threshold
 captures do not. Fetch/history errors do not trigger publication or clear pending

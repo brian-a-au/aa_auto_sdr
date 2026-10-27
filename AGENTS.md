@@ -286,6 +286,9 @@ Drift summary (always included; no opt-in flag) carries:
 - `most_active_component_type` — type with the highest churn over the
   window (or `null` if zero churn).
 - `churn_by_component_type` — per-type counts.
+- `settings_changes` — changed report-suite fields over the window, counted
+  separately and never part of `total_changes`. Each series point also carries
+  its own `settings_changes` (`null` for the first point).
 
 Behavior:
 
@@ -327,7 +330,10 @@ uv run aa_auto_sdr rs_prod_us --watch --interval 1h --log-format json > events.n
 Event types (schema `aa-watch-event/v1`, NDJSON on stdout):
 
 - `baseline` — first cycle for an RSID; always emitted (no prior snapshot to diff against).
-- `change` — subsequent cycle where `total_changes >= watch_threshold`.
+- `change` — subsequent cycle where `total_changes >= watch_threshold`, or
+  where any report-suite setting changed (timezone, currency, name, and so
+  on). Setting changes ignore the threshold; `total_changes` stays
+  component-only. `summary.settings_changes` counts changed setting fields.
 
 `summary.by_type.<family>` entries carry `added`, `removed`, `modified`, and
 `comparability` (`comparable`, `excluded`, `unknown`, `degraded`, or
@@ -350,8 +356,9 @@ stderr/logs, preserving stdout NDJSON.
 
 SIGINT / SIGTERM → exit 0. `--quality-policy` and `--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
-`--watch --format notion` publishes baseline captures and changes meeting
-`total_changes >= max(--watch-threshold, 1)`. A failed publication remains pending
+`--watch --format notion` publishes baseline captures, changes meeting
+`total_changes >= max(--watch-threshold, 1)`, and any cycle with a report-suite
+setting change. A failed publication remains pending
 and is retried once after each later successful capture, including unchanged
 cycles. A newer eligible capture replaces the pending snapshot; below-threshold
 captures do not. Fetch/history errors do not trigger publication or clear pending

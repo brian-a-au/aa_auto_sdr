@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+- Report-suite setting changes (timezone, currency, name, and so on) are now
+  counted as `settings_changes`, one per changed field, separately from
+  component churn. Diff JSON, watch `summary`, and trending (per point and in
+  `drift`) carry the count. Any setting change emits a watch `change` event
+  and is eligible for Notion publication, whatever `--watch-threshold` is;
+  the threshold and diff `--warn-threshold` stay component-only. Watch Git
+  commit messages add a `settings:` line.
+
+### Fixed
+- `--summary` diffs and `pr-comment` output now show report-suite setting
+  changes. Before, summary mode and PR comments left them out.
+
 ## [1.22.0] — 2026-10-27
 
 This release makes every capture say what it collected, and makes comparisons
