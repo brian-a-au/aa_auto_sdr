@@ -126,8 +126,59 @@ class TestFormulaSummary:
             "metrics/revenue[segment s300000_mobile] / (metrics/orders + 1) * 100"
         )
 
+    def test_if_based_fixture_renders_as_if_call(self) -> None:
+        assert d.summarize_formula(FIXTURE["calculated_metrics"]["if_based"]) == (
+            "IF(metrics/visits > 0, cm300000_rate, 0)"
+        )
+
+    def test_if_with_bare_number_operands_as_returned_by_the_api(self) -> None:
+        """Real AA 2.0 shape: `cond` comparison and `else` use bare numbers, not `number` nodes."""
+        formula = {
+            "func": "if",
+            "cond": {"func": "le", "col1": m("metrics/occurrences"), "col2": 7},
+            "then": m("metrics/occurrences"),
+            "else": 0,
+        }
+        assert d.summarize_formula(cm(formula)) == "IF(metrics/occurrences <= 7, metrics/occurrences, 0)"
+
+    @pytest.mark.parametrize(
+        ("func", "symbol"),
+        [("eq", "="), ("ne", "!="), ("gt", ">"), ("lt", "<"), ("ge", ">="), ("le", "<=")],
+    )
+    def test_comparison_operators(self, func: str, symbol: str) -> None:
+        assert d.summarize_formula(cm(op(func, m("metrics/a"), num(2)))) == f"metrics/a {symbol} 2"
+
+    def test_comparison_operands_keep_arithmetic_unparenthesized(self) -> None:
+        tree = op("gt", op("add", m("metrics/a"), m("metrics/b")), num(1))
+        assert d.summarize_formula(cm(tree)) == "metrics/a + metrics/b > 1"
+
+    def test_arithmetic_on_a_comparison_parenthesizes_it(self) -> None:
+        tree = op("multiply", op("gt", m("metrics/a"), num(0)), num(100))
+        assert d.summarize_formula(cm(tree)) == "(metrics/a > 0) * 100"
+
+    def test_bare_number_operand_renders_like_a_number_node(self) -> None:
+        bare = d.summarize_formula(cm(op("subtract", m("metrics/a"), -2)))
+        assert bare == d.summarize_formula(cm(op("subtract", m("metrics/a"), num(-2)))) == "metrics/a - -2"
+
+    @pytest.mark.parametrize(
+        "formula",
+        [
+            {"func": "if", "then": m("metrics/a"), "else": 0},
+            {"func": "if", "cond": op("gt", m("metrics/a"), 0), "else": 0},
+            {"func": "if", "cond": op("gt", m("metrics/a"), 0), "then": m("metrics/a")},
+        ],
+    )
+    def test_if_missing_a_branch_is_unparsed(self, formula: dict[str, Any]) -> None:
+        assert d.summarize_formula(cm(formula)) == "[unparsed: if]"
+
+    @pytest.mark.parametrize("value", [True, float("inf"), float("nan")])
+    def test_bare_non_finite_or_bool_operand_is_unparsed(self, value: Any) -> None:
+        assert (
+            d.summarize_formula(cm(op("add", m("metrics/a"), value)))
+            == f"metrics/a + [unparsed: {type(value).__name__}]"
+        )
+
     def test_unknown_function_is_visible_raw(self) -> None:
-        assert d.summarize_formula(FIXTURE["calculated_metrics"]["if_based"]) == "[unparsed: if]"
         tree = op("add", m("metrics/a"), {"func": "col-sum", "col": m("metrics/b")})
         assert d.summarize_formula(cm(tree)) == "metrics/a + [unparsed: col-sum]"
 
@@ -287,8 +338,40 @@ class TestSegmentSummary:
 
     def test_unknown_nodes_are_visible_raw(self) -> None:
         assert d.summarize_segment(FIXTURE["segments"]["sequential"]) == "Visitor where [unparsed: sequence]"
-        pred = {"func": "and", "preds": [streq("v/a", "1"), {"func": "streq-in", "list": ["x"], "val": attr("v/b")}]}
-        assert d.summarize_segment(seg(pred)) == "Hit where v/a = '1' AND [unparsed: streq-in]"
+        pred = {"func": "and", "preds": [streq("v/a", "1"), {"func": "within", "pred": streq("v/b", "x")}]}
+        assert d.summarize_segment(seg(pred)) == "Hit where v/a = '1' AND [unparsed: within]"
+
+    def test_streq_in_as_returned_by_the_api(self) -> None:
+        pred = {
+            "func": "streq-in",
+            "list": ["Paid Search", "Display", "Social Campaigns"],
+            "val": attr("variables/marketingchannel"),
+        }
+        assert d.summarize_segment(seg(pred, "visits")) == (
+            "Visit where variables/marketingchannel in ('Paid Search', 'Display', 'Social Campaigns')"
+        )
+
+    def test_not_streq_in(self) -> None:
+        pred = {"func": "not-streq-in", "list": ["a"], "val": attr("v/b")}
+        assert d.summarize_segment(seg(pred)) == "Hit where v/b not in ('a')"
+
+    def test_streq_in_long_list_is_capped(self) -> None:
+        values = [f"v{i}" for i in range(d.MAX_LIST_ITEMS + 5)]
+        out = d.summarize_segment(seg({"func": "streq-in", "list": values, "val": attr("v/b")}))
+        assert out.endswith(f"'v{d.MAX_LIST_ITEMS - 1}', … +5 more)")
+
+    @pytest.mark.parametrize("values", [[], "abc", ["a", 3], None])
+    def test_streq_in_malformed_list_is_unparsed(self, values: Any) -> None:
+        pred = {"func": "streq-in", "list": values, "val": attr("v/b")}
+        assert d.summarize_segment(seg(pred)) == "Hit where [unparsed: streq-in]"
+
+    def test_event_total_subject_as_returned_by_the_api(self) -> None:
+        pred = {
+            "func": "gt",
+            "num": 10,
+            "val": {"func": "total", "evt": {"func": "event", "name": "metrics/pageviews"}},
+        }
+        assert d.summarize_segment(seg(pred, "visits")) == "Visit where total(metrics/pageviews) > 10"
 
     @pytest.mark.parametrize(
         ("pred", "expected"),
