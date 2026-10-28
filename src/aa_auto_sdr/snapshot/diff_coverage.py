@@ -10,7 +10,12 @@ from dataclasses import fields
 from typing import Any
 
 from aa_auto_sdr.api import models
-from aa_auto_sdr.snapshot.comparator import _COMPONENT_TYPES, _EXTENDED_FIELDS_DEFAULT_IGNORE
+from aa_auto_sdr.snapshot.comparator import (
+    _COMPONENT_TYPES,
+    _EXTENDED_FIELDS_DEFAULT_IGNORE,
+    _LEGACY_UNCOLLECTED_FAMILIES,
+    legacy_uncollected_fields,
+)
 from aa_auto_sdr.snapshot.models import DiffReport
 
 # Settings changes are listed and counted in `settings_changes`, but never
@@ -23,18 +28,20 @@ LIMITATION_BASELINE_BY_TIME = "baseline_chosen_by_time"
 LIMITATION_EXCLUDED_NOT_COMPARED = "excluded_families_not_compared"
 LIMITATION_SUPPRESSED_NOT_COMPARED = "suppressed_families_not_compared"
 LIMITATION_SHOW_ONLY_THRESHOLD = "show_only_does_not_narrow_warn_threshold"
+LIMITATION_LEGACY_CAPTURE_FIELDS = "legacy_capture_fields_not_compared"
 
 # Root-level identity keys: never reported as field deltas.
 _IDENTITY_FIELDS = frozenset({"id", "rsid"})
 
-_COMPONENT_MODELS: tuple[type, ...] = (
-    models.Dimension,
-    models.Metric,
-    models.Segment,
-    models.CalculatedMetric,
-    models.VirtualReportSuite,
-    models.ClassificationDataset,
-)
+_FAMILY_MODELS: dict[str, type] = {
+    "dimensions": models.Dimension,
+    "metrics": models.Metric,
+    "segments": models.Segment,
+    "calculated_metrics": models.CalculatedMetric,
+    "virtual_report_suites": models.VirtualReportSuite,
+    "classifications": models.ClassificationDataset,
+}
+_COMPONENT_MODELS: tuple[type, ...] = tuple(_FAMILY_MODELS.values())
 
 
 def _field_names(*classes: type) -> set[str]:
@@ -61,7 +68,12 @@ def diff_coverage(
     are the top-level model fields compared; keys nested under them are
     compared too, and the ignore set applies at every level."""
     ignored = effective_ignore_fields(ignore_fields, extended_fields=extended_fields)
-    compare_fields = sorted(_field_names(*_COMPONENT_MODELS) - _IDENTITY_FIELDS - ignored)
+    legacy_skipped = set(legacy_uncollected_fields(report.a_tool_version, report.b_tool_version, ignored))
+    compared: set[str] = set()
+    for family, model in _FAMILY_MODELS.items():
+        skipped = legacy_skipped if family in _LEGACY_UNCOLLECTED_FAMILIES else set()
+        compared |= _field_names(model) - skipped
+    compare_fields = sorted(compared - _IDENTITY_FIELDS - ignored)
     settings_fields = sorted(_field_names(models.ReportSuite) - _IDENTITY_FIELDS - ignored)
 
     limitations = [LIMITATION_THRESHOLD_COMPONENTS_ONLY]
@@ -74,6 +86,8 @@ def diff_coverage(
         limitations.append(LIMITATION_SUPPRESSED_NOT_COMPARED)
     if show_only:
         limitations.append(LIMITATION_SHOW_ONLY_THRESHOLD)
+    if legacy_skipped:
+        limitations.append(LIMITATION_LEGACY_CAPTURE_FIELDS)
 
     return {
         "compare_fields": compare_fields,

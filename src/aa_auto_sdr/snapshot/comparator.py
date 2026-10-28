@@ -67,6 +67,16 @@ _LEGACY_UNCOLLECTED_FAMILIES = ("dimensions", "metrics")
 _LEGACY_FIELDS_COLLECTED_IN = (1, 21, 25)
 
 
+def legacy_uncollected_fields(a_tool_version: Any, b_tool_version: Any, effective_ignore: frozenset[str]) -> list[str]:
+    """Dimension and metric fields not compared because either side's capture
+    predates their collection (empty when both are current or the fields are
+    already ignored)."""
+    legacy = any(
+        captured_before({"tool_version": v}, _LEGACY_FIELDS_COLLECTED_IN) for v in (a_tool_version, b_tool_version)
+    )
+    return sorted(_LEGACY_UNCOLLECTED_FIELDS - effective_ignore) if legacy else []
+
+
 def compare(
     a: dict[str, Any],
     b: dict[str, Any],
@@ -90,8 +100,7 @@ def compare(
     b_components = b["components"]
 
     effective_ignore = ignore_fields if extended_fields else (ignore_fields | _EXTENDED_FIELDS_DEFAULT_IGNORE)
-    legacy_capture = captured_before(a, _LEGACY_FIELDS_COLLECTED_IN) or captured_before(b, _LEGACY_FIELDS_COLLECTED_IN)
-    legacy_skipped = sorted(_LEGACY_UNCOLLECTED_FIELDS - effective_ignore) if legacy_capture else []
+    legacy_skipped = legacy_uncollected_fields(a.get("tool_version"), b.get("tool_version"), effective_ignore)
 
     rs_deltas = _diff_dict(
         a_components["report_suite"],
