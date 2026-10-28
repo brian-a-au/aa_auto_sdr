@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.3] — 2026-10-28
+
+This patch fixes problems found by a bug hunt over the 1.23 and 1.24 changes.
+Old snapshots render again, diff coverage no longer claims fields it skipped,
+damaged config files give a clean config error, and template fill no longer
+loses or crashes on some rows. No new flags and no changed defaults.
+
+### Fixed
+- `--render-from` and `<RSID>@latest` work again on a snapshot written before
+  1.21.5 that stored a missing required text field, such as a dimension's
+  `parent`, as `"nan"`. Since 1.24.2 these failed with exit 16 and
+  `field 'parent' must be string, got NoneType`. Such a value now reads as the
+  empty string a current capture writes. Optional fields still read as missing.
+- Diff and `--compare-with-prev` JSON `coverage` no longer lists `data_group`
+  as compared when `--extended-fields` skipped it against a snapshot written
+  before 1.21.25. A new limitation ID, `legacy_capture_fields_not_compared`,
+  says that dimension and metric `tags`, `data_group`, and `extra` were not
+  compared.
+- A damaged credentials file now exits with code 10 and a message naming the
+  file. Before, it crashed with a traceback and exit 1. This covers a profile's
+  `config.json`, a `config.json` or `.env` in the working folder, and a
+  `--profile-import` file. A file is damaged when it cannot be read, is not
+  UTF-8 JSON, or does not hold a JSON object.
+- A `--quality-policy` file that cannot be read or is not UTF-8 now exits with
+  code 10, as does a naming `pattern` with a repeat count too large to compile.
+  Before, these crashed with exit 1. The file is now always read as UTF-8, not
+  in the system's default encoding.
+- Template fill no longer drops calculated metrics and segments when the
+  `metrics-segments` sheet has none of the `Type`, `Name`, `Description`, or
+  `Format` headers. The rows now go to the `Overflow` sheet, and the sheet is
+  reported as skipped with the reason `no_known_columns`.
+- Template fill no longer crashes on a name or description that holds a
+  control character Excel cannot store, such as the vertical tab that a line
+  break pasted from Word leaves. The character is removed from the cell.
+- `--profile-add` now exits with code 10 when input ends before all four
+  fields are entered. Before, it crashed with a traceback.
+- `--completion` with an unknown shell now prints its error to stderr. Before,
+  it went to stdout, so `aa_auto_sdr --completion zhs > _aa_auto_sdr` wrote the
+  error into the completion file.
+
 ## [1.24.2] — 2026-10-27
 
 This patch fixes problems found by running the tool against a live demo org.
