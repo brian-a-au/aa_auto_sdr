@@ -25,6 +25,11 @@ table stays aligned.
   warning says which fields were skipped.
 - In the `--inventory-summary` table, counts now stay in one column when a
   report suite's ID and name are longer than 40 characters.
+- The naming audit now counts a single capitalized word, such as `Visits` or
+  `Day`, as PascalCase. Before, Adobe's standard component names counted as a
+  different case style from names like `Page Views`, so almost every report
+  suite got a `dq.naming_case_inconsistency.v1` finding about built-in
+  components that cannot be renamed.
 
 ## [1.24.1] — 2026-10-27
 
