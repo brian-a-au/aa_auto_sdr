@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+These fixes come from running the tool against a live demo org. Readable
+summaries now cover more of the definitions Adobe Analytics returns. Snapshots
+from older releases no longer show false changes in a diff, and the inventory
+table stays aligned.
+
+### Fixed
+- Segment summaries now read `streq-in` and `not-streq-in` lists, shown as
+  `in ('a', 'b')`, and a metric total inside a container, shown as
+  `total(metrics/pageviews) > 10`. Calculated metric summaries now read `if`
+  formulas, comparisons (`=`, `!=`, `>`, `<`, `>=`, `<=`), and plain numbers
+  used as operands. These were all shown as `[unparsed: …]` before.
+- A snapshot written before 1.21.5 no longer shows false changes from the
+  text `"nan"` it stored for some missing values, such as
+  `~ parent_rsid: "nan" → null`. Those values now read as missing when the
+  snapshot loads. The file does not change.
+- `--extended-fields` no longer reports dimension and metric `tags`,
+  `data_group`, and `extra` as changed when one snapshot was written before
+  1.21.25, which did not collect them. A new `diff_legacy_capture_fields`
+  warning says which fields were skipped.
+- In the `--inventory-summary` table, counts now stay in one column when a
+  report suite's ID and name are longer than 40 characters.
+
 ## [1.24.1] — 2026-10-27
 
 This patch lets you install and run aa_auto_sdr on Python 3.11, 3.12, and
