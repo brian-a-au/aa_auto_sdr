@@ -7,42 +7,25 @@ from __future__ import annotations
 
 from aa_auto_sdr.core.exit_codes import ExitCode
 
-# Action flags + common options the completion should suggest.
-_FLAGS = (
-    "--list-reportsuites",
-    "--list-virtual-reportsuites",
-    "--describe-reportsuite",
-    "--list-metrics",
-    "--list-dimensions",
-    "--list-segments",
-    "--list-calculated-metrics",
-    "--list-classification-datasets",
-    "--batch",
-    "--diff",
-    "--render-from",
-    "--snapshot",
-    "--profile-add",
-    "--profile",
-    "--show-config",
-    "--exit-codes",
-    "--explain-exit-code",
-    "--completion",
-    "--filter",
-    "--exclude",
-    "--sort",
-    "--limit",
-    "--format",
-    "--output",
-    "--output-dir",
-    "--version",
-    "-V",
-    "--help",
-    "-h",
-)
+
+def _flags() -> list[str]:
+    """Every option string the parser accepts, in parser order, minus ones it
+    hides with argparse.SUPPRESS. Built from the parser so completions cannot
+    drift from the CLI; argparse is the only import, so the fast path stays light."""
+    import argparse
+
+    from aa_auto_sdr.cli.parser import build_parser
+
+    return [
+        option
+        for action in build_parser()._actions
+        if action.help is not argparse.SUPPRESS
+        for option in action.option_strings
+    ]
 
 
 def _bash_script() -> str:
-    flags = " ".join(_FLAGS)
+    flags = " ".join(_flags())
     return f"""# bash completion for aa_auto_sdr / aa-auto-sdr
 _aa_auto_sdr() {{
     local cur
@@ -54,7 +37,7 @@ complete -F _aa_auto_sdr aa_auto_sdr aa-auto-sdr
 
 
 def _zsh_script() -> str:
-    flags = " ".join(_FLAGS)
+    flags = " ".join(_flags())
     return f"""#compdef aa_auto_sdr aa-auto-sdr
 # zsh completion for aa_auto_sdr / aa-auto-sdr
 _aa_auto_sdr() {{
@@ -68,7 +51,7 @@ _aa_auto_sdr "$@"
 
 def _fish_script() -> str:
     lines = ["# fish completion for aa_auto_sdr / aa-auto-sdr"]
-    for flag in _FLAGS:
+    for flag in _flags():
         if flag.startswith("--"):
             lines.append(f"complete -c aa_auto_sdr -c aa-auto-sdr -l {flag[2:]}")
         elif flag.startswith("-"):

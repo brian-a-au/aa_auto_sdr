@@ -30,6 +30,12 @@ table stays aligned.
   different case style from names like `Page Views`, so almost every report
   suite got a `dq.naming_case_inconsistency.v1` finding about built-in
   components that cannot be renamed.
+- `--help` now lists every flag. It had fallen behind and left out 52 of them,
+  including `--format`, `--output-dir`, `--output`, `--agent-mode`, `--quiet`,
+  and `--log-level`. A new test fails if a flag is missing from `--help`.
+- `--completion` scripts for bash, zsh, and fish now offer every flag. They
+  were built from a short hand-kept list and left out 78 flags. The list now
+  comes from the parser, so it cannot fall behind again.
 
 ## [1.24.1] — 2026-10-27
 
