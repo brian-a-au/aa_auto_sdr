@@ -228,12 +228,14 @@ def _print_table(rows: list[dict[str, Any]], summary: dict[str, Any]) -> None:
     if rows:
         print()
         print("Per-RSID (dim/met/seg/calc/vrs/cls):")
-        for row in rows:
+        labels = [f"{row['rsid']}  ({row.get('name') or ''})".rstrip() for row in rows]
+        # Size the label column to the longest label so counts stay aligned.
+        width = max(40, *(len(label) for label in labels))
+        for row, label in zip(rows, labels, strict=True):
             c = row["counts"]
             fs = row.get("fetch_status") or {}
             cells = [f"{c[ct]} *" if ct in fs else str(c[ct]) for ct in _COMPONENT_TYPES]
-            label = f"{row['rsid']}  ({row.get('name') or ''})".rstrip()
-            print(f"  {label:<40}  {'/'.join(cells)}")
+            print(f"  {label:<{width}}  {'/'.join(cells)}")
     footer = build_footer(rows)
     if footer:
         print()

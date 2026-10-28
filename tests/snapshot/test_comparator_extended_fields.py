@@ -11,12 +11,12 @@ from __future__ import annotations
 from aa_auto_sdr.snapshot.comparator import compare
 
 
-def _envelope(*, dimensions: list[dict] | None = None) -> dict:
+def _envelope(*, dimensions: list[dict] | None = None, tool_version: str = "1.9.0") -> dict:
     return {
         "schema": "aa-sdr-snapshot/v3",
         "rsid": "rs1",
         "captured_at": "2026-05-09T00:00:00+00:00",
-        "tool_version": "1.9.0",
+        "tool_version": tool_version,
         "degraded_components": [],
         "partial_components": {},
         "quality": None,
@@ -76,8 +76,10 @@ def test_default_suppresses_tags_field() -> None:
 
 
 def test_extended_compares_tags_field() -> None:
-    a = _envelope(dimensions=[_dim("evar1", "Foo", tags=["v1"])])
-    b = _envelope(dimensions=[_dim("evar1", "Foo", tags=["v2"])])
+    # Dimension tags are collected from 1.21.25; older captures skip them
+    # (see test_legacy_capture_compat.py).
+    a = _envelope(dimensions=[_dim("evar1", "Foo", tags=["v1"])], tool_version="1.21.25")
+    b = _envelope(dimensions=[_dim("evar1", "Foo", tags=["v2"])], tool_version="1.21.25")
     report = compare(a, b, extended_fields=True)
     dim_diff = next(c for c in report.components if c.component_type == "dimensions")
     assert len(dim_diff.modified) == 1
@@ -126,9 +128,12 @@ def test_extended_with_user_ignore_fields_user_wins() -> None:
     assert dim_diff.modified == []
 
 
-def test_newly_visible_raw_metadata_only_changes_extended_diff() -> None:
-    a = _envelope(dimensions=[_dim("evar1", "Foo")])
-    b = _envelope(dimensions=[_dim("evar1", "Foo", tags=["team"], extra={"standardComponent": False})])
+def test_raw_metadata_changes_only_show_in_extended_diff() -> None:
+    a = _envelope(dimensions=[_dim("evar1", "Foo")], tool_version="1.21.25")
+    b = _envelope(
+        dimensions=[_dim("evar1", "Foo", tags=["team"], extra={"standardComponent": False})],
+        tool_version="1.21.25",
+    )
     a["components"]["metrics"] = [{"id": "event1", "data_group": None}]
     b["components"]["metrics"] = [{"id": "event1", "data_group": "Commerce"}]
     assert all(not component.modified for component in compare(a, b).components)

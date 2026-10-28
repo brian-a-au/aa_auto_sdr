@@ -2,6 +2,43 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.2] — 2026-10-27
+
+This patch fixes problems found by running the tool against a live demo org.
+Readable summaries now cover more of the definitions Adobe Analytics returns.
+Snapshots from older releases no longer show false changes in a diff. The
+naming audit no longer flags Adobe's standard component names. `--help` and
+shell completions now list every flag, and the inventory table stays aligned.
+No new flags and no changed defaults.
+
+### Fixed
+- Segment summaries now read `streq-in` and `not-streq-in` lists, shown as
+  `in ('a', 'b')`, and a metric total inside a container, shown as
+  `total(metrics/pageviews) > 10`. Calculated metric summaries now read `if`
+  formulas, comparisons (`=`, `!=`, `>`, `<`, `>=`, `<=`), and plain numbers
+  used as operands. These were all shown as `[unparsed: …]` before.
+- A snapshot written before 1.21.5 no longer shows false changes from the
+  text `"nan"` it stored for some missing values, such as
+  `~ parent_rsid: "nan" → null`. Those values now read as missing when the
+  snapshot loads. The file does not change.
+- `--extended-fields` no longer reports dimension and metric `tags`,
+  `data_group`, and `extra` as changed when one snapshot was written before
+  1.21.25, which did not collect them. A new `diff_legacy_capture_fields`
+  warning says which fields were skipped.
+- In the `--inventory-summary` table, counts now stay in one column when a
+  report suite's ID and name are longer than 40 characters.
+- The naming audit now counts a single capitalized word, such as `Visits` or
+  `Day`, as PascalCase. Before, Adobe's standard component names counted as a
+  different case style from names like `Page Views`, so almost every report
+  suite got a `dq.naming_case_inconsistency.v1` finding about built-in
+  components that cannot be renamed.
+- `--help` now lists every flag. It had fallen behind and left out 52 of them,
+  including `--format`, `--output-dir`, `--output`, `--agent-mode`, `--quiet`,
+  and `--log-level`. A new test fails if a flag is missing from `--help`.
+- `--completion` scripts for bash, zsh, and fish now offer every flag. They
+  were built from a short hand-kept list and left out 78 flags. The list now
+  comes from the parser, so it cannot fall behind again.
+
 ## [1.24.1] — 2026-10-27
 
 This patch lets you install and run aa_auto_sdr on Python 3.11, 3.12, and

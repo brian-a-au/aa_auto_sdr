@@ -12,7 +12,8 @@ output; the summary is a reading aid.
 
 Calculated metrics (`definition.formula`):
 
-- `metric` (`name`) renders as the metric ID; `number` (`val`) as the literal.
+- `metric` (`name`) renders as the metric ID; `number` (`val`) and a bare
+  JSON number operand render as the literal.
 - `add`, `subtract`, `multiply`, `divide` (`col1`, `col2`) render as
   `+ - * /` with operand order preserved. Parentheses follow precedence:
   `* /` bind tighter than `+ -`, and a right operand of equal precedence is
@@ -20,6 +21,9 @@ Calculated metrics (`definition.formula`):
 - `negate` (`col`) renders as a leading `-`.
 - `abs`, `round`, `ceil`, `floor` (`col`) render as `ABS(...)` and so on.
 - `segment` (`segment_id`, `metric`) renders as `<metric>[segment <id>]`.
+- `eq`, `ne`, `gt`, `lt`, `ge`, `le` (`col1`, `col2`) render as
+  `= != > < >= <=`, binding looser than arithmetic.
+- `if` (`cond`, `then`, `else`) renders as `IF(<cond>, <then>, <else>)`.
 
 Segments (`definition.container`):
 
@@ -33,7 +37,10 @@ Segments (`definition.container`):
   `not-streq` `!=`, `contains`, `not-contains`, `starts-with`,
   `not-starts-with`, `ends-with`, `not-ends-with` (string `str`); `eq` `=`,
   `ne` `!=`, `gt` `>`, `lt` `<`, `ge` `>=`, `le` `<=` (number `num`);
-  `exists` / `not-exists`; `event-exists` / `not-event-exists` (`evt`).
+  `exists` / `not-exists`; `event-exists` / `not-event-exists` (`evt`);
+  `streq-in` / `not-streq-in` (string `list`) as `in (...)` / `not in (...)`,
+  showing at most `MAX_LIST_ITEMS` values. A `total` subject (`evt`) renders
+  as `total(<event>)`.
 - `segment` (`segment_id`) renders as `segment <id>`.
 
 Limits: recursion stops at `MAX_DEPTH` levels (the subtree below shows
@@ -56,6 +63,7 @@ MAX_NODES = 1000
 MAX_WALK_NODES = 50_000
 MAX_WALK_DEPTH = 256
 MAX_QUOTED_CHARS = 200
+MAX_LIST_ITEMS = 20
 _METRIC_PREFIX = "metrics/"
 
 # New output columns per component family, in output order.
@@ -138,13 +146,15 @@ def _summarize(definition: Any, key: str, render: Any) -> str:
 
 # --- calculated metric formulas ---------------------------------------------
 
-_ADD, _MUL, _UNARY, _ATOM = 1, 2, 3, 4
+_CMP, _ADD, _MUL, _UNARY, _ATOM = 0, 1, 2, 3, 4
 _BINARY: dict[str, tuple[str, int]] = {
     "add": ("+", _ADD),
     "subtract": ("-", _ADD),
     "multiply": ("*", _MUL),
     "divide": ("/", _MUL),
 }
+_COMPARISONS = {"eq": "=", "ne": "!=", "gt": ">", "lt": "<", "ge": ">=", "le": "<="}
+_BINARY.update({func: (symbol, _CMP) for func, symbol in _COMPARISONS.items()})
 _ASSOCIATIVE = ("add", "multiply")
 _FUNCTIONS = ("abs", "round", "ceil", "floor")
 
@@ -159,6 +169,10 @@ def _formula(node: Any, depth: int, budget: _Budget) -> tuple[str, int, str | No
     if depth > MAX_DEPTH:
         return _unparsed("depth limit"), _ATOM, None
     budget.tick()
+    literal = _number(node)
+    if literal is not None:
+        # The API writes some operands (`if` branches, comparison sides) as bare numbers.
+        return _format_number(literal), (_UNARY if literal < 0 else _ATOM), None
     if not isinstance(node, dict):
         return _unparsed(type(node).__name__), _ATOM, None
     func = _func(node)
@@ -195,6 +209,11 @@ def _formula(node: Any, depth: int, budget: _Budget) -> tuple[str, int, str | No
             return raw
         inner, _, _ = _formula(node["col"], depth + 1, budget)
         return f"{func.upper()}({inner})", _ATOM, None
+    if func == "if":
+        if any(key not in node for key in ("cond", "then", "else")):
+            return raw
+        parts = [_formula(node[key], depth + 1, budget)[0] for key in ("cond", "then", "else")]
+        return f"IF({', '.join(parts)})", _ATOM, None
     if func == "segment":
         segment_id = _nonempty_str(node.get("segment_id"))
         if segment_id is None or "metric" not in node:
@@ -222,6 +241,7 @@ _STRING_OPS = {
 _NUMBER_OPS = {"eq": "=", "ne": "!=", "gt": ">", "lt": "<", "ge": ">=", "le": "<="}
 _EXISTS_OPS = {"exists": "exists", "not-exists": "does not exist"}
 _EVENT_EXISTS_OPS = {"event-exists": "exists", "not-event-exists": "does not exist"}
+_LIST_OPS = {"streq-in": "in", "not-streq-in": "not in"}
 _LOGIC = {"and": "AND", "or": "OR"}
 
 
@@ -251,9 +271,24 @@ def _quote(text: str) -> str:
 
 
 def _subject(value: Any) -> str | None:
-    if isinstance(value, dict) and _func(value) in ("attr", "event"):
+    if not isinstance(value, dict):
+        return None
+    if _func(value) in ("attr", "event"):
         return _nonempty_str(value.get("name"))
+    if _func(value) == "total":
+        event = _subject(value.get("evt"))
+        return f"total({event})" if event else None
     return None
+
+
+def _quote_list(values: Any) -> str | None:
+    if not isinstance(values, list) or not values or not all(isinstance(v, str) for v in values):
+        return None
+    shown = [_quote(v) for v in values[:MAX_LIST_ITEMS]]
+    hidden = len(values) - len(shown)
+    if hidden:
+        shown.append(f"… +{hidden} more")
+    return f"({', '.join(shown)})"
 
 
 def _container(node: Any, depth: int, budget: _Budget) -> str:
@@ -322,6 +357,9 @@ def _pred(node: Any, depth: int, budget: _Budget) -> tuple[str, str | None]:
         if not isinstance(value, str):
             return raw
         return f"{subject} {_STRING_OPS[func]} {_quote(value)}", None
+    if func in _LIST_OPS:
+        quoted = _quote_list(node.get("list"))
+        return (f"{subject} {_LIST_OPS[func]} {quoted}", None) if quoted else raw
     if func in _NUMBER_OPS:
         number = _number(node.get("num"))
         if number is None:

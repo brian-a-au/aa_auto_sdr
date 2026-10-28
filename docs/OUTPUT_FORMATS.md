@@ -190,7 +190,7 @@ summarizer does not understand: `name` on `metric` and `event` nodes, and
 
 The summary covers a conservative part of the Adobe Analytics 2.0
 definition grammar. Anything else is shown raw as `[unparsed: <func>]`,
-for example `[unparsed: if]` or `[unparsed: sequence]`, so a summary never
+for example `[unparsed: col-sum]` or `[unparsed: sequence]`, so a summary never
 describes more than it can read. A known node that is missing a required
 key, or has a value of the wrong type, is shown the same way. A malformed
 definition never stops a report.
@@ -200,13 +200,16 @@ Calculated metrics (`definition.formula`):
 | Node (`func`) | Summary |
 |---------------|---------|
 | `metric` | The metric ID from `name` |
-| `number` | The literal from `val` |
+| `number` | The literal from `val`. A plain JSON number used as an operand shows the same way |
 | `add`, `subtract`, `multiply`, `divide` | `a + b`, `a - b`, `a * b`, `a / b` from `col1` and `col2`, in that order |
 | `negate` | `-a` from `col` |
 | `abs`, `round`, `ceil`, `floor` | `ABS(a)`, `ROUND(a)`, `CEIL(a)`, `FLOOR(a)` from `col` |
 | `segment` | `a[segment <segment_id>]`: the metric in `metric` filtered by a segment |
+| `eq`, `ne`, `gt`, `lt`, `ge`, `le` | `a = b`, `a != b`, `a > b`, `a < b`, `a >= b`, `a <= b` from `col1` and `col2` |
+| `if` | `IF(<cond>, <then>, <else>)`, for example `IF(metrics/occurrences <= 7, metrics/occurrences, 0)` |
 
-`*` and `/` bind tighter than `+` and `-`. Parentheses are added where
+`*` and `/` bind tighter than `+` and `-`, and comparisons bind looser than
+both. Parentheses are added where
 precedence needs them, and around a right operand of the same precedence
 unless the chain is the same associative operator. So `a - (b - c)` and
 `a / (b * c)` keep their meaning, while `a + b + c` stays flat.
@@ -224,18 +227,20 @@ Segments (`definition.container`):
 | `eq`, `ne`, `gt`, `lt`, `ge`, `le` | `=`, `!=`, `>`, `<`, `>=`, `<=` (number in `num`) |
 | `exists`, `not-exists` | `<subject> exists`, `<subject> does not exist` |
 | `event-exists`, `not-event-exists` | `<metric> exists`, `<metric> does not exist` (from `evt`) |
+| `streq-in`, `not-streq-in` | `<subject> in ('a', 'b')`, `<subject> not in ('a', 'b')` (strings in `list`). At most 20 values are shown, then `… +N more` |
 | `segment` | `segment <segment_id>` |
 
-The subject is the `name` of an `attr` or `event` node in `val`. Strings
+The subject is the `name` of an `attr` or `event` node in `val`, or
+`total(<metric>)` for a `total` node, which compares a metric's total
+within the container (for example `Visit where total(metrics/pageviews) > 10`). Strings
 are quoted with `'`. A `'` or `\` inside a string is escaped with `\`, and
 line breaks, tabs, and other control characters are written as escapes
 (`\n`, `\t`, `\x01`), so a summary is always one line. A quoted value
 longer than 200 characters is cut there and ends with `…`. A number with no
 fractional part is written without a decimal point (`3.0` shows as `3`).
 
-Two shapes are inferred from Adobe's documentation and not yet checked
-against a live capture: the `evt` key on `event-exists` and
-`not-event-exists`, and a `segment` node with `segment_id` used as a
+One shape is inferred from Adobe's documentation and not yet checked
+against a live capture: a `segment` node with `segment_id` used as a
 predicate inside a segment. If real definitions use a different shape,
 those nodes show as `[unparsed: …]` rather than a wrong summary.
 

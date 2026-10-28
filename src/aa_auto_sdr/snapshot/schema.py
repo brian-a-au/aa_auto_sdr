@@ -69,6 +69,8 @@ _REQUIRED_V1_KEYS = (
     "components",
 )
 _SUPPORTED_SCHEMA_RE = re.compile(r"^aa-sdr-snapshot/v[12345](\.\d+)?$")
+# First release whose captures no longer wrote missing cells as "nan".
+LEGACY_NAN_FIXED_IN = (1, 21, 5)
 
 
 def _is_aware_iso_timestamp(value: str) -> bool:
@@ -149,11 +151,14 @@ def validate_envelope(env: dict[str, Any]) -> None:
     v3 envelopes carry `quality` but not the v4 inner `issues` + `summary`
     keys; defaulted in-memory so consumers can index them uniformly.
 
+    Envelopes written before 1.21.5 have literal "nan" strings in top-level
+    header and row fields read as None (see `_scrub_legacy_nan`).
+
     v5 envelopes must carry `collected_components`; v4 envelopes may, and then
     it must list every family. When present it must be a list of unique known
     family names that covers every degraded or partial family. It is never defaulted: an absent key means
     scope is unknown, so readers use `env.get("collected_components")`, which
-    gives None. Fully shaped envelopes therefore pass through unmodified.
+    gives None. Fully shaped current envelopes therefore pass through unmodified.
     """
     # Classify the discriminator before inspecting supported-version contents.
     # Unsupported string schemas must never be mistaken for recoverable damage.
@@ -225,6 +230,39 @@ def validate_envelope(env: dict[str, Any]) -> None:
     if quality is not None:
         quality.setdefault("issues", [])
         quality.setdefault("summary", {"by_severity": {}, "total": 0, "verdict": "n/a"})
+    if captured_before(env, LEGACY_NAN_FIXED_IN):
+        _scrub_legacy_nan(components)
+
+
+def _scrub_legacy_nan(components: dict[str, Any]) -> None:
+    """Captures before 1.21.5 wrote ragged DataFrame cells as the literal
+    string "nan". Read them as missing (in memory; the file is unchanged)
+    so they do not diff against the `null` a newer capture writes. Only
+    top-level fields of the header and component rows were affected."""
+    rows = [components.get("report_suite") or {}]
+    for family in COMPONENT_FAMILIES:
+        rows.extend(components.get(family, []))
+    for row in rows:
+        for key, value in row.items():
+            if value == "nan":
+                row[key] = None
+
+
+_TOOL_VERSION_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?")
+
+
+def captured_before(env: dict[str, Any], version: tuple[int, int, int]) -> bool:
+    """True when the envelope's `tool_version` is older than `version`.
+
+    Compares the leading `X.Y[.Z]` numerically; anything after it (`.post1`,
+    `rc1`) is ignored. An unparseable version is treated as current, so
+    legacy compatibility handling never touches it."""
+    raw = env.get("tool_version")
+    match = _TOOL_VERSION_RE.match(raw) if isinstance(raw, str) else None
+    if match is None:
+        return False
+    major, minor, patch = (int(part or 0) for part in match.groups())
+    return (major, minor, patch) < version
 
 
 def _require_container(value: Any, kind: type, field: str) -> None:

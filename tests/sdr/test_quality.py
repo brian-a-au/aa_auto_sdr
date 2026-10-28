@@ -297,3 +297,34 @@ def test_detect_stale_pure_no_io(monkeypatch: pytest.MonkeyPatch) -> None:
     bundle = _bundle(dimensions=[_dim("evar1", "old_thing")])
     q.detect_stale(bundle)
     assert open_calls == []
+
+
+@pytest.mark.parametrize("name", ["Visits", "Day", "Currency", "Latitude"])
+def test_single_capitalized_word_counts_as_pascal_case(name: str) -> None:
+    """Adobe's standard names are single capitalized words; they are valid
+    PascalCase and must not count against a 'Page Views'-style majority."""
+    bundle = _bundle(dimensions=[_dim("variables/x", name)])
+    assert audit_naming(bundle)["case_styles"]["PascalCase"] == 1
+
+
+def test_standard_adobe_names_raise_no_case_inconsistency() -> None:
+    bundle = _bundle(
+        dimensions=[
+            _dim("variables/page", "Page Name"),
+            _dim("variables/daterangeday", "Day"),
+            _dim("variables/currency", "Currency"),
+        ],
+    )
+    assert audit_naming(bundle)["recommendations"] == []
+
+
+@pytest.mark.parametrize("name", ["Page views", "Occurrences <= 7", "Total seconds spent"])
+def test_multi_word_names_without_inner_capitals_stay_other(name: str) -> None:
+    bundle = _bundle(dimensions=[_dim("variables/x", name)])
+    assert audit_naming(bundle)["case_styles"]["other"] == 1
+
+
+def test_single_capitalized_word_matches_the_ascii_pascal_case_policy_style() -> None:
+    """The audit agrees with the policy's ASCII-only PascalCase check."""
+    bundle = _bundle(dimensions=[_dim("variables/x", "Día")])
+    assert audit_naming(bundle)["case_styles"]["other"] == 1

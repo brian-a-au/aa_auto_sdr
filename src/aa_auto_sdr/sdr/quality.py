@@ -290,6 +290,11 @@ def _detect_case_style(name: str) -> str:
         return "camelCase"
     if name[0].isupper() and any(c.isupper() for c in name[1:]):
         return "PascalCase"
+    if name[0].isupper() and name.isascii() and name.isalnum():
+        # A single capitalized word (Adobe's standard 'Visits', 'Day') is
+        # valid PascalCase; without this every report suite reports its
+        # built-in names as a case inconsistency.
+        return "PascalCase"
     return "other"
 
 
