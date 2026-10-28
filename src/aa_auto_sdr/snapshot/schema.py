@@ -44,9 +44,11 @@ nested map)."""
 from __future__ import annotations
 
 import re
+from dataclasses import fields
 from datetime import datetime
 from typing import Any
 
+from aa_auto_sdr.api import models
 from aa_auto_sdr.core.exceptions import SnapshotCorruptError, SnapshotSchemaError
 from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, SdrDocument
 
@@ -234,18 +236,34 @@ def validate_envelope(env: dict[str, Any]) -> None:
         _scrub_legacy_nan(components)
 
 
+# Model per row kind, for the field types the legacy "nan" scrub needs.
+_ROW_MODELS: dict[str, type] = {
+    "report_suite": models.ReportSuite,
+    "dimensions": models.Dimension,
+    "metrics": models.Metric,
+    "segments": models.Segment,
+    "calculated_metrics": models.CalculatedMetric,
+    "virtual_report_suites": models.VirtualReportSuite,
+    "classifications": models.ClassificationDataset,
+}
+
+
 def _scrub_legacy_nan(components: dict[str, Any]) -> None:
     """Captures before 1.21.5 wrote ragged DataFrame cells as the literal
     string "nan". Read them as missing (in memory; the file is unchanged)
-    so they do not diff against the `null` a newer capture writes. Only
-    top-level fields of the header and component rows were affected."""
-    rows = [components.get("report_suite") or {}]
+    so they do not diff against what a newer capture writes: `null` for an
+    optional field, and "" for a required string field such as a
+    dimension's `parent` (str(NaN) was the old fallback). Only top-level
+    fields of the header and component rows were affected."""
+    rows = [("report_suite", components.get("report_suite") or {})]
     for family in COMPONENT_FAMILIES:
-        rows.extend(components.get(family, []))
-    for row in rows:
+        rows.extend((family, row) for row in components.get(family, []))
+    for kind, row in rows:
+        # models.py uses `from __future__ import annotations`, so f.type is the annotation string.
+        required_str = {f.name for f in fields(_ROW_MODELS[kind]) if f.type == "str"}
         for key, value in row.items():
             if value == "nan":
-                row[key] = None
+                row[key] = "" if key in required_str else None
 
 
 _TOOL_VERSION_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?")
