@@ -72,7 +72,12 @@ def _from_dotenv(working_dir: Path) -> Credentials | None:
         return None
     # .env files use the UPPERCASE env-var contract (ORG_ID, ...) per .env.example;
     # normalize to the lowercase keys `_from_dict` expects, mirroring `_from_env`.
-    values = {k.lower(): v for k, v in dotenv_values(path).items()}
+    try:
+        values = {k.lower(): v for k, v in dotenv_values(path).items()}
+    except OSError as exc:
+        raise ConfigError(f".env: could not read {path}: {exc.strerror or exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f".env: {path} is not valid UTF-8: {exc}") from exc
     return _from_dict(values, source=".env")
 
 
@@ -80,10 +85,9 @@ def _from_config_json(working_dir: Path) -> Credentials | None:
     path = working_dir / "config.json"
     if not os.path.exists(path):
         return None
-    import json as _json
+    from aa_auto_sdr.core.profiles import read_config_object
 
-    with path.open(encoding="utf-8") as fh:
-        data = _json.load(fh)
+    data = read_config_object(path, "config.json")
     return _from_dict(data, source="config.json")
 
 

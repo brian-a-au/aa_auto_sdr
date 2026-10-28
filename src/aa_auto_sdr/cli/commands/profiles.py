@@ -168,6 +168,10 @@ def import_run(
             print(f"error: could not read {src}: {exc}", flush=True)
             exit_code = ExitCode.CONFIG.value
             return exit_code
+        if not isinstance(data, dict):
+            print(f"error: {src} must hold a JSON object, got {type(data).__name__}", flush=True)
+            exit_code = ExitCode.CONFIG.value
+            return exit_code
         required = {"org_id", "client_id", "secret", "scopes"}
         missing = required - data.keys()
         if missing:

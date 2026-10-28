@@ -27,6 +27,20 @@ def test_profile_add_writes_profile(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert "sandbox" not in cfg
 
 
+def test_profile_add_stops_cleanly_when_input_ends(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    """Ctrl+D, or stdin that is closed or empty, ends input before all four
+    fields: a config error (exit 10) and no profile, not an EOFError traceback."""
+
+    def eof(*_a, **_k):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", eof)
+    rc = cmd.profile_add("prod", base=tmp_path)
+    assert rc == 10
+    assert "input ended" in capsys.readouterr().out
+    assert not (tmp_path / "orgs" / "prod").exists()
+
+
 def test_show_config_prints_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("ORG_ID", "O")
     monkeypatch.setenv("CLIENT_ID", "C")

@@ -28,9 +28,25 @@ def read_profile(name: str, *, base: Path | None = None) -> dict[str, Any]:
     path = _profile_dir(name, base) / "config.json"
     if not os.path.exists(path):
         raise ConfigError(f"Profile '{name}' not found at {path}")
-    with path.open(encoding="utf-8") as fh:
-        data = json.load(fh)
+    data = read_config_object(path, f"Profile '{name}'")
     logger.debug("profile read")
+    return data
+
+
+def read_config_object(path: Path, label: str) -> dict[str, Any]:
+    """Read a JSON credentials file that must hold one object.
+
+    A file that cannot be opened, is not UTF-8 JSON, or holds something other
+    than an object raises ConfigError (exit 10) naming `label` and the path."""
+    try:
+        with path.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except OSError as exc:
+        raise ConfigError(f"{label}: could not read {path}: {exc.strerror or exc}") from exc
+    except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError
+        raise ConfigError(f"{label}: {path} is not valid UTF-8 JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ConfigError(f"{label}: {path} must hold a JSON object, got {type(data).__name__}")
     return data
 
 

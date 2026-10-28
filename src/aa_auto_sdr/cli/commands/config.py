@@ -22,10 +22,15 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
     exit_code = ExitCode.GENERIC.value
     try:
         print(f"Creating profile '{name}'. Press Ctrl+C to cancel.")
-        org_id = input("ORG_ID (e.g. abc@AdobeOrg): ").strip()
-        client_id = input("CLIENT_ID: ").strip()
-        secret = input("SECRET: ").strip()
-        scopes = input("SCOPES: ").strip()
+        try:
+            org_id = input("ORG_ID (e.g. abc@AdobeOrg): ").strip()
+            client_id = input("CLIENT_ID: ").strip()
+            secret = input("SECRET: ").strip()
+            scopes = input("SCOPES: ").strip()
+        except EOFError:
+            print(f"\nerror: input ended before all four fields were entered; profile '{name}' not written", flush=True)
+            exit_code = ExitCode.CONFIG.value
+            return exit_code
 
         data = {
             "org_id": org_id,

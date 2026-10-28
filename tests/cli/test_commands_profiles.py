@@ -134,6 +134,21 @@ class TestProfileImport:
         assert rc == ExitCode.CONFIG.value
         assert "could not read" in capsys.readouterr().out
 
+    @pytest.mark.parametrize("content", ["[]", '"text"', "null"])
+    def test_json_that_is_not_an_object(
+        self,
+        aa_base: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+        content: str,
+    ) -> None:
+        src = tmp_path / "list.json"
+        src.write_text(content)
+        rc = cmd.import_run("listed", str(src), base=aa_base)
+        assert rc == ExitCode.CONFIG.value
+        assert "JSON object" in capsys.readouterr().out
+        assert not (aa_base / "orgs" / "listed").exists()
+
 
 class TestProfileTest:
     def test_pass(
