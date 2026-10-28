@@ -272,6 +272,21 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
+    if getattr(ns, "quality_report", None) is not None:
+        print(
+            "error: --quality-report is not compatible with --watch (watch runs no audit, so there is nothing to report)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    # Watch compares whole captures, so its fetcher always collects every
+    # family. A filter would be accepted and then silently ignored.
+    for attr, flag in (("metrics_only", "--metrics-only"), ("dimensions_only", "--dimensions-only")):
+        if getattr(ns, attr, False):
+            print(
+                f"error: {flag} is not compatible with --watch (watch captures every component family)",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
 
     # --- 2. Parse --interval ----------------------------------------------
     try:

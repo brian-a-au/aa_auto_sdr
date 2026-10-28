@@ -333,7 +333,7 @@ For deeper coverage see [`SNAPSHOT_DIFF.md`](SNAPSHOT_DIFF.md).
 
 | Flag | Behavior |
 |----|----|
-| `--trending-window DURATION` | Rollup across snapshots in a profile-scoped window (`Nh\|Nd\|Nw`). Reads existing snapshots; no API contact. |
+| `--trending-window DURATION` | Rollup across snapshots in a profile-scoped window (`Nh\|Nd\|Nw`). Reads existing snapshots; no API contact. A snapshot in the window that cannot be read or does not validate exits SNAPSHOT (16) and names the file on stderr. |
 | `--compare-with-prev` | Diff the latest snapshot against its baseline, scoped by `--profile` or `--snapshot-dir`. The baseline is the newest earlier snapshot whose scope covers the latest one, so filtered snapshots in between are skipped (listed in JSON `baseline_skipped`). Usually the same pair as `--diff <RSID>@previous <RSID>@latest`. |
 | `--snapshot-dir PATH` | Override the active snapshot directory. Honored by `--snapshot`, `--auto-snapshot`, `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, and `--watch`. |
 
@@ -361,7 +361,7 @@ aa_auto_sdr <RSID> --watch --interval 1h --profile prod
 | `--interval Nh\|Nd\|Nw` | Required with `--watch`. |
 | `--watch-threshold N` | Minimum total component change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). A report-suite setting change always emits a `change` event, whatever the threshold. |
 
-Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy` and `--fail-on-quality` (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
+Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit, so there is nothing to report), and `--metrics-only` / `--dimensions-only` (watch captures every component family) (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
 
 ## Quality severity engine
 

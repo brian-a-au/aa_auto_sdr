@@ -138,7 +138,7 @@ def test_stats_auth_error_returns_auth_exit(
     mock_client_cls.from_credentials.side_effect = AuthError("bad creds")
     rc = cmd.run(rsids=["demo.prod"], profile=None, format_name="table")
     assert rc == ExitCode.AUTH.value
-    assert "auth error" in capsys.readouterr().out.lower()
+    assert "auth error" in capsys.readouterr().err.lower()
 
 
 @patch("aa_auto_sdr.cli.commands.stats.AaClient")
@@ -179,7 +179,7 @@ def test_stats_api_error_on_resolve_returns_api_exit(
     )
     rc = cmd.run(rsids=["demo.prod"], profile=None, format_name="table")
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out.lower()
+    assert "api error" in capsys.readouterr().err.lower()
 
 
 @patch("aa_auto_sdr.cli.commands.stats.AaClient")
@@ -200,7 +200,7 @@ def test_stats_api_error_listing_all_returns_api_exit(
     )
     rc = cmd.run(rsids=[], profile=None, format_name="json")
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out.lower()
+    assert "api error" in capsys.readouterr().err.lower()
 
 
 @patch("aa_auto_sdr.cli.commands.stats.AaClient")

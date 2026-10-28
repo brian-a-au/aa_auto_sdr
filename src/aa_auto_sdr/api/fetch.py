@@ -112,11 +112,12 @@ def _records(value: Any) -> list[dict[str, Any]]:
     return []
 
 
-def _component_records(value: Any, *, rsid: str, component_type: str) -> list[dict[str, Any]]:
-    """Validate the raw dimension/metric list before treating it as inventory.
+def _response_rows(value: Any, *, rsid: str, component_type: str) -> list[Any]:
+    """Coerce a component-list response to rows, rejecting non-list shapes.
 
-    Keep DataFrame compatibility at the existing boundary, but never interpret
-    error mappings, missing IDs, or unexpected response shapes as empty success.
+    Keeps DataFrame compatibility at the existing boundary, but never
+    interprets an error mapping or an unexpected response shape as empty
+    success.
     """
     # Connector discards HTTP status. Before raw mode these known error stubs
     # raised pandas ValueError and were retried. Preserve that ambiguity/budget,
@@ -129,10 +130,21 @@ def _component_records(value: Any, *, rsid: str, component_type: str) -> list[di
         value = value.to_dict(orient="records")
     if not isinstance(value, list):
         raise ApiError(f"{component_type} fetch failed for {rsid}: expected a list of component records")
-    for index, row in enumerate(value):
+    return value
+
+
+def _component_records(value: Any, *, rsid: str, component_type: str) -> list[dict[str, Any]]:
+    """`_response_rows` plus the per-row id every inventory family needs.
+
+    The id is the key every writer, snapshot, and diff uses, so a row
+    without one cannot be normalized. Used by the fetchers whose rows become
+    SDR inventory: dimensions, metrics, segments, and calculated metrics.
+    """
+    rows = _response_rows(value, rsid=rsid, component_type=component_type)
+    for index, row in enumerate(rows):
         if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"].strip():
             raise ApiError(f"{component_type} fetch failed for {rsid}: row {index} requires a nonempty string id")
-    return value
+    return rows
 
 
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -489,13 +501,15 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
 def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     """Pulls segments for the rsid, with extended_info for the `definition` body."""
     started = time.monotonic()
-    raws = _records(
-        _retry_and_normalize(
-            lambda: client.handle.getSegments(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
-            policy=client.retry_policy,
+    raws = _retry_and_normalize(
+        lambda: _component_records(
+            client.handle.getSegments(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             rsid=rsid,
             component_type="segment",
-        )
+        ),
+        policy=client.retry_policy,
+        rsid=rsid,
+        component_type="segment",
     )
     known = {
         "id",
@@ -547,13 +561,15 @@ def fetch_calculated_metrics(
 ) -> list[models.CalculatedMetric]:
     """Pulls calculated metrics for the rsid, with extended_info for `definition`."""
     started = time.monotonic()
-    raws = _records(
-        _retry_and_normalize(
-            lambda: client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
-            policy=client.retry_policy,
+    raws = _retry_and_normalize(
+        lambda: _component_records(
+            client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             rsid=rsid,
             component_type="calculated_metric",
-        )
+        ),
+        policy=client.retry_policy,
+        rsid=rsid,
+        component_type="calculated_metric",
     )
     known = {
         "id",
@@ -601,6 +617,14 @@ def fetch_calculated_metrics(
     return out
 
 
+def _is_usable_vrs_row(row: Any) -> bool:
+    """True when `row` is a mapping with a nonempty string `id`."""
+    if not isinstance(row, dict):
+        return False
+    ident = row.get("id")
+    return isinstance(ident, str) and bool(ident.strip())
+
+
 def _finalize_vrs_fetch(
     raws: list[dict[str, Any]],
     parent_rsid: str,
@@ -617,7 +641,26 @@ def _finalize_vrs_fetch(
     shape (always "full" today) and goes into the component_fetch INFO
     record; it does NOT control the FetchOutcome.expansion_level field
     (that's the caller's responsibility).
+
+    A row that is not a mapping, or that carries no usable string `id`, is
+    skipped the same way `fetch_virtual_report_suite_summaries` skips it:
+    the id is the key every writer, snapshot, and diff needs, so such a row
+    cannot be normalized. Indexing it raised AttributeError or KeyError
+    before, which left the run with a traceback and exit 1.
     """
+    usable = [row for row in raws if _is_usable_vrs_row(row)]
+    if len(usable) != len(raws):
+        logger.debug(
+            "vrs_rows_skipped rsid=%s component_type=virtual_report_suite count=%s",
+            parent_rsid,
+            len(raws) - len(usable),
+            extra={
+                "rsid": parent_rsid,
+                "component_type": "virtual_report_suite",
+                "count": len(raws) - len(usable),
+            },
+        )
+        raws = usable
     known = {
         "id",
         "name",
@@ -732,7 +775,12 @@ def fetch_virtual_report_suites(
         )
 
     def enumerate_vrs() -> list[dict[str, Any]]:
-        return _records(
+        # `_response_rows`, not `_records`: a mapping-shaped error stub used to
+        # be wrapped into a single row that the parent filter then dropped,
+        # reporting a failed endpoint as a healthy org with zero VRS. Per-row
+        # ids are not required here — `_finalize_vrs_fetch` skips the rows it
+        # cannot use, as the discovery listing does.
+        return _response_rows(
             with_retries(
                 lambda: classify_transient_sdk_call(
                     lambda: classify_permanent_vrs_shape_error(
@@ -742,7 +790,9 @@ def fetch_virtual_report_suites(
                 ),
                 policy=client.retry_policy,
                 on_attempt=_on_attempt,
-            )
+            ),
+            rsid=parent_rsid,
+            component_type="virtual_report_suite",
         )
 
     if source is not None:

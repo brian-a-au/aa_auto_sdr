@@ -126,10 +126,11 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `rsid_failure` — per-RSID processing failed (batch with `continue_on_error=True`)
 - `run_failure` — top-level exception bubbled past command dispatch
 
-### Resilience (3)
+### Resilience (4)
 
 - `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
+- `vrs_rows_skipped` — DEBUG. `api/fetch.py::_finalize_vrs_fetch`. Fires only when the VRS listing holds rows that are not mappings or carry no usable string `id`, which cannot be normalized into a component. Carries `rsid`, `component_type=virtual_report_suite`, and `count` (the number of rows skipped).
 - `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the fetch-failed WARNING when the VRS fetch fails with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. Operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
 
 ### Batch sampling (1)

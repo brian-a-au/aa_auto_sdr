@@ -156,6 +156,12 @@ def validate_envelope(env: dict[str, Any]) -> None:
     Envelopes written before 1.21.5 have literal "nan" strings in top-level
     header and row fields read as None (see `_scrub_legacy_nan`).
 
+    Every component row must be an object carrying a nonempty string `id`,
+    unique within its family. Rows are keyed by `id` on every comparison
+    path, so a row without one used to surface as a bare `KeyError` and
+    duplicates silently collapsed onto the last row. Ids are unique per
+    family, not across families.
+
     v5 envelopes must carry `collected_components`; v4 envelopes may, and then
     it must list every family. When present it must be a list of unique known
     family names that covers every degraded or partial family. It is never defaulted: an absent key means
@@ -203,7 +209,7 @@ def validate_envelope(env: dict[str, Any]) -> None:
         "classifications",
     ):
         if section in components:
-            _require_mapping_rows(components[section], f"components.{section}")
+            _require_component_rows(components[section], section)
     if "degraded_components" in env:
         _require_container(env["degraded_components"], list, "degraded_components")
     if "partial_components" in env:
@@ -295,6 +301,24 @@ def _require_mapping_rows(value: Any, field: str) -> None:
     _require_container(value, list, field)
     if any(not isinstance(row, dict) for row in value):
         raise SnapshotCorruptError(f"{field} rows must be dicts")
+
+
+def _require_component_rows(value: Any, family: str) -> None:
+    """Component rows must carry a nonempty string `id`, unique in the family.
+
+    Every comparison path keys rows by `id`, so this is the one place that
+    guarantees it. Messages match `sdr/rebuild.py`'s wording for the same
+    two defects, so `--render-from` reports them identically whichever
+    validator sees the row first."""
+    _require_mapping_rows(value, f"components.{family}")
+    seen: set[str] = set()
+    for index, row in enumerate(value):
+        ident = row.get("id")
+        if not isinstance(ident, str) or not ident.strip():
+            raise SnapshotCorruptError(f"components.{family}[{index}] is missing a non-empty string 'id'")
+        if ident in seen:
+            raise SnapshotCorruptError(f"duplicate component id in {family}: {ident!r}")
+        seen.add(ident)
 
 
 def _require_collected_components(env: dict[str, Any]) -> None:

@@ -73,6 +73,8 @@ The SDR JSON output (`--format json`) carries the same `collected_components` li
 
 The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v6`, `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load forward-compat: `v1` envelopes load with `degraded_components` / `partial_components` defaulted to empty and `quality` defaulted to `null`.
 
+Every component row must be an object with a nonempty string `id`, unique within its family, because every comparison keys rows by `id` (see [Identity by ID](#identity-by-id-never-by-name)). A row that breaks either rule is `SnapshotCorruptError`, which the CLI reports as snapshot error `16`. Ids only have to be unique inside one family, so the same id in `dimensions` and in `metrics` is fine.
+
 ## Storage convention
 
 ```

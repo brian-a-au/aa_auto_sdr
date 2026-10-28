@@ -112,6 +112,9 @@ def _ns(**overrides) -> argparse.Namespace:
         "format": None,
         "quality_policy": None,
         "fail_on_quality": None,
+        "quality_report": None,
+        "metrics_only": False,
+        "dimensions_only": False,
         "profile": None,
         "snapshot_dir": None,
     }
@@ -174,6 +177,24 @@ class TestUsageValidation:
         rc = watch_run(ns, _injected=_make_inj())
         assert rc == ExitCode.USAGE
         assert "--fail-on-quality" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        ("override", "flag"),
+        [
+            ({"metrics_only": True}, "--metrics-only"),
+            ({"dimensions_only": True}, "--dimensions-only"),
+            ({"quality_report": "json"}, "--quality-report"),
+        ],
+    )
+    def test_watch_rejects_flags_it_cannot_honor(self, override, flag, capsys) -> None:
+        """Watch always captures every family and runs no audit, so these
+        three used to be accepted and silently ignored."""
+        rc = watch_run(_ns(**override), _injected=_make_inj())
+        assert rc == ExitCode.USAGE
+        assert flag in capsys.readouterr().err
+
+    def test_watch_without_those_flags_still_runs(self) -> None:
+        assert watch_run(_ns(), _injected=_make_inj()) == ExitCode.OK
 
 
 class TestDispatchIntegration:

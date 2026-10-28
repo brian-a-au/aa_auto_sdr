@@ -46,9 +46,9 @@ class TestProfileOverwrite:
         assert rc1 == ExitCode.OK.value
         rc2 = cmd.import_run("prod", str(src), base=aa_base)
         assert rc2 == ExitCode.CONFIG.value
-        out = capsys.readouterr().out
-        assert "already exists" in out
-        assert "--profile-overwrite" in out
+        err = capsys.readouterr().err
+        assert "already exists" in err
+        assert "--profile-overwrite" in err
 
     def test_import_with_overwrite_succeeds(
         self,

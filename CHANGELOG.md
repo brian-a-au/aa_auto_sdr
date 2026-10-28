@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.4] — 2026-10-28
+
+This patch fixes crashes on unexpected data and cleans up which stream
+messages go to. An odd response from Adobe Analytics, or a damaged snapshot
+file, now gives a typed exit code instead of a traceback. Error messages from
+the discovery, inspection, and snapshot commands now go to stderr, so stdout
+holds only the payload a script asked for. A sampled batch preview now lists
+the report suites the real run would generate, and a parallel batch reports
+its results in input order. No new flags and no changed defaults.
+
+### Fixed
+- A segment or calculated metric fetch no longer crashes when Adobe Analytics
+  answers with something other than a list of components. Before, the run
+  ended with a traceback and exit 1. The run now exits with api error 12, and
+  a response that signals a rate limit is retried under `--max-retries` like
+  any other transient failure. A response of `null` is also no longer read as
+  a report suite with no segments.
+- A virtual report suite listing that holds an error mapping instead of rows
+  now marks the section degraded. Before, the mapping was counted as one row,
+  the parent filter dropped it, and the report said the org had no virtual
+  report suites. A single row with no usable `id` is skipped now instead of
+  ending the run with a traceback, and a new `vrs_rows_skipped` debug record
+  says how many were skipped.
+- A snapshot whose component rows are missing an `id`, or that uses the same
+  `id` twice in one family, now exits with snapshot error 16 and names the
+  row. Before, `--diff`, `--compare-with-prev`, and `--trending-window` ended
+  with a traceback and exit 1, and duplicate ids silently collapsed onto the
+  last row, which made the unchanged count wrong.
+- A snapshot that omits the optional `components.report_suite` block now
+  diffs, and its report suite fields are reported as changes. Before, the
+  diff ended with a traceback and exit 1, even though the schema and
+  `--render-from` both treat the block as optional.
+- `--trending-window` now exits with snapshot error 16 and names the file when
+  a snapshot in the window cannot be read or does not validate. Before, one
+  damaged file in the window ended the run with a traceback and exit 1.
+- Error and warning messages from `--list-reportsuites`,
+  `--list-virtual-reportsuites`, `--describe-reportsuite`, the five
+  `--list-*` inspection commands, `--stats`, `--inventory-summary`,
+  `--trending-window`, `--list-snapshots`, `--prune-snapshots`,
+  `--interactive`, the profile commands, and the config commands now go to
+  stderr. Before, they went to stdout, so a failed
+  `--list-reportsuites --format json --output -` put a human sentence in the
+  stream a caller was parsing. This is the same convention generation, batch,
+  and diff already followed.
+- `--batch --sample N --dry-run` now previews the report suites the real run
+  would generate. Before, the preview listed every resolved report suite,
+  because sampling happened after the preview returned. The dry run's
+  `--run-summary-json` now also reports `sampled`, `sample_size`,
+  `sample_seed`, `sample_strategy`, and `total_available` instead of
+  reporting no sample at all.
+- A parallel batch now reports per-report-suite results in the order the
+  identifiers were given, in both the summary banner and the `rsids` array of
+  `--run-summary-json`. Before, the order followed whichever worker finished
+  first, so two identical runs produced different output. Under `--fail-fast`
+  the exit code for an all-failed run also no longer depends on completion
+  order. Log records still arrive in completion order.
+- `--watch` now rejects `--quality-report`, `--metrics-only`, and
+  `--dimensions-only` with usage error 2. Before, all three were accepted and
+  ignored: watch captures every component family and runs no audit, so a watch
+  run with `--metrics-only` still captured everything and a watch run with
+  `--quality-report` wrote no report.
+
 ## [1.24.3] — 2026-10-28
 
 This patch fixes problems found by a bug hunt over the 1.23 and 1.24 changes.

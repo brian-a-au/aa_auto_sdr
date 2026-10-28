@@ -52,6 +52,7 @@ def run(
             print(
                 "error: --compare-with-prev requires at least one positional RSID.",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.USAGE.value
             return exit_code

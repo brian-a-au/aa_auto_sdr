@@ -112,7 +112,7 @@ class TestProfileImport:
         src.write_text(json.dumps({"org_id": "x"}))
         rc = cmd.import_run("bad", str(src), base=aa_base)
         assert rc == ExitCode.CONFIG.value
-        assert "missing required" in capsys.readouterr().out
+        assert "missing required" in capsys.readouterr().err
 
     def test_file_not_found(
         self,
@@ -132,7 +132,7 @@ class TestProfileImport:
         src.write_text("{not valid json")
         rc = cmd.import_run("broken", str(src), base=aa_base)
         assert rc == ExitCode.CONFIG.value
-        assert "could not read" in capsys.readouterr().out
+        assert "could not read" in capsys.readouterr().err
 
     def test_file_that_is_not_utf8(
         self,
@@ -144,7 +144,7 @@ class TestProfileImport:
         src.write_bytes(b"\xff\xfe{}")
         rc = cmd.import_run("utf16", str(src), base=aa_base)
         assert rc == ExitCode.CONFIG.value
-        assert "could not read" in capsys.readouterr().out
+        assert "could not read" in capsys.readouterr().err
 
     @pytest.mark.parametrize("content", ["[]", '"text"', "null"])
     def test_json_that_is_not_an_object(
@@ -158,7 +158,7 @@ class TestProfileImport:
         src.write_text(content)
         rc = cmd.import_run("listed", str(src), base=aa_base)
         assert rc == ExitCode.CONFIG.value
-        assert "JSON object" in capsys.readouterr().out
+        assert "JSON object" in capsys.readouterr().err
         assert not (aa_base / "orgs" / "listed").exists()
 
 

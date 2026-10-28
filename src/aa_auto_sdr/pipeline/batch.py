@@ -35,6 +35,68 @@ from aa_auto_sdr.sdr.quality import QualityRules
 logger = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class SampleOutcome:
+    """The RSID list a run will process, plus how it was sampled.
+
+    Shared by `run_batch` and the CLI's `--dry-run` preview so the preview
+    lists the same report suites the real run would generate.
+    """
+
+    rsids: list[str]
+    total_available: int
+    sampled: bool = False
+    sample_size: int | None = None
+    sample_seed: int | None = None
+    sample_strategy: str | None = None
+
+
+def resolve_sample(
+    rsids: list[str],
+    *,
+    sample_size: int | None,
+    sample_seed: int | None,
+    sample_stratified: bool,
+) -> SampleOutcome:
+    """Apply `--sample` to `rsids` and describe the result.
+
+    A `sample_size` at or above the list length leaves the list untouched and
+    reports `sampled=False`. Emits the one `batch_sampled` record, so whichever
+    path samples logs it exactly once.
+    """
+    if sample_size is not None and sample_size < 1:
+        raise ValueError(f"sample_size must be >= 1, got {sample_size}")
+
+    total_available = len(rsids)
+    if sample_size is None or sample_size >= total_available:
+        return SampleOutcome(rsids=list(rsids), total_available=total_available)
+
+    picked = sample_rsids(rsids, sample_size=sample_size, seed=sample_seed, stratified=sample_stratified)
+    strategy = "stratified" if sample_stratified else "random"
+    logger.info(
+        "batch_sampled total_available=%d count=%d seed=%s strategy=%s",
+        total_available,
+        len(picked),
+        sample_seed,
+        strategy,
+        extra={
+            "count": len(picked),
+            "count_total": total_available,
+            "sample_size": sample_size,
+            "sample_seed": sample_seed,
+            "sample_strategy": strategy,
+        },
+    )
+    return SampleOutcome(
+        rsids=picked,
+        total_available=total_available,
+        sampled=True,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
+        sample_strategy=strategy,
+    )
+
+
 def run_batch(
     *,
     client: AaClient,
@@ -91,35 +153,13 @@ def run_batch(
     if workers < 1:
         raise ValueError(f"workers must be >= 1, got {workers}")
 
-    if sample_size is not None and sample_size < 1:
-        raise ValueError(f"sample_size must be >= 1, got {sample_size}")
-
-    total_available = len(rsids)
-    sampled = False
-    sample_strategy: str | None = None
-    if sample_size is not None and sample_size < total_available:
-        rsids = sample_rsids(
-            rsids,
-            sample_size=sample_size,
-            seed=sample_seed,
-            stratified=sample_stratified,
-        )
-        sampled = True
-        sample_strategy = "stratified" if sample_stratified else "random"
-        logger.info(
-            "batch_sampled total_available=%d count=%d seed=%s strategy=%s",
-            total_available,
-            len(rsids),
-            sample_seed,
-            sample_strategy,
-            extra={
-                "count": len(rsids),
-                "count_total": total_available,
-                "sample_size": sample_size,
-                "sample_seed": sample_seed,
-                "sample_strategy": sample_strategy,
-            },
-        )
+    sample = resolve_sample(
+        rsids,
+        sample_size=sample_size,
+        sample_seed=sample_seed,
+        sample_stratified=sample_stratified,
+    )
+    rsids = sample.rsids
 
     vrs_source = VrsSource(client)
     if workers == 1:
@@ -192,11 +232,11 @@ def run_batch(
 
     return dataclasses.replace(
         inner,
-        sampled=sampled,
-        sample_size=sample_size if sampled else None,
-        sample_seed=sample_seed if sampled else None,
-        sample_strategy=sample_strategy if sampled else None,
-        total_available=total_available,
+        sampled=sample.sampled,
+        sample_size=sample.sample_size,
+        sample_seed=sample.sample_seed,
+        sample_strategy=sample.sample_strategy,
+        total_available=sample.total_available,
         quality_verdicts=verdicts,
     )
 

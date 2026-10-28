@@ -117,13 +117,13 @@ def _bootstrap(
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
-        print(f"error: {e}", flush=True)
+        print(f"error: {e}", flush=True, file=sys.stderr)
         return None, ExitCode.CONFIG.value
 
     try:
         client = AaClient.from_credentials(creds, retry_policy=retry_policy)
     except AuthError as e:
-        print(f"auth error: {e}", flush=True)
+        print(f"auth error: {e}", flush=True, file=sys.stderr)
         return None, ExitCode.AUTH.value
     return client, ExitCode.OK.value
 
@@ -173,11 +173,11 @@ def _list_per_component(
             exit_code = ExitCode.NOT_FOUND.value
             return exit_code
         except ReportSuiteNotFoundError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.NOT_FOUND.value
             return exit_code
         except ApiError as e:
-            print(f"api error: {e}", flush=True)
+            print(f"api error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.API.value
             return exit_code
 
@@ -195,11 +195,11 @@ def _list_per_component(
             try:
                 items = fetcher(client, canonical_rsid)
             except ApiError as e:
-                print(f"api error: {e}", flush=True)
+                print(f"api error: {e}", flush=True, file=sys.stderr)
                 exit_code = ExitCode.API.value
                 return exit_code
             except AaAutoSdrError as e:
-                print(f"error: {e}", flush=True)
+                print(f"error: {e}", flush=True, file=sys.stderr)
                 exit_code = ExitCode.GENERIC.value
                 return exit_code
             for item in items:
@@ -219,7 +219,7 @@ def _list_per_component(
                 sort_field_allowlist=sort_allowlist,
             )
         except ValueError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.USAGE.value
             return exit_code
 
@@ -362,11 +362,11 @@ def run_describe_reportsuite(
             exit_code = ExitCode.NOT_FOUND.value
             return exit_code
         except ReportSuiteNotFoundError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.NOT_FOUND.value
             return exit_code
         except ApiError as e:
-            print(f"api error: {e}", flush=True)
+            print(f"api error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.API.value
             return exit_code
 
@@ -389,11 +389,11 @@ def run_describe_reportsuite(
                     count_only=True,
                 )
             except ApiError as e:
-                print(f"api error: {e}", flush=True)
+                print(f"api error: {e}", flush=True, file=sys.stderr)
                 exit_code = ExitCode.API.value
                 return exit_code
             except AaAutoSdrError as e:
-                print(f"error: {e}", flush=True)
+                print(f"error: {e}", flush=True, file=sys.stderr)
                 exit_code = ExitCode.GENERIC.value
                 return exit_code
 

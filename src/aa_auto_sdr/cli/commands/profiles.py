@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -42,6 +43,7 @@ def list_run(
             print(
                 f"error: --profile-list format must be json|table (got '{fmt}')",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.OUTPUT.value
             return exit_code
@@ -112,7 +114,7 @@ def show_run(name: str, *, base: Path | None = None) -> int:
         try:
             data = profiles.read_profile(name, base=base)
         except ConfigError as exc:
-            print(f"error: {exc}", flush=True)
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         snap_dir = (base or profiles.default_base()) / "orgs" / name / "snapshots"
@@ -158,24 +160,24 @@ def import_run(
     try:
         src = Path(file_path).expanduser()
         if not os.path.exists(src):
-            print(f"error: file not found: {src}", flush=True)
+            print(f"error: file not found: {src}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         try:
             with src.open(encoding="utf-8") as fh:
                 data = json.load(fh)
         except (ValueError, OSError) as exc:  # ValueError covers JSONDecodeError and UnicodeDecodeError
-            print(f"error: could not read {src}: {exc}", flush=True)
+            print(f"error: could not read {src}: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         if not isinstance(data, dict):
-            print(f"error: {src} must hold a JSON object, got {type(data).__name__}", flush=True)
+            print(f"error: {src} must hold a JSON object, got {type(data).__name__}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         required = {"org_id", "client_id", "secret", "scopes"}
         missing = required - data.keys()
         if missing:
-            print(f"error: missing required fields: {sorted(missing)}", flush=True)
+            print(f"error: missing required fields: {sorted(missing)}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
@@ -184,6 +186,7 @@ def import_run(
             print(
                 f"error: profile '{name}' already exists at {target_dir}. Pass --profile-overwrite to replace.",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code

@@ -51,7 +51,7 @@ class TestValidateConfig:
         monkeypatch.chdir(tmp_path)
         rc = cmd.validate_config(profile=None)
         assert rc == ExitCode.CONFIG.value
-        assert "AdobeOrg" in capsys.readouterr().out
+        assert "AdobeOrg" in capsys.readouterr().err
 
     def test_missing_field(
         self,

@@ -221,7 +221,7 @@ def test_list_reportsuites_auth_error_returns_11(mock_client_cls, env_creds, cap
         limit=None,
     )
     assert rc == 11
-    assert "auth error" in capsys.readouterr().out
+    assert "auth error" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.discovery.AaClient")
@@ -243,7 +243,7 @@ def test_list_reportsuites_api_error_returns_12(mock_client_cls, env_creds, caps
         limit=None,
     )
     assert rc == 12
-    assert "api error" in capsys.readouterr().out
+    assert "api error" in capsys.readouterr().err
 
 
 def test_list_virtual_reportsuites_no_creds_returns_10(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -331,7 +331,7 @@ def test_list_reportsuites_generic_error_returns_1(mock_client_cls, mock_fetch, 
         limit=None,
     )
     assert rc == 1  # generic error
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.api.fetch.fetch_virtual_report_suite_summaries")
@@ -353,4 +353,4 @@ def test_list_virtual_reportsuites_generic_error_returns_1(mock_client_cls, mock
         limit=None,
     )
     assert rc == 1  # generic error
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err

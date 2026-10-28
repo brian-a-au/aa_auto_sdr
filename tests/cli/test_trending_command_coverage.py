@@ -76,9 +76,9 @@ class TestFormatValidation:
             output=None,
         )
         assert exit_code == ExitCode.OUTPUT.value
-        out = capsys.readouterr().out
-        assert "format must be" in out
-        assert "xml" in out
+        err = capsys.readouterr().err
+        assert "format must be" in err
+        assert "xml" in err
 
 
 class TestRenderDispatch:

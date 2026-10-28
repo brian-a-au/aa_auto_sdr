@@ -129,6 +129,10 @@ JSON log records on parallel runs include `worker_id` (the per-RSID
 submission index, 0..N-1). Sequential runs omit the field. Agents
 parsing logs should treat the field as optional.
 
+Results are reported in input order on both paths, so the summary banner rows
+and the `rsids` array in `--run-summary-json` do not depend on which worker
+finished first. Log records still arrive in completion order.
+
 Continue-on-error is the batch default; no opt-in flag is needed. The validation cache is gated by `--enable-cache`; VRS fetch sharing below is independent of that flag.
 
 `--batch --format notion --workers N>1` is supported. A process-level lock serializes all `.notion_pages.json` writes so concurrent workers do not race. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically, but high worker counts may increase latency on large batches.
@@ -225,7 +229,7 @@ before dispatch. Sampling options on a single-RSID run exit with `USAGE` (2).
 
 | Flag | Type | Effect |
 |------|------|--------|
-| `--sample N` | int (>=1) | Subset N RSIDs from the batch list. `N >= len(batch)` is a no-op (full list runs, `BatchResult.sampled=False`). |
+| `--sample N` | int (>=1) | Subset N RSIDs from the batch list. `N >= len(batch)` is a no-op (full list runs, `BatchResult.sampled=False`). With `--dry-run` the preview lists the sampled subset, and the run summary carries the sample fields. |
 | `--sample-seed N` | int | Integer RNG seed for reproducible sampling. Default: non-deterministic. |
 | `--sample-stratified` | bool flag | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group. Without the flag, sampling is uniform random. |
 
@@ -357,6 +361,9 @@ Behavior:
   positional → `USAGE` (2).
 - Empty window for one RSID → warning + `PARTIAL_SUCCESS` (14); empty
   for all RSIDs → `NOT_FOUND` (13).
+- A snapshot in the window that cannot be read or does not validate →
+  `SNAPSHOT` (16), with the file named on stderr. Drift counts cover the
+  whole window, so an unreadable file is reported rather than skipped.
 - Window upper bound is "now at compute time," not "the most recent
   snapshot's timestamp."
 - Component sections that are not comparable (not collected on a side, unknown legacy scope, degraded or partial fetches) contribute zeros to drift counts, so filtered or degraded snapshots don't inflate scores. Each `delta_by_type` entry carries `comparability` and `suppression_reason`.
@@ -415,7 +422,7 @@ part of the directory has been read. A missing RSID directory at initial open
 or a readable empty directory still permits a baseline. Diagnostics use
 stderr/logs, preserving stdout NDJSON.
 
-SIGINT / SIGTERM → exit 0. `--quality-policy` and `--fail-on-quality` are rejected when paired with `--watch` (exit `USAGE` 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
+SIGINT / SIGTERM → exit 0. Rejected when paired with `--watch` (exit `USAGE` 2): `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit), and `--metrics-only` / `--dimensions-only` (watch captures every component family). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
 `--watch --format notion` publishes baseline captures, changes meeting
 `total_changes >= max(--watch-threshold, 1)`, and any cycle with a report-suite
@@ -637,6 +644,9 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
 
 - Use `--format json --output -` for machine-parseable stdout where supported.
 - Machine-readable stdout uses `json` or `csv` (where supported by the command family).
+- Every error and warning message goes to stderr, on every command. Stdout
+  carries only the requested payload, so a failed run leaves it empty rather
+  than putting a human sentence in the stream a caller is parsing.
 - `--output -` implies `--quiet` (banner/progress and INFO records on stderr suppressed; errors, warnings, and final result paths still print; the per-run log file is unaffected). Same for `--run-summary-json -`.
 - Under `--agent-mode`, the preset always applies the implicit `--output -` *before* the per-command-family resolver suppresses it for file-only formats (single SDR / batch). The implicit `--quiet` is derived from that pre-suppression output, so `aa_auto_sdr <RSID> --agent-mode --format excel` runs silently on stderr even though the SDR artifact is written to a file. This is the intended UX for unattended runs. For verbose stderr under agent-mode, pass `--log-level DEBUG` (widens the file logger; the console stays quiet by contract). `--quiet=false` is not a supported override — for verbose stderr you must avoid the implicit `--output -` by passing a non-stdout `--output PATH` (or, for SDR generation, simply omit `--agent-mode`).
 - On failure, **stderr** receives a JSON error envelope:

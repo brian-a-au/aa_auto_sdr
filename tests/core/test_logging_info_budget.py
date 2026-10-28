@@ -69,12 +69,26 @@ def _read_log_file(tmp_path: Path) -> list[str]:
 
 
 def _empty_fetcher_patches() -> list:
-    """Component fetchers run end-to-end so their INFO records count.
-
-    Dimension/metric SDK mocks below return healthy empty raw lists; other
-    existing mock responses are normalized to empty lists by their fetchers.
-    """
+    """Component fetchers run end-to-end so their INFO records count."""
     return []
+
+
+def _stub_empty_components(handle) -> None:
+    """Every component endpoint answers with a healthy empty list.
+
+    A bare MagicMock return value is not a list, and the fetchers reject an
+    unexpected response shape rather than reading it as empty success, so
+    each endpoint the builder calls has to be stubbed explicitly.
+    """
+    for method in (
+        "getDimensions",
+        "getMetrics",
+        "getSegments",
+        "getCalculatedMetrics",
+        "getVirtualReportSuites",
+        "getClassificationDatasets",
+    ):
+        getattr(handle, method).return_value = []
 
 
 def _set_env(monkeypatch):
@@ -108,8 +122,7 @@ def test_single_rsid_excel_info_budget(tmp_path, monkeypatch):
         stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.configure"))
         login = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Login"))
         analytics = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Analytics"))
-        analytics.return_value.getDimensions.return_value = []
-        analytics.return_value.getMetrics.return_value = []
+        _stub_empty_components(analytics.return_value)
         rs_patch = stack.enter_context(patch("aa_auto_sdr.api.fetch.fetch_report_suite"))
         stack.enter_context(
             patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["RS1"], False)),
@@ -145,8 +158,7 @@ def test_batch_n2_excel_info_budget(tmp_path, monkeypatch):
         stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.configure"))
         login = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Login"))
         analytics = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Analytics"))
-        analytics.return_value.getDimensions.return_value = []
-        analytics.return_value.getMetrics.return_value = []
+        _stub_empty_components(analytics.return_value)
         rs_patch = stack.enter_context(patch("aa_auto_sdr.api.fetch.fetch_report_suite"))
         # resolve_rsid maps each input identifier to itself, no name lookup.
         stack.enter_context(
@@ -198,8 +210,7 @@ def test_info_budget_unchanged_on_vrs_degrade(tmp_path, monkeypatch, caplog):
         stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.configure"))
         login = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Login"))
         analytics = stack.enter_context(patch("aa_auto_sdr.api.client.aanalytics2.Analytics"))
-        analytics.return_value.getDimensions.return_value = []
-        analytics.return_value.getMetrics.return_value = []
+        _stub_empty_components(analytics.return_value)
         rs_patch = stack.enter_context(patch("aa_auto_sdr.api.fetch.fetch_report_suite"))
         stack.enter_context(
             patch("aa_auto_sdr.api.fetch.resolve_rsid", return_value=(["RS1"], False)),

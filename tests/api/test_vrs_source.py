@@ -190,12 +190,16 @@ def test_unusual_parent_uses_scan_without_degrading(unexpected):
     )
 
 
-def test_malformed_row_still_errors_after_successful_source_load():
+def test_malformed_row_is_skipped_and_the_source_stays_loaded():
+    """A row that is not a mapping used to raise AttributeError out of the
+    fetcher, which reached the CLI as a traceback. It is skipped now, and a
+    successful enumeration is still retained for the next suite."""
     client = _client(lambda **_: [None])
     source = VrsSource(client)
     for _ in range(2):
-        with pytest.raises(AttributeError):
-            fetch_virtual_report_suites(client, "a", source=source)
+        outcome = fetch_virtual_report_suites(client, "a", source=source)
+        assert outcome.status == "healthy"
+        assert outcome.data == []
     assert source._loaded is not None
 
 

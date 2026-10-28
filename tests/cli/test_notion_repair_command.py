@@ -114,7 +114,7 @@ def test_notion_registry_error_returns_generic(capsys):
         code = mod.run_notion_repair_database(database_id="db-id", dry_run=True)
 
     assert code == int(ExitCode.GENERIC)
-    assert "--notion-repair-database" in capsys.readouterr().out
+    assert "--notion-repair-database" in capsys.readouterr().err
 
 
 def test_unexpected_exception_returns_generic(capsys):

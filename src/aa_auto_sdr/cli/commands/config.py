@@ -28,7 +28,11 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
             secret = input("SECRET: ").strip()
             scopes = input("SCOPES: ").strip()
         except EOFError:
-            print(f"\nerror: input ended before all four fields were entered; profile '{name}' not written", flush=True)
+            print(
+                f"\nerror: input ended before all four fields were entered; profile '{name}' not written",
+                flush=True,
+                file=sys.stderr,
+            )
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
@@ -65,7 +69,7 @@ def show_config(*, profile: str | None, profiles_base: Path | None = None) -> in
         try:
             creds = credentials.resolve(profile=profile, profiles_base=profiles_base)
         except ConfigError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
@@ -126,7 +130,7 @@ def validate_config(*, profile: str | None) -> int:
         try:
             credentials.validate_only(profile=profile)
         except ConfigError as exc:
-            print(f"error: {exc}", flush=True)
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         print("config valid (shape only — no API call made)")
@@ -162,7 +166,7 @@ def config_status(*, profile: str | None) -> int:
         try:
             creds = credentials.resolve(profile=profile)
         except ConfigError as exc:
-            print(f"resolution failed: {exc}", flush=True)
+            print(f"resolution failed: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         print("Resolved values (sensitive fields masked):")
