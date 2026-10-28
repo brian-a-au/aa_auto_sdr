@@ -126,6 +126,9 @@ Likely causes:
 - Network failure or AA API outage.
 - Rate limit exceeded.
 - A query timed out server-side.
+- The sign-in bootstrap could not reach Adobe. `getCompanyId` is retried, so
+  a read timeout, a connection error, or an exhausted retry budget during
+  start-up surfaces here rather than as an auth failure (11).
 
 What to try:
 - Re-run after a short delay (rate limits typically reset within a minute).

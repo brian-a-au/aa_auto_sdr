@@ -22,7 +22,8 @@ import requests
 from aa_auto_sdr.cli.commands import watch
 from aa_auto_sdr.cli.main import run
 from aa_auto_sdr.core.credentials import Credentials
-from aa_auto_sdr.core.exceptions import ApiError, AuthError
+from aa_auto_sdr.core.exceptions import AuthError
+from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.pipeline.watch import run_watch_loop
 from aa_auto_sdr.snapshot.git import GitOpResult
 from aa_auto_sdr.snapshot.store import list_snapshots, load_snapshot
@@ -102,8 +103,10 @@ def test_watch_honors_retry_exhaustion(sdk, capsys, stage, error, flags, attempt
     target = sdk.login.getCompanyId if stage == "bootstrap" else sdk.handle.getMetrics
     target.side_effect = error
     if stage == "bootstrap":
-        with pytest.raises((ApiError, requests.Timeout, requests.ConnectionError)):
-            invoke(sdk, flags)
+        # Every one of these shapes is normalized to ApiError at the bootstrap
+        # boundary, so an exhausted budget during startup is api error 12
+        # rather than a traceback.
+        assert invoke(sdk, flags) == ExitCode.API.value
         assert events(capsys) == []
         assert sdk.contexts == []  # startup failure never starts the watcher
     else:
@@ -135,14 +138,21 @@ def test_watch_high_budget_recovers_before_exhaustion(sdk, capsys, stage, failur
 
 @pytest.mark.parametrize("stage", ["bootstrap", "metrics"])
 @pytest.mark.parametrize(
-    "error", [AuthError("offline"), AttributeError("bad SDK shape"), KeyError("['dataGroup'] not in index")]
+    ("error", "bootstrap_code"),
+    [
+        # AuthError keeps its class through the bootstrap normalizer, so it
+        # stays auth error 11. The other two become plain ApiError.
+        (AuthError("offline"), ExitCode.AUTH.value),
+        (AttributeError("bad SDK shape"), ExitCode.API.value),
+        (KeyError("['dataGroup'] not in index"), ExitCode.API.value),
+    ],
+    ids=["auth", "attribute", "permanent_shape"],
 )
-def test_watch_permanent_failure_bypasses_retries(sdk, capsys, stage, error):
+def test_watch_permanent_failure_bypasses_retries(sdk, capsys, stage, error, bootstrap_code):
     target = sdk.login.getCompanyId if stage == "bootstrap" else sdk.handle.getMetrics
     target.side_effect = error
     if stage == "bootstrap":
-        with pytest.raises((AuthError, AttributeError, ApiError)):
-            invoke(sdk, ["--max-retries", "6"])
+        assert invoke(sdk, ["--max-retries", "6"]) == bootstrap_code
         assert events(capsys) == []
     else:
         assert invoke(sdk, ["--max-retries", "6"]) == 0

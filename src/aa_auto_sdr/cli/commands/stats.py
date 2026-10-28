@@ -66,6 +66,12 @@ def run(
             print(f"auth error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
             return exit_code
+        except ApiError as exc:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {exc}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
+            return exit_code
 
         # Resolve identifiers (or list all visible RSes when none given).
         canonical: list[str] = []

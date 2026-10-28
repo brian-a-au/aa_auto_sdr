@@ -11,7 +11,7 @@ from pathlib import Path
 
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.core import credentials, profiles
-from aa_auto_sdr.core.exceptions import AuthError, ConfigError
+from aa_auto_sdr.core.exceptions import ApiError, AuthError, ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.snapshot.store import list_snapshots
 
@@ -87,6 +87,14 @@ def test_run(
         except AuthError as exc:
             print(f"FAIL [auth]: {exc}", flush=True)
             exit_code = ExitCode.AUTH.value
+            return exit_code
+        except ApiError as exc:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError. The
+            # PASS / FAIL report is this command's result, so it stays on
+            # stdout like the other outcomes.
+            print(f"FAIL [api]: {exc}", flush=True)
+            exit_code = ExitCode.API.value
             return exit_code
         print(f"PASS: profile '{name}' authenticated; company_id={client.company_id}")
         exit_code = ExitCode.OK.value

@@ -29,7 +29,7 @@ from aa_auto_sdr.api.resilience import (
     with_retries,
 )
 from aa_auto_sdr.core.credentials import Credentials
-from aa_auto_sdr.core.exceptions import AuthError
+from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError
 
 logger = logging.getLogger(__name__)
 
@@ -82,14 +82,26 @@ class AaClient:
         # `log_retry_attempt` threads bootstrap retries into the same
         # `retry_attempt` DEBUG record stream as fetcher retries so operators
         # can grep them under `--log-format json`.
-        companies = (
-            with_retries(
-                lambda: classify_transient_sdk_call(login.getCompanyId),
-                policy=policy,
-                on_attempt=log_retry_attempt,
+        # Outer normalizer, mirroring `api/fetch.py::_retry_and_normalize`:
+        # anything that escapes the retries and is not already one of our
+        # typed errors becomes a plain ApiError. Without it a read timeout, a
+        # connection error, or a bad SDK shape escaped raw, and no CLI handler
+        # catches those, so the run ended with a traceback and exit 1 instead
+        # of api error 12. KeyboardInterrupt and SystemExit derive from
+        # BaseException, so they still propagate for a clean shutdown.
+        try:
+            companies = (
+                with_retries(
+                    lambda: classify_transient_sdk_call(login.getCompanyId),
+                    policy=policy,
+                    on_attempt=log_retry_attempt,
+                )
+                or []
             )
-            or []
-        )
+        except AaAutoSdrError:
+            raise  # ApiError, AuthError, ConfigError — the caller dispatches on these
+        except Exception as exc:
+            raise ApiError(f"auth bootstrap failed: {type(exc).__name__}: {exc}") from exc
         logger.debug(
             "getCompanyId returned count=%s",
             len(companies),

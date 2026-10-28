@@ -125,6 +125,11 @@ def _bootstrap(
     except AuthError as e:
         print(f"auth error: {e}", flush=True, file=sys.stderr)
         return None, ExitCode.AUTH.value
+    except ApiError as e:
+        # The bootstrap retries getCompanyId, so an exhausted budget arrives
+        # here as TransientApiError rather than AuthError.
+        print(f"api error: {e}", flush=True, file=sys.stderr)
+        return None, ExitCode.API.value
     return client, ExitCode.OK.value
 
 

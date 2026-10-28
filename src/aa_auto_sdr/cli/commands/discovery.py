@@ -71,6 +71,12 @@ def run_list_reportsuites(
             print(f"auth error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
             return exit_code
+        except ApiError as e:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {e}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
+            return exit_code
 
         try:
             summaries = fetch.fetch_report_suite_summaries(client)
@@ -142,6 +148,12 @@ def run_list_virtual_reportsuites(
         except AuthError as e:
             print(f"auth error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
+            return exit_code
+        except ApiError as e:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {e}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
             return exit_code
 
         try:

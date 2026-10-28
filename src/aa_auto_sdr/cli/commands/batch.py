@@ -325,6 +325,12 @@ def _run_impl(
         print(f"auth error: {e}", file=sys.stderr, flush=True)
         _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
+    except ApiError as e:
+        # The bootstrap retries getCompanyId, so an exhausted budget arrives
+        # here as TransientApiError rather than AuthError.
+        print(f"api error: {e}", file=sys.stderr, flush=True)
+        _emit_timings_if_enabled(show_timings=show_timings)
+        return ExitCode.API.value
 
     # Identifier resolution: print a one-line `error: ...` immediately on
     # failure (matches single-RSID generate.py convention) AND collect the

@@ -5,14 +5,25 @@ All notable changes to this project will be documented in this file. Format foll
 ## [1.24.4] — 2026-10-28
 
 This patch fixes crashes on unexpected data and cleans up which stream
-messages go to. An odd response from Adobe Analytics, or a damaged snapshot
-file, now gives a typed exit code instead of a traceback. Error messages from
-the discovery, inspection, and snapshot commands now go to stderr, so stdout
-holds only the payload a script asked for. A sampled batch preview now lists
-the report suites the real run would generate, and a parallel batch reports
-its results in input order. No new flags and no changed defaults.
+messages go to. A network failure while signing in, an odd response from
+Adobe Analytics, or a damaged snapshot file now gives a typed exit code
+instead of a traceback. Error messages from the discovery, inspection, and
+snapshot commands now go to stderr, so stdout holds only the payload a
+script asked for. A sampled batch preview now lists the report suites the
+real run would generate, and a parallel batch reports its results in input
+order. No new flags and no changed defaults.
 
 ### Fixed
+- A failure while building the client now gives a typed exit code on every
+  command. The bootstrap retries `getCompanyId`, so a read timeout, a
+  connection error, an exhausted retry budget, or an unexpected response
+  shape used to escape as an untyped error that no command caught. The run
+  ended with a traceback and exit 1. These now exit with api error 12. An
+  auth failure still exits 11, and a missing credential still exits 10.
+  `--watch` had no handling for any of the three and now reports all of them,
+  so `aa_auto_sdr <RSID> --watch --interval 1h` with no credentials exits 10
+  instead of printing a traceback. `--profile-test` reports the api failure as
+  `FAIL [api]` beside its existing `FAIL [auth]` and `FAIL [config]` lines.
 - A segment or calculated metric fetch no longer crashes when Adobe Analytics
   answers with something other than a list of components. Before, the run
   ended with a traceback and exit 1. The run now exits with api error 12, and

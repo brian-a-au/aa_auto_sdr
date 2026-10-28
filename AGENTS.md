@@ -422,6 +422,11 @@ part of the directory has been read. A missing RSID directory at initial open
 or a readable empty directory still permits a baseline. Diagnostics use
 stderr/logs, preserving stdout NDJSON.
 
+A bootstrap failure before the loop starts exits `CONFIG` (10) for a missing
+or incomplete credential, `AUTH` (11) for an OAuth failure, and `API` (12) for
+a network or SDK failure during `getCompanyId`. No NDJSON event is emitted,
+since the loop never ran.
+
 SIGINT / SIGTERM → exit 0. Rejected when paired with `--watch` (exit `USAGE` 2): `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit), and `--metrics-only` / `--dimensions-only` (watch captures every component family). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
 `--watch --format notion` publishes baseline captures, changes meeting
