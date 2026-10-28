@@ -5,6 +5,8 @@ completion directory."""
 
 from __future__ import annotations
 
+import sys
+
 from aa_auto_sdr.core.exit_codes import ExitCode
 
 
@@ -71,6 +73,7 @@ def run_completion(shell: str) -> int:
     if template is None:
         print(
             f"error: unknown shell '{shell}' (must be bash, zsh, or fish)",
+            file=sys.stderr,
             flush=True,
         )
         return ExitCode.USAGE.value

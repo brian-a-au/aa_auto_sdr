@@ -311,6 +311,7 @@ Limitation IDs:
 - `excluded_families_not_compared`: at least one family has `comparability: "excluded"`. This includes a family that neither side collected.
 - `suppressed_families_not_compared`: at least one family is `unknown`, `degraded`, or `partial` and was not compared.
 - `show_only_does_not_narrow_warn_threshold`: `--show-only` was given. It hides sections from the output, but `--warn-threshold` still counts every comparable section.
+- `legacy_capture_fields_not_compared`: `--extended-fields` was given and one snapshot was written before 1.21.25, which did not collect dimension and metric `tags`, `data_group`, and `extra`. Those fields were not compared for dimensions and metrics. `data_group` exists only on metrics, so it is left out of `compare_fields`. `tags` and `extra` stay listed because other component types still compare them.
 
 `compare_fields` and `settings_fields` come from the current tool's models, not from the keys in the two snapshots. A field that is present only in older snapshots is still compared (unless it is ignored), but it is not listed.
 

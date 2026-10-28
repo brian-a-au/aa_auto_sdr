@@ -6,6 +6,7 @@ Describes what the comparison compared so a reader can judge its evidence:
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -207,3 +208,25 @@ def test_compare_with_prev_baseline_is_not_chosen_by_time(tmp_path, capsys) -> N
             assert "baseline_chosen_by_time" not in report["coverage"]["limitations"]
     diff.run(a="rs1@previous", b="rs1@latest", format_name="json", output="-", profile=None, snapshot_dir=tmp_path)
     assert "baseline_chosen_by_time" in _json.loads(capsys.readouterr().out)["coverage"]["limitations"]
+
+
+def _legacy_report(a_tool_version: str) -> DiffReport:
+    return dataclasses.replace(_report(), a_tool_version=a_tool_version, b_tool_version="1.24.2")
+
+
+def test_legacy_capture_fields_are_reported_as_not_compared() -> None:
+    """Against a capture older than 1.21.25, --extended-fields skips dimension and
+    metric tags, data_group, and extra; coverage must not claim they were compared."""
+    cov = diff_coverage(_legacy_report("1.20.0"), extended_fields=True)
+    assert "legacy_capture_fields_not_compared" in cov["limitations"]
+    # data_group exists only on metrics, so nothing compared it.
+    assert "data_group" not in cov["compare_fields"]
+    # tags and extra are still compared on segments, calculated metrics, and the rest.
+    assert {"tags", "extra"} <= set(cov["compare_fields"])
+
+
+def test_legacy_capture_limitation_only_when_the_fields_would_be_compared() -> None:
+    assert "legacy_capture_fields_not_compared" not in diff_coverage(_legacy_report("1.20.0"))["limitations"]
+    current = diff_coverage(_legacy_report("1.21.25"), extended_fields=True)
+    assert "legacy_capture_fields_not_compared" not in current["limitations"]
+    assert "data_group" in current["compare_fields"]

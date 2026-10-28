@@ -111,6 +111,28 @@ class TestLegacyNanScrub:
         dims = next(c for c in compare(old, new, extended_fields=True).components if c.component_type == "dimensions")
         assert dims.modified == []
 
+    def test_required_string_field_reads_as_the_empty_string_a_current_capture_writes(self) -> None:
+        # Before 1.21.5 a missing dimension parent was written str(NaN) == "nan";
+        # current captures write "". The field is a required string, so None would
+        # make the snapshot unloadable by --render-from.
+        old = _envelope("1.21.4", dimensions=[_dim(parent="nan", pathable=False)])
+        new = _envelope("1.24.1", dimensions=[_dim(parent="", pathable=False)])
+        validate_envelope(old)
+        validate_envelope(new)
+        assert old["components"]["dimensions"][0]["parent"] == ""
+        dims = next(c for c in compare(old, new).components if c.component_type == "dimensions")
+        assert dims.modified == []
+
+    def test_pre_fix_snapshot_with_nan_in_a_required_field_still_renders(self) -> None:
+        from datetime import UTC, datetime
+
+        from aa_auto_sdr.sdr.rebuild import document_from_payload
+
+        old = _envelope("1.21.4", dimensions=[_dim(parent="nan", pathable=False, description="nan")])
+        doc = document_from_payload(old, rendered_at=datetime(2026, 1, 1, tzinfo=UTC), rendering_tool_version="x")
+        assert doc.dimensions[0].parent == ""
+        assert doc.dimensions[0].description is None
+
 
 class TestLegacyCaptureFields:
     def _pair(self, old_version: str) -> tuple[dict, dict]:

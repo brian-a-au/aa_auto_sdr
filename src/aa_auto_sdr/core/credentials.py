@@ -10,6 +10,7 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.core.exceptions import ConfigError
 
@@ -36,11 +37,16 @@ class Credentials:
 
 
 def _from_dict(d: dict, source: str) -> Credentials:
+    def text(key: str) -> str:
+        # JSON null, or a bare `KEY` line in .env, is missing, not the text "None".
+        value = d.get(key)
+        return "" if value is None else str(value).strip()
+
     return Credentials(
-        org_id=str(d.get("org_id", "")).strip(),
-        client_id=str(d.get("client_id", "")).strip(),
-        secret=str(d.get("secret", "")).strip(),
-        scopes=str(d.get("scopes", "")).strip(),
+        org_id=text("org_id"),
+        client_id=text("client_id"),
+        secret=text("secret"),
+        scopes=text("scopes"),
         source=source,
     )
 
@@ -72,7 +78,12 @@ def _from_dotenv(working_dir: Path) -> Credentials | None:
         return None
     # .env files use the UPPERCASE env-var contract (ORG_ID, ...) per .env.example;
     # normalize to the lowercase keys `_from_dict` expects, mirroring `_from_env`.
-    values = {k.lower(): v for k, v in dotenv_values(path).items()}
+    try:
+        values = {k.lower(): v for k, v in dotenv_values(path).items()}
+    except OSError as exc:
+        raise ConfigError(f".env: could not read {path}: {exc.strerror or exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f".env: {path} is not valid UTF-8: {exc}") from exc
     return _from_dict(values, source=".env")
 
 
@@ -80,10 +91,9 @@ def _from_config_json(working_dir: Path) -> Credentials | None:
     path = working_dir / "config.json"
     if not os.path.exists(path):
         return None
-    import json as _json
+    from aa_auto_sdr.core.profiles import read_config_object
 
-    with path.open(encoding="utf-8") as fh:
-        data = _json.load(fh)
+    data = read_config_object(path, "config.json")
     return _from_dict(data, source="config.json")
 
 
@@ -180,6 +190,15 @@ def validate_only(*, profile: str | None = None, working_dir: Path | None = None
     return creds
 
 
+def _chain_read(reader: Any, working_dir: Path) -> Credentials | None:
+    """A damaged file is an unmatched source in the chain, like a damaged
+    profile; resolve() reports the error itself if nothing outranks it."""
+    try:
+        return reader(working_dir)
+    except ConfigError:
+        return None
+
+
 def resolution_chain(
     *,
     profile: str | None = None,
@@ -230,14 +249,14 @@ def resolution_chain(
 
     # 3. dotenv file in cwd
     dotenv_path = working_dir / ".env"
-    dotenv_creds = _from_dotenv(working_dir) if os.path.exists(dotenv_path) else None
+    dotenv_creds = _chain_read(_from_dotenv, working_dir) if os.path.exists(dotenv_path) else None
     dotenv_ok = not matched_yet and dotenv_creds is not None and _is_complete(dotenv_creds)
     entries.append(ResolutionEntry(priority=3, source=".env (cwd)", matched=dotenv_ok))
     matched_yet = matched_yet or dotenv_ok
 
     # 4. config.json (cwd)
     cfg_path = working_dir / "config.json"
-    cfg_creds = _from_config_json(working_dir) if os.path.exists(cfg_path) else None
+    cfg_creds = _chain_read(_from_config_json, working_dir) if os.path.exists(cfg_path) else None
     cfg_ok = not matched_yet and cfg_creds is not None and _is_complete(cfg_creds)
     entries.append(ResolutionEntry(priority=4, source="config.json (cwd)", matched=cfg_ok))
 

@@ -1,6 +1,7 @@
 """Credential resolution precedence: profile > env > .env > config.json."""
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -183,3 +184,66 @@ def test_resolution_chain_reports_unmatched_profile_entry(tmp_path: Path) -> Non
     assert profile_entry.priority == 1
     assert "ghost" in profile_entry.source
     assert profile_entry.matched is False
+
+
+@pytest.mark.parametrize("content", [b"{not json", b"[1]", b"\xff\xfe{}"])
+def test_damaged_config_json_raises_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: bytes
+) -> None:
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    (tmp_path / "config.json").write_bytes(content)
+    with pytest.raises(ConfigError, match=r"config\.json"):
+        credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+
+
+def test_unreadable_config_json_raises_config_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    # A directory where the file should be fails to open on every OS, like an unreadable file.
+    (tmp_path / "config.json").mkdir()
+    with pytest.raises(ConfigError, match="could not read"):
+        credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+
+
+@pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0, reason="needs POSIX permissions and a non-root user")
+def test_unreadable_dotenv_raises_config_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("ORG_ID=x\n")
+    dotenv.chmod(0)
+    try:
+        with pytest.raises(ConfigError, match="could not read"):
+            credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+    finally:
+        dotenv.chmod(0o600)
+
+
+def test_damaged_profile_raises_config_error(tmp_path: Path) -> None:
+    profile_dir = tmp_path / "orgs" / "bad"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "config.json").write_text("[]")
+    with pytest.raises(ConfigError, match="bad"):
+        credentials.resolve(profile="bad", profiles_base=tmp_path, working_dir=tmp_path)
+
+
+def test_non_utf8_dotenv_raises_config_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    (tmp_path / ".env").write_bytes(b"ORG_ID=\xff\xfe\n")
+    with pytest.raises(ConfigError, match="not valid UTF-8"):
+        credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+
+
+def test_null_credential_value_counts_as_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """JSON null (or a bare `SECRET` line in .env) must not become the text "None"."""
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    (tmp_path / "config.json").write_text(
+        json.dumps({"org_id": "O@AdobeOrg", "client_id": "C", "secret": None, "scopes": "openid"})
+    )
+    # The file is incomplete, so it is skipped and resolution fails (exit 10)
+    # instead of sending the literal secret "None" to Adobe.
+    with pytest.raises(ConfigError):
+        credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)

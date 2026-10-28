@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -53,6 +55,39 @@ class TestLoadPolicyErrors:
         p = tmp_path / "bad.json"
         p.write_text("{not json")
         with pytest.raises(ConfigError, match="parse"):
+            load_policy(p)
+
+    def test_unreadable_file(self, tmp_path: Path) -> None:
+        # A directory fails to open on every OS, like a file without read permission.
+        p = tmp_path / "policy.json"
+        p.mkdir()
+        with pytest.raises(ConfigError, match="could not read"):
+            load_policy(p)
+
+    def test_not_utf8(self, tmp_path: Path) -> None:
+        p = tmp_path / "policy.json"
+        p.write_bytes(b"\xff\xfe{}")
+        with pytest.raises(ConfigError, match="parse"):
+            load_policy(p)
+
+    def test_reads_utf8_whatever_the_locale(self, tmp_path: Path) -> None:
+        """The file is read as UTF-8, not the locale encoding (cp1252 on most
+        Windows machines), so a non-ASCII reason or pattern loads the same everywhere."""
+        p = tmp_path / "policy.json"
+        p.write_text(json.dumps({"fail_on_quality": "HIGH"}), encoding="utf-8")
+        script = "import sys; from pathlib import Path; from aa_auto_sdr.sdr.quality_policy import load_policy; load_policy(Path(sys.argv[1]))"
+        result = subprocess.run(
+            [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", script, str(p)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, result.stderr
+
+    def test_pattern_repeat_count_too_large(self, tmp_path: Path) -> None:
+        p = tmp_path / "policy.json"
+        p.write_text(json.dumps({"naming": {"metrics": {"pattern": "a{99999999999}"}}}))
+        with pytest.raises(ConfigError, match="invalid regex"):
             load_policy(p)
 
     def test_unknown_top_level_key_max_issues(self, tmp_path: Path) -> None:

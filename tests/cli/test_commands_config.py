@@ -27,6 +27,20 @@ def test_profile_add_writes_profile(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert "sandbox" not in cfg
 
 
+def test_profile_add_stops_cleanly_when_input_ends(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    """Ctrl+D, or stdin that is closed or empty, ends input before all four
+    fields: a config error (exit 10) and no profile, not an EOFError traceback."""
+
+    def eof(*_a, **_k):
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", eof)
+    rc = cmd.profile_add("prod", base=tmp_path)
+    assert rc == 10
+    assert "input ended" in capsys.readouterr().out
+    assert not (tmp_path / "orgs" / "prod").exists()
+
+
 def test_show_config_prints_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("ORG_ID", "O")
     monkeypatch.setenv("CLIENT_ID", "C")
@@ -113,3 +127,22 @@ def test_sample_config_emits_four_keys_with_comma_separated_scopes(
     payload = json.loads(capsys.readouterr().out)
     assert set(payload.keys()) == {"org_id", "client_id", "secret", "scopes"}
     assert payload["scopes"] == "openid,AdobeID,additional_info.projectedProductContext"
+
+
+@pytest.mark.parametrize("env_set", [True, False])
+def test_config_status_reports_a_damaged_config_json_without_a_traceback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, env_set: bool
+) -> None:
+    for var, value in (("ORG_ID", "O"), ("CLIENT_ID", "C"), ("SECRET", "S"), ("SCOPES", "X")):
+        if env_set:
+            monkeypatch.setenv(var, value)
+        else:
+            monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("AA_PROFILE", raising=False)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "config.json").write_text("[1]")
+    rc = cmd.config_status(profile=None)
+    out = capsys.readouterr().out
+    assert "Resolution chain" in out
+    # Env vars outrank config.json, so a damaged file only fails resolution when nothing else resolves.
+    assert rc == (0 if env_set else 10)
