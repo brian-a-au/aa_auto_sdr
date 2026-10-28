@@ -13,8 +13,9 @@ loses or crashes on some rows. No new flags and no changed defaults.
 - `--render-from` and `<RSID>@latest` work again on a snapshot written before
   1.21.5 that stored a missing required text field, such as a dimension's
   `parent`, as `"nan"`. Since 1.24.2 these failed with exit 16 and
-  `field 'parent' must be string, got NoneType`. Such a value now reads as the
-  empty string a current capture writes. Optional fields still read as missing.
+  `field 'parent' must be string, got NoneType`. Such a value now reads as an
+  empty string, so the snapshot loads. For `parent` that is also what a current
+  capture writes. Optional fields still read as missing.
 - Diff and `--compare-with-prev` JSON `coverage` no longer lists `data_group`
   as compared when `--extended-fields` skipped it against a snapshot written
   before 1.21.25. A new limitation ID, `legacy_capture_fields_not_compared`,
@@ -24,18 +25,25 @@ loses or crashes on some rows. No new flags and no changed defaults.
   file. Before, it crashed with a traceback and exit 1. This covers a profile's
   `config.json`, a `config.json` or `.env` in the working folder, and a
   `--profile-import` file. A file is damaged when it cannot be read, is not
-  UTF-8 JSON, or does not hold a JSON object.
+  UTF-8 JSON, or does not hold a JSON object. `--config-status` shows a damaged
+  `.env` or `config.json` as not matched, and still succeeds when a source
+  ranked above it resolves.
 - A `--quality-policy` file that cannot be read or is not UTF-8 now exits with
   code 10, as does a naming `pattern` with a repeat count too large to compile.
   Before, these crashed with exit 1. The file is now always read as UTF-8, not
   in the system's default encoding.
-- Template fill no longer drops calculated metrics and segments when the
-  `metrics-segments` sheet has none of the `Type`, `Name`, `Description`, or
-  `Format` headers. The rows now go to the `Overflow` sheet, and the sheet is
-  reported as skipped with the reason `no_known_columns`.
+- Template fill no longer drops calculated metrics and segments that have no
+  matching column on the `metrics-segments` sheet. Those rows now go to the
+  `Overflow` sheet. When the sheet has none of the `Type`, `Name`,
+  `Description`, or `Format` headers, it is reported as skipped with the reason
+  `no_known_columns`.
 - Template fill no longer crashes on a name or description that holds a
   control character Excel cannot store, such as the vertical tab that a line
-  break pasted from Word leaves. The character is removed from the cell.
+  break pasted from Word leaves. The character is removed from the cell, and a
+  value made only of such characters no longer blanks a template cell.
+- A credential set to JSON `null`, or a bare `SECRET` line in `.env`, now
+  counts as missing. Before, it was sent to Adobe as the text `None`, which
+  failed later with an auth error (exit 11) instead of a config error (exit 10).
 - `--profile-add` now exits with code 10 when input ends before all four
   fields are entered. Before, it crashed with a traceback.
 - `--completion` with an unknown shell now prints its error to stderr. Before,
