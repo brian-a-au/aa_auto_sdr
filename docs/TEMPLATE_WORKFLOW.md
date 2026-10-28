@@ -82,6 +82,7 @@ These failures surface as `template_sheet_skipped` WARNINGs in the log. The writ
 - **Removing or relocating the `B4` section title.** If `B4` doesn't case-insensitively match the table above, the sheet is skipped.
 - **Missing the `ID` marker.** If column B in rows 5–10 doesn't contain a cell with exactly `ID`, the writer can't find the header row → `reason=missing_or_unanchored`.
 - **Renaming the match-key column.** If you rename `Analytics Variable` to `Variable Slot` on `eVars`, the writer can't match by ID → `reason=no_id_column`.
+- **Renaming every column on `metrics-segments`.** That sheet has no ID column and is filled by appending rows under `Type`, `Name`, `Description`, and `Format`. If none of those headers is left, the writer has nowhere to write → `reason=no_known_columns`, and every calculated metric and segment goes to the `Overflow` sheet.
 
 Additive changes are always safe. Subtractive or renaming changes are what break the contract.
 
@@ -262,6 +263,10 @@ The named sheet either doesn't exist in your template (renamed?), or its `B4` ce
 
 The header row was found (one of rows 5–10 with `"ID"` at column B) but the expected ID-column header (`Analytics Variable` for eVars/props; `Event` for events) is missing. Restore the column or open an issue if Adobe has changed the template canonical layout.
 
+**Symptom: `template_sheet_skipped sheet=metrics-segments reason=no_known_columns` in the logs.**
+
+The header row was found, but none of `Type`, `Name`, `Description`, or `Format` is in it. Restore at least one of those headers, and `Name` to make the rows readable. Until then, the calculated metrics and segments are in the `Overflow` sheet.
+
 **Symptom: USAGE (2) "Template not found / not a file / must be a .xlsx file".**
 
 Path validation. Confirm the file exists, is a file (not a directory), and has the `.xlsx` extension. The validator runs pre-dispatch — no auth or API work happens before this check.
@@ -286,7 +291,7 @@ Six events fire during a template-fill run. All have structured extras for log-s
 |---|---|---|---|
 | `template_load` | INFO | After `load_workbook` succeeds, before any fill | `path`, `sheets` |
 | `template_sheet_filled` | INFO | After each data sheet finishes its fill loop | `sheet`, `rows_matched`, `rows_appended` |
-| `template_sheet_skipped` | WARNING | Expected sheet missing or anchor check failed | `sheet`, `reason` (`missing_or_unanchored` / `no_id_column`) |
+| `template_sheet_skipped` | WARNING | Expected sheet missing or anchor check failed | `sheet`, `reason` (`missing_or_unanchored` / `no_id_column` / `no_known_columns`) |
 | `template_overflow` | WARNING | One or more rows appended past `max_row` (default-styled) | `sheet`, `overflow_rows` |
 | `template_sheet_clipped` | WARNING | Soft cap kept rows out of a template sheet (they go to `Overflow`) | `sheet`, `rows_dropped`, `soft_cap` |
 | `template_overflow_sheet_written` | WARNING | Clipped rows or rows for skipped sheets were written to the `Overflow` sheet (once per write) | `sheet` (the Overflow sheet name), `count` |

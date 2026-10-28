@@ -273,22 +273,28 @@ class ExcelTemplateWriter:
         ]
         entries.extend(("Segment", seg.id, seg, seg_map) for seg in doc.segments)
 
-        resolved = resolve_sheet(wb, anchor)
-        if resolved is None:
-            _log_sheet_skipped(anchor.sheet_name, "missing_or_unanchored")
-            reason = SKIP_REASONS["missing_or_unanchored"]
+        def skipped(reason: str, **gaps: tuple[str, ...]) -> SheetFillReport:
+            _log_sheet_skipped(anchor.sheet_name, reason)
             return SheetFillReport(
                 anchor.sheet_name,
                 "skipped",
-                reason="missing_or_unanchored",
+                reason=reason,
                 components=len(entries),
                 overflow=[
-                    _overflow_row(anchor.sheet_name, reason, ctype, cid, None, cmap, comp)
+                    _overflow_row(anchor.sheet_name, SKIP_REASONS[reason], ctype, cid, None, cmap, comp)
                     for ctype, cid, comp, cmap in entries
                 ],
+                **gaps,
             )
 
+        resolved = resolve_sheet(wb, anchor)
+        if resolved is None:
+            return skipped("missing_or_unanchored")
+
         unsupported, missing = column_gaps(resolved.columns, calc_map)
+        if not any(header in resolved.columns for header in calc_map):
+            # Renamed headers: a row here would be counted but hold no cell.
+            return skipped("no_known_columns", unsupported_columns=unsupported, missing_columns=missing)
         report = SheetFillReport(
             anchor.sheet_name,
             "filled",
@@ -486,7 +492,14 @@ def _set_text_safe_cell(ws, *, row: int, col: int, value: Any) -> None:
 
     openpyxl marks any string starting with `=` as data_type 'f' (a live
     formula). Component names are user-authored in Adobe Analytics, so a name
-    like `=HYPERLINK(...)` must land as literal text, not executable content."""
+    like `=HYPERLINK(...)` must land as literal text, not executable content.
+
+    Control characters a worksheet cannot store (a vertical tab from a pasted
+    Word line break, for one) are dropped; openpyxl would raise on them."""
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE  # method-scoped lazy import
+
+    if isinstance(value, str):
+        value = ILLEGAL_CHARACTERS_RE.sub("", value)
     cell = ws.cell(row=row, column=col, value=value)
     if cell.data_type == "f":
         cell.data_type = "s"

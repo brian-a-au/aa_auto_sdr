@@ -13,7 +13,7 @@ from openpyxl import Workbook
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.output._template_anchors import ANCHORS
-from aa_auto_sdr.output.writers.excel_template import ExcelTemplateWriter, _write_row
+from aa_auto_sdr.output.writers.excel_template import ExcelTemplateWriter, _set_text_safe_cell, _write_row
 from aa_auto_sdr.sdr.document import SdrDocument
 
 
@@ -244,3 +244,31 @@ def test_write_row_skips_whitespace_only_value() -> None:
     ws = wb.active
     _write_row(ws, row=1, columns={"Name": 2}, column_map={"Name": lambda _c: "   "}, comp=object())
     assert ws.cell(row=1, column=2).value is None  # blank value never overwrites
+
+
+def test_fill_metrics_segments_overflows_when_no_known_column_exists() -> None:
+    """Renamed headers leave nowhere to write: every row must go to Overflow,
+    not be counted as appended while no cell is written."""
+    wb = Workbook()
+    _add_resolvable_sheet(
+        wb,
+        sheet_name="metrics-segments",
+        section_title="Metrics - Segments",
+        headers=["ID", "Component Type", "Component Name", "Notes"],
+    )
+    writer = ExcelTemplateWriter()
+    report = writer._fill_metrics_segments(wb, _make_doc(segments=[_seg(0), _seg(1)]))
+    assert (report.status, report.reason, report.rows_appended) == ("skipped", "no_known_columns", 0)
+    assert [o.component_id for o in report.overflow] == ["seg_0", "seg_1"]
+    assert wb["metrics-segments"].max_row == 6  # header row only
+
+
+def test_set_text_safe_cell_drops_characters_excel_cannot_store() -> None:
+    """A vertical tab (Shift+Enter in Word) or other control character in a
+    user-authored name must not crash the fill (openpyxl IllegalCharacterError)."""
+    wb = Workbook()
+    ws = wb.active
+    _set_text_safe_cell(ws, row=1, col=1, value="User\x0bID\x01")
+    _set_text_safe_cell(ws, row=2, col=1, value="tab\tand\nnewline stay")
+    assert ws.cell(row=1, column=1).value == "UserID"
+    assert ws.cell(row=2, column=1).value == "tab\tand\nnewline stay"

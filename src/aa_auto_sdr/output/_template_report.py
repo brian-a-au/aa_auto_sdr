@@ -39,6 +39,7 @@ REASON_CLIPPED = "clipped"
 SKIP_REASONS: dict[str, str] = {
     "missing_or_unanchored": "sheet missing or unanchored",
     "no_id_column": "sheet has no id column",
+    "no_known_columns": "sheet has none of the expected columns",
 }
 _SHEET_HEADERS = (
     "Template Sheet",
