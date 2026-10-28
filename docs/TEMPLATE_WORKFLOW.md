@@ -82,7 +82,7 @@ These failures surface as `template_sheet_skipped` WARNINGs in the log. The writ
 - **Removing or relocating the `B4` section title.** If `B4` doesn't case-insensitively match the table above, the sheet is skipped.
 - **Missing the `ID` marker.** If column B in rows 5–10 doesn't contain a cell with exactly `ID`, the writer can't find the header row → `reason=missing_or_unanchored`.
 - **Renaming the match-key column.** If you rename `Analytics Variable` to `Variable Slot` on `eVars`, the writer can't match by ID → `reason=no_id_column`.
-- **Renaming every column on `metrics-segments`.** That sheet has no ID column and is filled by appending rows under `Type`, `Name`, `Description`, and `Format`. If none of those headers is left, the writer has nowhere to write → `reason=no_known_columns`, and every calculated metric and segment goes to the `Overflow` sheet.
+- **Renaming every column on `metrics-segments`.** That sheet has no ID column and is filled by appending rows under `Type`, `Name`, `Description`, and `Format`. If none of those headers is left, the writer has nowhere to write → `reason=no_known_columns`, and every calculated metric and segment goes to the `Overflow` sheet. Segments have no `Format` column, so if `Format` is the only header left, calculated metrics are still written and segments go to `Overflow`.
 
 Additive changes are always safe. Subtractive or renaming changes are what break the contract.
 

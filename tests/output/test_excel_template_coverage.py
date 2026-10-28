@@ -272,3 +272,29 @@ def test_set_text_safe_cell_drops_characters_excel_cannot_store() -> None:
     _set_text_safe_cell(ws, row=2, col=1, value="tab\tand\nnewline stay")
     assert ws.cell(row=1, column=1).value == "UserID"
     assert ws.cell(row=2, column=1).value == "tab\tand\nnewline stay"
+
+
+def test_fill_metrics_segments_overflows_entries_with_no_column_of_their_own() -> None:
+    """Segments have no Format column, so a sheet left with only Format can take
+    calculated metrics but not segments: those go to Overflow, not nowhere."""
+    wb = Workbook()
+    _add_resolvable_sheet(
+        wb,
+        sheet_name="metrics-segments",
+        section_title="Metrics - Segments",
+        headers=["ID", "Component Type", "Component Name", "Notes", "Format"],
+    )
+    writer = ExcelTemplateWriter()
+    report = writer._fill_metrics_segments(wb, _make_doc(segments=[_seg(0)]))
+    assert report.rows_appended == 0
+    assert [o.component_id for o in report.overflow] == ["seg_0"]
+    assert wb["metrics-segments"].max_row == 6
+
+
+def test_write_row_skips_a_value_made_only_of_control_characters() -> None:
+    """Stripping unstorable characters can leave nothing; that must not blank a template cell."""
+    wb = Workbook()
+    ws = wb.active
+    ws.cell(row=1, column=2, value="example")
+    _write_row(ws, row=1, columns={"Name": 2}, column_map={"Name": lambda _c: "\x01\x02"}, comp=object())
+    assert ws.cell(row=1, column=2).value == "example"

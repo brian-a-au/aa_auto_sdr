@@ -312,6 +312,20 @@ class ExcelTemplateWriter:
         append_row = ws.max_row + 1
         soft_cap = ws.max_row + 50
         for component_type, comp_id, comp, column_map in entries:
+            if not any(header in resolved.columns for header in column_map):
+                # Segments have no Format column: on a sheet left with only Format they have nowhere to go.
+                report.overflow.append(
+                    _overflow_row(
+                        anchor.sheet_name,
+                        SKIP_REASONS["no_known_columns"],
+                        component_type,
+                        comp_id,
+                        resolved.columns,
+                        column_map,
+                        comp,
+                    )
+                )
+                continue
             if append_row > soft_cap:
                 report.overflow.append(
                     _overflow_row(
@@ -481,10 +495,18 @@ def _write_row(
         value = getter(comp)
         if value is None:
             continue
-        text = str(value).strip()
+        text = _storable(str(value)).strip()
         if not text:
             continue
         _set_text_safe_cell(ws, row=row, col=col, value=value)
+
+
+def _storable(text: str) -> str:
+    """`text` without the control characters a worksheet cannot store (a
+    vertical tab from a pasted Word line break, for one); openpyxl raises on them."""
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE  # method-scoped lazy import
+
+    return ILLEGAL_CHARACTERS_RE.sub("", text)
 
 
 def _set_text_safe_cell(ws, *, row: int, col: int, value: Any) -> None:
@@ -493,13 +515,9 @@ def _set_text_safe_cell(ws, *, row: int, col: int, value: Any) -> None:
     openpyxl marks any string starting with `=` as data_type 'f' (a live
     formula). Component names are user-authored in Adobe Analytics, so a name
     like `=HYPERLINK(...)` must land as literal text, not executable content.
-
-    Control characters a worksheet cannot store (a vertical tab from a pasted
-    Word line break, for one) are dropped; openpyxl would raise on them."""
-    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE  # method-scoped lazy import
-
+    Characters a worksheet cannot store are dropped (see `_storable`)."""
     if isinstance(value, str):
-        value = ILLEGAL_CHARACTERS_RE.sub("", value)
+        value = _storable(value)
     cell = ws.cell(row=row, column=col, value=value)
     if cell.data_type == "f":
         cell.data_type = "s"
