@@ -246,6 +246,10 @@ _ROW_MODELS: dict[str, type] = {
     "virtual_report_suites": models.VirtualReportSuite,
     "classifications": models.ClassificationDataset,
 }
+# models.py uses `from __future__ import annotations`, so f.type is the annotation string.
+_REQUIRED_STR_FIELDS: dict[str, frozenset[str]] = {
+    kind: frozenset(f.name for f in fields(model) if f.type == "str") for kind, model in _ROW_MODELS.items()
+}
 
 
 def _scrub_legacy_nan(components: dict[str, Any]) -> None:
@@ -259,8 +263,7 @@ def _scrub_legacy_nan(components: dict[str, Any]) -> None:
     for family in COMPONENT_FAMILIES:
         rows.extend((family, row) for row in components.get(family, []))
     for kind, row in rows:
-        # models.py uses `from __future__ import annotations`, so f.type is the annotation string.
-        required_str = {f.name for f in fields(_ROW_MODELS[kind]) if f.type == "str"}
+        required_str = _REQUIRED_STR_FIELDS[kind]
         for key, value in row.items():
             if value == "nan":
                 row[key] = "" if key in required_str else None
