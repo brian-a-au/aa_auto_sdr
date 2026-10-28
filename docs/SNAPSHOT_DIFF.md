@@ -168,6 +168,22 @@ Three rules eliminate the most common false-positive diff categories:
 
 Other lists (e.g. `definition` clauses in segments) are compared positionally.
 
+### Snapshots from older releases
+
+Two kinds of older snapshot hold values that came from how they were
+captured, not from your report suite. The comparison handles both, so a new
+capture does not report them as changes:
+
+- **Captured before 1.21.5:** some missing values were written as the text
+  `"nan"`, for example `parent_rsid`, `description`, and `category`. When such
+  a snapshot loads, those values read as missing. The file on disk does not
+  change. In a current snapshot, `"nan"` is kept as written.
+- **Captured before 1.21.25:** dimension and metric `tags`, `data_group`,
+  and `extra` were not collected. When either snapshot is this old,
+  `--extended-fields` skips those three fields for dimensions and metrics
+  and logs a `diff_legacy_capture_fields` warning. The default comparison
+  never includes them.
+
 These rules were adopted from the sister project `cja_auto_sdr`'s diff comparator after observing they suppressed the most common false-positive categories in real-world snapshot history.
 
 ### Comparability (capture scope and fetch quality)

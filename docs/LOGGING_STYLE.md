@@ -38,6 +38,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `company_id_source` | str — `explicit`/`first_of_n` | `api/client.py` bootstrap-success record — provenance of the chosen company id. |
 | `client_id_prefix` | str (8 chars) | `api/client.py` post-configure DEBUG record — first 8 chars of the OAuth client id; full client id is never logged. |
 | `not_compared` | list[str] — component family names | `diff_scope_mismatch` — families one capture collected and the other did not. |
+| `not_compared_fields` | list[str] — component field names | `diff_legacy_capture_fields` — dimension and metric fields an older capture did not collect. |
 | `sheet` | str — workbook sheet name | Template-fill records. On `template_overflow_sheet_written` it is the name of the appended Overflow sheet; on the other `template_*` events it is the template sheet being filled. |
 | `reason` | str — discriminator | `auth_failure` records — short stable reason code (`no_companies` / `missing_global_company_id`). |
 | `command` | str — dispatch attribute name | Emitted on `command_start` / `command_complete` un-prefixed records from `cli/commands/*`. Values match dispatch attribute names (e.g., `generate`, `batch`, `diff`, `list_metrics`). Vocabulary meta-test enforces presence of *some* `command` extra on cli/commands/*.py INFO records, not a fixed enum. |
@@ -148,9 +149,10 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `trending_window_resolved` — INFO. `cli/commands/trending.py::run`. Fires once per `--trending-window` invocation after the duration string is parsed. Carries `duration` (the spec string e.g. `30d`), `start_at` (ISO datetime), `end_at` (ISO datetime).
 - `trending_compute_complete` — INFO. `snapshot/trending.py::compute_trending`. Fires once per RSID after compute_trending returns. Carries `rsid`, `snapshot_count`, `total_changes`, `volatility_score`.
 
-### Snapshot comparison (2)
+### Snapshot comparison (3)
 
 - `diff_scope_mismatch` — WARNING. `snapshot/comparator.py::compare`. Fires once per comparison in which one capture collected a family and the other did not (for example a `--metrics-only` snapshot against a full one). Carries `rsid` and `not_compared` (the family names). Those families are suppressed as `excluded`, and changes to them since the last capture that collected them are not reported. Diff, watch, trending, and `--compare-with-prev` all go through `compare`, so a trending window logs it once per affected pair.
+- `diff_legacy_capture_fields` — WARNING. `snapshot/comparator.py::compare`. Fires once per `--extended-fields` comparison in which either capture was written before 1.21.25, which did not collect dimension and metric `tags`, `data_group`, or `extra`. Carries `rsid` and `not_compared_fields`. Those fields are not compared for dimensions and metrics in that comparison, so a newer capture does not report them as changed.
 - `baseline_candidate_skipped` — WARNING. `snapshot/resolver.py::resolve_covering_pair`. An older snapshot considered as `--compare-with-prev`'s baseline could not be read or validated and was passed over. Carries `rsid`, `snapshot_id` (file stem), and `error_class`.
 
 ### Watch / scheduled (4)

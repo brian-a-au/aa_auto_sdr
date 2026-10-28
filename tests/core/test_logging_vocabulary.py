@@ -116,6 +116,7 @@ VOCAB = {
     "likely_cause",
     # capture scope — comparisons across captures with different scope
     "not_compared",
+    "not_compared_fields",
     "settings_changes",
     # v1.24.0 additions — quality conventions (reasoned exceptions)
     "rule_id",
@@ -141,6 +142,8 @@ CANONICAL_EVENT_EXTRAS: dict[str, set[str]] = {
     "vrs_parent_filter": {"rsid", "pulled", "filtered", "dropped_no_parent", "dropped_other_parent"},
     # Capture scope: a comparison across captures that collected different families.
     "diff_scope_mismatch": {"rsid", "not_compared"},
+    # Legacy capture: dimension/metric fields an older capture did not collect.
+    "diff_legacy_capture_fields": {"rsid", "not_compared_fields"},
     "baseline_candidate_skipped": {"rsid", "snapshot_id", "error_class"},
     # v1.12.0 — quality engine
     "quality_policy_loaded": {"policy_path"},

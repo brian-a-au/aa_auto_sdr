@@ -23,6 +23,7 @@ from aa_auto_sdr.snapshot.models import (
     FieldDelta,
     ModifiedItem,
 )
+from aa_auto_sdr.snapshot.schema import captured_before
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,14 @@ _EXTENDED_FIELDS_DEFAULT_IGNORE: frozenset[str] = frozenset(
 )
 
 
+# Fields not collected for dimensions and metrics before 1.21.25 (the SDK's
+# default DataFrame selection dropped them). Against an older capture their
+# deltas are an artifact of the capture, not a change in Adobe Analytics.
+_LEGACY_UNCOLLECTED_FIELDS: frozenset[str] = frozenset({"tags", "data_group", "extra"})
+_LEGACY_UNCOLLECTED_FAMILIES = ("dimensions", "metrics")
+_LEGACY_FIELDS_COLLECTED_IN = (1, 21, 25)
+
+
 def compare(
     a: dict[str, Any],
     b: dict[str, Any],
@@ -81,6 +90,8 @@ def compare(
     b_components = b["components"]
 
     effective_ignore = ignore_fields if extended_fields else (ignore_fields | _EXTENDED_FIELDS_DEFAULT_IGNORE)
+    legacy_capture = captured_before(a, _LEGACY_FIELDS_COLLECTED_IN) or captured_before(b, _LEGACY_FIELDS_COLLECTED_IN)
+    legacy_skipped = sorted(_LEGACY_UNCOLLECTED_FIELDS - effective_ignore) if legacy_capture else []
 
     rs_deltas = _diff_dict(
         a_components["report_suite"],
@@ -91,11 +102,14 @@ def compare(
 
     components: list[ComponentDiff] = []
     for ctype in _COMPONENT_TYPES:
+        family_ignore = effective_ignore
+        if legacy_skipped and ctype in _LEGACY_UNCOLLECTED_FAMILIES:
+            family_ignore = effective_ignore | _LEGACY_UNCOLLECTED_FIELDS
         cd = _diff_component_list(
             ctype,
             a_components.get(ctype, []),
             b_components.get(ctype, []),
-            ignore_fields=effective_ignore,
+            ignore_fields=family_ignore,
         )
         comparability, reason = _suppression_for(ctype, a, b)
         if comparability in ("excluded", "unknown"):
@@ -127,6 +141,16 @@ def compare(
             rsid,
             ",".join(not_compared),
             extra={"rsid": rsid, "not_compared": not_compared},
+        )
+
+    if legacy_skipped:
+        rsid = b.get("rsid") or a.get("rsid") or ""
+        logger.warning(
+            "diff_legacy_capture_fields rsid=%s not_compared_fields=%s; a capture older than 1.21.25 did not "
+            "collect these dimension and metric fields, so they are not compared",
+            rsid,
+            ",".join(legacy_skipped),
+            extra={"rsid": rsid, "not_compared_fields": legacy_skipped},
         )
 
     report = DiffReport(
