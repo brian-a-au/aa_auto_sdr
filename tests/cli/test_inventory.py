@@ -457,3 +457,21 @@ class TestRunTableFooter:
         out = capsys.readouterr().out
         assert "fetch degraded" in out
         assert "may be inaccurate" in out
+
+
+class TestPrintTableAlignment:
+    def test_per_rsid_counts_align_when_labels_exceed_forty_chars(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Long rsid + name labels must not push their counts out of the column."""
+        rows = [
+            {"rsid": "short", "name": "S", "counts": dict.fromkeys(_COMPONENT_TYPES, 1)},
+            {
+                "rsid": "egeo1xxpnwcidevangelists",
+                "name": "Demo Data Evangelists",
+                "counts": dict.fromkeys(_COMPONENT_TYPES, 2),
+            },
+        ]
+        inv_command._print_table(rows, _aggregate(rows))
+        out = capsys.readouterr().out
+        lines = [line for line in out.splitlines() if line.startswith("  ") and "/" in line]
+        assert len(lines) == 2
+        assert lines[0].index("1/1/1") == lines[1].index("2/2/2")
