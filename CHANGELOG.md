@@ -2,12 +2,14 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.24.2] — 2026-10-27
 
-These fixes come from running the tool against a live demo org. Readable
-summaries now cover more of the definitions Adobe Analytics returns. Snapshots
-from older releases no longer show false changes in a diff, and the inventory
-table stays aligned.
+This patch fixes problems found by running the tool against a live demo org.
+Readable summaries now cover more of the definitions Adobe Analytics returns.
+Snapshots from older releases no longer show false changes in a diff. The
+naming audit no longer flags Adobe's standard component names. `--help` and
+shell completions now list every flag, and the inventory table stays aligned.
+No new flags and no changed defaults.
 
 ### Fixed
 - Segment summaries now read `streq-in` and `not-streq-in` lists, shown as
