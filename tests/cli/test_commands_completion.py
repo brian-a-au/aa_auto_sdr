@@ -52,3 +52,11 @@ def test_run_completion_lists_action_flags(capsys) -> None:
 def test_run_completion_unknown_shell_returns_2(capsys) -> None:
     rc = run_completion("powershell")
     assert rc == 2
+
+
+def test_run_completion_unknown_shell_keeps_stdout_empty(capsys) -> None:
+    """Users redirect stdout into a completion file, so the error goes to stderr."""
+    run_completion("powershell")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "unknown shell 'powershell'" in captured.err
