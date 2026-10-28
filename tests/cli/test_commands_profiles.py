@@ -134,6 +134,18 @@ class TestProfileImport:
         assert rc == ExitCode.CONFIG.value
         assert "could not read" in capsys.readouterr().out
 
+    def test_file_that_is_not_utf8(
+        self,
+        aa_base: Path,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        src = tmp_path / "utf16.json"
+        src.write_bytes(b"\xff\xfe{}")
+        rc = cmd.import_run("utf16", str(src), base=aa_base)
+        assert rc == ExitCode.CONFIG.value
+        assert "could not read" in capsys.readouterr().out
+
     @pytest.mark.parametrize("content", ["[]", '"text"', "null"])
     def test_json_that_is_not_an_object(
         self,

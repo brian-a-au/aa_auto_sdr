@@ -164,7 +164,7 @@ def import_run(
         try:
             with src.open(encoding="utf-8") as fh:
                 data = json.load(fh)
-        except (json.JSONDecodeError, OSError) as exc:
+        except (ValueError, OSError) as exc:  # ValueError covers JSONDecodeError and UnicodeDecodeError
             print(f"error: could not read {src}: {exc}", flush=True)
             exit_code = ExitCode.CONFIG.value
             return exit_code

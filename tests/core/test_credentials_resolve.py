@@ -234,3 +234,16 @@ def test_non_utf8_dotenv_raises_config_error(monkeypatch: pytest.MonkeyPatch, tm
     (tmp_path / ".env").write_bytes(b"ORG_ID=\xff\xfe\n")
     with pytest.raises(ConfigError, match="not valid UTF-8"):
         credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+
+
+def test_null_credential_value_counts_as_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """JSON null (or a bare `SECRET` line in .env) must not become the text "None"."""
+    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    (tmp_path / "config.json").write_text(
+        json.dumps({"org_id": "O@AdobeOrg", "client_id": "C", "secret": None, "scopes": "openid"})
+    )
+    # The file is incomplete, so it is skipped and resolution fails (exit 10)
+    # instead of sending the literal secret "None" to Adobe.
+    with pytest.raises(ConfigError):
+        credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
