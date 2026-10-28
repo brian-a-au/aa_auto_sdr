@@ -101,7 +101,7 @@ def _parse_naming(raw: Any) -> dict[str, NamingRule]:
                 raise ConfigError(f"--quality-policy: {where}.pattern must be a non-empty regex string.")
             try:
                 re.compile(pattern)
-            except re.error as exc:
+            except (re.error, OverflowError, RecursionError) as exc:
                 raise ConfigError(
                     f"--quality-policy: {where}.pattern is an invalid regex ({exc}): {pattern!r}"
                 ) from exc
@@ -183,8 +183,10 @@ def load_policy(path: Path) -> QualityPolicy:
     if not os.path.exists(path):
         raise ConfigError(f"--quality-policy file not found: {path}")
     try:
-        raw = json.loads(path.read_text())
-    except json.JSONDecodeError as exc:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ConfigError(f"--quality-policy: could not read {path}: {exc.strerror or exc}") from exc
+    except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError
         raise ConfigError(f"--quality-policy: failed to parse {path}: {exc}") from exc
 
     if not isinstance(raw, dict):
