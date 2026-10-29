@@ -618,11 +618,15 @@ def fetch_calculated_metrics(
 
 
 def _is_usable_vrs_row(row: Any) -> bool:
-    """True when `row` is a mapping with a nonempty string `id`."""
-    if not isinstance(row, dict):
-        return False
-    ident = row.get("id")
-    return isinstance(ident, str) and bool(ident.strip())
+    """True when `row` is a mapping carrying an id that can name a component.
+
+    `_str_or_none` accepts a non-string id and rejects the empty string and
+    the float NaN a DataFrame conversion leaves for an absent cell. A numeric
+    id is kept and coerced, matching
+    `fetch_virtual_report_suite_summaries`, so the generated SDR never holds
+    fewer virtual report suites than `--list-virtual-reportsuites` shows.
+    """
+    return isinstance(row, dict) and _str_or_none(row, "id") is not None
 
 
 def _finalize_vrs_fetch(
@@ -642,25 +646,11 @@ def _finalize_vrs_fetch(
     record; it does NOT control the FetchOutcome.expansion_level field
     (that's the caller's responsibility).
 
-    A row that is not a mapping, or that carries no usable string `id`, is
-    skipped the same way `fetch_virtual_report_suite_summaries` skips it:
-    the id is the key every writer, snapshot, and diff needs, so such a row
-    cannot be normalized. Indexing it raised AttributeError or KeyError
-    before, which left the run with a traceback and exit 1.
+    Unusable rows are already gone: `enumerate_vrs` drops them as it reads
+    the listing, so `parent_counts` and the `vrs_parent_filter` arithmetic
+    below describe the same set of rows whether or not a shared VrsSource is
+    in play.
     """
-    usable = [row for row in raws if _is_usable_vrs_row(row)]
-    if len(usable) != len(raws):
-        logger.debug(
-            "vrs_rows_skipped rsid=%s component_type=virtual_report_suite count=%s",
-            parent_rsid,
-            len(raws) - len(usable),
-            extra={
-                "rsid": parent_rsid,
-                "component_type": "virtual_report_suite",
-                "count": len(raws) - len(usable),
-            },
-        )
-        raws = usable
     known = {
         "id",
         "name",
@@ -777,10 +767,8 @@ def fetch_virtual_report_suites(
     def enumerate_vrs() -> list[dict[str, Any]]:
         # `_response_rows`, not `_records`: a mapping-shaped error stub used to
         # be wrapped into a single row that the parent filter then dropped,
-        # reporting a failed endpoint as a healthy org with zero VRS. Per-row
-        # ids are not required here — `_finalize_vrs_fetch` skips the rows it
-        # cannot use, as the discovery listing does.
-        return _response_rows(
+        # reporting a failed endpoint as a healthy org with zero VRS.
+        rows = _response_rows(
             with_retries(
                 lambda: classify_transient_sdk_call(
                     lambda: classify_permanent_vrs_shape_error(
@@ -794,6 +782,23 @@ def fetch_virtual_report_suites(
             rsid=parent_rsid,
             component_type="virtual_report_suite",
         )
+        # Drop rows that cannot name a component before anything indexes or
+        # counts them. Doing it here rather than after the parent filter keeps
+        # one row set behind every later count, including the shared
+        # VrsSource's parent index, and stops `str(r["id"])` raising.
+        usable = [row for row in rows if _is_usable_vrs_row(row)]
+        if len(usable) != len(rows):
+            logger.debug(
+                "vrs_rows_skipped rsid=%s component_type=virtual_report_suite count=%s",
+                parent_rsid,
+                len(rows) - len(usable),
+                extra={
+                    "rsid": parent_rsid,
+                    "component_type": "virtual_report_suite",
+                    "count": len(rows) - len(usable),
+                },
+            )
+        return usable
 
     if source is not None:
         source.validate(client)

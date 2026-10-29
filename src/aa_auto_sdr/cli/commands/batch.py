@@ -72,7 +72,9 @@ def _emit_run_summary(
 ) -> None:
     """Write the run summary. `batch_result` carries the sample fields on a
     real run; `sample` supplies them on the `--dry-run` path, which returns
-    before `run_batch` and so has no BatchResult."""
+    before `run_batch` and so has no BatchResult. On a dry run without
+    `--sample-seed` the recorded `rsids` are one illustrative draw, not the
+    draw a later real run will make."""
     if not run_summary_json:
         return
     source = batch_result if batch_result is not None else sample
@@ -420,8 +422,10 @@ def _run_impl(
 
     if dry_run:
         # The real run samples inside run_batch, which this path returns
-        # before. Sample here too, so the preview lists the report suites a
-        # real run would generate instead of the whole resolved list.
+        # before. Sample here too, so the preview shows how many report
+        # suites a real run would generate instead of the whole resolved
+        # list. Which ones is only predictable with --sample-seed, since an
+        # unseeded draw differs between runs; the note below says so.
         sample = batch_runner.resolve_sample(
             canonical,
             sample_size=sample_size,
@@ -467,6 +471,12 @@ def _run_impl(
                     captured_at_iso=captured_at.isoformat(),
                 )
                 print(f"  {snap_path}")
+        if sample.sampled and sample.sample_seed is None:
+            print(
+                f"(sampled {len(canonical)} of {sample.total_available}; this draw is illustrative, "
+                "pass --sample-seed N to preview the exact report suites a run will pick)",
+                flush=True,
+            )
         print("(no files were written; remove --dry-run to execute)", flush=True)
         dry_per_rsid: list[PerRsidResult] = [
             PerRsidResult(

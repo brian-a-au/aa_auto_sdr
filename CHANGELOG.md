@@ -14,16 +14,32 @@ real run would generate, and a parallel batch reports its results in input
 order. No new flags and no changed defaults.
 
 ### Fixed
+- Wrong credentials now exit 11 with a message naming what to check. Before,
+  the run ended with a traceback and `TypeError: string indices must be
+  integers`. When Adobe rejects the credentials, the SDK's token helper
+  returns a JSON string instead of a dictionary, and the next line indexes
+  that string. Every step of sign-in is now reported through the typed exit
+  codes.
+- A network failure while signing in now exits 12. Before, it ended the run
+  with a traceback. The whole bootstrap is covered, not just the company
+  lookup: setting up the SDK, exchanging the credentials for a token, looking
+  up the company, and building the API handle. An unexpected response shape
+  from any of them exits 12 as well. This matches what the component fetchers
+  already did.
 - A failure while building the client now gives a typed exit code on every
-  command. The bootstrap retries `getCompanyId`, so a read timeout, a
-  connection error, an exhausted retry budget, or an unexpected response
-  shape used to escape as an untyped error that no command caught. The run
-  ended with a traceback and exit 1. These now exit with api error 12. An
-  auth failure still exits 11, and a missing credential still exits 10.
-  `--watch` had no handling for any of the three and now reports all of them,
-  so `aa_auto_sdr <RSID> --watch --interval 1h` with no credentials exits 10
-  instead of printing a traceback. `--profile-test` reports the api failure as
-  `FAIL [api]` beside its existing `FAIL [auth]` and `FAIL [config]` lines.
+  command. The company lookup is retried, so an exhausted retry budget used
+  to escape as an error no command caught, and the run ended with a traceback
+  and exit 1. `--watch` had no handling for any failure here and now reports
+  all of them, so `aa_auto_sdr <RSID> --watch --interval 1h` with no
+  credentials exits 10 instead of printing a traceback. `--profile-test`
+  reports an api failure as `FAIL [api]` beside its existing `FAIL [auth]`
+  and `FAIL [config]` lines.
+- A capture no longer keeps two components with the same id in one family. It
+  keeps the first row and logs a warning naming the family and the count.
+  Adobe can repeat an id: the classifications listing returns one row per
+  dataset and metric pair, so a dataset compatible with several metrics
+  arrives several times. Before, the repeated rows collapsed onto the last
+  one during a diff and made the unchanged count wrong.
 - A segment or calculated metric fetch no longer crashes when Adobe Analytics
   answers with something other than a list of components. Before, the run
   ended with a traceback and exit 1. The run now exits with api error 12, and
@@ -36,11 +52,13 @@ order. No new flags and no changed defaults.
   report suites. A single row with no usable `id` is skipped now instead of
   ending the run with a traceback, and a new `vrs_rows_skipped` debug record
   says how many were skipped.
-- A snapshot whose component rows are missing an `id`, or that uses the same
-  `id` twice in one family, now exits with snapshot error 16 and names the
-  row. Before, `--diff`, `--compare-with-prev`, and `--trending-window` ended
-  with a traceback and exit 1, and duplicate ids silently collapsed onto the
-  last row, which made the unchanged count wrong.
+- A snapshot whose component rows are missing an `id` now exits with snapshot
+  error 16 and names the row. Before, `--diff`, `--compare-with-prev`, and
+  `--trending-window` ended with a traceback and exit 1. Reading a snapshot
+  still accepts a repeated id, so a file an earlier release wrote keeps
+  loading, and `--watch` can still read back the snapshot it just saved.
+  `--render-from` keeps rejecting a repeated id, since there the file is the
+  input the user chose.
 - A snapshot that omits the optional `components.report_suite` block now
   diffs, and its report suite fields are reported as changes. Before, the
   diff ended with a traceback and exit 1, even though the schema and
@@ -57,12 +75,14 @@ order. No new flags and no changed defaults.
   `--list-reportsuites --format json --output -` put a human sentence in the
   stream a caller was parsing. This is the same convention generation, batch,
   and diff already followed.
-- `--batch --sample N --dry-run` now previews the report suites the real run
-  would generate. Before, the preview listed every resolved report suite,
-  because sampling happened after the preview returned. The dry run's
-  `--run-summary-json` now also reports `sampled`, `sample_size`,
-  `sample_seed`, `sample_strategy`, and `total_available` instead of
-  reporting no sample at all.
+- `--batch --sample N --dry-run` now previews how many report suites the real
+  run would generate. Before, the preview listed every resolved report suite,
+  because sampling happened after the preview returned. Without
+  `--sample-seed` the draw differs between runs, so the preview says the draw
+  is illustrative and points at the flag. The dry run's `--run-summary-json`
+  now also reports `sampled`, `sample_size`, `sample_seed`,
+  `sample_strategy`, and `total_available` instead of reporting no sample at
+  all.
 - A parallel batch now reports per-report-suite results in the order the
   identifiers were given, in both the summary banner and the `rsids` array of
   `--run-summary-json`. Before, the order followed whichever worker finished

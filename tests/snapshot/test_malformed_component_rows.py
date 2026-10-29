@@ -80,10 +80,15 @@ def test_row_with_blank_id_is_corrupt() -> None:
         validate_envelope(env)
 
 
-def test_duplicate_ids_in_one_family_are_corrupt() -> None:
+def test_duplicate_ids_still_load() -> None:
+    """Duplicate ids are prevented where captures are built (see
+    `tests/sdr/test_builder_duplicate_ids.py`), not rejected on read. The
+    shared reader has to stay able to open a file an older release wrote, and
+    `--watch` reads back the snapshot it just saved, so rejecting here would
+    have made the tool unable to open its own output."""
     env = _envelope(dims=[_dim("evar1", "First"), _dim("evar1", "Second")])
-    with pytest.raises(SnapshotCorruptError, match="duplicate component id"):
-        validate_envelope(env)
+    validate_envelope(env)
+    assert len(env["components"]["dimensions"]) == 2
 
 
 def test_same_id_across_families_is_accepted() -> None:

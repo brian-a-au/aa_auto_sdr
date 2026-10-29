@@ -229,7 +229,7 @@ before dispatch. Sampling options on a single-RSID run exit with `USAGE` (2).
 
 | Flag | Type | Effect |
 |------|------|--------|
-| `--sample N` | int (>=1) | Subset N RSIDs from the batch list. `N >= len(batch)` is a no-op (full list runs, `BatchResult.sampled=False`). With `--dry-run` the preview lists the sampled subset, and the run summary carries the sample fields. |
+| `--sample N` | int (>=1) | Subset N RSIDs from the batch list. `N >= len(batch)` is a no-op (full list runs, `BatchResult.sampled=False`). With `--dry-run` the preview lists a sampled subset of the right size and the run summary carries the sample fields; which RSIDs are drawn is only reproducible with `--sample-seed`, and the preview says so. |
 | `--sample-seed N` | int | Integer RNG seed for reproducible sampling. Default: non-deterministic. |
 | `--sample-stratified` | bool flag | Group RSIDs by code prefix (split on first `.` / `_` / `-`) and sample proportionally per group. Without the flag, sampling is uniform random. |
 
@@ -423,9 +423,10 @@ or a readable empty directory still permits a baseline. Diagnostics use
 stderr/logs, preserving stdout NDJSON.
 
 A bootstrap failure before the loop starts exits `CONFIG` (10) for a missing
-or incomplete credential, `AUTH` (11) for an OAuth failure, and `API` (12) for
-a network or SDK failure during `getCompanyId`. No NDJSON event is emitted,
-since the loop never ran.
+or incomplete credential, `AUTH` (11) for an OAuth failure (including
+credentials Adobe rejects at sign-in), and `API` (12) for a network or SDK
+failure anywhere in the bootstrap. No NDJSON event is emitted, since the loop
+never ran.
 
 SIGINT / SIGTERM → exit 0. Rejected when paired with `--watch` (exit `USAGE` 2): `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit), and `--metrics-only` / `--dimensions-only` (watch captures every component family). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 

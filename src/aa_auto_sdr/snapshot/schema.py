@@ -156,11 +156,11 @@ def validate_envelope(env: dict[str, Any]) -> None:
     Envelopes written before 1.21.5 have literal "nan" strings in top-level
     header and row fields read as None (see `_scrub_legacy_nan`).
 
-    Every component row must be an object carrying a nonempty string `id`,
-    unique within its family. Rows are keyed by `id` on every comparison
-    path, so a row without one used to surface as a bare `KeyError` and
-    duplicates silently collapsed onto the last row. Ids are unique per
-    family, not across families.
+    Every component row must be an object carrying a nonempty string `id`.
+    Rows are keyed by `id` on every comparison path, so a row without one
+    used to surface as a bare `KeyError`. Duplicate ids are not rejected
+    here; `sdr/builder.py` keeps the first row per id so a capture never
+    writes them, and this reader stays able to open older files.
 
     v5 envelopes must carry `collected_components`; v4 envelopes may, and then
     it must list every family. When present it must be a list of unique known
@@ -304,21 +304,24 @@ def _require_mapping_rows(value: Any, field: str) -> None:
 
 
 def _require_component_rows(value: Any, family: str) -> None:
-    """Component rows must carry a nonempty string `id`, unique in the family.
+    """Component rows must each carry a nonempty string `id`.
 
-    Every comparison path keys rows by `id`, so this is the one place that
-    guarantees it. Messages match `sdr/rebuild.py`'s wording for the same
-    two defects, so `--render-from` reports them identically whichever
-    validator sees the row first."""
+    Every comparison path keys rows by `id`, so a row without one cannot be
+    read at all. The message matches `sdr/rebuild.py`'s wording for the same
+    defect, so `--render-from` reports it identically whichever validator
+    sees the row first.
+
+    Duplicate ids are deliberately NOT rejected here. `sdr/builder.py` keeps
+    the first row per id, so a capture never writes them, and this reader has
+    to stay able to open a file an older release wrote. `--watch` also reads
+    back the snapshot it just saved, so a reader that refused duplicates
+    could leave the tool unable to open its own output. `--render-from` keeps
+    its own stricter check, since there the file is the user's input."""
     _require_mapping_rows(value, f"components.{family}")
-    seen: set[str] = set()
     for index, row in enumerate(value):
         ident = row.get("id")
         if not isinstance(ident, str) or not ident.strip():
             raise SnapshotCorruptError(f"components.{family}[{index}] is missing a non-empty string 'id'")
-        if ident in seen:
-            raise SnapshotCorruptError(f"duplicate component id in {family}: {ident!r}")
-        seen.add(ident)
 
 
 def _require_collected_components(env: dict[str, Any]) -> None:

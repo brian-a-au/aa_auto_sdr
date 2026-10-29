@@ -130,8 +130,12 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 - `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
-- `vrs_rows_skipped` — DEBUG. `api/fetch.py::_finalize_vrs_fetch`. Fires only when the VRS listing holds rows that are not mappings or carry no usable string `id`, which cannot be normalized into a component. Carries `rsid`, `component_type=virtual_report_suite`, and `count` (the number of rows skipped).
+- `vrs_rows_skipped` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the VRS listing holds rows that are not mappings or carry no id that can name a component, so they cannot be normalized. Dropped as the listing is read, before the parent filter and before any count, so `vrs_parent_filter` below describes the same row set whether or not a shared VrsSource is in play. Carries `rsid`, `component_type=virtual_report_suite`, and `count` (the number of rows skipped).
 - `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the fetch-failed WARNING when the VRS fetch fails with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. Operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
+
+### Capture normalization (1)
+
+- `duplicate_component_ids` — WARNING. `sdr/builder.py::_sorted_unique`. Fires once per family whose rows carry a repeated `id`, which Adobe can legitimately return (the classifications listing is one row per dataset-and-metric pair). The builder keeps the first row per id. Carries `rsid`, `component_type` (the family), and `count` (the number of rows dropped).
 
 ### Batch sampling (1)
 

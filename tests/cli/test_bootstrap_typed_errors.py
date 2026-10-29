@@ -224,6 +224,37 @@ def test_watch_bootstrap_failures_are_typed_exit_codes(exc, code, label, authed_
     assert captured.out == ""
 
 
+@pytest.mark.parametrize(
+    ("post_error", "code", "label"),
+    [
+        (None, ExitCode.AUTH.value, "auth error:"),
+        (ApiError, ExitCode.API.value, "api error:"),
+    ],
+    ids=["rejected_credentials", "token_endpoint_unreachable"],
+)
+def test_sign_in_failure_reaches_the_cli_as_a_typed_code(post_error, code, label, authed_env, capsys) -> None:
+    """End to end through the real SDK call path, with only the HTTP POST to
+    the token endpoint stubbed. Rejected credentials used to surface as
+    `TypeError: string indices must be integers` and exit 1."""
+    import requests
+
+    from aa_auto_sdr.cli.commands import discovery
+
+    if post_error is None:
+        # Adobe answers, but without a token: the SDK returns a JSON string.
+        response = MagicMock()
+        response.json.return_value = {"error": "invalid_client"}
+        side_effect = lambda *_a, **_kw: response  # noqa: E731
+    else:
+        side_effect = requests.ConnectionError("connection refused")
+
+    with patch("aanalytics2.connector.requests.post", side_effect=side_effect):
+        assert discovery.run_list_reportsuites(**_LIST_KWARGS) == code
+    captured = capsys.readouterr()
+    assert label in captured.err
+    assert captured.out == ""
+
+
 def test_watch_bootstrap_success_still_starts_the_loop(authed_env, monkeypatch) -> None:
     """The positive control: a working bootstrap still reaches the loop."""
     from aa_auto_sdr.cli.commands import watch

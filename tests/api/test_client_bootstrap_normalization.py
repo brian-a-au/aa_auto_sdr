@@ -81,3 +81,51 @@ def test_successful_bootstrap_is_unchanged(aa_module: MagicMock) -> None:
     aa_module.Login.return_value.getCompanyId.return_value = [{"globalCompanyId": "abc123"}]
     client = AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
     assert client.company_id == "abc123"
+
+
+# --- the steps around getCompanyId ----------------------------------------
+#
+# `Login()` is where the SDK exchanges the credentials for an OAuth token, so
+# it is the step most likely to fail in the field. `configure` and
+# `Analytics()` bracket the retried call. All three sat outside the
+# normalizer, so a failure in any of them escaped raw.
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+@pytest.mark.parametrize("step", ["configure", "Login", "Analytics"], ids=["configure", "login", "analytics"])
+def test_untyped_failure_in_any_bootstrap_step_becomes_api_error(aa_module: MagicMock, step) -> None:
+    aa_module.Login.return_value.getCompanyId.return_value = [{"globalCompanyId": "abc123"}]
+    getattr(aa_module, step).side_effect = requests.ConnectionError("connection refused")
+    with pytest.raises(ApiError) as excinfo:
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+    assert "ConnectionError" in str(excinfo.value)
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+def test_rejected_credentials_are_an_auth_error(aa_module: MagicMock) -> None:
+    """The SDK's token helper returns a JSON *string* when the token endpoint
+    rejects the credentials, so `AdobeRequest.__init__` then indexes a str and
+    raises TypeError out of `Login()`. That is a sign-in failure, and the
+    message has to point at the credentials rather than read as a crash."""
+    aa_module.Login.side_effect = TypeError("string indices must be integers, not 'str'")
+    with pytest.raises(AuthError) as excinfo:
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+    message = str(excinfo.value).lower()
+    assert "client_id" in message
+    assert "secret" in message
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+@pytest.mark.parametrize("step", ["configure", "Login", "Analytics"], ids=["configure", "login", "analytics"])
+def test_control_flow_in_any_bootstrap_step_still_propagates(aa_module: MagicMock, step) -> None:
+    aa_module.Login.return_value.getCompanyId.return_value = [{"globalCompanyId": "abc123"}]
+    getattr(aa_module, step).side_effect = KeyboardInterrupt()
+    with pytest.raises(KeyboardInterrupt):
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+def test_typed_error_from_a_bootstrap_step_passes_through(aa_module: MagicMock) -> None:
+    aa_module.Login.side_effect = AuthError("integration not in a product profile")
+    with pytest.raises(AuthError, match="product profile"):
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)

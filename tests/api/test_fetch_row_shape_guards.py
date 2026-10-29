@@ -41,6 +41,7 @@ class _FakeClient:
     def __init__(self, payload: Any, *, max_retries: int = 0) -> None:
         self.handle = _FakeHandle(payload)
         self.retry_policy = RetryPolicy(max_retries=max_retries, base_delay=0.001, max_delay=0.001)
+        self.company_id = "testco"  # VrsSource binds to the client's company
 
 
 _ROW_FETCHERS = [
@@ -101,16 +102,56 @@ def test_vrs_error_stub_degrades_instead_of_reporting_zero() -> None:
 
 
 def test_vrs_row_without_id_is_skipped_not_fatal() -> None:
-    """A VRS row with no id cannot be rendered or diffed, so it is dropped
-    the same way the discovery listing drops it. The usable rows survive."""
+    """A VRS row with no usable id cannot be rendered or diffed, so it is
+    dropped. The usable rows survive."""
     client = _FakeClient(
         [
             {"id": "vrs1", "name": "Good", "parentRsid": "rs"},
             {"name": "No id", "parentRsid": "rs"},
             {"id": "", "name": "Blank id", "parentRsid": "rs"},
+            {"id": float("nan"), "name": "NaN id", "parentRsid": "rs"},
             {"id": "vrs2", "name": "Other parent", "parentRsid": "other"},
         ],
     )
     outcome = fetch.fetch_virtual_report_suites(client, "rs")
     assert outcome.status == "healthy"
     assert [v.id for v in outcome.data] == ["vrs1"]
+
+
+def test_vrs_non_string_id_is_kept_and_coerced() -> None:
+    """A DataFrame conversion can hand back a numeric id. The discovery
+    listing keeps such a row, so the generated SDR must keep it too rather
+    than quietly holding fewer VRS than `--list-virtual-reportsuites`."""
+    client = _FakeClient([{"id": 7, "name": "Numeric", "parentRsid": "rs"}])
+    outcome = fetch.fetch_virtual_report_suites(client, "rs")
+    assert [v.id for v in outcome.data] == ["7"]
+
+
+@pytest.mark.parametrize("shared", [False, True], ids=["per_rsid", "shared_source"])
+def test_vrs_skipped_rows_do_not_skew_the_parent_filter_record(shared, caplog) -> None:
+    """The `vrs_parent_filter` record's arithmetic is
+    `pulled - filtered - dropped_no_parent = dropped_other_parent`. Rows
+    dropped for an unusable id must not land in `dropped_other_parent`, or
+    the record blames the parent filter for them. On the shared-source path
+    the counts came from the unfiltered listing, so they did."""
+    import logging
+
+    from aa_auto_sdr.api.vrs_source import VrsSource
+
+    client = _FakeClient(
+        [
+            {"id": "vrs1", "name": "Good", "parentRsid": "rs"},
+            {"name": "No id", "parentRsid": "rs"},
+            {"id": "vrs2", "name": "Other parent", "parentRsid": "other"},
+            {"id": "vrs3", "name": "No parent", "parentRsid": ""},
+        ],
+    )
+    source = VrsSource(client) if shared else None
+    with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch"):
+        outcome = fetch.fetch_virtual_report_suites(client, "rs", source=source)
+    assert [v.id for v in outcome.data] == ["vrs1"]
+    records = [r for r in caplog.records if r.msg.startswith("vrs_parent_filter")]
+    assert len(records) == 1
+    record = records[0]
+    assert record.pulled - record.filtered - record.dropped_no_parent == record.dropped_other_parent
+    assert record.dropped_other_parent == 1  # vrs2 only, not the id-less row

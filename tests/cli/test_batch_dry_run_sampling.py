@@ -86,6 +86,27 @@ def test_dry_run_summary_records_the_sample(authed_env, resolving_client, tmp_pa
     assert len(summary["rsids"]) == 2
 
 
+def test_unseeded_dry_run_says_the_draw_is_illustrative(authed_env, resolving_client, tmp_path: Path, capsys) -> None:
+    """Without `--sample-seed` the RNG is seeded from the OS, so the real run
+    draws a different subset. The count is right either way, but the preview
+    must not claim these exact report suites are the ones that will run."""
+    assert _dry_run(tmp_path, sample_size=2) == ExitCode.OK.value
+    out = capsys.readouterr().out
+    assert len(_previewed(out)) == 2
+    assert "--sample-seed" in out
+    assert "illustrative" in out
+
+
+def test_seeded_dry_run_does_not_add_the_caveat(authed_env, resolving_client, tmp_path: Path, capsys) -> None:
+    assert _dry_run(tmp_path, sample_size=2, sample_seed=7) == ExitCode.OK.value
+    assert "illustrative" not in capsys.readouterr().out
+
+
+def test_unsampled_dry_run_does_not_add_the_caveat(authed_env, resolving_client, tmp_path: Path, capsys) -> None:
+    assert _dry_run(tmp_path) == ExitCode.OK.value
+    assert "illustrative" not in capsys.readouterr().out
+
+
 def test_stratified_dry_run_previews_the_sampled_subset(authed_env, resolving_client, tmp_path: Path, capsys) -> None:
     rc = _dry_run(tmp_path, sample_size=2, sample_seed=7, sample_stratified=True)
     assert rc == ExitCode.OK.value

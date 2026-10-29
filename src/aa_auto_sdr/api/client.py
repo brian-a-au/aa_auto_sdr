@@ -15,6 +15,8 @@ Bootstrap order (validated by spike — see docs/superpowers/spikes/...):
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -32,6 +34,47 @@ from aa_auto_sdr.core.credentials import Credentials
 from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _normalized(step: str, *, rejected_credentials: bool = False) -> Iterator[None]:
+    """Translate an SDK failure in one bootstrap step to our typed hierarchy.
+
+    The same job `api/fetch.py::_retry_and_normalize` does for the fetchers.
+    Every step of the bootstrap talks to Adobe, so each can fail with a
+    `requests` error or an unexpected shape. None of those is an
+    `AaAutoSdrError`, so without this the exception escaped every CLI
+    handler and the run ended with a traceback and exit 1 rather than a typed
+    exit code.
+
+    `rejected_credentials=True` marks the sign-in step, where a `TypeError`
+    has a known cause: when the token endpoint rejects the credentials, the
+    SDK's `get_oauth_token_and_expiry_for_config` returns a JSON *string*
+    instead of a dict, and `AdobeRequest.__init__` then indexes that string.
+    Reporting it as an auth failure points the user at the credentials
+    instead of showing them "string indices must be integers".
+
+    Our own typed errors pass through so the caller's exit code is right, and
+    KeyboardInterrupt and SystemExit derive from BaseException, so a Ctrl-C
+    during the bootstrap still shuts down cleanly.
+    """
+    try:
+        yield
+    except AaAutoSdrError:
+        raise  # ApiError, AuthError, ConfigError — the caller dispatches on these
+    except TypeError as exc:
+        if not rejected_credentials:
+            raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
+        logger.error(
+            "auth_failure reason=rejected_credentials",
+            extra={"error_class": "AuthError", "reason": "rejected_credentials"},
+        )
+        raise AuthError(
+            "Adobe rejected the credentials during sign-in. Verify client_id, secret, "
+            f"and scopes in Adobe Developer Console ({exc}).",
+        ) from exc
+    except Exception as exc:
+        raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
 
 
 @dataclass(slots=True)
@@ -63,7 +106,8 @@ class AaClient:
         max_delay=10s)."""
         creds.validate()
         config = credentials_to_aanalytics2_config(creds)
-        aanalytics2.configure(**config)
+        with _normalized("configure"):
+            aanalytics2.configure(**config)
         logger.debug(
             "aanalytics2 configured client_id_prefix=%s",
             creds.client_id[:8],
@@ -71,7 +115,12 @@ class AaClient:
         )
 
         policy = retry_policy or DEFAULT_RETRY_POLICY
-        login = aanalytics2.Login()
+        # `Login()` is not just a constructor: it builds the SDK's
+        # AdobeRequest, which exchanges the credentials for an OAuth token over
+        # the network before returning. So it is the step most likely to fail
+        # in the field, and both of its failure shapes used to escape raw.
+        with _normalized("sign-in", rejected_credentials=True):
+            login = aanalytics2.Login()
         # Wrap getCompanyId in the same retry pattern as fetchers (per spike
         # D1, aanalytics2 0.5.1's swallowed-stub behavior surfaces transient
         # 5xx as KeyError/ValueError on indexing — `classify_transient_sdk_call`
@@ -82,14 +131,7 @@ class AaClient:
         # `log_retry_attempt` threads bootstrap retries into the same
         # `retry_attempt` DEBUG record stream as fetcher retries so operators
         # can grep them under `--log-format json`.
-        # Outer normalizer, mirroring `api/fetch.py::_retry_and_normalize`:
-        # anything that escapes the retries and is not already one of our
-        # typed errors becomes a plain ApiError. Without it a read timeout, a
-        # connection error, or a bad SDK shape escaped raw, and no CLI handler
-        # catches those, so the run ended with a traceback and exit 1 instead
-        # of api error 12. KeyboardInterrupt and SystemExit derive from
-        # BaseException, so they still propagate for a clean shutdown.
-        try:
+        with _normalized("getCompanyId"):
             companies = (
                 with_retries(
                     lambda: classify_transient_sdk_call(login.getCompanyId),
@@ -98,10 +140,6 @@ class AaClient:
                 )
                 or []
             )
-        except AaAutoSdrError:
-            raise  # ApiError, AuthError, ConfigError — the caller dispatches on these
-        except Exception as exc:
-            raise ApiError(f"auth bootstrap failed: {type(exc).__name__}: {exc}") from exc
         logger.debug(
             "getCompanyId returned count=%s",
             len(companies),
@@ -125,7 +163,8 @@ class AaClient:
             )
             raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
 
-        handle = aanalytics2.Analytics(chosen)
+        with _normalized("Analytics"):
+            handle = aanalytics2.Analytics(chosen)
         logger.info(
             "auth bootstrap ok company_id=%s source=%s",
             chosen,

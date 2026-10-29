@@ -73,7 +73,9 @@ The SDR JSON output (`--format json`) carries the same `collected_components` li
 
 The `schema` field enables migrations. Loaders reject unknown majors (e.g. `aa-sdr-snapshot/v6`, `aa-sdr-snapshot/v999`) with `SnapshotSchemaError` and naive (timezone-less) timestamps with the same. Older envelopes load forward-compat: `v1` envelopes load with `degraded_components` / `partial_components` defaulted to empty and `quality` defaulted to `null`.
 
-Every component row must be an object with a nonempty string `id`, unique within its family, because every comparison keys rows by `id` (see [Identity by ID](#identity-by-id-never-by-name)). A row that breaks either rule is `SnapshotCorruptError`, which the CLI reports as snapshot error `16`. Ids only have to be unique inside one family, so the same id in `dimensions` and in `metrics` is fine.
+Every component row must be an object with a nonempty string `id`, because every comparison keys rows by `id` (see [Identity by ID](#identity-by-id-never-by-name)). A row without one is `SnapshotCorruptError`, which the CLI reports as snapshot error `16`.
+
+A capture never writes two rows sharing an `id` in one family: the builder keeps the first row per id and logs a warning. Reading a snapshot still accepts a repeated id, so a file an earlier release wrote keeps loading and `--watch` can read back the snapshot it just saved. `--render-from` is stricter and rejects a repeated id, because there the file is the input the user chose rather than one the tool produced. Ids only have to be unique inside one family, so the same id in `dimensions` and in `metrics` is fine.
 
 ## Storage convention
 
