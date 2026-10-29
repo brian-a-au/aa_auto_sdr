@@ -92,6 +92,63 @@ def test_dataframe_responses_still_load(fetcher) -> None:
     assert [c.id for c in fetcher(client, "rs")] == ["one"]
 
 
+class _ClassificationHandle:
+    def __init__(self, rows: Any) -> None:
+        self._rows = rows
+
+    def getClassificationDatasets(self, **_kwargs: Any) -> Any:
+        return self._rows
+
+
+class _ClassificationClient:
+    def __init__(self, rows: Any) -> None:
+        self.handle = _ClassificationHandle(rows)
+        self.retry_policy = RetryPolicy(max_retries=0, base_delay=0.001, max_delay=0.001)
+        self.company_id = "testco"
+
+
+def _pair(dataset: str, metric: str) -> dict[str, Any]:
+    return {"dataSetId": dataset, "name": "Campaign", "rsid": "rs", "metricId": metric}
+
+
+def test_classifications_are_one_row_per_dataset() -> None:
+    """The endpoint is `compatibilityMetrics`, one row per dataset-and-metric
+    pair. Deduping here rather than downstream keeps the count the same for
+    `--describe-reportsuite`, `--stats`, `--inventory-summary`,
+    `--list-classification-datasets`, and the generated SDR, which all read
+    this one fetcher."""
+    client = _ClassificationClient([_pair("ds1", "m1"), _pair("ds1", "m2"), _pair("ds2", "m1")])
+    outcome = fetch.fetch_classification_datasets(client, "rs")
+    assert [c.id for c in outcome.data] == ["ds1", "ds2"]
+
+
+def test_classification_row_does_not_depend_on_response_order() -> None:
+    """A key that differs between the pairs describes the pair, not the
+    dataset, so keeping one row's value would make the SDR change whenever
+    Adobe reorders the listing. Only the keys that agree are kept."""
+    forward = _ClassificationClient([_pair("ds1", "m1"), _pair("ds1", "m2")])
+    reversed_ = _ClassificationClient([_pair("ds1", "m2"), _pair("ds1", "m1")])
+    first = fetch.fetch_classification_datasets(forward, "rs").data[0]
+    second = fetch.fetch_classification_datasets(reversed_, "rs").data[0]
+    assert first == second
+    assert "metricId" not in first.extra
+
+
+def test_classification_keys_shared_by_every_pair_are_kept() -> None:
+    rows = [
+        {**_pair("ds1", "m1"), "owner": "team-a"},
+        {**_pair("ds1", "m2"), "owner": "team-a"},
+    ]
+    dataset = fetch.fetch_classification_datasets(_ClassificationClient(rows), "rs").data[0]
+    assert dataset.extra["owner"] == "team-a"
+
+
+def test_single_classification_row_keeps_every_key() -> None:
+    rows = [{**_pair("ds1", "m1"), "owner": "team-a"}]
+    dataset = fetch.fetch_classification_datasets(_ClassificationClient(rows), "rs").data[0]
+    assert dataset.extra == {"metricId": "m1", "owner": "team-a"}
+
+
 def test_vrs_error_stub_degrades_instead_of_reporting_zero() -> None:
     """A stub must not read as a healthy empty org: `_records` wrapped the
     mapping into one row, and the parent filter then dropped it."""

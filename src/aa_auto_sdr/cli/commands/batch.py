@@ -471,10 +471,17 @@ def _run_impl(
                     captured_at_iso=captured_at.isoformat(),
                 )
                 print(f"  {snap_path}")
-        if sample.sampled and sample.sample_seed is None:
+        if sample.sampled:
+            # The dry-run path returns before _print_summary, which is where a
+            # real run states its sample, so say it here. Otherwise the
+            # identifiers left out are simply missing from the preview.
+            caveat = (
+                ""
+                if sample.sample_seed is not None
+                else "; this draw is illustrative, pass --sample-seed N to preview the exact report suites"
+            )
             print(
-                f"(sampled {len(canonical)} of {sample.total_available}; this draw is illustrative, "
-                "pass --sample-seed N to preview the exact report suites a run will pick)",
+                f"(--sample drew {len(canonical)} of {sample.total_available} report suites{caveat})",
                 flush=True,
             )
         print("(no files were written; remove --dry-run to execute)", flush=True)

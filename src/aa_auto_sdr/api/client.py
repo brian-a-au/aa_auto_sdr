@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def _normalized(step: str, *, rejected_credentials: bool = False) -> Iterator[None]:
+def _normalized(step: str, *, token_exchange: bool = False) -> Iterator[None]:
     """Translate an SDK failure in one bootstrap step to our typed hierarchy.
 
     The same job `api/fetch.py::_retry_and_normalize` does for the fetchers.
@@ -47,12 +47,18 @@ def _normalized(step: str, *, rejected_credentials: bool = False) -> Iterator[No
     handler and the run ended with a traceback and exit 1 rather than a typed
     exit code.
 
-    `rejected_credentials=True` marks the sign-in step, where a `TypeError`
-    has a known cause: when the token endpoint rejects the credentials, the
-    SDK's `get_oauth_token_and_expiry_for_config` returns a JSON *string*
-    instead of a dict, and `AdobeRequest.__init__` then indexes that string.
-    Reporting it as an auth failure points the user at the credentials
+    `token_exchange=True` marks a step that exchanges the credentials for an
+    OAuth token, where a `TypeError` has a known cause: when the token
+    endpoint answers without an `access_token`, the SDK's
+    `get_oauth_token_and_expiry_for_config` returns a JSON *string* instead
+    of a dict, and `AdobeRequest.__init__` then indexes that string.
+    Reporting it as a sign-in failure points the user at the credentials
     instead of showing them "string indices must be integers".
+
+    Two steps exchange a token, so both are marked. `Login()` does the first.
+    `Analytics()` does another, because `configure` leaves an empty token in
+    the SDK's global config and `AdobeRequest` deepcopies that config rather
+    than mutating it, so the handle's own request re-runs the POST.
 
     Our own typed errors pass through so the caller's exit code is right, and
     KeyboardInterrupt and SystemExit derive from BaseException, so a Ctrl-C
@@ -63,15 +69,20 @@ def _normalized(step: str, *, rejected_credentials: bool = False) -> Iterator[No
     except AaAutoSdrError:
         raise  # ApiError, AuthError, ConfigError — the caller dispatches on these
     except TypeError as exc:
-        if not rejected_credentials:
+        if not token_exchange:
             raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
         logger.error(
-            "auth_failure reason=rejected_credentials",
-            extra={"error_class": "AuthError", "reason": "rejected_credentials"},
+            "auth_failure reason=no_access_token",
+            extra={"error_class": "AuthError", "reason": "no_access_token"},
         )
+        # The SDK's own text ("string indices must be integers") describes the
+        # indexing, not the cause, so it would only mislead on stderr. It stays
+        # on the exception chain, and this record carries it for diagnosis.
+        logger.debug("auth_failure detail error_class=%s", type(exc).__name__, extra={"error_class": str(exc)})
         raise AuthError(
-            "Adobe rejected the credentials during sign-in. Verify client_id, secret, "
-            f"and scopes in Adobe Developer Console ({exc}).",
+            "Sign-in failed: Adobe did not return an access token. Verify client_id, secret, "
+            "and scopes in Adobe Developer Console. A rate limit or a transient Adobe IMS "
+            "error can also cause it, in which case a re-run succeeds.",
         ) from exc
     except Exception as exc:
         raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
@@ -119,7 +130,7 @@ class AaClient:
         # AdobeRequest, which exchanges the credentials for an OAuth token over
         # the network before returning. So it is the step most likely to fail
         # in the field, and both of its failure shapes used to escape raw.
-        with _normalized("sign-in", rejected_credentials=True):
+        with _normalized("sign-in", token_exchange=True):
             login = aanalytics2.Login()
         # Wrap getCompanyId in the same retry pattern as fetchers (per spike
         # D1, aanalytics2 0.5.1's swallowed-stub behavior surfaces transient
@@ -163,7 +174,7 @@ class AaClient:
             )
             raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
 
-        with _normalized("Analytics"):
+        with _normalized("Analytics", token_exchange=True):
             handle = aanalytics2.Analytics(chosen)
         logger.info(
             "auth bootstrap ok company_id=%s source=%s",

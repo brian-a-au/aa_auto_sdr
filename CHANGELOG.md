@@ -16,10 +16,10 @@ order. No new flags and no changed defaults.
 ### Fixed
 - Wrong credentials now exit 11 with a message naming what to check. Before,
   the run ended with a traceback and `TypeError: string indices must be
-  integers`. When Adobe rejects the credentials, the SDK's token helper
-  returns a JSON string instead of a dictionary, and the next line indexes
-  that string. Every step of sign-in is now reported through the typed exit
-  codes.
+  integers`. When Adobe does not return an access token, the SDK's token
+  helper returns a JSON string instead of a dictionary, and the next line
+  indexes that string. Sign-in exchanges a token twice, and both exchanges
+  now report the same way.
 - A network failure while signing in now exits 12. Before, it ended the run
   with a traceback. The whole bootstrap is covered, not just the company
   lookup: setting up the SDK, exchanging the credentials for a token, looking
@@ -34,12 +34,19 @@ order. No new flags and no changed defaults.
   credentials exits 10 instead of printing a traceback. `--profile-test`
   reports an api failure as `FAIL [api]` beside its existing `FAIL [auth]`
   and `FAIL [config]` lines.
-- A capture no longer keeps two components with the same id in one family. It
-  keeps the first row and logs a warning naming the family and the count.
-  Adobe can repeat an id: the classifications listing returns one row per
-  dataset and metric pair, so a dataset compatible with several metrics
-  arrives several times. Before, the repeated rows collapsed onto the last
-  one during a diff and made the unchanged count wrong.
+- Classifications are now reported once per dataset. The listing returns one
+  row per dataset and metric pair, so a dataset compatible with three metrics
+  arrived three times. Before, those rows collapsed onto the last one during
+  a diff and made the unchanged count wrong. The row that is kept is the same
+  whatever order Adobe listed the pairs in: the fields the pairs disagree on
+  describe the pair rather than the dataset, so they are left out, and an
+  unchanged report suite no longer diffs as modified under
+  `--extended-fields`. `--describe-reportsuite`, `--stats`,
+  `--inventory-summary`, and `--list-classification-datasets` count the same
+  datasets as the generated SDR, because all of them read the same step.
+- A capture no longer keeps two components with the same id in any family. If
+  one ever arrives, the first row is kept and a warning names the family and
+  the count.
 - A segment or calculated metric fetch no longer crashes when Adobe Analytics
   answers with something other than a list of components. Before, the run
   ended with a traceback and exit 1. The run now exits with api error 12, and

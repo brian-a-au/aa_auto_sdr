@@ -40,7 +40,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `not_compared` | list[str] — component family names | `diff_scope_mismatch` — families one capture collected and the other did not. |
 | `not_compared_fields` | list[str] — component field names | `diff_legacy_capture_fields` — dimension and metric fields an older capture did not collect. |
 | `sheet` | str — workbook sheet name | Template-fill records. On `template_overflow_sheet_written` it is the name of the appended Overflow sheet; on the other `template_*` events it is the template sheet being filled. |
-| `reason` | str — discriminator | `auth_failure` records — short stable reason code (`no_companies` / `missing_global_company_id`). |
+| `reason` | str — discriminator | `auth_failure` records — short stable reason code (`no_companies` / `missing_global_company_id` / `no_access_token`). |
 | `command` | str — dispatch attribute name | Emitted on `command_start` / `command_complete` un-prefixed records from `cli/commands/*`. Values match dispatch attribute names (e.g., `generate`, `batch`, `diff`, `list_metrics`). Vocabulary meta-test enforces presence of *some* `command` extra on cli/commands/*.py INFO records, not a fixed enum. |
 | `creds_source` | str — `profile:<name>` / `env` / `.env` / `config.json` | Emitted on the INFO record from `core/credentials.resolve()` indicating which source matched. |
 | `snapshot_spec` | str | Emitted from `snapshot/resolver.py` on resolve attempts. The user-supplied snapshot spec string. Used at DEBUG and ERROR. |
@@ -133,9 +133,10 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `vrs_rows_skipped` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the VRS listing holds rows that are not mappings or carry no id that can name a component, so they cannot be normalized. Dropped as the listing is read, before the parent filter and before any count, so `vrs_parent_filter` below describes the same row set whether or not a shared VrsSource is in play. Carries `rsid`, `component_type=virtual_report_suite`, and `count` (the number of rows skipped).
 - `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the fetch-failed WARNING when the VRS fetch fails with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. Operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
 
-### Capture normalization (1)
+### Capture normalization (2)
 
-- `duplicate_component_ids` — WARNING. `sdr/builder.py::_sorted_unique`. Fires once per family whose rows carry a repeated `id`, which Adobe can legitimately return (the classifications listing is one row per dataset-and-metric pair). The builder keeps the first row per id. Carries `rsid`, `component_type` (the family), and `count` (the number of rows dropped).
+- `duplicate_component_ids` — WARNING. `sdr/builder.py::_sorted_unique`. Fires once per family whose rows carry a repeated `id`, which no family is expected to do once the fetchers have normalized a response. The builder keeps the first row per id. Carries `rsid`, `component_type` (the family), and `count` (the number of rows dropped).
+- `classification_pairs_collapsed` — DEBUG. `api/fetch.py::fetch_classification_datasets`. Fires when the classifications listing names one dataset more than once, which is its normal shape: the endpoint is `compatibilityMetrics`, one row per dataset-and-metric pair. The fetcher reports one row per dataset, keeping the passthrough keys every pair agrees on. DEBUG rather than WARNING because repeated pairs are expected. Carries `rsid`, `component_type=classification`, and `count` (the number of extra pair rows).
 
 ### Batch sampling (1)
 

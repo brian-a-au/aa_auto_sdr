@@ -13,6 +13,7 @@ method because the underlying API has none.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import time
 from collections.abc import Callable
@@ -931,6 +932,23 @@ def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
     return None
 
 
+def _merge_classification(
+    first: models.ClassificationDataset,
+    later: models.ClassificationDataset,
+) -> models.ClassificationDataset:
+    """Combine two rows that name the same dataset.
+
+    A passthrough key whose value differs between the rows describes the
+    pair, not the dataset (the metric id, for one), so keeping either row's
+    value would make a capture depend on the order Adobe listed the pairs,
+    and an unchanged report suite could then diff as modified under
+    `--extended-fields`. Only the keys the rows agree on survive, which is
+    the same answer whatever the order.
+    """
+    shared = {k: v for k, v in first.extra.items() if k in later.extra and later.extra[k] == v}
+    return dataclasses.replace(first, extra=shared)
+
+
 def fetch_classification_datasets(
     client: AaClient,
     rsid: str,
@@ -994,19 +1012,36 @@ def fetch_classification_datasets(
         return models.FetchOutcome.degraded()
 
     known = {*_CLASSIFICATION_ID_KEYS, *_CLASSIFICATION_NAME_KEYS, "rsid"}
-    out: list[models.ClassificationDataset] = []
+    # One row per dataset-and-metric pair, so a dataset compatible with
+    # several metrics arrives several times. Collapse to one row per dataset
+    # here, at the boundary every consumer reads: `--describe-reportsuite`,
+    # `--stats`, `--inventory-summary`, and
+    # `--list-classification-datasets` all call this fetcher, so deduping
+    # further downstream would make them report a different count than the
+    # SDR built in the same run.
+    by_id: dict[str, models.ClassificationDataset] = {}
+    pairs = 0
     for r in raws:
         ds_id = _first_present(r, _CLASSIFICATION_ID_KEYS)
         if ds_id is None:
             continue
+        pairs += 1
         ds_name = _first_present(r, _CLASSIFICATION_NAME_KEYS) or ds_id
-        out.append(
-            models.ClassificationDataset(
-                id=ds_id,
-                name=ds_name,
-                rsid=str(r.get("rsid", rsid)),
-                extra=_extra(r, known),
-            ),
+        dataset = models.ClassificationDataset(
+            id=ds_id,
+            name=ds_name,
+            rsid=str(r.get("rsid", rsid)),
+            extra=_extra(r, known),
+        )
+        seen = by_id.get(ds_id)
+        by_id[ds_id] = dataset if seen is None else _merge_classification(seen, dataset)
+    out = list(by_id.values())
+    if pairs != len(out):
+        logger.debug(
+            "classification_pairs_collapsed rsid=%s component_type=classification count=%s",
+            rsid,
+            pairs - len(out),
+            extra={"rsid": rsid, "component_type": "classification", "count": pairs - len(out)},
         )
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.info(

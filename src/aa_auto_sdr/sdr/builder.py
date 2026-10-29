@@ -85,14 +85,17 @@ def _sorted_unique(items: list[_T], *, family: str, rsid: str) -> list[_T]:
 
     Every writer, snapshot, and diff keys a component by its id, so two rows
     sharing one id collapse onto the last during a comparison and quietly
-    skew the unchanged count. Adobe can legitimately repeat an id: the
-    classifications listing is `compatibilityMetrics`, one row per dataset
-    and metric pair, so a dataset compatible with several metrics arrives
-    several times.
+    skew the unchanged count.
 
-    Uniqueness is settled here rather than on read, because `--watch` reads
-    back the snapshot it just wrote and the shared reader has to stay able to
-    open a file an older release produced.
+    This is the invariant guard, not the place a known repeat is handled: a
+    response whose shape repeats an id is normalized in `api/fetch.py`, at
+    the boundary the inspection commands read too, so their counts match the
+    SDR built in the same run. Reaching the warning below means a family
+    arrived with a repeat that its fetcher did not expect.
+
+    Uniqueness is settled on the capture side rather than on read, because
+    `--watch` reads back the snapshot it just wrote and the shared reader has
+    to stay able to open a file an older release produced.
     """
     out: list[_T] = []
     seen: set[str] = set()

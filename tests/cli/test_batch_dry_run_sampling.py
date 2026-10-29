@@ -97,9 +97,18 @@ def test_unseeded_dry_run_says_the_draw_is_illustrative(authed_env, resolving_cl
     assert "illustrative" in out
 
 
-def test_seeded_dry_run_does_not_add_the_caveat(authed_env, resolving_client, tmp_path: Path, capsys) -> None:
+def test_seeded_dry_run_says_it_sampled_without_the_caveat(
+    authed_env, resolving_client, tmp_path: Path, capsys
+) -> None:
+    """A seeded preview is reproducible, so it carries no caveat. It still
+    has to say that it sampled: otherwise two of the four identifiers are
+    simply missing from the preview with no explanation, and the dry-run path
+    never prints the real run's `Sampled N of M` banner."""
     assert _dry_run(tmp_path, sample_size=2, sample_seed=7) == ExitCode.OK.value
-    assert "illustrative" not in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "illustrative" not in out
+    assert f"2 of {len(_RSIDS)}" in out
+    assert "--sample" in out
 
 
 def test_unsampled_dry_run_does_not_add_the_caveat(authed_env, resolving_client, tmp_path: Path, capsys) -> None:

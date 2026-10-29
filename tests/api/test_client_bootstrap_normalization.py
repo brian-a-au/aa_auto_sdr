@@ -125,6 +125,22 @@ def test_control_flow_in_any_bootstrap_step_still_propagates(aa_module: MagicMoc
 
 
 @patch("aa_auto_sdr.api.client.aanalytics2")
+def test_both_token_exchanges_report_the_same_way(aa_module: MagicMock) -> None:
+    """`Analytics()` performs a second token exchange: `configure` leaves an
+    empty token in the SDK's global config and `AdobeRequest` deepcopies
+    rather than mutating it, so the handle's own request re-runs the POST. If
+    that one answers without a token, the same string-indexing TypeError
+    arises, and it has to read as a sign-in failure rather than as
+    "api error: ... TypeError: string indices must be integers"."""
+    aa_module.Login.return_value.getCompanyId.return_value = [{"globalCompanyId": "abc123"}]
+    aa_module.Analytics.side_effect = TypeError("string indices must be integers, not 'str'")
+    with pytest.raises(AuthError) as excinfo:
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+    assert "string indices" not in str(excinfo.value)
+    assert "access token" in str(excinfo.value).lower()
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
 def test_typed_error_from_a_bootstrap_step_passes_through(aa_module: MagicMock) -> None:
     aa_module.Login.side_effect = AuthError("integration not in a product profile")
     with pytest.raises(AuthError, match="product profile"):
