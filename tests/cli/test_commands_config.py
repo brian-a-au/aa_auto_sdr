@@ -37,7 +37,7 @@ def test_profile_add_stops_cleanly_when_input_ends(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr("builtins.input", eof)
     rc = cmd.profile_add("prod", base=tmp_path)
     assert rc == 10
-    assert "input ended" in capsys.readouterr().out
+    assert "input ended" in capsys.readouterr().err
     assert not (tmp_path / "orgs" / "prod").exists()
 
 

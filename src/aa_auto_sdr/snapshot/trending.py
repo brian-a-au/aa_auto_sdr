@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.core.exceptions import SnapshotError, SnapshotResolveError
 from aa_auto_sdr.snapshot.baseline import covers, scope_of, select_covering
 from aa_auto_sdr.snapshot.comparator import compare
 from aa_auto_sdr.snapshot.models import Comparability, ComponentDiff
@@ -225,7 +226,7 @@ def compute_trending(
     latest_by_scope: dict[tuple[str, ...] | None, dict[str, Any]] = {}
     last = None
     for p in matching:
-        snap = load_snapshot(p)
+        snap = _load_in_window(p)
         delta_by_type: dict[str, LifecycleDelta] | None = None
         settings_changes: int | None = None
         baseline_at: datetime | None = None
@@ -269,6 +270,24 @@ def compute_trending(
         },
     )
     return TrendingReport(rsid=rsid, name=name, window=window, series=series, drift=drift)
+
+
+def _load_in_window(path: Path, /) -> dict[str, Any]:
+    """Load one snapshot in the window, naming the file on any failure.
+
+    A drift window is a report over a set of files, so the caller needs to
+    know which one it could not read. Read and parse failures become
+    `SnapshotResolveError`; a schema failure keeps its own class so the
+    reason stays distinguishable. Every case is `ExitCode.SNAPSHOT`.
+    """
+    try:
+        return load_snapshot(path)
+    except SnapshotError as exc:
+        # Re-raise through the original class so an unsupported schema and a
+        # corrupt envelope stay apart; both take a single message argument.
+        raise exc.__class__(f"snapshot {path}: {exc}") from exc
+    except (OSError, ValueError) as exc:
+        raise SnapshotResolveError(f"snapshot {path} could not be read: {exc}") from exc
 
 
 def _path_in_window(path: Path, window: WindowSpec) -> bool:

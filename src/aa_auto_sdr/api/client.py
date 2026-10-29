@@ -15,6 +15,8 @@ Bootstrap order (validated by spike — see docs/superpowers/spikes/...):
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,9 +31,73 @@ from aa_auto_sdr.api.resilience import (
     with_retries,
 )
 from aa_auto_sdr.core.credentials import Credentials
-from aa_auto_sdr.core.exceptions import AuthError
+from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError
 
 logger = logging.getLogger(__name__)
+
+# The SDK indexes a str when the sign-in endpoint answers without an
+# access grant, so this is the one TypeError shape that means it did.
+_STRING_INDEXING_MESSAGE = "string indices must be integers"
+
+
+@contextmanager
+def _normalized(step: str, *, token_exchange: bool = False) -> Iterator[None]:
+    """Translate an SDK failure in one bootstrap step to our typed hierarchy.
+
+    The same job `api/fetch.py::_retry_and_normalize` does for the fetchers.
+    Every step of the bootstrap talks to Adobe, so each can fail with a
+    `requests` error or an unexpected shape. None of those is an
+    `AaAutoSdrError`, so without this the exception escaped every CLI
+    handler and the run ended with a traceback and exit 1 rather than a typed
+    exit code.
+
+    `token_exchange=True` marks a step that exchanges the credentials for an
+    OAuth token, where a `TypeError` has a known cause: when the token
+    endpoint answers without an `access_token`, the SDK's
+    `get_oauth_token_and_expiry_for_config` returns a JSON *string* instead
+    of a dict, and `AdobeRequest.__init__` then indexes that string.
+    Reporting it as a sign-in failure points the user at the credentials
+    instead of showing them "string indices must be integers".
+
+    Two steps exchange a token, so both are marked. `Login()` does the first.
+    `Analytics()` does another, because `configure` leaves an empty token in
+    the SDK's global config and `AdobeRequest` deepcopies that config rather
+    than mutating it, so the handle's own request re-runs the POST.
+
+    Our own typed errors pass through so the caller's exit code is right, and
+    KeyboardInterrupt and SystemExit derive from BaseException, so a Ctrl-C
+    during the bootstrap still shuts down cleanly.
+    """
+    try:
+        yield
+    except AaAutoSdrError:
+        raise  # ApiError, AuthError, ConfigError — the caller dispatches on these
+    except TypeError as exc:
+        if not (token_exchange and _STRING_INDEXING_MESSAGE in str(exc)):
+            # Any other TypeError is an unexpected shape, not a sign-in
+            # problem. An SDK signature change raises one, and telling the
+            # user to rotate working credentials would send them the wrong way.
+            raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
+        logger.error(
+            "auth_failure reason=no_access_token",
+            extra={"error_class": "AuthError", "reason": "no_access_token"},
+        )
+        # The SDK's own text ("string indices must be integers") describes the
+        # indexing, not the cause, so repeating it on stderr would only
+        # mislead. It stays on the exception chain, and this record carries it.
+        logger.debug(
+            "auth_failure detail error_class=%s (%s)",
+            type(exc).__name__,
+            exc,
+            extra={"error_class": type(exc).__name__, "reason": "no_access_token"},
+        )
+        raise AuthError(
+            "Sign-in failed: Adobe did not return an access token. Verify client_id, secret, "
+            "and scopes in Adobe Developer Console. A rate limit or a transient Adobe IMS "
+            "error can also cause it, in which case a re-run succeeds.",
+        ) from exc
+    except Exception as exc:
+        raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
 
 
 @dataclass(slots=True)
@@ -63,7 +129,8 @@ class AaClient:
         max_delay=10s)."""
         creds.validate()
         config = credentials_to_aanalytics2_config(creds)
-        aanalytics2.configure(**config)
+        with _normalized("configure"):
+            aanalytics2.configure(**config)
         logger.debug(
             "aanalytics2 configured client_id_prefix=%s",
             creds.client_id[:8],
@@ -71,7 +138,12 @@ class AaClient:
         )
 
         policy = retry_policy or DEFAULT_RETRY_POLICY
-        login = aanalytics2.Login()
+        # `Login()` is not just a constructor: it builds the SDK's
+        # AdobeRequest, which exchanges the credentials for an OAuth token over
+        # the network before returning. So it is the step most likely to fail
+        # in the field, and both of its failure shapes used to escape raw.
+        with _normalized("sign-in", token_exchange=True):
+            login = aanalytics2.Login()
         # Wrap getCompanyId in the same retry pattern as fetchers (per spike
         # D1, aanalytics2 0.5.1's swallowed-stub behavior surfaces transient
         # 5xx as KeyError/ValueError on indexing — `classify_transient_sdk_call`
@@ -82,38 +154,46 @@ class AaClient:
         # `log_retry_attempt` threads bootstrap retries into the same
         # `retry_attempt` DEBUG record stream as fetcher retries so operators
         # can grep them under `--log-format json`.
-        companies = (
-            with_retries(
-                lambda: classify_transient_sdk_call(login.getCompanyId),
-                policy=policy,
-                on_attempt=log_retry_attempt,
+        with _normalized("getCompanyId"):
+            companies = (
+                with_retries(
+                    lambda: classify_transient_sdk_call(login.getCompanyId),
+                    policy=policy,
+                    on_attempt=log_retry_attempt,
+                )
+                or []
             )
-            or []
-        )
-        logger.debug(
-            "getCompanyId returned count=%s",
-            len(companies),
-            extra={"count": len(companies)},
-        )
-        if not companies:
-            logger.error(
-                "auth_failure reason=no_companies",
-                extra={"error_class": "AuthError", "reason": "no_companies"},
+        # Reading the response shape is normalized too. `Login.getCompanyId`
+        # returns `json_res['imsOrgs'][0]['companies']` verbatim under a bare
+        # `except`, so whatever Adobe puts there arrives here: indexing or
+        # calling `.get` on it can raise, and the typed AuthErrors below have
+        # to keep their class while anything else becomes an ApiError.
+        with _normalized("getCompanyId response"):
+            logger.debug(
+                "getCompanyId returned count=%s",
+                len(companies),
+                extra={"count": len(companies)},
             )
-            raise AuthError(
-                "No companies visible to these credentials. Verify the integration "
-                "is added to an Adobe Analytics Product Profile in Admin Console.",
-            )
+            if not companies:
+                logger.error(
+                    "auth_failure reason=no_companies",
+                    extra={"error_class": "AuthError", "reason": "no_companies"},
+                )
+                raise AuthError(
+                    "No companies visible to these credentials. Verify the integration "
+                    "is added to an Adobe Analytics Product Profile in Admin Console.",
+                )
 
-        chosen = company_id or companies[0].get("globalCompanyId")
-        if not chosen:
-            logger.error(
-                "auth_failure reason=missing_global_company_id",
-                extra={"error_class": "AuthError", "reason": "missing_global_company_id"},
-            )
-            raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
+            chosen = company_id or companies[0].get("globalCompanyId")
+            if not chosen:
+                logger.error(
+                    "auth_failure reason=missing_global_company_id",
+                    extra={"error_class": "AuthError", "reason": "missing_global_company_id"},
+                )
+                raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
 
-        handle = aanalytics2.Analytics(chosen)
+        with _normalized("Analytics", token_exchange=True):
+            handle = aanalytics2.Analytics(chosen)
         logger.info(
             "auth bootstrap ok company_id=%s source=%s",
             chosen,

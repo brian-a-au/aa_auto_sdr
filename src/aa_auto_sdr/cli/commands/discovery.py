@@ -6,6 +6,7 @@ and render via list_output."""
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -60,25 +61,31 @@ def run_list_reportsuites(
         try:
             creds = credentials.resolve(profile=profile)
         except ConfigError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
         try:
             client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as e:
-            print(f"auth error: {e}", flush=True)
+            print(f"auth error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
+            return exit_code
+        except ApiError as e:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {e}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
             return exit_code
 
         try:
             summaries = fetch.fetch_report_suite_summaries(client)
         except ApiError as e:
-            print(f"api error: {e}", flush=True)
+            print(f"api error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.API.value
             return exit_code
         except AaAutoSdrError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.GENERIC.value
             return exit_code
         # Convert to dicts for the existing renderer (which expects dict-shaped rows).
@@ -132,25 +139,31 @@ def run_list_virtual_reportsuites(
         try:
             creds = credentials.resolve(profile=profile)
         except ConfigError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
         try:
             client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as e:
-            print(f"auth error: {e}", flush=True)
+            print(f"auth error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
+            return exit_code
+        except ApiError as e:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {e}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
             return exit_code
 
         try:
             summaries = fetch.fetch_virtual_report_suite_summaries(client)
         except ApiError as e:
-            print(f"api error: {e}", flush=True)
+            print(f"api error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.API.value
             return exit_code
         except AaAutoSdrError as e:
-            print(f"error: {e}", flush=True)
+            print(f"error: {e}", flush=True, file=sys.stderr)
             exit_code = ExitCode.GENERIC.value
             return exit_code
         # Convert to dicts for the existing renderer (which expects dict-shaped rows).
@@ -206,7 +219,7 @@ def _render_with_filters(
             sort_field_allowlist=sort_allowlist,
         )
     except ValueError as e:
-        print(f"error: {e}", flush=True)
+        print(f"error: {e}", flush=True, file=sys.stderr)
         return ExitCode.USAGE.value
 
     return render_records(

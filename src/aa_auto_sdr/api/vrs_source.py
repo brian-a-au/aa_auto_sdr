@@ -23,14 +23,28 @@ class VrsRows:
     rows: list[dict[str, Any]]
     by_parent: dict[str, list[dict[str, Any]]] | None
     no_parent: int = 0
+    # Rows the caller's `usable` predicate rejected. Retained because the
+    # listing is shared, so every suite in a batch has to see that it was
+    # read incompletely, not just the suite that triggered the enumeration.
+    dropped: int = 0
 
     @classmethod
-    def build(cls, rows: list[dict[str, Any]]) -> VrsRows:
+    def build(cls, rows: list[dict[str, Any]], *, usable: Callable[[Any], bool] | None = None) -> VrsRows:
+        """Index `rows` by parent, dropping any the caller cannot use.
+
+        `usable` keeps row-shape knowledge in the fetcher: this module only
+        applies the predicate and counts what it rejected.
+        """
+        dropped = 0
+        if usable is not None:
+            kept = [row for row in rows if usable(row)]
+            dropped = len(rows) - len(kept)
+            rows = kept
         by_parent: dict[str, list[dict[str, Any]]] = {}
         no_parent = 0
         for row in rows:
             if type(row) is not dict:
-                return cls(rows, None)
+                return cls(rows, None, dropped=dropped)
             parent = row.get("parentRsid")
             if type(parent) is str:
                 by_parent.setdefault(parent, []).append(row)
@@ -38,8 +52,8 @@ class VrsRows:
             elif parent is None or (type(parent) is float and isnan(parent)):
                 no_parent += 1
             else:
-                return cls(rows, None)
-        return cls(rows, by_parent, no_parent)
+                return cls(rows, None, dropped=dropped)
+        return cls(rows, by_parent, no_parent, dropped)
 
 
 class VrsSource:
@@ -64,6 +78,8 @@ class VrsSource:
         self,
         client: AaClient,
         loader: Callable[[], list[dict[str, Any]]],
+        *,
+        usable: Callable[[Any], bool] | None = None,
     ) -> VrsRows:
         self.validate(client)
         with self._lock:
@@ -80,7 +96,7 @@ class VrsSource:
         if not owner:
             return flight.result()
         try:
-            rows = VrsRows.build(loader())
+            rows = VrsRows.build(loader(), usable=usable)
         except BaseException as exc:
             with self._lock:
                 self._flight = None

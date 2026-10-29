@@ -311,6 +311,12 @@ def _run_impl(
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"auth error: {e}", exit_code=ExitCode.AUTH.value)
         _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
+    except ApiError as e:
+        # The bootstrap retries getCompanyId, so an exhausted budget arrives
+        # here as TransientApiError rather than AuthError.
+        _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"api error: {e}", exit_code=ExitCode.API.value)
+        _emit_timings_if_enabled(show_timings=show_timings)
+        return ExitCode.API.value
 
     try:
         with timings.Timer("resolve"):

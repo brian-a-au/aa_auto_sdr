@@ -515,7 +515,7 @@ def test_list_metrics_api_error_in_component_fetch_returns_12(
         limit=None,
     )
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out
+    assert "api error" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.inspect.AaClient")
@@ -544,7 +544,7 @@ def test_list_metrics_generic_error_in_component_fetch_returns_1(
         limit=None,
     )
     assert rc == ExitCode.GENERIC.value
-    assert "error:" in capsys.readouterr().out
+    assert "error:" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.inspect.AaClient")
@@ -570,7 +570,7 @@ def test_list_metrics_invalid_limit_returns_usage(
         limit=-1,
     )
     assert rc == ExitCode.USAGE.value
-    assert "--limit" in capsys.readouterr().out
+    assert "--limit" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.inspect.AaClient")
@@ -594,7 +594,7 @@ def test_describe_api_error_during_resolve_returns_12(
         output=None,
     )
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out
+    assert "api error" in capsys.readouterr().err
 
 
 @patch("aa_auto_sdr.cli.commands.inspect.AaClient")

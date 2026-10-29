@@ -4,6 +4,8 @@ Both are fast-path-friendly: no pandas/aanalytics2 imports."""
 
 from __future__ import annotations
 
+import sys
+
 from aa_auto_sdr.core.exit_codes import EXPLANATIONS, ROWS, ExitCode
 
 
@@ -26,6 +28,7 @@ def run_explain_exit_code(code: int) -> int:
         print(
             f"error: unknown exit code '{code}' (run --exit-codes for the list)",
             flush=True,
+            file=sys.stderr,
         )
         return ExitCode.USAGE.value
 

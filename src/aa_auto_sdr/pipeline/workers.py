@@ -249,8 +249,13 @@ def run_parallel(
     Raises KeyboardInterrupt if interrupted (pending futures are cancelled first).
     """
     batch_id = uuid.uuid4().hex[:8]
-    successes: list[RunResult] = []
-    failures: list[BatchFailure] = []
+    # Keyed by submission index, not append order. Futures complete in
+    # whatever order the workers finish, so the raw append order made the
+    # summary banner and the run-summary JSON change between identical runs.
+    # BatchResult is sorted back into input order before it is returned, which
+    # also matches the sequential path.
+    successes: list[tuple[int, RunResult]] = []
+    failures: list[tuple[int, BatchFailure]] = []
     total_bytes = 0
     total = len(rsids)
     started = time.monotonic()
@@ -309,7 +314,7 @@ def run_parallel(
         drain so both go through the same structured-log path."""
         nonlocal total_bytes
         total_bytes += output_bytes(result)
-        successes.append(result)
+        successes.append((submission_index, result))
         logger.info(
             "rsid_complete rsid=%s batch_id=%s duration_ms=%s",
             rsid,
@@ -322,6 +327,23 @@ def run_parallel(
                 "count": len(result.outputs),
                 "worker_id": submission_index,
             },
+        )
+
+    def _record_cancelled(*, submission_index: int, rsid: str) -> None:
+        """Record an RSID that was cancelled or never submitted.
+
+        Shared by every cancellation site so each one carries its submission
+        index and lands in input order like any other outcome."""
+        failures.append(
+            (
+                submission_index,
+                BatchFailure(
+                    rsid=rsid,
+                    error_type="CancelledError",
+                    message="cancelled",
+                    exit_code=ExitCode.GENERIC.value,
+                ),
+            )
         )
 
     def _record_failure(exc: AaAutoSdrError, *, submission_index: int, rsid: str) -> None:
@@ -347,11 +369,14 @@ def run_parallel(
         if failure_callback is not None:
             failure_callback(submission_index + 1, total, rsid, message)
         failures.append(
-            BatchFailure(
-                rsid=rsid,
-                error_type=type(exc).__name__,
-                message=message,
-                exit_code=exit_code,
+            (
+                submission_index,
+                BatchFailure(
+                    rsid=rsid,
+                    error_type=type(exc).__name__,
+                    message=message,
+                    exit_code=exit_code,
+                ),
             )
         )
 
@@ -386,14 +411,7 @@ def run_parallel(
                         try:
                             result = done_future.result()
                         except CancelledError:
-                            failures.append(
-                                BatchFailure(
-                                    rsid=rsid,
-                                    error_type="CancelledError",
-                                    message="cancelled",
-                                    exit_code=ExitCode.GENERIC.value,
-                                )
-                            )
+                            _record_cancelled(submission_index=submission_index, rsid=rsid)
                         except AaAutoSdrError as exc:
                             _record_failure(exc, submission_index=submission_index, rsid=rsid)
                             # Mark failed but continue draining the rest of done_set
@@ -429,13 +447,9 @@ def run_parallel(
                         for pf in pending_set:
                             pf_ctx = future_to_ctx[pf]
                             if pf.cancel():
-                                failures.append(
-                                    BatchFailure(
-                                        rsid=pf_ctx["rsid"],
-                                        error_type="CancelledError",
-                                        message="cancelled",
-                                        exit_code=ExitCode.GENERIC.value,
-                                    )
+                                _record_cancelled(
+                                    submission_index=pf_ctx["submission_index"],
+                                    rsid=pf_ctx["rsid"],
                                 )
                             else:
                                 running.append(pf)
@@ -459,15 +473,8 @@ def run_parallel(
                         # submitted (fail-fast seeds only `workers` at a time).
                         # Record them as cancelled too so BatchResult holds one
                         # entry per input RSID, matching the sequential path.
-                        for _idx, rsid in rsid_iter:
-                            failures.append(
-                                BatchFailure(
-                                    rsid=rsid,
-                                    error_type="CancelledError",
-                                    message="cancelled",
-                                    exit_code=ExitCode.GENERIC.value,
-                                )
-                            )
+                        for idx, rsid in rsid_iter:
+                            _record_cancelled(submission_index=idx, rsid=rsid)
             except KeyboardInterrupt:
                 for pf in pending_set:
                     pf.cancel()
@@ -495,14 +502,7 @@ def run_parallel(
                             batch_id,
                             extra={"rsid": rsid, "batch_id": batch_id},
                         )
-                        failures.append(
-                            BatchFailure(
-                                rsid=rsid,
-                                error_type="CancelledError",
-                                message="cancelled",
-                                exit_code=ExitCode.GENERIC.value,
-                            )
-                        )
+                        _record_cancelled(submission_index=submission_index, rsid=rsid)
                     except AaAutoSdrError as exc:
                         _record_failure(exc, submission_index=submission_index, rsid=rsid)
                     else:
@@ -512,6 +512,11 @@ def run_parallel(
                 for pending_future in future_to_ctx:
                     pending_future.cancel()
                 raise
+
+    # Back into submission order, so two identical runs produce identical
+    # banners and run summaries whatever order the workers finished in.
+    ordered_successes = [result for _, result in sorted(successes, key=lambda entry: entry[0])]
+    ordered_failures = [failure for _, failure in sorted(failures, key=lambda entry: entry[0])]
 
     duration_seconds = time.monotonic() - started
     logger.info(
@@ -528,8 +533,8 @@ def run_parallel(
         },
     )
     return BatchResult(
-        successes=successes,
-        failures=failures,
+        successes=ordered_successes,
+        failures=ordered_failures,
         total_duration_seconds=duration_seconds,
         total_output_bytes=total_bytes,
         batch_id=batch_id,

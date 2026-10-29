@@ -16,7 +16,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
@@ -77,6 +77,57 @@ class ComponentFilter:
         return tuple(name for name in COMPONENT_FAMILIES if getattr(self, name))
 
 
+_T = TypeVar("_T")
+
+# `component_type` is a documented enumeration of singular names (see
+# docs/LOGGING_STYLE.md), so a log query pinned to `component_type=dimension`
+# has to match this record too.
+_SINGULAR: dict[str, str] = {
+    "dimensions": "dimension",
+    "metrics": "metric",
+    "segments": "segment",
+    "calculated_metrics": "calculated_metric",
+    "virtual_report_suites": "virtual_report_suite",
+    "classifications": "classification",
+}
+
+
+def _sorted_unique(items: list[_T], *, family: str, rsid: str) -> list[_T]:
+    """Sort a family by id and keep the first row per id.
+
+    Every writer, snapshot, and diff keys a component by its id, so two rows
+    sharing one id collapse onto the last during a comparison and quietly
+    skew the unchanged count.
+
+    This is the invariant guard, not the place a known repeat is handled: a
+    response whose shape repeats an id is normalized in `api/fetch.py`, at
+    the boundary the inspection commands read too, so their counts match the
+    SDR built in the same run. Reaching the warning below means a family
+    arrived with a repeat that its fetcher did not expect.
+
+    Uniqueness is settled on the capture side rather than on read, because
+    `--watch` reads back the snapshot it just wrote and the shared reader has
+    to stay able to open a file an older release produced.
+    """
+    out: list[_T] = []
+    seen: set[str] = set()
+    for item in sorted(items, key=lambda i: i.id):  # type: ignore[attr-defined]
+        if item.id in seen:  # type: ignore[attr-defined]
+            continue
+        seen.add(item.id)  # type: ignore[attr-defined]
+        out.append(item)
+    dropped = len(items) - len(out)
+    if dropped:
+        logger.warning(
+            "duplicate_component_ids rsid=%s component_type=%s count=%s; keeping the first row per id",
+            rsid,
+            _SINGULAR[family],
+            dropped,
+            extra={"rsid": rsid, "component_type": _SINGULAR[family], "count": dropped},
+        )
+    return out
+
+
 def build_sdr(
     client: AaClient,
     rsid: str,
@@ -132,24 +183,28 @@ def build_sdr(
 
     doc = SdrDocument(
         report_suite=rs,
-        dimensions=sorted(
+        dimensions=_sorted_unique(
             fetch.fetch_dimensions(client, rsid) if flt.dimensions else [],
-            key=lambda d: d.id,
+            family="dimensions",
+            rsid=rsid,
         ),
-        metrics=sorted(
+        metrics=_sorted_unique(
             fetch.fetch_metrics(client, rsid) if flt.metrics else [],
-            key=lambda m: m.id,
+            family="metrics",
+            rsid=rsid,
         ),
-        segments=sorted(
+        segments=_sorted_unique(
             fetch.fetch_segments(client, rsid) if flt.segments else [],
-            key=lambda s: s.id,
+            family="segments",
+            rsid=rsid,
         ),
-        calculated_metrics=sorted(
+        calculated_metrics=_sorted_unique(
             fetch.fetch_calculated_metrics(client, rsid) if flt.calculated_metrics else [],
-            key=lambda c: c.id,
+            family="calculated_metrics",
+            rsid=rsid,
         ),
-        virtual_report_suites=sorted(vrs_data, key=lambda v: v.id),
-        classifications=sorted(classifications_data, key=lambda c: c.id),
+        virtual_report_suites=_sorted_unique(vrs_data, family="virtual_report_suites", rsid=rsid),
+        classifications=_sorted_unique(classifications_data, family="classifications", rsid=rsid),
         captured_at=captured_at,
         tool_version=tool_version,
         fetch_status=fetch_status,

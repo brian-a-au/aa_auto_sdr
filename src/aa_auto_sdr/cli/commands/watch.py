@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.cli.commands._shared import resolve_snapshot_dir
+from aa_auto_sdr.core.exceptions import ApiError, AuthError, ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.watch_event import StdoutEmitter
 from aa_auto_sdr.pipeline.watch import (
@@ -272,6 +273,21 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
+    if getattr(ns, "quality_report", None) is not None:
+        print(
+            "error: --quality-report is not compatible with --watch (watch runs no audit, so there is nothing to report)",
+            file=sys.stderr,
+        )
+        return int(ExitCode.USAGE)
+    # Watch compares whole captures, so its fetcher always collects every
+    # family. A filter would be accepted and then silently ignored.
+    for attr, flag in (("metrics_only", "--metrics-only"), ("dimensions_only", "--dimensions-only")):
+        if getattr(ns, attr, False):
+            print(
+                f"error: {flag} is not compatible with --watch (watch captures every component family)",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
 
     # --- 2. Parse --interval ----------------------------------------------
     try:
@@ -301,7 +317,22 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         emitter = _injected.emitter
         max_cycles = _injected.max_cycles
     else:
-        fetcher = _build_real_fetcher(ns)
+        # The bootstrap resolves credentials and authenticates, so it can fail
+        # the same three ways every other command's bootstrap can. Without
+        # this, each one escaped as a traceback and exit 1.
+        try:
+            fetcher = _build_real_fetcher(ns)
+        except ConfigError as exc:
+            print(f"error: {exc}", file=sys.stderr, flush=True)
+            return int(ExitCode.CONFIG)
+        except AuthError as exc:
+            print(f"auth error: {exc}", file=sys.stderr, flush=True)
+            return int(ExitCode.AUTH)
+        except ApiError as exc:
+            # getCompanyId is retried, so an exhausted budget arrives here as
+            # TransientApiError rather than AuthError.
+            print(f"api error: {exc}", file=sys.stderr, flush=True)
+            return int(ExitCode.API)
         snapshot_dir = resolve_snapshot_dir(ns)
         store = _SnapshotStoreAdapter(snapshot_dir=snapshot_dir)
         clock = _WallClock()

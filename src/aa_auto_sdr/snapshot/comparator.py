@@ -102,9 +102,13 @@ def compare(
     effective_ignore = ignore_fields if extended_fields else (ignore_fields | _EXTENDED_FIELDS_DEFAULT_IGNORE)
     legacy_skipped = legacy_uncollected_fields(a.get("tool_version"), b.get("tool_version"), effective_ignore)
 
+    # `components.report_suite` is an optional section (snapshot/schema.py
+    # validates it only when present, and sdr/rebuild.py falls back to the
+    # envelope rsid). Read it as an empty mapping so an envelope that omits
+    # it diffs its fields as deltas instead of raising KeyError.
     rs_deltas = _diff_dict(
-        a_components["report_suite"],
-        b_components["report_suite"],
+        a_components.get("report_suite") or {},
+        b_components.get("report_suite") or {},
         parent_field="",
         ignore_fields=effective_ignore,
     )

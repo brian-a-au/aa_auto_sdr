@@ -131,7 +131,7 @@ def test_auth_error_returns_auth(
     mock_client_cls.from_credentials.side_effect = AuthError("bad scopes")
     rc = cmd.run(profile=None)
     assert rc == ExitCode.AUTH.value
-    assert "auth error" in capsys.readouterr().out.lower()
+    assert "auth error" in capsys.readouterr().err.lower()
 
 
 @patch("aa_auto_sdr.cli.commands.interactive.AaClient")
@@ -150,7 +150,7 @@ def test_api_error_returns_api(
     )
     rc = cmd.run(profile=None)
     assert rc == ExitCode.API.value
-    assert "api error" in capsys.readouterr().out.lower()
+    assert "api error" in capsys.readouterr().err.lower()
 
 
 @patch("aa_auto_sdr.cli.commands.interactive.AaClient")

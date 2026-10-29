@@ -41,7 +41,7 @@ def run_notion_repair_database(database_id: str, dry_run: bool) -> int:
         result = repair_database(client, database_id=database_id, dry_run=dry_run)
     except NotionRegistryError as exc:
         logger.error("notion_repair_error detail=%s", exc)
-        print(f"error: --notion-repair-database: {exc}")
+        print(f"error: --notion-repair-database: {exc}", file=sys.stderr)
         return int(ExitCode.GENERIC)
     except Exception as exc:
         logger.warning(

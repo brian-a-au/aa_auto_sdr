@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 
@@ -40,6 +41,7 @@ def list_run(
             print(
                 "error: --list-snapshots requires --profile or --snapshot-dir",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code
@@ -61,6 +63,7 @@ def list_run(
             print(
                 f"error: --list-snapshots format must be json|table (got '{fmt}')",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.OUTPUT.value
             return exit_code
@@ -105,19 +108,21 @@ def prune_run(
             print(
                 "error: --prune-snapshots requires --profile or --snapshot-dir",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code
         try:
             policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
         except ConfigError as exc:
-            print(f"error: {exc}", flush=True)
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
         if not policy.is_active():
             print(
                 "error: --prune-snapshots requires --keep-last or --keep-since",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code

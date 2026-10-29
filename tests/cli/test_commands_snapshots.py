@@ -49,7 +49,7 @@ class TestListSnapshots:
     def test_requires_profile(self, capsys: pytest.CaptureFixture[str]) -> None:
         rc = cmd.list_run(profile=None, rsid=None, format_name=None)
         assert rc == ExitCode.CONFIG.value
-        assert "requires --profile" in capsys.readouterr().out
+        assert "requires --profile" in capsys.readouterr().err
 
     def test_table_format(self, aa_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
         rc = cmd.list_run(profile="prod", rsid=None, format_name="table")
@@ -87,7 +87,7 @@ class TestListSnapshots:
     def test_bad_format(self, aa_home: Path, capsys: pytest.CaptureFixture[str]) -> None:
         rc = cmd.list_run(profile="prod", rsid=None, format_name="yaml")
         assert rc == ExitCode.OUTPUT.value
-        assert "json|table" in capsys.readouterr().out
+        assert "json|table" in capsys.readouterr().err
 
     def test_table_format_empty(
         self,
@@ -252,9 +252,9 @@ class TestListSnapshotsSnapshotDir:
     ) -> None:
         rc = cmd.list_run(profile=None, rsid=None, format_name=None, snapshot_dir=None)
         assert rc == ExitCode.CONFIG.value
-        out = capsys.readouterr().out
-        assert "--profile" in out
-        assert "--snapshot-dir" in out
+        err = capsys.readouterr().err
+        assert "--profile" in err
+        assert "--snapshot-dir" in err
 
     def test_explicit_dir_wins_over_profile(
         self,
@@ -312,6 +312,6 @@ class TestPruneSnapshotsSnapshotDir:
             snapshot_dir=None,
         )
         assert rc == ExitCode.CONFIG.value
-        out = capsys.readouterr().out
-        assert "--profile" in out
-        assert "--snapshot-dir" in out
+        err = capsys.readouterr().err
+        assert "--profile" in err
+        assert "--snapshot-dir" in err

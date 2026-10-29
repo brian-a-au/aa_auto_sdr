@@ -205,7 +205,11 @@ def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPa
     target_path = files[-1]
     target = _resolve_path(target_path)
     older = list(reversed(files[:-1]))
-    loaded: dict[int, Path] = {}
+    # The path each yielded envelope came from. Keyed by position rather than
+    # by `id(envelope)`: a discarded candidate can be freed while the
+    # generator runs, and CPython is then free to reuse its address for the
+    # next envelope, so an object address is not a stable key.
+    loaded: list[Path] = []
 
     def _candidates():
         # Older files that cannot be used are passed over (as watch does);
@@ -222,7 +226,7 @@ def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPa
                     extra={"rsid": rsid, "snapshot_id": path.stem, "error_class": type(exc).__name__},
                 )
                 continue
-            loaded[id(env)] = path
+            loaded.append(path)
             yield env
 
     choice = select_covering(_candidates(), scope_of(target))
@@ -231,7 +235,9 @@ def resolve_covering_pair(rsid: str, *, snapshot_dir: Path | None) -> CoveringPa
             f"no earlier snapshot for {rsid} covers the latest snapshot's scope "
             f"(skipped {len(choice.skipped)} filtered snapshot(s)); diff explicit snapshots with --diff instead",
         )
-    baseline_path = loaded[id(choice.envelope)]
+    # `loaded` holds the yielded candidates in order, and `skipped` counts the
+    # ones rejected before the chosen envelope, so that count is its index.
+    baseline_path = loaded[len(choice.skipped)]
     logger.debug(
         "resolve_covering_pair rsid=%s snapshot_id=%s count=%s",
         rsid,

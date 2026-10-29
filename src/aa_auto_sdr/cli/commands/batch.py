@@ -42,6 +42,7 @@ from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
 from aa_auto_sdr.pipeline._results import output_bytes
+from aa_auto_sdr.pipeline.batch import SampleOutcome
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult
 from aa_auto_sdr.sdr.quality import QualityRules
 
@@ -67,9 +68,16 @@ def _emit_run_summary(
     per_rsid: list[PerRsidResult],
     show_timings: bool,
     batch_result: BatchResult | None = None,
+    sample: SampleOutcome | None = None,
 ) -> None:
+    """Write the run summary. `batch_result` carries the sample fields on a
+    real run; `sample` supplies them on the `--dry-run` path, which returns
+    before `run_batch` and so has no BatchResult. On a dry run without
+    `--sample-seed` the recorded `rsids` are one illustrative draw, not the
+    draw a later real run will make."""
     if not run_summary_json:
         return
+    source = batch_result if batch_result is not None else sample
     summary = RunSummary(
         started_at=started_at.isoformat(),
         finished_at=finished_at.isoformat(),
@@ -78,11 +86,11 @@ def _emit_run_summary(
         profile=profile,
         rsids=per_rsid,
         timings=timings.report() if show_timings else [],
-        sampled=batch_result.sampled if batch_result is not None else False,
-        sample_size=batch_result.sample_size if batch_result is not None else None,
-        sample_seed=batch_result.sample_seed if batch_result is not None else None,
-        sample_strategy=batch_result.sample_strategy if batch_result is not None else None,
-        total_available=batch_result.total_available if batch_result is not None else 0,
+        sampled=source.sampled if source is not None else False,
+        sample_size=source.sample_size if source is not None else None,
+        sample_seed=source.sample_seed if source is not None else None,
+        sample_strategy=source.sample_strategy if source is not None else None,
+        total_available=source.total_available if source is not None else 0,
     )
     if run_summary_json == "-":
         # Compact single-line JSON on stdout — easier to consume from scripts and
@@ -319,6 +327,12 @@ def _run_impl(
         print(f"auth error: {e}", file=sys.stderr, flush=True)
         _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.AUTH.value
+    except ApiError as e:
+        # The bootstrap retries getCompanyId, so an exhausted budget arrives
+        # here as TransientApiError rather than AuthError.
+        print(f"api error: {e}", file=sys.stderr, flush=True)
+        _emit_timings_if_enabled(show_timings=show_timings)
+        return ExitCode.API.value
 
     # Identifier resolution: print a one-line `error: ...` immediately on
     # failure (matches single-RSID generate.py convention) AND collect the
@@ -407,6 +421,18 @@ def _run_impl(
     captured_at = datetime.now(UTC)
 
     if dry_run:
+        # The real run samples inside run_batch, which this path returns
+        # before. Sample here too, so the preview shows how many report
+        # suites a real run would generate instead of the whole resolved
+        # list. Which ones is only predictable with --sample-seed, since an
+        # unseeded draw differs between runs; the note below says so.
+        sample = batch_runner.resolve_sample(
+            canonical,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+            sample_stratified=sample_stratified,
+        )
+        canonical = sample.rsids
         # Preview-only path (v1.2): credentials resolved + auth round-trip done +
         # all identifiers resolved → list what would be written per RSID and
         # exit. No component fetches, no file writes, no snapshot writes. We
@@ -445,6 +471,19 @@ def _run_impl(
                     captured_at_iso=captured_at.isoformat(),
                 )
                 print(f"  {snap_path}")
+        if sample.sampled:
+            # The dry-run path returns before _print_summary, which is where a
+            # real run states its sample, so say it here. Otherwise the
+            # identifiers left out are simply missing from the preview.
+            caveat = (
+                ""
+                if sample.sample_seed is not None
+                else "; this draw is illustrative, pass --sample-seed N to preview the exact report suites"
+            )
+            print(
+                f"(--sample drew {len(canonical)} of {sample.total_available} report suites{caveat})",
+                flush=True,
+            )
         print("(no files were written; remove --dry-run to execute)", flush=True)
         dry_per_rsid: list[PerRsidResult] = [
             PerRsidResult(
@@ -477,6 +516,7 @@ def _run_impl(
             profile=profile,
             per_rsid=dry_per_rsid,
             show_timings=show_timings,
+            sample=sample,
         )
         _emit_timings_if_enabled(show_timings=show_timings)
         # Mirror the real run's exit-code policy: unresolvable identifiers are

@@ -259,9 +259,9 @@ class TestRunFormatRejection:
             format_name=bad_format,
         )
         assert exit_code == ExitCode.OUTPUT.value
-        out = capsys.readouterr().out
-        assert "table|json|csv" in out
-        assert bad_format in out
+        err = capsys.readouterr().err
+        assert "table|json|csv" in err
+        assert bad_format in err
 
 
 class TestRunNoPositional:
@@ -312,7 +312,7 @@ class TestRunErrorPaths:
         with patch.object(inv_command.credentials, "resolve", side_effect=ConfigError("bad profile")):
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.CONFIG.value
-        assert "bad profile" in capsys.readouterr().out
+        assert "bad profile" in capsys.readouterr().err
 
     def test_auth_error_returns_auth_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
         from aa_auto_sdr.core.exceptions import AuthError
@@ -323,7 +323,7 @@ class TestRunErrorPaths:
         ):
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.AUTH.value
-        assert "token expired" in capsys.readouterr().out
+        assert "token expired" in capsys.readouterr().err
 
     def test_ambiguous_match_returns_not_found_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
         from aa_auto_sdr.core.exceptions import AmbiguousMatchError
@@ -356,7 +356,7 @@ class TestRunErrorPaths:
         ):
             exit_code = inv_command.run(rsids=["rs_nope"], profile=None, format_name="json")
         assert exit_code == ExitCode.NOT_FOUND.value
-        assert "rs_nope" in capsys.readouterr().out
+        assert "rs_nope" in capsys.readouterr().err
 
     def test_api_error_during_summaries_returns_api_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
         """No-positional path: ApiError raised inside fetch_report_suite_summaries."""
@@ -369,7 +369,7 @@ class TestRunErrorPaths:
         ):
             exit_code = inv_command.run(rsids=[], profile=None, format_name="json")
         assert exit_code == ExitCode.API.value
-        assert "502 Bad Gateway" in capsys.readouterr().out
+        assert "502 Bad Gateway" in capsys.readouterr().err
 
     def test_api_error_during_per_rsid_fetch_returns_api_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Per-RSID fetch loop: ApiError on fetch_report_suite raises mid-loop."""
@@ -383,7 +383,7 @@ class TestRunErrorPaths:
         ):
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.API.value
-        assert "503 on rs1" in capsys.readouterr().out
+        assert "503 on rs1" in capsys.readouterr().err
 
     def test_api_error_during_resolve_returns_api_exit(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Per-identifier resolve loop: ApiError raised inside resolve_rsid."""
@@ -396,7 +396,7 @@ class TestRunErrorPaths:
         ):
             exit_code = inv_command.run(rsids=["rs1"], profile=None, format_name="json")
         assert exit_code == ExitCode.API.value
-        assert "500 during resolve" in capsys.readouterr().out
+        assert "500 during resolve" in capsys.readouterr().err
 
     def test_preload_listing_failure_falls_back_to_per_identifier_resolve(self) -> None:
         """fetch_report_suites_raw failing is best-effort: the resolve loop falls back

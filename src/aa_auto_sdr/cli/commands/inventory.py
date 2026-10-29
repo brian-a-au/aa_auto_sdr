@@ -88,6 +88,7 @@ def run(
             print(
                 f"error: --inventory-summary format must be table|json|csv (got '{fmt}')",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.OUTPUT.value
             return exit_code
@@ -95,15 +96,21 @@ def run(
         try:
             creds = credentials.resolve(profile=profile)
         except ConfigError as exc:
-            print(f"error: {exc}", flush=True)
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
         try:
             client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as exc:
-            print(f"auth error: {exc}", flush=True)
+            print(f"auth error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
+            return exit_code
+        except ApiError as exc:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {exc}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
             return exit_code
 
         # Resolve identifiers (or list all visible RSes when none given).
@@ -135,18 +142,18 @@ def run(
                     exit_code = ExitCode.NOT_FOUND.value
                     return exit_code
                 except ReportSuiteNotFoundError as exc:
-                    print(f"error: {exc}", flush=True)
+                    print(f"error: {exc}", flush=True, file=sys.stderr)
                     exit_code = ExitCode.NOT_FOUND.value
                     return exit_code
                 except ApiError as exc:
-                    print(f"api error: {exc}", flush=True)
+                    print(f"api error: {exc}", flush=True, file=sys.stderr)
                     exit_code = ExitCode.API.value
                     return exit_code
         else:
             try:
                 canonical = [s.rsid for s in fetch.fetch_report_suite_summaries(client)]
             except ApiError as exc:
-                print(f"api error: {exc}", flush=True)
+                print(f"api error: {exc}", flush=True, file=sys.stderr)
                 exit_code = ExitCode.API.value
                 return exit_code
 
@@ -183,7 +190,7 @@ def run(
                     row["fetch_status"] = fetch_status
                 rows.append(row)
             except ApiError as exc:
-                print(f"api error on {r}: {exc}", flush=True)
+                print(f"api error on {r}: {exc}", flush=True, file=sys.stderr)
                 exit_code = ExitCode.API.value
                 return exit_code
 

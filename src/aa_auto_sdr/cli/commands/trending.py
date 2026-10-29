@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from aa_auto_sdr.core.atomic_io import atomic_write_text
+from aa_auto_sdr.core.exceptions import SnapshotError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.snapshot._duration import parse_duration
 from aa_auto_sdr.snapshot.trending import TrendingReport, WindowSpec, compute_trending
@@ -38,7 +39,8 @@ def run(
 
     Returns ExitCode.OK on success, USAGE for argument errors, CONFIG when
     no snapshot directory can be resolved, NOT_FOUND when no RSID has any
-    snapshots in the window, OUTPUT for unknown format / write failure.
+    snapshots in the window, OUTPUT for unknown format / write failure, and
+    SNAPSHOT when a snapshot in the window cannot be read or validated.
     """
     started_ms = time.monotonic()
     logger.info("command_start command=trending", extra={"command": "trending"})
@@ -49,6 +51,7 @@ def run(
             print(
                 "error: --trending-window requires at least one positional RSID.",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.USAGE.value
             return exit_code
@@ -56,7 +59,7 @@ def run(
         try:
             delta = parse_duration(duration)
         except ValueError as exc:
-            print(f"error: {exc}", flush=True)
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.USAGE.value
             return exit_code
 
@@ -65,6 +68,7 @@ def run(
             print(
                 f"error: --trending-window format must be {'|'.join(_VALID_FORMATS)} (got '{fmt}')",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.OUTPUT.value
             return exit_code
@@ -76,6 +80,7 @@ def run(
                 "error: --trending-window requires a snapshot directory. "
                 "Set --snapshot-dir or activate a profile that has snapshots configured.",
                 flush=True,
+                file=sys.stderr,
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code
@@ -95,20 +100,28 @@ def run(
             },
         )
 
-        # Compute one TrendingReport per RSID.
+        # Compute one TrendingReport per RSID. A snapshot in the window that
+        # cannot be read or does not validate is SNAPSHOT (16), as it is for
+        # --diff. Drift numbers are only meaningful over the whole window, so
+        # a file we cannot read is reported rather than skipped.
         reports: list[TrendingReport] = []
         empty_rsids: list[str] = []
-        for rsid in rsids:
-            report = compute_trending(
-                snapshot_dir=snap_dir,
-                rsid=rsid,
-                window=window,
-                extended_fields=extended_fields,
-                ignore_fields=ignore_fields,
-            )
-            if not report.series:
-                empty_rsids.append(rsid)
-            reports.append(report)
+        try:
+            for rsid in rsids:
+                report = compute_trending(
+                    snapshot_dir=snap_dir,
+                    rsid=rsid,
+                    window=window,
+                    extended_fields=extended_fields,
+                    ignore_fields=ignore_fields,
+                )
+                if not report.series:
+                    empty_rsids.append(rsid)
+                reports.append(report)
+        except SnapshotError as exc:
+            print(f"snapshot error: {exc}", file=sys.stderr, flush=True)
+            exit_code = ExitCode.SNAPSHOT.value
+            return exit_code
 
         # Render.
         rendered = _render(reports, fmt=fmt)

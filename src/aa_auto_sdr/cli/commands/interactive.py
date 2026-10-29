@@ -32,21 +32,27 @@ def run(*, profile: str | None, retry_policy: RetryPolicy | None = None) -> int:
         try:
             creds = credentials.resolve(profile=profile)
         except ConfigError as exc:
-            print(f"error: {exc}", flush=True)
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
         try:
             client = AaClient.from_credentials(creds, retry_policy=retry_policy)
         except AuthError as exc:
-            print(f"auth error: {exc}", flush=True)
+            print(f"auth error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.AUTH.value
+            return exit_code
+        except ApiError as exc:
+            # The bootstrap retries getCompanyId, so an exhausted budget
+            # arrives here as TransientApiError rather than AuthError.
+            print(f"api error: {exc}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.API.value
             return exit_code
 
         try:
             summaries = fetch.fetch_report_suite_summaries(client)
         except ApiError as exc:
-            print(f"api error: {exc}", flush=True)
+            print(f"api error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.API.value
             return exit_code
 
@@ -80,6 +86,7 @@ def run(*, profile: str | None, retry_policy: RetryPolicy | None = None) -> int:
                 print(
                     f"error: invalid selection '{choice}'; expected 1-{len(summaries)} or 'all'",
                     flush=True,
+                    file=sys.stderr,
                 )
                 exit_code = ExitCode.USAGE.value
                 return exit_code
