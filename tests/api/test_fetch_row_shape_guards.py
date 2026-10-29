@@ -134,6 +134,18 @@ def test_classification_row_does_not_depend_on_response_order() -> None:
     assert "metricId" not in first.extra
 
 
+def test_classification_name_does_not_depend_on_response_order() -> None:
+    """`extra` is order-free, and the name has to be too. A pair row with no
+    name falls back to the dataset id, so keeping the first row's name made
+    the dataset read as `ds1` in one order and `Campaign` in the other."""
+    named = {"dataSetId": "ds1", "name": "Campaign", "rsid": "rs"}
+    unnamed = {"dataSetId": "ds1", "rsid": "rs"}
+    forward = fetch.fetch_classification_datasets(_ClassificationClient([unnamed, named]), "rs").data[0]
+    reverse = fetch.fetch_classification_datasets(_ClassificationClient([named, unnamed]), "rs").data[0]
+    assert forward == reverse
+    assert forward.name == "Campaign"
+
+
 def test_classification_keys_shared_by_every_pair_are_kept() -> None:
     rows = [
         {**_pair("ds1", "m1"), "owner": "team-a"},
@@ -158,6 +170,53 @@ def test_vrs_error_stub_degrades_instead_of_reporting_zero() -> None:
     assert outcome.data == []
 
 
+@pytest.mark.parametrize("shared", [False, True], ids=["per_rsid", "shared_source"])
+def test_vrs_dropped_rows_mark_the_family_degraded(shared) -> None:
+    """A dropped row would otherwise read as a deleted virtual report suite
+    on the next `--diff`, and fire a false `--watch` change event, because a
+    healthy capture writes no `degraded_components` entry for the comparator
+    to suppress. The rows that were readable are still reported, so the SDR
+    lists what we have while the diff treats the family as not comparable."""
+    from aa_auto_sdr.api.vrs_source import VrsSource
+
+    client = _FakeClient(
+        [
+            {"id": "vrs1", "name": "Good", "parentRsid": "rs"},
+            {"name": "No id", "parentRsid": "rs"},
+        ],
+    )
+    outcome = fetch.fetch_virtual_report_suites(client, "rs", source=VrsSource(client) if shared else None)
+    assert outcome.status == "degraded"
+    assert [v.id for v in outcome.data] == ["vrs1"]
+
+
+@pytest.mark.parametrize("shared", [False, True], ids=["per_rsid", "shared_source"])
+def test_vrs_stays_healthy_when_every_row_is_usable(shared) -> None:
+    from aa_auto_sdr.api.vrs_source import VrsSource
+
+    client = _FakeClient([{"id": "vrs1", "name": "Good", "parentRsid": "rs"}])
+    outcome = fetch.fetch_virtual_report_suites(client, "rs", source=VrsSource(client) if shared else None)
+    assert outcome.status == "healthy"
+    assert [v.id for v in outcome.data] == ["vrs1"]
+
+
+def test_vrs_dropped_row_degrades_every_suite_sharing_the_listing() -> None:
+    """The listing is enumerated once and shared, so a row it could not read
+    affects every report suite in the batch, not only the first."""
+    from aa_auto_sdr.api.vrs_source import VrsSource
+
+    client = _FakeClient(
+        [
+            {"id": "vrs1", "name": "A", "parentRsid": "rs_a"},
+            {"id": "vrs2", "name": "B", "parentRsid": "rs_b"},
+            {"name": "No id", "parentRsid": "rs_b"},
+        ],
+    )
+    source = VrsSource(client)
+    assert fetch.fetch_virtual_report_suites(client, "rs_a", source=source).status == "degraded"
+    assert fetch.fetch_virtual_report_suites(client, "rs_b", source=source).status == "degraded"
+
+
 def test_vrs_row_without_id_is_skipped_not_fatal() -> None:
     """A VRS row with no usable id cannot be rendered or diffed, so it is
     dropped. The usable rows survive."""
@@ -171,7 +230,7 @@ def test_vrs_row_without_id_is_skipped_not_fatal() -> None:
         ],
     )
     outcome = fetch.fetch_virtual_report_suites(client, "rs")
-    assert outcome.status == "healthy"
+    assert outcome.status == "degraded"  # the listing was read incompletely
     assert [v.id for v in outcome.data] == ["vrs1"]
 
 

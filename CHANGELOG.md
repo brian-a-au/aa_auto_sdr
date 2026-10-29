@@ -43,7 +43,17 @@ order. No new flags and no changed defaults.
   unchanged report suite no longer diffs as modified under
   `--extended-fields`. `--describe-reportsuite`, `--stats`,
   `--inventory-summary`, and `--list-classification-datasets` count the same
-  datasets as the generated SDR, because all of them read the same step.
+  datasets as the generated SDR, because all of them read the same step. One
+  note for the upgrade: a snapshot written before this release kept the last
+  pair's fields for such a dataset, so the first `--diff` between an older
+  snapshot and a new one reports those datasets as modified when
+  `--extended-fields` is on. That is the change in what we record, not drift
+  in Adobe Analytics, and it does not repeat.
+- A virtual report suite listing that holds a row with no usable id now marks
+  the family degraded, and the rows that were readable are still reported.
+  Before, the capture was recorded as healthy, so the next diff read the rows
+  we could not parse as deleted virtual report suites and `--watch` emitted a
+  change event for them.
 - A capture no longer keeps two components with the same id in any family. If
   one ever arrives, the first row is kept and a warning names the family and
   the count.
@@ -56,9 +66,8 @@ order. No new flags and no changed defaults.
 - A virtual report suite listing that holds an error mapping instead of rows
   now marks the section degraded. Before, the mapping was counted as one row,
   the parent filter dropped it, and the report said the org had no virtual
-  report suites. A single row with no usable `id` is skipped now instead of
-  ending the run with a traceback, and a new `vrs_rows_skipped` debug record
-  says how many were skipped.
+  report suites. A row with no usable `id` no longer ends the run with a
+  traceback, and a new `vrs_rows_skipped` warning says how many were skipped.
 - A snapshot whose component rows are missing an `id` now exits with snapshot
   error 16 and names the row. Before, `--diff`, `--compare-with-prev`, and
   `--trending-window` ended with a traceback and exit 1. Reading a snapshot

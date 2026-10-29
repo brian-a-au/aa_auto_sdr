@@ -198,7 +198,9 @@ def test_malformed_row_is_skipped_and_the_source_stays_loaded():
     source = VrsSource(client)
     for _ in range(2):
         outcome = fetch_virtual_report_suites(client, "a", source=source)
-        assert outcome.status == "healthy"
+        # Degraded, not healthy: the listing was read incompletely, so a diff
+        # must not read the missing suites as removed.
+        assert outcome.status == "degraded"
         assert outcome.data == []
     assert source._loaded is not None
 
@@ -218,10 +220,10 @@ def test_index_publication_waits_for_complete_build(monkeypatch):
     release = Event()
     original = vrs_source.VrsRows.build
 
-    def build(rows):
+    def build(rows, **kwargs):
         entered.set()
         assert release.wait(5)
-        return original(rows)
+        return original(rows, **kwargs)
 
     monkeypatch.setattr(vrs_source.VrsRows, "build", build)
     waiters_ready = _waiter_ready_event(monkeypatch, 1)

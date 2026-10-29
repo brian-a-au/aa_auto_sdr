@@ -135,7 +135,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 ### Capture normalization (2)
 
-- `duplicate_component_ids` — WARNING. `sdr/builder.py::_sorted_unique`. Fires once per family whose rows carry a repeated `id`, which no family is expected to do once the fetchers have normalized a response. The builder keeps the first row per id. Carries `rsid`, `component_type` (the family), and `count` (the number of rows dropped).
+- `duplicate_component_ids` — WARNING. `sdr/builder.py::_sorted_unique`. Fires once per family whose rows carry a repeated `id`, which no family is expected to do once the fetchers have normalized a response. The builder keeps the first row per id. Carries `rsid`, `component_type` (the family's singular name, as everywhere else), and `count` (the number of rows dropped).
 - `classification_pairs_collapsed` — DEBUG. `api/fetch.py::fetch_classification_datasets`. Fires when the classifications listing names one dataset more than once, which is its normal shape: the endpoint is `compatibilityMetrics`, one row per dataset-and-metric pair. The fetcher reports one row per dataset, keeping the passthrough keys every pair agrees on. DEBUG rather than WARNING because repeated pairs are expected. Carries `rsid`, `component_type=classification`, and `count` (the number of extra pair rows).
 
 ### Batch sampling (1)

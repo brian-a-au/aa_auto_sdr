@@ -141,6 +141,51 @@ def test_both_token_exchanges_report_the_same_way(aa_module: MagicMock) -> None:
 
 
 @patch("aa_auto_sdr.api.client.aanalytics2")
+@pytest.mark.parametrize(
+    "companies",
+    [["globalcompany"], [None], [7], "globalcompany", {"globalCompanyId": "abc"}],
+    ids=["list_of_str", "list_of_none", "list_of_int", "bare_str", "bare_dict"],
+)
+def test_unexpected_company_shape_becomes_api_error(aa_module: MagicMock, companies) -> None:
+    """`getCompanyId` returns `json_res['imsOrgs'][0]['companies']` verbatim
+    under a bare `except`, so whatever Adobe puts there reaches us. Reading
+    that shape sat outside the normalizer, so an `AttributeError` escaped
+    every handler and the run ended with a traceback and exit 1."""
+    aa_module.Login.return_value.getCompanyId.return_value = companies
+    with pytest.raises(ApiError):
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+def test_no_companies_is_still_an_auth_error(aa_module: MagicMock) -> None:
+    """The typed AuthError raised while reading the shape has to survive the
+    normalizer that now wraps that block."""
+    aa_module.Login.return_value.getCompanyId.return_value = []
+    with pytest.raises(AuthError, match="Product Profile"):
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+def test_missing_global_company_id_is_still_an_auth_error(aa_module: MagicMock) -> None:
+    aa_module.Login.return_value.getCompanyId.return_value = [{"companyName": "Acme"}]
+    with pytest.raises(AuthError, match="globalCompanyId"):
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
+def test_an_unrelated_type_error_is_not_blamed_on_the_credentials(aa_module: MagicMock) -> None:
+    """Only the SDK's string-indexing shape means "no access token". An
+    unrelated TypeError, such as a signature change after an SDK upgrade,
+    must not tell the user to rotate working credentials."""
+    aa_module.Login.return_value.getCompanyId.return_value = [{"globalCompanyId": "abc123"}]
+    aa_module.Analytics.side_effect = TypeError("__init__() got an unexpected keyword argument 'company'")
+    with pytest.raises(ApiError) as excinfo:
+        AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
+    assert "unexpected keyword argument" in str(excinfo.value)
+    assert "client_id" not in str(excinfo.value)
+
+
+@patch("aa_auto_sdr.api.client.aanalytics2")
 def test_typed_error_from_a_bootstrap_step_passes_through(aa_module: MagicMock) -> None:
     aa_module.Login.side_effect = AuthError("integration not in a product profile")
     with pytest.raises(AuthError, match="product profile"):

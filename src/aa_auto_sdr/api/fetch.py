@@ -33,7 +33,7 @@ from aa_auto_sdr.api.resilience import (
     log_retry_attempt,
     with_retries,
 )
-from aa_auto_sdr.api.vrs_source import VrsSource
+from aa_auto_sdr.api.vrs_source import VrsRows, VrsSource
 from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
     ApiError,
@@ -769,7 +769,7 @@ def fetch_virtual_report_suites(
         # `_response_rows`, not `_records`: a mapping-shaped error stub used to
         # be wrapped into a single row that the parent filter then dropped,
         # reporting a failed endpoint as a healthy org with zero VRS.
-        rows = _response_rows(
+        return _response_rows(
             with_retries(
                 lambda: classify_transient_sdk_call(
                     lambda: classify_permanent_vrs_shape_error(
@@ -783,29 +783,20 @@ def fetch_virtual_report_suites(
             rsid=parent_rsid,
             component_type="virtual_report_suite",
         )
-        # Drop rows that cannot name a component before anything indexes or
-        # counts them. Doing it here rather than after the parent filter keeps
-        # one row set behind every later count, including the shared
-        # VrsSource's parent index, and stops `str(r["id"])` raising.
-        usable = [row for row in rows if _is_usable_vrs_row(row)]
-        if len(usable) != len(rows):
-            logger.debug(
-                "vrs_rows_skipped rsid=%s component_type=virtual_report_suite count=%s",
-                parent_rsid,
-                len(rows) - len(usable),
-                extra={
-                    "rsid": parent_rsid,
-                    "component_type": "virtual_report_suite",
-                    "count": len(rows) - len(usable),
-                },
-            )
-        return usable
 
     if source is not None:
         source.validate(client)
     try:
-        shared = source.get(client, enumerate_vrs) if source is not None else None
-        raws = shared.rows if shared is not None else enumerate_vrs()
+        # One shape for both paths: `VrsRows.build` applies the usable-row
+        # predicate, indexes by parent, and reports how many rows it dropped.
+        # A shared source carries that count to every suite in the batch, so
+        # all of them see the listing was read incompletely.
+        shared = (
+            source.get(client, enumerate_vrs, usable=_is_usable_vrs_row)
+            if source is not None
+            else VrsRows.build(enumerate_vrs(), usable=_is_usable_vrs_row)
+        )
+        raws = shared.rows
     except Exception as e:
         failure_label = "count_only" if count_only else "exhausted"
         logger.warning(
@@ -832,12 +823,30 @@ def fetch_virtual_report_suites(
             )
         return models.FetchOutcome.degraded()
     parent_counts = None
-    if shared is not None and shared.by_parent is not None and type(parent_rsid) is str:
+    if shared.by_parent is not None and type(parent_rsid) is str:
         raws = shared.by_parent.get(parent_rsid, [])
         parent_counts = (len(shared.rows), shared.no_parent)
     out = _finalize_vrs_fetch(
         raws, parent_rsid, started, expansion_level="full", copy_rows=source is not None, parent_counts=parent_counts
     )
+    if shared.dropped:
+        # Rows we could not read are missing from the capture, and a healthy
+        # capture writes no `degraded_components` entry, so the next --diff
+        # would report them as deleted suites and --watch would fire a false
+        # change event. Report the rows we did read, and mark the family
+        # degraded so a comparison suppresses the section instead.
+        logger.warning(
+            "vrs_rows_skipped rsid=%s component_type=virtual_report_suite count=%s; "
+            "marking the family degraded so a diff does not read them as removed",
+            parent_rsid,
+            shared.dropped,
+            extra={
+                "rsid": parent_rsid,
+                "component_type": "virtual_report_suite",
+                "count": shared.dropped,
+            },
+        )
+        return models.FetchOutcome(data=out, status="degraded", expansion_level=None)
     return models.FetchOutcome.healthy(out)
 
 
@@ -944,9 +953,15 @@ def _merge_classification(
     and an unchanged report suite could then diff as modified under
     `--extended-fields`. Only the keys the rows agree on survive, which is
     the same answer whatever the order.
+
+    The name needs the same treatment: a pair row carrying none of the name
+    keys falls back to the dataset id, so keeping the first row's name would
+    read as `ds1` in one order and `Campaign` in the other. The row that
+    carries a real name wins, and when both do the earlier one is kept.
     """
     shared = {k: v for k, v in first.extra.items() if k in later.extra and later.extra[k] == v}
-    return dataclasses.replace(first, extra=shared)
+    name = later.name if first.name == first.id and later.name != later.id else first.name
+    return dataclasses.replace(first, name=name, extra=shared)
 
 
 def fetch_classification_datasets(

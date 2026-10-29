@@ -79,6 +79,18 @@ class ComponentFilter:
 
 _T = TypeVar("_T")
 
+# `component_type` is a documented enumeration of singular names (see
+# docs/LOGGING_STYLE.md), so a log query pinned to `component_type=dimension`
+# has to match this record too.
+_SINGULAR: dict[str, str] = {
+    "dimensions": "dimension",
+    "metrics": "metric",
+    "segments": "segment",
+    "calculated_metrics": "calculated_metric",
+    "virtual_report_suites": "virtual_report_suite",
+    "classifications": "classification",
+}
+
 
 def _sorted_unique(items: list[_T], *, family: str, rsid: str) -> list[_T]:
     """Sort a family by id and keep the first row per id.
@@ -109,9 +121,9 @@ def _sorted_unique(items: list[_T], *, family: str, rsid: str) -> list[_T]:
         logger.warning(
             "duplicate_component_ids rsid=%s component_type=%s count=%s; keeping the first row per id",
             rsid,
-            family,
+            _SINGULAR[family],
             dropped,
-            extra={"rsid": rsid, "component_type": family, "count": dropped},
+            extra={"rsid": rsid, "component_type": _SINGULAR[family], "count": dropped},
         )
     return out
 

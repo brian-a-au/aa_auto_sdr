@@ -35,6 +35,10 @@ from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError
 
 logger = logging.getLogger(__name__)
 
+# The SDK indexes a str when the sign-in endpoint answers without an
+# access grant, so this is the one TypeError shape that means it did.
+_STRING_INDEXING_MESSAGE = "string indices must be integers"
+
 
 @contextmanager
 def _normalized(step: str, *, token_exchange: bool = False) -> Iterator[None]:
@@ -69,16 +73,24 @@ def _normalized(step: str, *, token_exchange: bool = False) -> Iterator[None]:
     except AaAutoSdrError:
         raise  # ApiError, AuthError, ConfigError — the caller dispatches on these
     except TypeError as exc:
-        if not token_exchange:
+        if not (token_exchange and _STRING_INDEXING_MESSAGE in str(exc)):
+            # Any other TypeError is an unexpected shape, not a sign-in
+            # problem. An SDK signature change raises one, and telling the
+            # user to rotate working credentials would send them the wrong way.
             raise ApiError(f"auth bootstrap failed at {step}: {type(exc).__name__}: {exc}") from exc
         logger.error(
             "auth_failure reason=no_access_token",
             extra={"error_class": "AuthError", "reason": "no_access_token"},
         )
         # The SDK's own text ("string indices must be integers") describes the
-        # indexing, not the cause, so it would only mislead on stderr. It stays
-        # on the exception chain, and this record carries it for diagnosis.
-        logger.debug("auth_failure detail error_class=%s", type(exc).__name__, extra={"error_class": str(exc)})
+        # indexing, not the cause, so repeating it on stderr would only
+        # mislead. It stays on the exception chain, and this record carries it.
+        logger.debug(
+            "auth_failure detail error_class=%s (%s)",
+            type(exc).__name__,
+            exc,
+            extra={"error_class": type(exc).__name__, "reason": "no_access_token"},
+        )
         raise AuthError(
             "Sign-in failed: Adobe did not return an access token. Verify client_id, secret, "
             "and scopes in Adobe Developer Console. A rate limit or a transient Adobe IMS "
@@ -151,28 +163,34 @@ class AaClient:
                 )
                 or []
             )
-        logger.debug(
-            "getCompanyId returned count=%s",
-            len(companies),
-            extra={"count": len(companies)},
-        )
-        if not companies:
-            logger.error(
-                "auth_failure reason=no_companies",
-                extra={"error_class": "AuthError", "reason": "no_companies"},
+        # Reading the response shape is normalized too. `Login.getCompanyId`
+        # returns `json_res['imsOrgs'][0]['companies']` verbatim under a bare
+        # `except`, so whatever Adobe puts there arrives here: indexing or
+        # calling `.get` on it can raise, and the typed AuthErrors below have
+        # to keep their class while anything else becomes an ApiError.
+        with _normalized("getCompanyId response"):
+            logger.debug(
+                "getCompanyId returned count=%s",
+                len(companies),
+                extra={"count": len(companies)},
             )
-            raise AuthError(
-                "No companies visible to these credentials. Verify the integration "
-                "is added to an Adobe Analytics Product Profile in Admin Console.",
-            )
+            if not companies:
+                logger.error(
+                    "auth_failure reason=no_companies",
+                    extra={"error_class": "AuthError", "reason": "no_companies"},
+                )
+                raise AuthError(
+                    "No companies visible to these credentials. Verify the integration "
+                    "is added to an Adobe Analytics Product Profile in Admin Console.",
+                )
 
-        chosen = company_id or companies[0].get("globalCompanyId")
-        if not chosen:
-            logger.error(
-                "auth_failure reason=missing_global_company_id",
-                extra={"error_class": "AuthError", "reason": "missing_global_company_id"},
-            )
-            raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
+            chosen = company_id or companies[0].get("globalCompanyId")
+            if not chosen:
+                logger.error(
+                    "auth_failure reason=missing_global_company_id",
+                    extra={"error_class": "AuthError", "reason": "missing_global_company_id"},
+                )
+                raise AuthError("getCompanyId() returned a record with no globalCompanyId field")
 
         with _normalized("Analytics", token_exchange=True):
             handle = aanalytics2.Analytics(chosen)
