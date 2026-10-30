@@ -1,15 +1,15 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'win32'",
-    "python_full_version < '3.12' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform == 'emscripten'",
-    "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'win32'",
+    "python_full_version < '3.12' and sys_platform == 'emscripten'",
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
@@ -68,7 +68,7 @@ dev = [
 
 [[package]]
 name = "aanalytics2"
-version = "0.5.5.post2"
+version = "0.5.5.post3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deprecation" },
@@ -84,9 +84,9 @@ dependencies = [
     { name = "requests" },
     { name = "rich" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/09/54/bd547207f2f193d2e58c9a24f405f0e53e99b067c2692618b30b2c3790d4/aanalytics2-0.5.5.post2.tar.gz", hash = "sha256:efc1d9c6abfbc040a091f3020b60a077b203a30b910692c3af28d504b41a9fb6", size = 306708, upload-time = "2026-09-30T08:48:08.917Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/00/ea/8766c0fdbe5f2523fb2c946f2c03dc5547dd8eccd2a1a77d54e7eb413269/aanalytics2-0.5.5.post3.tar.gz", hash = "sha256:da263f2ee210345e04f8f439c69ba95b5e486a993a8062d679c6421160747951", size = 320023, upload-time = "2026-10-24T15:36:47.278Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/ee/5e9e8c93dca9f83490de6159b9a0b368d4618893637d56623b91b0cb453a/aanalytics2-0.5.5.post2-py3-none-any.whl", hash = "sha256:0cc9a543f1f8a19d4ca1d3a06763b1d4966c4665a601e59afabf90d046c8dc93", size = 179546, upload-time = "2026-09-30T08:48:07.647Z" },
+    { url = "https://files.pythonhosted.org/packages/45/da/8436bf359995378ae4dd55cb50a53aee75981e8d7f87fc019df6bee73f9e/aanalytics2-0.5.5.post3-py3-none-any.whl", hash = "sha256:9e8896d8bd95289f9056041fccfd801fb93f205d0ecf6a3c9b62f29bdf321fc6", size = 188577, upload-time = "2026-10-24T15:36:45.963Z" },
 ]
 
 [[package]]
@@ -560,8 +560,8 @@ name = "httpcore2"
 version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "sys_platform != 'emscripten'" },
-    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "h11" },
+    { name = "truststore" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/15/8c/e925b1c92018abb3a1863ce1549d76d2381e334d21d65d4ac8f65dabd78a/httpcore2-2.13.0.tar.gz", hash = "sha256:2adc8be4fb285fbcd6d894298db3b52c177e74b6674eda3a76bd36be3292a3db", size = 67740, upload-time = "2026-09-14T14:18:04.717Z" }
 wheels = [
@@ -1626,8 +1626,8 @@ name = "uvicorn"
 version = "0.53.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "click", marker = "sys_platform != 'emscripten'" },
-    { name = "h11", marker = "sys_platform != 'emscripten'" },
+    { name = "click" },
+    { name = "h11" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5d/ad/04bbb797c84fc1f26cb171f7394716f4865ffb8d8c5e1eef42565c2dfa6b/uvicorn-0.53.0.tar.gz", hash = "sha256:a9356f0cb89b3b8621529c5d5eebd69bfe154f4c3f68b4cf2de47e45fa855c2e", size = 110881, upload-time = "2026-09-14T07:44:23.815Z" }
 wheels = [
