@@ -29,13 +29,14 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Binds to the GitHub Environment named `pypi` (Settings -> Environments)
     # and matches the environment the PyPI publisher is scoped to. Add a
     # required reviewer on that environment for a manual approval gate before
     # any upload reaches PyPI.
     environment: pypi
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
@@ -76,8 +77,7 @@ jobs:
       - name: Verify packaged README links
         run: uv run --no-project --python 3.14 python scripts/check_distribution_readme_links.py dist/*.whl dist/*.tar.gz
 
-      # Uploads everything in dist/ using the OIDC credential. `release/v1` is the
-      # maintained moving tag pypa recommends; pin to a commit SHA instead if you
-      # want to lock the action against supply-chain drift.
+      # Uploads everything in dist/ using the OIDC credential. Pinned by commit
+      # SHA because this job holds `id-token: write`; Dependabot bumps the pin.
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@aef6c9b6e301dc803e1bc9133e9ce67ae9b0906b # v1.14.3
