@@ -49,12 +49,15 @@ def locks() -> tuple[dict, dict]:
             {
                 "name": "aa-auto-sdr",
                 "dependencies": [{"name": "aanalytics2"}],
-                "dev-dependencies": {"dev": [{"name": "ruff"}, {"name": "pytest"}, {"name": "pytest-cov"}]},
+                "dev-dependencies": {
+                    "dev": [{"name": "ruff"}, {"name": "pytest"}, {"name": "pytest-cov"}, {"name": "pytest-xdist"}]
+                },
             },
             package("ruff", "0.16.8"),
             package("aanalytics2", "0.5.5"),
             package("pytest", "9.1.0"),
             package("pytest-cov", "7.1.0"),
+            package("pytest-xdist", "3.8.0"),
         ],
     }
     after = deepcopy(before)
@@ -79,7 +82,9 @@ def pr() -> dict:
     }
 
 
-@pytest.mark.parametrize(("name", "version"), [("ruff", "0.16.9"), ("pytest", "9.1.1"), ("pytest-cov", "7.1.1")])
+@pytest.mark.parametrize(
+    ("name", "version"), [("ruff", "0.16.9"), ("pytest", "9.1.1"), ("pytest-cov", "7.1.1"), ("pytest-xdist", "3.8.1")]
+)
 def test_allowlisted_dev_patches(locks, name, version):
     before, after = locks
     after = deepcopy(before)

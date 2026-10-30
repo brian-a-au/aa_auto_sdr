@@ -21,7 +21,7 @@ from typing import Any
 from urllib.parse import unquote, urlsplit
 from urllib.request import urlopen
 
-ALLOWED_PACKAGES = frozenset({"ruff", "pytest", "pytest-cov"})
+ALLOWED_PACKAGES = frozenset({"ruff", "pytest", "pytest-cov", "pytest-xdist"})
 REQUIRED_CHECKS = frozenset(
     {"dependabot-policy", "lint", "test", "check", "gate", "actionlint", "lockfile", "dependency-review"}
 )

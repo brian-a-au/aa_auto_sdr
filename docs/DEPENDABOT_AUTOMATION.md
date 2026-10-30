@@ -1,8 +1,9 @@
 # Dependabot review and auto-merge
 
 The repository automatically reviews and merges **patch updates to `ruff`,
-`pytest`, and `pytest-cov`** when all required CI checks pass on an up-to-date
-branch. Other dependency updates remain available for manual review and merge.
+`pytest`, `pytest-cov`, and `pytest-xdist`** when all required CI checks pass on
+an up-to-date branch. Other dependency updates remain available for manual
+review and merge.
 This is a deterministic policy review; it does not claim to review arbitrary
 upstream source code or to provide an AI review.
 
