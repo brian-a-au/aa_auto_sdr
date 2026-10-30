@@ -34,7 +34,19 @@ jobs:
           prune-cache: false
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: uv sync --locked --all-extras
+        shell: bash
+        run: |
+          set -o pipefail
+          uv sync --locked --all-extras 2>&1 | tee uv-sync.txt
+          # A locked package with no wheel for this Python/OS is compiled from
+          # source, which once cost 4.5 minutes per job (pydantic-core on 3.15).
+          # Dependabot does not bump transitive packages, so flag it instead of
+          # failing: a new Python can legitimately lack wheels for a while.
+          # Shows only on a cache miss, since uv reuses wheels it built before.
+          # sed, not grep: grep exits 1 on no match, failing the step under -e.
+          sed -nE '/ aa-auto-sdr @/d; s/^ *Built //p' uv-sync.txt | while read -r pkg; do
+            echo "::warning title=Source build::Built ${pkg} from source on ${{ matrix.os }} / ${{ matrix.python-version }}. A newer version may ship a wheel: uv lock --upgrade-package ${pkg%%=*}"
+          done
       - name: Run tests with coverage gate
         shell: bash
         run: |

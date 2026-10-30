@@ -17,7 +17,7 @@ updates:
       # patches only, so this group's PR stays eligible for auto-merge. A
       # package outside the allowlist would make the whole group manual.
       dev-tool-patches:
-        patterns: ["ruff", "pytest", "pytest-cov"]
+        patterns: ["ruff", "pytest", "pytest-cov", "pytest-xdist"]
         update-types: ["patch"]
       dependencies:
         patterns: ["*"]
