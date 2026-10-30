@@ -1,14 +1,33 @@
 # setup-uv is pinned by commit SHA (its v8 line stopped publishing floating
 # major tags), so without Dependabot the pin would silently go stale.
 # Dependabot bumps the SHA and the trailing version comment together.
+#
+# Groups cut the weekly PR count: every uv PR changes uv.lock, which runs the
+# full 15-job matrix and invalidates the uv caches. A package joins the first
+# group it matches, and major updates match no group, so each still gets its
+# own PR.
 version: 2
 updates:
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      # Keep exactly the auto-merge allowlist in scripts/dependabot_review.py,
+      # patches only, so this group's PR stays eligible for auto-merge. A
+      # package outside the allowlist would make the whole group manual.
+      dev-tool-patches:
+        patterns: ["ruff", "pytest", "pytest-cov"]
+        update-types: ["patch"]
+      dependencies:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

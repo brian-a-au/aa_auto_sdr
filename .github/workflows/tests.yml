@@ -82,6 +82,17 @@ jobs:
             echo ""
             echo "_Source: \`update-badges\` workflow consumes the same parse from this run on \`main\` to refresh the README badges. PR drift from main is informational here, not gated._"
           } >> "$GITHUB_STEP_SUMMARY"
+          printf 'coverage=%s\ntests=%s\n' "$COV" "$TESTS" > test-metrics.txt
+      - name: Upload metrics for update-badges
+        # update-badges reads this instead of re-running the suite, and only
+        # for pushes to main, so PR runs skip the upload.
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14' && github.event_name == 'push' && success() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-metrics
+          path: test-metrics.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
   # Rollup gate: a single `test` check that branch protection can require.
   # Passes only when every matrix variant passed; fails (does not skip) on any

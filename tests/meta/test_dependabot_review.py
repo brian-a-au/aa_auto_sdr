@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import Mock
@@ -377,3 +378,14 @@ def test_multiple_changed_dev_resolutions_need_manual_review(locks):
     eligible, reason = review.review_locks(before, after)
     assert not eligible
     assert "multiple resolutions" in reason
+
+
+def test_dev_tool_patch_group_matches_the_allowlist() -> None:
+    """A grouped PR auto-merges only when every package in it is allowlisted."""
+    config = (Path(__file__).parents[2] / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    match = re.search(r"^\s*dev-tool-patches:\n\s*patterns: \[(.*)\]\n\s*update-types: \[(.*)\]$", config, re.MULTILINE)
+    assert match, "dependabot.yml has no dev-tool-patches group"
+    patterns = {p.strip().strip("\"'") for p in match.group(1).split(",")}
+    update_types = [t.strip().strip("\"'") for t in match.group(2).split(",")]
+    assert patterns == review.ALLOWED_PACKAGES
+    assert update_types == ["patch"]
