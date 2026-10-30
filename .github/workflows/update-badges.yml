@@ -18,57 +18,54 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   update:
-    # Only update badges after a successful tests run; on workflow_dispatch
-    # there's no upstream conclusion so allow it through unconditionally.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Only after a successful tests run for a push to main in this repo. The
+    # `branches` filter matches the head branch name, so a fork PR from a
+    # branch called `main` would also pass it; the event and repository
+    # checks keep this write-capable job reading trusted runs only. On
+    # workflow_dispatch the latest such run is looked up below.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      # Read the test-metrics artifact from the tests run.
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-        with:
-          enable-cache: true
-          # The default (true) strips pre-built wheels from the saved cache,
-          # so every run re-downloads them from PyPI despite a cache hit.
-          prune-cache: false
-          # Pin the interpreter. requires-python is >=3.11, so without this uv
-          # would pick the runner's system Python (3.12 on ubuntu-latest).
-          python-version: "3.14"
-
-      - name: Install dependencies
-        run: uv sync --locked --all-extras
-
-      - name: Run tests and capture coverage + test count
+      - name: Read coverage + test count from the tests run
         id: stats
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          # Re-run the suite to capture coverage. `--cov-fail-under=90`
-          # is the project's baseline gate (matches the addopts in
-          # pyproject.toml); leave it on so a coverage drop below the
-          # threshold blocks the badge bump (consistent with the tests
-          # workflow's contract).
-          OUT="$(uv run --locked pytest -n auto 2>&1)"
-          echo "$OUT"
-          # Coverage line looks like: `TOTAL  ...  93%`
-          COVERAGE="$(echo "$OUT" | grep -E '^TOTAL' | awk '{print $NF}' | tr -d '%')"
-          # Test count: pytest's `-q` + pytest-cov suppresses the
-          # "N passed in X.XXs" summary in non-tty output. Fast separate
-          # `--collect-only --no-cov` pass is the reliable signal — emits
-          # `1089 tests collected in 0.74s` regardless of -q.
-          TESTS="$(uv run --locked pytest --collect-only --no-cov 2>&1 | grep -oE '[0-9]+ tests collected' | head -1 | awk '{print $1}')"
-          if [ -z "$COVERAGE" ] || [ -z "$TESTS" ]; then
-            echo "Failed to parse coverage (got '$COVERAGE') or test count (got '$TESTS')"
+          # The tests workflow already measured both values (with its 90%
+          # coverage gate) and uploaded them, so no second test run is needed.
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow tests.yml --branch main \
+              --event push --status success --limit 1 --json databaseId --jq '.[0].databaseId')"
+          fi
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name test-metrics --dir "$RUNNER_TEMP/metrics"
+          COVERAGE="$(sed -n 's/^coverage=//p' "$RUNNER_TEMP/metrics/test-metrics.txt")"
+          TESTS="$(sed -n 's/^tests=//p' "$RUNNER_TEMP/metrics/test-metrics.txt")"
+          # The values go into README.md, so accept plain integers only.
+          if ! [[ "$COVERAGE" =~ ^[0-9]{1,3}$ && "$TESTS" =~ ^[0-9]+$ ]]; then
+            echo "Unexpected metrics from run $RUN_ID: coverage='$COVERAGE' tests='$TESTS'"
             exit 1
           fi
           echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
           echo "tests=$TESTS" >> "$GITHUB_OUTPUT"
-          echo "Parsed: coverage=$COVERAGE%, tests=$TESTS"
+          echo "Run $RUN_ID: coverage=$COVERAGE%, tests=$TESTS"
 
       - name: Update README badges in place
         env:
@@ -106,7 +103,7 @@ jobs:
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           # Default GITHUB_TOKEN works because the repo grants `pull-requests: write`
-          # at the workflow level (see permissions block above).
+          # on this job (see its permissions block above).
           commit-message: "chore: refresh README badges (coverage / test count)"
           title: "chore: refresh README badges"
           body: |

@@ -21,14 +21,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          enable-cache: true
-          # The default (true) strips pre-built wheels from the saved cache,
-          # so every run re-downloads them from PyPI despite a cache hit.
-          prune-cache: false
-          # Pin the interpreter. requires-python is >=3.11, so without this uv
-          # would pick the runner's system Python (3.12 on ubuntu-latest).
+          # stdlib-only script, so nothing to install. The cache key does not
+          # include the workflow, so saving here could claim the key the
+          # `tests` job fills.
+          enable-cache: false
           python-version: "3.14"
-      - name: Install dependencies
-        run: uv sync --locked --all-extras
       - name: Check version sync
-        run: uv run --locked python scripts/check_version_sync.py
+        run: uv run --no-project python scripts/check_version_sync.py

@@ -6,6 +6,21 @@ branch. Other dependency updates remain available for manual review and merge.
 This is a deterministic policy review; it does not claim to review arbitrary
 upstream source code or to provide an AI review.
 
+## Update groups
+
+`.github/dependabot.yml` groups updates so each week produces few PRs. Every
+uv PR changes `uv.lock`, which runs the full test matrix and replaces the uv
+caches, so fewer PRs means less CI time.
+
+- `dev-tool-patches` holds patch updates to exactly the allowlisted packages.
+  A grouped PR is eligible only when every package in it is allowlisted, so this
+  group stays eligible for auto-merge. `tests/meta/test_dependabot_review.py`
+  fails if the group and the allowlist differ.
+- `dependencies` holds every other minor and patch update, for manual review.
+- `actions` holds minor and patch updates to GitHub Actions.
+
+Major updates match no group, so each one still gets its own PR.
+
 ## Review policy
 
 `scripts/dependabot_review.py` checks the PR author is the Dependabot bot, both

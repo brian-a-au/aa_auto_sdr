@@ -102,9 +102,11 @@ imports, fixture construction, and live API latency.
 - **Decision: external compatibility.** `STATS_STDOUT_FORMATS` is an unused
   but explicitly exported constant. `UnsupportedByApi20` is reserved and
   documented in repository instructions. Neither was removed.
-- **Decision: CI required checks.** Release-gate repeats Linux tests/lint
-  already run elsewhere. Collapsing jobs can break branch-protection check
-  names; CI topology was preserved. No GitHub settings were changed.
+- **Decision: CI required checks.** Collapsing jobs can break branch-protection
+  check names, so every job and its name was kept. Release-gate no longer
+  repeats the tests, lint, and version check that the required `test`, `lint`,
+  and `check` jobs run; it builds, checks packaged README links, and
+  smoke-installs the wheel. No GitHub settings were changed.
 - **Further engineering review:** stats/inventory duplicate resolution/count
   assembly; single/batch CLI option threading remains large. Consolidation
   should preserve their distinct errors, stdout conventions, and logging.
