@@ -62,3 +62,12 @@ def test_escape_html_escapes_quotes() -> None:
 
 def test_escape_html_passthrough_safe_text() -> None:
     assert escape_html("hello world") == "hello world"
+
+
+def test_escape_pipe_replaces_crlf_with_one_br() -> None:
+    assert escape_pipe("line1\r\nline2") == "line1<br>line2"
+
+
+def test_escape_pipe_replaces_bare_cr_with_br() -> None:
+    # A bare \r ends a line in CommonMark/GFM and would split the table row.
+    assert escape_pipe("line1\rline2") == "line1<br>line2"

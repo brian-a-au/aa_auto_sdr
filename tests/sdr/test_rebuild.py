@@ -463,3 +463,37 @@ def test_ordinary_rsids_accepted(ok: str) -> None:
     payload["report_suite"]["rsid"] = ok
     doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
     assert doc.report_suite.rsid == ok
+
+
+@pytest.mark.parametrize(
+    ("quality", "match"),
+    [
+        ({"summary": "oops"}, r"SDR JSON 'quality.summary' must be an object"),
+        ({"summary": {"by_severity": []}}, r"SDR JSON 'quality.summary.by_severity' must be an object"),
+        ({"issues": "x"}, r"SDR JSON 'quality.issues' must be a list of objects"),
+        ({"issues": ["x"]}, r"SDR JSON 'quality.issues' must be a list of objects"),
+        ({"stale_components": {}}, r"SDR JSON 'quality.stale_components' must be a list of objects"),
+        ({"naming_audit": []}, r"SDR JSON 'quality.naming_audit' must be an object"),
+    ],
+)
+def test_sdr_json_malformed_quality_block_rejected(quality: dict, match: str) -> None:
+    # The writers read these parts; a wrong shape used to pass rebuild and
+    # crash later with AttributeError. Same rules as snapshot validate_envelope.
+    payload = _sdr_json(_doc())
+    payload["quality"] = quality
+    with pytest.raises(SdrPayloadError, match=match):
+        rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+def test_envelope_malformed_quality_block_already_rejected() -> None:
+    env = _envelope(_doc())
+    env["quality"] = {"summary": "oops"}
+    with pytest.raises(SnapshotCorruptError, match=r"quality.summary must be a dict"):
+        rebuild.document_from_payload(env, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+def test_sdr_json_quality_block_without_parts_accepted() -> None:
+    payload = _sdr_json(_doc())
+    payload["quality"] = {}
+    doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+    assert doc.quality == {}

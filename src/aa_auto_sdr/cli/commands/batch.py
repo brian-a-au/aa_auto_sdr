@@ -601,6 +601,7 @@ def _run_impl(
             output_paths=[str(p) for p in ok.outputs],
             snapshot_path=None,
             error=None,
+            quality_verdict=ok.quality_verdict,
         )
         for ok in final.successes
     ]

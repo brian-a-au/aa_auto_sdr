@@ -50,8 +50,9 @@ def neutralize_formula(text: str) -> str:
 def escape_pipe(text: str) -> str:
     """Escape Markdown-table-breaking characters in a cell value.
 
-    Pipes become \\|. Newlines become <br> (GFM-supported)."""
-    return text.replace("|", r"\|").replace("\n", "<br>")
+    Pipes become \\|. Line breaks (\\r\\n, \\r, \\n) become <br> (GFM-supported);
+    a bare \\r also ends a line in CommonMark and would split the row."""
+    return text.replace("|", r"\|").replace("\r\n", "<br>").replace("\r", "<br>").replace("\n", "<br>")
 
 
 def escape_html(text: str) -> str:

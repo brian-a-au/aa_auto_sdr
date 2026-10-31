@@ -185,3 +185,20 @@ def test_markdown_replace_failure_preserves_existing_report(
 
     assert target.read_bytes() == b"original markdown"
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
+def test_markdown_nested_cell_with_backtick_uses_longer_fence() -> None:
+    # A backtick inside nested JSON closed a single-backtick span early.
+    from aa_auto_sdr.output.writers.markdown import _cell
+
+    cell = _cell(["a`b"])
+    assert cell.startswith("``")
+    assert cell.endswith("``")
+    assert not cell.startswith("```")
+
+
+def test_markdown_nested_cell_without_backtick_is_unchanged() -> None:
+    from aa_auto_sdr.output.writers.markdown import _cell
+
+    assert _cell({"k": 1}) == '`{"k": 1}`'
+    assert _cell(["a|b"]) == r'`["a\|b"]`'

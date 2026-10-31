@@ -300,7 +300,7 @@ def write_quality_report(
         if target == "-":
             sys.stdout.write(rendered)
         else:
-            atomic_write_text(Path(target), rendered)
+            atomic_write_text(Path(target), rendered, encoding="utf-8")
         return
 
     if fmt == "csv":
@@ -334,7 +334,9 @@ def write_quality_report(
             # the "\n" to "\r\n" again, producing "\r\r\n" in the file and a
             # spurious empty line between every row. newline="" disables the
             # translation and matches the standard csv-on-Windows recipe.
-            atomic_write_text(Path(target), rendered, newline="")
+            # Explicit utf-8: the locale default (cp1252 on Windows) cannot
+            # encode non-Latin component names.
+            atomic_write_text(Path(target), rendered, encoding="utf-8", newline="")
         return
 
     raise ConfigError(f"unsupported quality-report format: {fmt}")

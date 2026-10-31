@@ -129,3 +129,26 @@ def test_template_dry_run_includes_xlsx_in_preview(tmp_path: Path) -> None:
     assert "Template not found" not in result.stderr
     assert "must be a .xlsx file" not in result.stderr
     assert "requires an SDR-generating action" not in result.stderr
+
+
+@pytest.mark.parametrize("mode", [["RS1"], ["--batch", "RS1", "RS2"]])
+def test_template_not_a_zip_yields_usage(tmp_path: Path, mode: list[str]) -> None:
+    # A corrupt workbook used to reach openpyxl mid-run and crash with
+    # BadZipFile (exit 1), aborting a whole batch without a summary.
+    bad = tmp_path / "bad.xlsx"
+    bad.write_bytes(b"not a zip")
+    result = _run_cli(*mode, "--template", str(bad))
+    assert result.returncode == 2
+    assert f"error: Template is not a valid .xlsx workbook: {bad}" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_template_zip_without_content_types_yields_usage(tmp_path: Path) -> None:
+    import zipfile
+
+    bad = tmp_path / "bad.xlsx"
+    with zipfile.ZipFile(bad, "w") as zf:
+        zf.writestr("hello.txt", "not a workbook")
+    result = _run_cli("RS1", "--template", str(bad))
+    assert result.returncode == 2
+    assert "Template is not a valid .xlsx workbook" in result.stderr
