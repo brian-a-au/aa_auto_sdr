@@ -348,6 +348,8 @@ def _run_impl(
     canonical: list[str] = []
     seen: set[str] = set()
     pre_failures: list[BatchFailure] = []
+    resolved_identifiers: set[str] = set()
+    cancelled: set[str] = set()
     with timings.Timer("resolve"):
         try:
             preloaded_suites = fetch.fetch_report_suites_raw(client)
@@ -400,6 +402,7 @@ def _run_impl(
                     ),
                 )
             else:
+                resolved_identifiers.add(identifier)
                 for rs in resolved:
                     if rs in seen:
                         continue
@@ -413,8 +416,9 @@ def _run_impl(
             # reported in one run.
             if fail_fast:
                 for skipped in rsids[i + 1 :]:
-                    if skipped in seen:
-                        continue  # a duplicate that already resolved before the failure
+                    if skipped in seen or skipped in resolved_identifiers or skipped in cancelled:
+                        continue  # already resolved (by rsid or name) or already cancelled
+                    cancelled.add(skipped)
                     pre_failures.append(
                         BatchFailure(
                             rsid=skipped,

@@ -728,3 +728,39 @@ class TestBatchRunSummaryWriteFailure:
             run_summary_json=str(tmp_path / "missing" / "s.json"),
         )
         assert rc == ExitCode.OUTPUT.value
+
+
+class TestFailFastResolutionCancellations:
+    def _rows(self, mock_client_cls, mock_handle, tmp_path, identifiers) -> list[dict]:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        summary_path = tmp_path / "summary.json"
+        batch_cmd.run(
+            rsids=identifiers,
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            dry_run=True,
+            fail_fast=True,
+            run_summary_json=str(summary_path),
+        )
+        return json.loads(summary_path.read_text())["rsids"]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_skips_identifier_that_already_resolved(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["Demo Production", "nope", "Demo Production"])
+        failed = [(r["rsid"], r["error"].split(":")[0]) for r in rows if not r["succeeded"]]
+        assert failed == [("nope", "ReportSuiteNotFoundError")]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_cancels_repeated_identifier_once(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["nope", "demo.dev", "demo.dev"])
+        cancelled = [r["rsid"] for r in rows if r["error"] and r["error"].startswith("CancelledError")]
+        assert cancelled == ["demo.dev"]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_distinct_identifiers_unchanged(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["demo.prod", "nope", "demo.dev"])
+        cancelled = [r["rsid"] for r in rows if r["error"] and r["error"].startswith("CancelledError")]
+        assert cancelled == ["demo.dev"]
