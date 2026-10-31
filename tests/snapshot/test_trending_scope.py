@@ -99,3 +99,19 @@ def test_all_full_series_drift_unchanged(tmp_path: Path) -> None:
     report = compute_trending(snapshot_dir=tmp_path, rsid="rs1", window=_WINDOW)
     assert report.drift.total_changes == 3
     assert report.drift.volatility_score == 0.167  # value observed before the fix
+
+
+def test_later_point_that_does_not_cover_scope_keeps_earlier_point_counted(tmp_path: Path) -> None:
+    # full A, dims-only B (+1 dimension), metrics-only C. C shares B's baseline (A)
+    # but does not cover dimensions, so B's change must stay counted.
+    _write_series(
+        tmp_path,
+        [
+            ("2026-10-24T12:00:00+00:00", FULL, False),
+            ("2026-10-25T12:00:00+00:00", ["dimensions"], True),
+            ("2026-10-26T12:00:00+00:00", ["metrics"], False),
+        ],
+    )
+    report = compute_trending(snapshot_dir=tmp_path, rsid="rs1", window=_WINDOW)
+    assert report.drift.total_changes == 1
+    assert report.drift.churn_by_component_type["dimensions"] == 1

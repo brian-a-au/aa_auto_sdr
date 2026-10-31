@@ -15,7 +15,7 @@ import pytest
 
 from aa_auto_sdr.api import models
 from aa_auto_sdr.core.exceptions import SdrPayloadError, SnapshotCorruptError, SnapshotSchemaError
-from aa_auto_sdr.output.coverage import CoverageState, coverage_rows
+from aa_auto_sdr.output.coverage import CoverageState, coverage_rows, quality_status
 from aa_auto_sdr.sdr import rebuild
 from aa_auto_sdr.sdr.document import COMPONENT_FAMILIES, FetchOutcomeMeta, RenderProvenance, SdrDocument
 from aa_auto_sdr.snapshot.schema import document_to_envelope
@@ -538,3 +538,4 @@ def test_values_that_render_today_still_render(quality) -> None:
         payload["quality"] = quality
         doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
         doc.to_dict()
+        quality_status(doc.quality)

@@ -178,7 +178,7 @@ def _require_quality_numbers(quality: dict[str, Any], err: type[AaAutoSdrError],
         for i, issue in enumerate(issues):
             ids = issue.get("component_ids")
             if ids and not isinstance(ids, list | str):
-                raise err(f"{label} 'quality.issues[{i}].component_ids' must be a list")
+                raise err(f"{label} 'quality.issues[{i}].component_ids' must be a list or string")
 
 
 def _require_int(value: Any, path: str, err: type[AaAutoSdrError], label: str) -> None:
