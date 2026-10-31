@@ -102,7 +102,12 @@ def run(
             # A covering baseline (--compare-with-prev) is chosen by scope, not time.
             baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
         )
-        write_output(rendered, output)
+        try:
+            write_output(rendered, output)
+        except OSError as exc:
+            print(f"error: could not write {output}: {exc}", file=sys.stderr, flush=True)
+            exit_code = ExitCode.OUTPUT.value
+            return exit_code
 
         # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view
         # using the FULL report (no presentational filters) so CI surfaces are
@@ -231,7 +236,9 @@ def write_output(rendered: str, output: str | None) -> None:
     else:
         target = Path(output)
         target.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(target, rendered)
+        # Renderers emit glyphs (📊, ⚠, —) and user-authored names; the
+        # locale default (cp1252 on Windows) cannot encode them.
+        atomic_write_text(target, rendered, encoding="utf-8")
         print(f"wrote: {target}", flush=True)
 
 
