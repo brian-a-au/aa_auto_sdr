@@ -6,8 +6,9 @@ from typing import Any
 
 import pytest
 
-from aa_auto_sdr.snapshot.comparator import compare
-from aa_auto_sdr.snapshot.models import DiffReport
+from aa_auto_sdr.snapshot import comparator
+from aa_auto_sdr.snapshot.comparator import _diff_component_list, compare
+from aa_auto_sdr.snapshot.models import ComponentDiff, DiffReport
 
 
 def _envelope(
@@ -263,3 +264,34 @@ def test_compare_duplicate_ids_on_both_sides_unchanged() -> None:
     b = _envelope(captured_at="2026-04-27T00:00:00+00:00", dims=list(rows))
     dims = next(c for c in compare(a, b).components if c.component_type == "dimensions")
     assert dims.modified == []
+
+
+def _compare_family(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> ComponentDiff:
+    return _diff_component_list("metrics", a, b)
+
+
+def test_nan_on_both_sides_is_unchanged() -> None:
+    # NaN != NaN, so these take the full field walk, which treats them as equal.
+    a = [{"id": "m1", "name": "M", "description": float("nan")}]
+    b = [{"id": "m1", "name": "M", "description": float("nan")}]
+    d = _compare_family(a, b)
+    assert d.modified == []
+    assert d.unchanged_count == 1
+
+
+def test_reordered_tags_are_unchanged() -> None:
+    a = [{"id": "s1", "tags": ["x", "y"]}]
+    b = [{"id": "s1", "tags": ["y", "x"]}]
+    assert _compare_family(a, b).unchanged_count == 1
+
+
+def test_equal_items_skip_field_walk(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    def fake_diff_dict(*_args: Any, **_kwargs: Any) -> list[Any]:
+        calls.append(1)
+        return []
+
+    monkeypatch.setattr(comparator, "_diff_dict", fake_diff_dict)
+    _compare_family([{"id": "a", "name": "A"}], [{"id": "a", "name": "A"}])
+    assert calls == []

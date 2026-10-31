@@ -221,6 +221,11 @@ def _diff_component_list(
     modified: list[ModifiedItem] = []
     unchanged = 0
     for cid in common_ids:
+        # Equal raw items normalize equal (_normalize_value is pure), so skip
+        # the field walk. NaN never compares equal, so it takes the full walk.
+        if a_by_id[cid] == b_by_id[cid]:
+            unchanged += 1
+            continue
         deltas = _diff_dict(
             a_by_id[cid],
             b_by_id[cid],
