@@ -243,3 +243,21 @@ class TestIgnoreFields:
         report = compare(env_a, env_b)
         metric_diff = next(c for c in report.components if c.component_type == "metrics")
         assert len(metric_diff.modified) == 1
+
+
+def test_compare_duplicate_ids_first_row_wins() -> None:
+    # Older captures could hold two rows with one id. The builder keeps the
+    # first (tests/sdr/test_builder_duplicate_ids.py), so the comparator must
+    # too, or a fresh capture of the same data shows a false modification.
+    a = _envelope(dims=[_dim("evar1", "First"), _dim("evar1", "Second")])
+    b = _envelope(captured_at="2026-04-27T00:00:00+00:00", dims=[_dim("evar1", "First")])
+    dims = next(c for c in compare(a, b).components if c.component_type == "dimensions")
+    assert dims.added == [] and dims.removed == [] and dims.modified == []
+
+
+def test_compare_duplicate_ids_on_both_sides_unchanged() -> None:
+    rows = [_dim("evar1", "First"), _dim("evar1", "Second")]
+    a = _envelope(dims=rows)
+    b = _envelope(captured_at="2026-04-27T00:00:00+00:00", dims=list(rows))
+    dims = next(c for c in compare(a, b).components if c.component_type == "dimensions")
+    assert dims.modified == []
