@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sys
@@ -152,6 +153,7 @@ def _run_multiple(
     fmt = format_name or "console"
     if not diff_cmd.validate_output_format(fmt, output):
         return ExitCode.OUTPUT.value
+    to_file = output is not None and output != "-"
     results = []
     sections = []
     full_reports = []
@@ -180,20 +182,23 @@ def _run_multiple(
             body = f"{error['error_type']}: {error['error']}\n"
         else:
             code = diff_cmd.report_exit_code(report, warn_threshold)
-            body = diff_cmd.render_report(
-                report,
-                fmt=fmt,
-                side_by_side=side_by_side,
-                summary=summary,
-                quiet=quiet,
-                labels=labels,
-                changes_only=changes_only,
-                show_only=show_only,
-                max_issues=max_issues,
-                ignore_fields=ignore_fields,
-                extended_fields=extended_fields,
-                baseline_by_time=False,  # covering baseline: chosen by scope
-            )
+            # A file target must not carry escape codes even when stdout
+            # is a terminal (diff.run does the same for one RSID).
+            with colors.disabled() if to_file else contextlib.nullcontext():
+                body = diff_cmd.render_report(
+                    report,
+                    fmt=fmt,
+                    side_by_side=side_by_side,
+                    summary=summary,
+                    quiet=quiet,
+                    labels=labels,
+                    changes_only=changes_only,
+                    show_only=show_only,
+                    max_issues=max_issues,
+                    ignore_fields=ignore_fields,
+                    extended_fields=extended_fields,
+                    baseline_by_time=False,  # covering baseline: chosen by scope
+                )
             result = {"rsid": rsid, "exit_code": code}
             if fmt == "json":
                 result["report"] = json.loads(body)

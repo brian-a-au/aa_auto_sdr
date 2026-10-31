@@ -583,3 +583,20 @@ def test_diff_console_to_file_has_no_ansi(tmp_path: Path, monkeypatch: pytest.Mo
     text = out_path.read_text(encoding="utf-8")
     assert "SDR DIFF" in text
     assert "\033[" not in text
+
+
+def test_diff_stdout_failure_is_not_reported_as_a_file_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The OUTPUT exit covers failed file writes only; a broken stdout pipe
+    # must not print "could not write None".
+    import sys
+
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a, b = _non_ascii_pair(tmp_path)
+
+    def broken(_text: str) -> int:
+        raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(sys.stdout, "write", broken)
+    with pytest.raises(BrokenPipeError):
+        diff_cmd.run(a=str(a), b=str(b), format_name="json", output="-", profile=None)

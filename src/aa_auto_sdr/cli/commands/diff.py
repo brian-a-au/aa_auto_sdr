@@ -107,12 +107,15 @@ def run(
                 # A covering baseline (--compare-with-prev) is chosen by scope, not time.
                 baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
             )
-        try:
+        if to_file:
+            try:
+                write_output(rendered, output)
+            except OSError as exc:
+                print(f"error: could not write {output}: {exc}", file=sys.stderr, flush=True)
+                exit_code = ExitCode.OUTPUT.value
+                return exit_code
+        else:
             write_output(rendered, output)
-        except OSError as exc:
-            print(f"error: could not write {output}: {exc}", file=sys.stderr, flush=True)
-            exit_code = ExitCode.OUTPUT.value
-            return exit_code
 
         # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view
         # using the FULL report (no presentational filters) so CI surfaces are
