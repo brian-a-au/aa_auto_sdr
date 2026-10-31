@@ -92,8 +92,10 @@ def test_template_unknown_format_defers_to_generate(tmp_path: Path) -> None:
 
 
 def test_template_excel_format_passes(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+
     xlsx = tmp_path / "template.xlsx"
-    xlsx.write_text("")
+    Workbook().save(xlsx)  # the validator checks it is a real .xlsx package
     ns = build_parser().parse_args(["rs1", "--template", str(xlsx)])
     assert _validate_template_modifiers(ns) == int(ExitCode.OK)
 

@@ -260,7 +260,24 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
+    # Last, so the flag-composition errors above still win. A corrupt
+    # workbook would otherwise reach openpyxl mid-run (BadZipFile, exit 1)
+    # and abort a whole batch.
+    if not _is_xlsx_package(template):
+        print(f"error: Template is not a valid .xlsx workbook: {template}", file=sys.stderr)
+        return int(ExitCode.USAGE)
     return int(ExitCode.OK)
+
+
+def _is_xlsx_package(path: Path) -> bool:
+    """True when `path` opens as a ZIP holding the OOXML content-types part."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(path) as zf:
+            return "[Content_Types].xml" in zf.namelist()
+    except (zipfile.BadZipFile, OSError):
+        return False
 
 
 # Actions that conflict with --push-to-notion: presence of any one means the
