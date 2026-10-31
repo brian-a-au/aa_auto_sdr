@@ -1,0 +1,49 @@
+name: cache-cleanup
+
+# Delete Actions caches no run can restore: those of closed pull requests and
+# deleted branches, and older generations of each setup-uv key on main (the key
+# embeds the uv.lock hash, so only the newest is reachable). Dead entries count
+# toward the 10 GB limit, and past it GitHub evicts what main still uses. See
+# scripts/prune_actions_cache.py.
+#
+# The daily run also covers pull requests that the auto-merge job closes: a
+# merge made with GITHUB_TOKEN fires no pull_request event.
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cache-cleanup
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    # A fork's pull request gets a read-only token; the daily run cleans up.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Delete caches, and read pull request state.
+      actions: write
+      pull-requests: read
+    steps:
+      # The script comes from the default branch, never a pull request's code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: false
+          python-version: "3.14"
+      - name: Delete unreachable caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --no-project python scripts/prune_actions_cache.py --repo "$GITHUB_REPOSITORY" --apply
