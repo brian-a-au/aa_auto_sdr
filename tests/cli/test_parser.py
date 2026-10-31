@@ -367,3 +367,13 @@ class TestV12Flags:
     def test_profile_overwrite(self) -> None:
         ns = build_parser().parse_args(["--profile-import", "prod", "/tmp/c.json", "--profile-overwrite"])
         assert ns.profile_overwrite is True
+
+
+@pytest.mark.parametrize("flag", ["--retry-base-delay", "--retry-max-delay"])
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_retry_delay_rejects_non_finite(flag: str, value: str) -> None:
+    # nan <= 0 is False, so "nan" passed the positive check and later crashed
+    # time.sleep() on the first retry.
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(["rs1", flag, value])
+    assert exc.value.code == 2

@@ -37,6 +37,7 @@ for the auth bootstrap retry without creating a circular import
 from __future__ import annotations
 
 import logging
+import math
 import random
 import time
 from collections.abc import Callable
@@ -63,6 +64,11 @@ class RetryPolicy:
     def __post_init__(self) -> None:
         if self.max_retries < 0:
             raise ValueError(f"max_retries must be non-negative, got {self.max_retries}")
+        # nan compares False against everything, so the range checks below
+        # would let it through to time.sleep().
+        for name in ("base_delay", "max_delay"):
+            if not math.isfinite(getattr(self, name)):
+                raise ValueError(f"{name} must be finite, got {getattr(self, name)}")
         if self.base_delay <= 0:
             raise ValueError(f"base_delay must be positive, got {self.base_delay}")
         if self.max_delay < self.base_delay:
@@ -70,6 +76,7 @@ class RetryPolicy:
 
 
 DEFAULT_RETRY_POLICY = RetryPolicy()
+_MAX_BACKOFF_EXPONENT = 62
 
 
 def is_retryable(exc: BaseException) -> bool:
@@ -123,7 +130,9 @@ def with_retries(
         except Exception as exc:
             if not is_retryable(exc) or attempt >= policy.max_retries:
                 raise
-            backoff = policy.base_delay * (2**attempt)
+            # Exponent capped so a huge --max-retries cannot overflow float
+            # conversion; 2**62 * base_delay is far past any max_delay.
+            backoff = policy.base_delay * (2 ** min(attempt, _MAX_BACKOFF_EXPONENT))
             jitter = random.uniform(0, policy.base_delay)  # noqa: S311
             delay = min(backoff + jitter, policy.max_delay)
             if on_attempt is not None:
