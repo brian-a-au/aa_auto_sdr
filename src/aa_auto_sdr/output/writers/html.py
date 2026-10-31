@@ -89,7 +89,8 @@ def _table_html(headers: list[str], rows: list[list[str]]) -> str:
     head = "".join(f"<th>{escape_html(h)}</th>" for h in headers)
     body_rows: list[str] = []
     for r in rows:
-        cells = "".join(f'<td class="long" title="{escape_html(c)}">{escape_html(c)}</td>' for c in r)
+        escaped = [escape_html(c) for c in r]
+        cells = "".join(f'<td class="long" title="{e}">{e}</td>' for e in escaped)
         body_rows.append(f"<tr>{cells}</tr>")
     return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>"
 
