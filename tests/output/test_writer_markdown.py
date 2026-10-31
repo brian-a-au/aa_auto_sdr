@@ -1,6 +1,7 @@
 """Markdown writer: GFM tables, one H2 per component, escaped pipes."""
 
 import json
+import random
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -9,7 +10,8 @@ import pandas as pd
 import pytest
 
 from aa_auto_sdr.api.client import AaClient
-from aa_auto_sdr.output.writers.markdown import MarkdownWriter
+from aa_auto_sdr.output._helpers import escape_pipe
+from aa_auto_sdr.output.writers.markdown import MarkdownWriter, _code_cell
 from aa_auto_sdr.sdr.builder import build_sdr
 
 FIXTURE = Path(__file__).parent.parent / "fixtures" / "sample_rs.json"
@@ -202,3 +204,29 @@ def test_markdown_nested_cell_without_backtick_is_unchanged() -> None:
 
     assert _cell({"k": 1}) == '`{"k": 1}`'
     assert _cell(["a|b"]) == r'`["a\|b"]`'
+
+
+def _reference_longest(text: str) -> str:
+    """The original per-character loop, kept to pin _code_cell's output."""
+    longest = run = 0
+    for ch in text:
+        run = run + 1 if ch == "`" else 0
+        longest = max(longest, run)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{escape_pipe(text)}{pad}{fence}" if text else ""
+
+
+_FIXED_CODE_CELLS = ["", "a", "`", "a``b```c", "``x", "x`", "caf\u00e9 `\u2603` \U0001f600", "a|b`c"]
+
+
+@pytest.mark.parametrize("text", _FIXED_CODE_CELLS)
+def test_code_cell_matches_reference_fixed(text: str) -> None:
+    assert _code_cell(text) == _reference_longest(text)
+
+
+def test_code_cell_matches_reference_random() -> None:
+    rng = random.Random(0)  # noqa: S311 - deterministic test data
+    for _ in range(2000):
+        text = "".join(rng.choice("`a|\n ") for _ in range(rng.randint(0, 12)))
+        assert _code_cell(text) == _reference_longest(text)
