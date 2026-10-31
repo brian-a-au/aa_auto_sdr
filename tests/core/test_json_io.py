@@ -60,8 +60,12 @@ def test_write_unserializable_payload_cleans_up_temp_and_reraises(tmp_path: Path
 
 def test_write_json_bytes_match_dumps(tmp_path: Path) -> None:
     # Pins the on-disk bytes: sorted keys, indent=2, raw UTF-8, trailing newline.
+    # The file is opened in text mode, so line endings follow the platform
+    # (\r\n on Windows), as they always have.
+    import os
+
     payload = {"z": [1, {"y": None, "b": True}], "a": "Démo — 日本", "m": {"k2": 2.5, "k1": []}}
     target = tmp_path / "out.json"
     json_io.write_json(target, payload)
     expected = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    assert target.read_bytes() == expected.encode("utf-8")
+    assert target.read_bytes() == expected.replace("\n", os.linesep).encode("utf-8")
