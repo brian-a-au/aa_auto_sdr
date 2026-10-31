@@ -1,0 +1,48 @@
+name: min-versions
+
+# Run the suite against the lowest versions pyproject.toml allows for our direct
+# dependencies. The tests workflow uses uv.lock, which holds the newest
+# versions, so without this a floor can claim support for a release that no
+# longer works: `requests>=2.0` allowed a version that fails to import on
+# Python 3.10+. Oldest and newest supported Python, Linux only.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel a PR's superseded runs; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lowest-direct:
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.15"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          enable-cache: true
+          prune-cache: false
+          # The cache key hashes uv.lock, not the resolution mode, so without a
+          # suffix this job would share (and could claim) the tests job's key.
+          cache-suffix: lowest-direct
+          python-version: ${{ matrix.python-version }}
+      - name: Install the lowest allowed direct dependencies
+        # Re-resolves instead of using uv.lock, so no --locked. The rewritten
+        # lockfile stays in this runner.
+        run: uv sync --resolution lowest-direct --all-extras
+      - name: Show resolved floors
+        run: uv pip list | grep -iE '^(aanalytics2|argcomplete|notion-client|openpyxl|pandas|python-dotenv|requests|xlsxwriter) '
+      - name: Run tests
+        # Coverage is gated in the tests workflow; here only pass/fail matters.
+        run: uv run --frozen pytest -q -n auto --no-cov

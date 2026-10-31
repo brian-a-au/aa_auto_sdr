@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.5] — 2026-10-30
+
+This patch corrects two dependency floors so that every version the package
+accepts actually works. No code changes, no new flags, and no changed
+defaults. An install that already has current versions of these packages is
+unaffected.
+
+### Fixed
+- `requests` now needs 2.32.4 or later instead of 2.0. The old floor let an
+  environment keep a release that fails at import on every supported Python
+  (`ImportError: cannot import name 'MutableMapping' from 'collections'`), so
+  the tool crashed at startup. Releases before 2.32.4 also carry published
+  security advisories, the latest being a `.netrc` credential leak.
+- `aanalytics2` now needs 0.5.5 or later. Every 0.5.4 release is yanked on
+  PyPI, so 0.5.5 was already the lowest version pip would install. The new
+  floor states that directly and drops the exclusion of 0.5.3, which it
+  already rules out.
+
 ## [1.24.4] — 2026-10-28
 
 This patch fixes crashes on unexpected data and cleans up which stream
