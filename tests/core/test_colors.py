@@ -82,3 +82,30 @@ def test_warn_when_enabled_uses_yellow(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_warn_when_disabled_returns_text_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
     _force_enabled(monkeypatch, False)
     assert colors.warn("careful") == "careful"
+
+
+class _Tty:
+    def isatty(self) -> bool:
+        return True
+
+    def write(self, text: str) -> int:
+        return len(text)
+
+    def flush(self) -> None:
+        pass
+
+
+def test_disabled_context_suppresses_and_restores(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(colors.sys, "stdout", _Tty())
+    with colors.disabled():
+        assert colors.bold("x") == "x"
+    assert "\033[" in colors.bold("x")
+
+
+def test_disabled_context_restores_after_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(colors.sys, "stdout", _Tty())
+    with pytest.raises(RuntimeError), colors.disabled():
+        raise RuntimeError("boom")
+    assert "\033[" in colors.bold("x")

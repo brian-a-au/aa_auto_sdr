@@ -50,6 +50,11 @@ class TestParsePolicy:
         with pytest.raises(ConfigError):
             parse_policy(keep_last=None, keep_since="5y")
 
+    def test_keep_since_out_of_range_rejected(self) -> None:
+        # The timedelta fits, but now - keep_since does not fit in a datetime.
+        with pytest.raises(ConfigError, match=r"--keep-since is out of range"):
+            parse_policy(keep_last=None, keep_since="5000000w")
+
 
 class TestSelectForDeletion:
     @staticmethod

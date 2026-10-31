@@ -222,15 +222,17 @@ def test_diff_replace_failure_preserves_existing_file(
 
     monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
 
-    with pytest.raises(PermissionError, match="destination locked"):
-        diff_cmd.run(
-            a=str(a),
-            b=str(b),
-            format_name="markdown",
-            output=str(out_path),
-            profile=None,
-        )
+    rc = diff_cmd.run(
+        a=str(a),
+        b=str(b),
+        format_name="markdown",
+        output=str(out_path),
+        profile=None,
+    )
 
+    # A failed write is a clean OUTPUT exit, not a traceback; the atomic
+    # writer still leaves the original file and no staging file behind.
+    assert rc == 15
     assert out_path.read_bytes() == b"original diff"
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
 
@@ -502,3 +504,99 @@ class TestDiffHonorsSnapshotDir:
             snapshot_dir=snap_dir,
         )
         assert rc == 0
+
+
+def _non_ascii_pair(tmp_path: Path) -> tuple[Path, Path]:
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    _write_envelope(a, "demo.prod", "2026-04-20T10:00:00+00:00", dim_name="Café")
+    _write_envelope(b, "demo.prod", "2026-04-26T17:29:01+00:00", dim_name="Café — 日本")
+    return a, b
+
+
+@pytest.mark.parametrize("fmt", ["pr-comment", "markdown", "console"])
+def test_diff_output_file_is_written_as_utf8(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fmt: str) -> None:
+    # open(encoding=None) follows the locale (cp1252 on Windows), which cannot
+    # encode the renderers' glyphs or non-Latin names. Record the encoding the
+    # file write asks for and check the bytes on disk.
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a, b = _non_ascii_pair(tmp_path)
+    seen: list[str | None] = []
+    real = diff_cmd.atomic_write_text
+
+    def recording(target, content, **kwargs):
+        seen.append(kwargs.get("encoding"))
+        return real(target, content, **kwargs)
+
+    monkeypatch.setattr(diff_cmd, "atomic_write_text", recording)
+    out_path = tmp_path / "diff.out"
+
+    rc = diff_cmd.run(a=str(a), b=str(b), format_name=fmt, output=str(out_path), profile=None)
+
+    assert rc == 0
+    assert seen == ["utf-8"]
+    assert "日本" in out_path.read_bytes().decode("utf-8")
+
+
+def test_diff_output_to_directory_returns_output_exit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a, b = _non_ascii_pair(tmp_path)
+    target = tmp_path / "already-a-dir"
+    target.mkdir()
+
+    rc = diff_cmd.run(a=str(a), b=str(b), format_name="markdown", output=str(target), profile=None)
+
+    assert rc == 15
+    assert capsys.readouterr().err.startswith(f"error: could not write {target}:")
+
+
+def test_diff_output_parent_blocked_returns_output_exit(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # A file where the parent directory should be makes mkdir() raise.
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a, b = _non_ascii_pair(tmp_path)
+    blocker = tmp_path / "blocker"
+    blocker.write_text("x")
+
+    rc = diff_cmd.run(a=str(a), b=str(b), format_name="json", output=str(blocker / "diff.json"), profile=None)
+
+    assert rc == 15
+    assert "error: could not write" in capsys.readouterr().err
+
+
+def test_diff_console_to_file_has_no_ansi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Color follows stdout's TTY state; a file target is never a terminal.
+    import sys
+
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    a, b = _non_ascii_pair(tmp_path)
+    out_path = tmp_path / "diff.txt"
+
+    rc = diff_cmd.run(a=str(a), b=str(b), format_name="console", output=str(out_path), profile=None)
+
+    assert rc == 0
+    text = out_path.read_text(encoding="utf-8")
+    assert "SDR DIFF" in text
+    assert "\033[" not in text
+
+
+def test_diff_stdout_failure_is_not_reported_as_a_file_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The OUTPUT exit covers failed file writes only; a broken stdout pipe
+    # must not print "could not write None".
+    import sys
+
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    a, b = _non_ascii_pair(tmp_path)
+
+    def broken(_text: str) -> int:
+        raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(sys.stdout, "write", broken)
+    with pytest.raises(BrokenPipeError):
+        diff_cmd.run(a=str(a), b=str(b), format_name="json", output="-", profile=None)

@@ -48,6 +48,12 @@ def parse_policy(*, keep_last: int | None, keep_since: str | None) -> RetentionP
         # A zero window sets the cutoff to "now" and deletes every snapshot —
         # reject it the same way keep_last < 1 is rejected above.
         raise ConfigError(f"--keep-since must be greater than zero (got '{keep_since}')")
+    try:
+        # select_for_deletion computes now - keep_since; a window that reaches
+        # back before year 1 would raise OverflowError there.
+        datetime.now(UTC) - delta
+    except OverflowError as exc:
+        raise ConfigError(f"--keep-since is out of range (got '{keep_since}')") from exc
     return RetentionPolicy(keep_last=keep_last, keep_since=delta)
 
 
