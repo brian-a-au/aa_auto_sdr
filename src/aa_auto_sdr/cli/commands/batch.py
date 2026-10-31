@@ -69,14 +69,16 @@ def _emit_run_summary(
     show_timings: bool,
     batch_result: BatchResult | None = None,
     sample: SampleOutcome | None = None,
-) -> None:
-    """Write the run summary. `batch_result` carries the sample fields on a
+) -> bool:
+    """Write the run summary. Returns False only when the file write failed.
+
+     `batch_result` carries the sample fields on a
     real run; `sample` supplies them on the `--dry-run` path, which returns
     before `run_batch` and so has no BatchResult. On a dry run without
     `--sample-seed` the recorded `rsids` are one illustrative draw, not the
     draw a later real run will make."""
     if not run_summary_json:
-        return
+        return True
     source = batch_result if batch_result is not None else sample
     summary = RunSummary(
         started_at=started_at.isoformat(),
@@ -102,8 +104,13 @@ def _emit_run_summary(
         _sys.stdout.flush()
     else:
         payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
-        atomic_write_text(Path(run_summary_json), payload + "\n")
+        try:
+            atomic_write_text(Path(run_summary_json), payload + "\n")
+        except OSError as exc:
+            print(f"error: could not write run summary {run_summary_json}: {exc}", file=sys.stderr, flush=True)
+            return False
         print(f"wrote run summary: {run_summary_json}", flush=True)
+    return True
 
 
 def run(
@@ -509,7 +516,7 @@ def _run_impl(
             )
             for bad in pre_failures
         )
-        _emit_run_summary(
+        summary_ok = _emit_run_summary(
             run_summary_json=run_summary_json,
             started_at=started_at,
             finished_at=datetime.now(UTC),
@@ -527,7 +534,7 @@ def _run_impl(
             # Synthetic cancellations must not mask the actual resolution error.
             real_failures = [f for f in pre_failures if f.error_type != "CancelledError"]
             return (real_failures or pre_failures)[-1].exit_code
-        return ExitCode.OK.value
+        return ExitCode.OK.value if summary_ok else ExitCode.OUTPUT.value
 
     def _on_progress(i: int, total: int, rsid: str) -> None:
         print(f"[{i}/{total}] generating {rsid}...", flush=True)
@@ -617,7 +624,7 @@ def _run_impl(
         )
         for bad in final.failures
     )
-    _emit_run_summary(
+    summary_ok = _emit_run_summary(
         run_summary_json=run_summary_json,
         started_at=started_at,
         finished_at=datetime.now(UTC),
@@ -669,7 +676,7 @@ def _run_impl(
             return ExitCode.PARTIAL_SUCCESS.value
         if fail_on_quality and any(v == "fail" for v in final.quality_verdicts.values()):
             return ExitCode.QUALITY.value
-        return ExitCode.OK.value
+        return ExitCode.OK.value if summary_ok else ExitCode.OUTPUT.value
     if final.successes:
         return ExitCode.PARTIAL_SUCCESS.value
     # All failed → exit code of the last *real* (non-cancelled) failure.

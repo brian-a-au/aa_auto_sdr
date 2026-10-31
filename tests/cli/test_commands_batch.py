@@ -675,3 +675,56 @@ def test_batch_run_summary_records_quality_verdict(mock_client_cls, mock_handle,
 
     assert rc == 0
     assert json.loads(summary_path.read_text())["rsids"][0]["quality_verdict"] == "pass"
+
+
+class TestBatchRunSummaryWriteFailure:
+    """A run summary that cannot be written turns an OK exit into OUTPUT (15)."""
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_write_failure_exits_output(self, mock_client_cls, mock_handle, authed_env, tmp_path, capsys) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        out_dir = tmp_path / "out"
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "demo.staging"],
+            output_dir=out_dir,
+            format_name="json",
+            profile=None,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+        )
+        assert rc == ExitCode.OUTPUT.value
+        assert "could not write run summary" in capsys.readouterr().err
+        assert sorted(p.name for p in out_dir.iterdir()) == ["demo.prod.json", "demo.staging.json"]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_write_failure_keeps_partial_code(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "nope"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+        )
+        assert rc == ExitCode.PARTIAL_SUCCESS.value
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_dry_run_write_failure_exits_output(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            dry_run=True,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+        )
+        assert rc == ExitCode.OUTPUT.value
