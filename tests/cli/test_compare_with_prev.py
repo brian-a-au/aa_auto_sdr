@@ -316,3 +316,20 @@ def test_output_failure_returns_15_through_cli(tmp_path, monkeypatch, capsys):
     assert error["error"]["code"] == 15
     assert error["error"]["type"] == "OutputError"
     assert str(target) in error["error"]["message"]
+
+
+def test_multi_console_to_file_has_no_ansi(tmp_path, monkeypatch):
+    # Multi-RSID renders through diff.render_report directly; a file target
+    # must not get escape codes even when stdout is a terminal.
+    import sys
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    for rsid in ("rs1", "rs2"):
+        _history(tmp_path, rsid)
+    out = tmp_path / "multi.txt"
+    rc = cmd.run(rsids=["rs1", "rs2"], profile=None, snapshot_dir=tmp_path, format_name="console", output=str(out))
+    assert rc == 0
+    text = out.read_text(encoding="utf-8")
+    assert "rs2" in text
+    assert "\033[" not in text

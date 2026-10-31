@@ -204,7 +204,7 @@ grammar as `[unparsed: <func>]`. See `docs/OUTPUT_FORMATS.md`
 - `insensitive` (default): literal RSID, then case-insensitive name match.
 - `fuzzy`: insensitive first; falls back to SequenceMatcher at threshold 0.85.
 
-Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr. `insensitive` mode returns all matches (the CLI then generates per-RSID).
+Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr. Under `--output -` (and `--agent-mode`) stderr carries the JSON error envelope instead, and its `message` lists the candidates as `rsid (name)`. `insensitive` mode returns all matches (the CLI then generates per-RSID).
 
 ### Diff field shaping
 

@@ -631,3 +631,54 @@ def test_generate_filesystem_failure_returns_output_error(mock_client_cls, env_c
     assert "excel" in err
     assert "destination locked" in err
     assert not list(tmp_path.glob(".*"))
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_with_run_summary_file_keeps_stdout_pure_json(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    # --output - promises stdout carries only the SDR JSON; the
+    # "wrote run summary" notice belongs on stderr there.
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    summary = tmp_path / "summary.json"
+
+    rc = cmd.run(
+        rsid="demo.prod", output_dir=Path("-"), format_name="json", profile=None, run_summary_json=str(summary)
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert json.loads(captured.out)["report_suite"]["rsid"] == "demo.prod"
+    assert f"wrote run summary: {summary}" in captured.err
+    assert summary.exists()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_file_output_run_summary_notice_stays_on_stdout(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    summary = tmp_path / "summary.json"
+
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None, run_summary_json=str(summary))
+
+    assert rc == 0
+    assert f"wrote run summary: {summary}" in capsys.readouterr().out
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_ambiguous_name_emits_json_envelope(mock_client_cls, env_creds, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import AmbiguousMatchError
+
+    mock_client_cls.from_credentials.return_value = MagicMock(company_id="testco")
+    exc = AmbiguousMatchError("identifier 'Demo' is ambiguous", candidates=[("a.prod", "Demo"), ("b.prod", "Demo")])
+    with patch("aa_auto_sdr.cli.commands.generate.fetch.resolve_rsid", side_effect=exc):
+        rc = cmd.run(rsid="Demo", output_dir=Path("-"), format_name="json", profile=None)
+
+    captured = capsys.readouterr()
+    assert rc == 13
+    assert captured.out == ""
+    envelope = json.loads(captured.err.strip())
+    assert envelope["error"]["code"] == 13
+    assert envelope["error"]["type"] == "AmbiguousMatchError"
+    # An unattended caller needs the candidates to retry with one of them.
+    assert "a.prod (Demo)" in envelope["error"]["message"]
+    assert "b.prod (Demo)" in envelope["error"]["message"]
