@@ -120,6 +120,8 @@ def _from_sdr_json(payload: dict[str, Any], *, rendered: RenderProvenance) -> Sd
     quality = payload.get("quality")
     if quality is not None and not isinstance(quality, dict):
         raise err("SDR JSON 'quality' must be an object or null")
+    if quality is not None:
+        _require_quality_parts(quality, err)
 
     return SdrDocument(
         report_suite=report_suite,
@@ -132,6 +134,23 @@ def _from_sdr_json(payload: dict[str, Any], *, rendered: RenderProvenance) -> Sd
         **families,
     )
 
+
+
+def _require_quality_parts(quality: dict[str, Any], err: type[AaAutoSdrError]) -> None:
+    """Shape-check the quality parts the writers read, with the same rules
+    snapshot `validate_envelope` applies: a part may be absent, but a
+    present part must have the right type."""
+    for key in ("naming_audit", "summary"):
+        if key in quality and not isinstance(quality[key], dict):
+            raise err(f"SDR JSON 'quality.{key}' must be an object")
+    summary = quality.get("summary")
+    if isinstance(summary, dict) and "by_severity" in summary and not isinstance(summary["by_severity"], dict):
+        raise err("SDR JSON 'quality.summary.by_severity' must be an object")
+    for key in ("stale_components", "issues"):
+        if key in quality:
+            rows = quality[key]
+            if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+                raise err(f"SDR JSON 'quality.{key}' must be a list of objects")
 
 def _from_envelope(env: dict[str, Any], *, rendered: RenderProvenance) -> SdrDocument:
     # Lazy: the snapshot package is only needed for this shape.
