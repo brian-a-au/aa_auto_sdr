@@ -145,11 +145,8 @@ class TestFileOutput:
 
         monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
 
-        with (
-            patch.object(trending_cmd, "compute_trending", return_value=_make_report("rs1")),
-            pytest.raises(PermissionError, match="destination locked"),
-        ):
-            trending_cmd.run(
+        with patch.object(trending_cmd, "compute_trending", return_value=_make_report("rs1")):
+            rc = trending_cmd.run(
                 rsids=["rs1"],
                 duration="30d",
                 snapshot_dir=tmp_path,
@@ -158,6 +155,9 @@ class TestFileOutput:
                 output=str(out_file),
             )
 
+        # A failed write is a clean OUTPUT exit, not a traceback; the atomic
+        # writer still leaves the original file and no staging file behind.
+        assert rc == ExitCode.OUTPUT.value
         assert out_file.read_bytes() == b"original trend"
         assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
 
@@ -169,3 +169,34 @@ class TestResolveSnapshotDir:
         assert result.name == "snapshots"
         assert "orgs" in result.parts
         assert "prod" in result.parts
+
+
+def test_trending_window_out_of_range_returns_usage(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # parse_duration accepts it (the timedelta fits), but now - delta does
+    # not fit in a datetime.
+    rc = trending_cmd.run(
+        rsids=["rs1"],
+        duration="5000000w",
+        snapshot_dir=tmp_path,
+        profile=None,
+        format_name=None,
+        output=None,
+    )
+    assert rc == ExitCode.USAGE.value
+    assert "out of range" in capsys.readouterr().err
+
+
+def test_trending_output_write_failure_returns_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    target = tmp_path / "already-a-dir"
+    target.mkdir()
+    with patch.object(trending_cmd, "compute_trending", return_value=_make_report("rs1")):
+        rc = trending_cmd.run(
+            rsids=["rs1"],
+            duration="30d",
+            snapshot_dir=tmp_path,
+            profile=None,
+            format_name="markdown",
+            output=str(target),
+        )
+    assert rc == ExitCode.OUTPUT.value
+    assert capsys.readouterr().err.startswith(f"error: could not write {target}:")

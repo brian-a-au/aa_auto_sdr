@@ -202,8 +202,14 @@ def _diff_component_list(
     *,
     ignore_fields: frozenset[str] = frozenset(),
 ) -> ComponentDiff:
-    a_by_id = {item["id"]: item for item in a_list}
-    b_by_id = {item["id"]: item for item in b_list}
+    # First row wins on a duplicate id, matching sdr/builder.py; older
+    # captures can still hold duplicates and must not diff as modified.
+    a_by_id: dict[Any, dict[str, Any]] = {}
+    for item in a_list:
+        a_by_id.setdefault(item["id"], item)
+    b_by_id: dict[Any, dict[str, Any]] = {}
+    for item in b_list:
+        b_by_id.setdefault(item["id"], item)
 
     added_ids = sorted(b_by_id.keys() - a_by_id.keys())
     removed_ids = sorted(a_by_id.keys() - b_by_id.keys())

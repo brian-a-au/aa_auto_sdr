@@ -230,3 +230,21 @@ def test_resolve_path_token_legacy_has_unknown_scope(tmp_path: Path) -> None:
     _write_snapshot(snap, "demo.prod", "2026-04-26T17:29:01+00:00")
     env = resolve_snapshot(str(snap), profile_snapshot_dir=None, repo_root=None)
     assert env.get("collected_components") is None
+
+
+def test_forward_slash_path_with_at_is_a_path_on_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    # On Windows os.sep is "\\" and "/" is os.altsep. A forward-slash path
+    # containing "@" must not be read as an <rsid>@<spec> token.
+    from aa_auto_sdr.snapshot import resolver
+
+    monkeypatch.setattr(resolver.os, "sep", "\\")
+    monkeypatch.setattr(resolver.os, "altsep", "/")
+    assert resolver._looks_like_path("C:/snaps/user@corp/demo.json") is True
+
+
+def test_rsid_at_token_is_not_a_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    from aa_auto_sdr.snapshot import resolver
+
+    monkeypatch.setattr(resolver.os, "sep", "\\")
+    monkeypatch.setattr(resolver.os, "altsep", "/")
+    assert resolver._looks_like_path("demo.prod@latest") is False

@@ -40,22 +40,27 @@ def git_show(*, ref: str, path: str, repo_root: Path) -> str:
             ["git", "show", f"{ref}:{path}"],
             cwd=repo_root,
             capture_output=True,
-            text=True,
             check=False,
         )
     except FileNotFoundError as exc:  # git not installed
         raise SnapshotResolveError(f"git binary not found: {exc}") from exc
 
     if result.returncode != 0:
-        stderr = result.stderr.strip() or "(no stderr)"
+        stderr = result.stderr.decode("utf-8", errors="replace").strip() or "(no stderr)"
         raise SnapshotResolveError(f"git show {ref}:{path} failed: {stderr}")
+    # Bytes, decoded as UTF-8 like the path reader: text=True would use the
+    # locale encoding (cp1252 on Windows) and misread snapshot names.
+    try:
+        content = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SnapshotResolveError(f"git show {ref}:{path}: content is not valid UTF-8: {exc}") from exc
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.debug(
         "git show duration_ms=%s",
         duration_ms,
         extra={"duration_ms": duration_ms},
     )
-    return result.stdout
+    return content
 
 
 # --- v1.15.0: write operations ----------------------------------------------

@@ -108,7 +108,8 @@ def is_time_relative_token(token: str) -> bool:
 
 def _looks_like_path(token: str) -> bool:
     """Heuristic: tokens with a path separator or that point to an existing file are paths."""
-    if os.sep in token or token.startswith(("./", "~")):
+    # os.altsep is "/" on Windows (None on POSIX), so C:/snaps/x.json counts.
+    if os.sep in token or (os.altsep is not None and os.altsep in token) or token.startswith(("./", "~")):
         return True
     return os.path.exists(token)
 

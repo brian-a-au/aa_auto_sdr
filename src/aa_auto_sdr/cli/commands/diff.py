@@ -3,6 +3,7 @@ changes-only, show-only, max-issues, $GITHUB_STEP_SUMMARY append)."""
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import sys
@@ -87,22 +88,34 @@ def run(
             exit_code = ExitCode.SNAPSHOT.value
             return exit_code
 
-        rendered = render_report(
-            full_report,
-            fmt=fmt,
-            side_by_side=side_by_side,
-            summary=summary,
-            quiet=quiet,
-            labels=labels,
-            changes_only=changes_only,
-            show_only=show_only,
-            max_issues=max_issues,
-            ignore_fields=ignore_fields,
-            extended_fields=extended_fields,
-            # A covering baseline (--compare-with-prev) is chosen by scope, not time.
-            baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
-        )
-        write_output(rendered, output)
+        # Color follows stdout's TTY state; text bound for a file must not
+        # carry escape codes even when stdout is a terminal.
+        to_file = output is not None and output != "-"
+        with colors.disabled() if to_file else contextlib.nullcontext():
+            rendered = render_report(
+                full_report,
+                fmt=fmt,
+                side_by_side=side_by_side,
+                summary=summary,
+                quiet=quiet,
+                labels=labels,
+                changes_only=changes_only,
+                show_only=show_only,
+                max_issues=max_issues,
+                ignore_fields=ignore_fields,
+                extended_fields=extended_fields,
+                # A covering baseline (--compare-with-prev) is chosen by scope, not time.
+                baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
+            )
+        if to_file:
+            try:
+                write_output(rendered, output)
+            except OSError as exc:
+                print(f"error: could not write {output}: {exc}", file=sys.stderr, flush=True)
+                exit_code = ExitCode.OUTPUT.value
+                return exit_code
+        else:
+            write_output(rendered, output)
 
         # GitHub Actions: when GITHUB_STEP_SUMMARY is set, append a markdown view
         # using the FULL report (no presentational filters) so CI surfaces are
@@ -231,7 +244,9 @@ def write_output(rendered: str, output: str | None) -> None:
     else:
         target = Path(output)
         target.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(target, rendered)
+        # Renderers emit glyphs (📊, ⚠, —) and user-authored names; the
+        # locale default (cp1252 on Windows) cannot encode them.
+        atomic_write_text(target, rendered, encoding="utf-8")
         print(f"wrote: {target}", flush=True)
 
 
