@@ -2,6 +2,79 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.6] — 2026-10-31
+
+This patch fixes crashes, wrong exit codes and wrong output, and it makes
+JSON output faster. Several paths that ended in a traceback with exit 1 now
+exit with a code that already exists. Windows users get the most fixes,
+because several commands assumed a UTF-8 console or file encoding. No new
+flags and no changed defaults. Output that worked before is byte for byte
+the same.
+
+### Changed
+- JSON SDR files and snapshot files are written faster. The tool now builds
+  the JSON text with one `json.dumps()` call instead of streaming it with
+  `json.dump()`. Writing a file of 7,660 components takes about 77 to 83
+  percent less time on Python 3.13 to 3.15, and about 5 to 12 percent less
+  on 3.11 and 3.12. A JSON SDR run with a snapshot save on Python 3.14 went
+  from 339 ms to 182 ms in a test with a stub SDK. The bytes written are the
+  same. `benchmarks/json_write.py` reproduces the write-step numbers.
+
+### Fixed
+- `--diff --output FILE` now writes UTF-8. On Windows, the `pr-comment`
+  format always crashed on its own emoji, and the other formats crashed on
+  names that use other alphabets.
+- The `--quality-report` file is now written as UTF-8. On Windows, a
+  component name in another alphabet crashed the run.
+- `git:<ref>:<path>` diff tokens now read the file as UTF-8. On Windows they
+  used the system encoding, which showed false name changes. A file that is
+  not valid UTF-8 now exits 16 instead of 1.
+- On Windows with Python 3.11 to 3.14, output to a pipe or file no longer
+  crashes on characters the code page lacks. `--config-status` crashed on its
+  own markers, and `--watch` stopped at the first event that held a name in
+  another alphabet. When stdout is not UTF-8, the tool now writes each such
+  character as a `\uXXXX` escape. Inside JSON that escape decodes to the same
+  character, so `--agent-mode` and watch output stay valid JSON.
+- A failed write for `--diff --output` or `--trending-window --output` now
+  exits 15 instead of 1. The old file is still kept.
+- A corrupt `--template` workbook is now rejected before the run starts, with
+  exit 2. Before, it crashed in the middle of the run with exit 1, and a
+  batch stopped with no summary.
+- Values that are too large are now rejected instead of crashing:
+  - `--trending-window`, e.g., `5000000w`, exits 2.
+  - `--keep-since` exits 10, even with `--dry-run`.
+  - `--watch --interval`, e.g., `3000000d`, exits 2 before the first cycle.
+  - `--max-retries` of 1024 or more no longer overflows the backoff math.
+- `--retry-base-delay` and `--retry-max-delay` now reject `nan` and `inf`
+  with exit 2. Before, `nan` was accepted and the first retry crashed.
+- With `--output -`, stdout now holds only the SDR JSON. The "wrote run
+  summary" notice for `--run-summary-json PATH` now goes to stderr. A name
+  that matches more than one report suite now prints the JSON error
+  envelope, and its message lists the candidates.
+- The JSON error envelope now hides secrets such as an `Authorization`
+  header, the same way log records and watch events do.
+- `--diff` now keeps the first row when an older snapshot repeats a component
+  id, as the builder does. Before, those snapshots showed a false
+  modification.
+- Console-format `--diff` and `--compare-with-prev` output files no longer
+  contain color codes when you run the command in a terminal.
+- On Windows, a diff token such as `C:/snaps/user@corp/demo.json` is now read
+  as a path.
+- Markdown tables stay intact when a cell holds a carriage return or a
+  backtick.
+- The batch run summary now records `quality_verdict`.
+- `--render-from` now rejects a malformed quality block with a clear error
+  instead of a traceback.
+- `--config-status` now marks the same credential source the tool uses when
+  an env var holds only spaces.
+- `config.json` and profile files saved as UTF-8 with a byte-order mark, as
+  Windows PowerShell 5 saves them, now load. `--profile-import` accepts them
+  too.
+- `--profile-show` no longer crashes when `client_id` is null or a number.
+- `docs/CONFIGURATION.md` no longer says that spaces in `SCOPES` are removed.
+  The tool sends the value as written, so write it without spaces after the
+  commas.
+
 ## [1.24.5] — 2026-10-30
 
 This patch corrects two dependency floors so that every version the package
