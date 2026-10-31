@@ -252,7 +252,9 @@ def test_compare_duplicate_ids_first_row_wins() -> None:
     a = _envelope(dims=[_dim("evar1", "First"), _dim("evar1", "Second")])
     b = _envelope(captured_at="2026-04-27T00:00:00+00:00", dims=[_dim("evar1", "First")])
     dims = next(c for c in compare(a, b).components if c.component_type == "dimensions")
-    assert dims.added == [] and dims.removed == [] and dims.modified == []
+    assert dims.added == []
+    assert dims.removed == []
+    assert dims.modified == []
 
 
 def test_compare_duplicate_ids_on_both_sides_unchanged() -> None:

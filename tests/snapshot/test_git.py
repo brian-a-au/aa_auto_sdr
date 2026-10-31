@@ -105,7 +105,7 @@ def test_git_show_decodes_utf8_regardless_of_locale(tiny_repo: Path, monkeypatch
     # turns UTF-8 names into mojibake and reports false name changes.
     import locale
 
-    monkeypatch.setattr(locale, "getpreferredencoding", lambda do_setlocale=True: "latin-1")
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda *_args: "latin-1")
     monkeypatch.setattr(locale, "getencoding", lambda: "latin-1")
     _commit_bytes(tiny_repo, "utf8.json", '{"name": "Café — 日本"}\n'.encode())
     assert git_show(ref="HEAD", path="utf8.json", repo_root=tiny_repo) == '{"name": "Café — 日本"}\n'
