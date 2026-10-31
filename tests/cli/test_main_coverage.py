@@ -332,3 +332,16 @@ def test_dispatch_list_virtual_reportsuites(monkeypatch: pytest.MonkeyPatch) -> 
     rc = _dispatch_argv(["--list-virtual-reportsuites", "--profile", "prod"])
     assert rc == 0
     assert captured["profile"] == "prod"
+
+
+def test_template_not_an_xlsx_package_is_usage(tmp_path: Path) -> None:
+    xlsx = tmp_path / "template.xlsx"
+    xlsx.write_bytes(b"not a zip")
+    ns = build_parser().parse_args(["rs1", "--template", str(xlsx)])
+    assert _validate_template_modifiers(ns) == int(ExitCode.USAGE)
+
+
+def test_is_xlsx_package_false_when_unreadable(tmp_path: Path) -> None:
+    from aa_auto_sdr.cli.main import _is_xlsx_package
+
+    assert _is_xlsx_package(tmp_path / "missing.xlsx") is False

@@ -135,7 +135,6 @@ def _from_sdr_json(payload: dict[str, Any], *, rendered: RenderProvenance) -> Sd
     )
 
 
-
 def _require_quality_parts(quality: dict[str, Any], err: type[AaAutoSdrError]) -> None:
     """Shape-check the quality parts the writers read, with the same rules
     snapshot `validate_envelope` applies: a part may be absent, but a
@@ -151,6 +150,7 @@ def _require_quality_parts(quality: dict[str, Any], err: type[AaAutoSdrError]) -
             rows = quality[key]
             if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
                 raise err(f"SDR JSON 'quality.{key}' must be a list of objects")
+
 
 def _from_envelope(env: dict[str, Any], *, rendered: RenderProvenance) -> SdrDocument:
     # Lazy: the snapshot package is only needed for this shape.

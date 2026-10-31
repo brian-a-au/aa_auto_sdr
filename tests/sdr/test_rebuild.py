@@ -465,7 +465,6 @@ def test_ordinary_rsids_accepted(ok: str) -> None:
     assert doc.report_suite.rsid == ok
 
 
-
 @pytest.mark.parametrize(
     ("quality", "match"),
     [
