@@ -718,4 +718,7 @@ def test_pipe_run_summary_write_failure_keeps_stdout_clean(mock_client_cls, env_
     out, err = capsys.readouterr()
     assert rc == 15
     assert json.loads(out)["report_suite"]["rsid"] == "demo.prod"
-    assert "could not write run summary" in err
+    envelope = json.loads(err.strip().splitlines()[-1])
+    assert envelope["error"]["code"] == 15
+    assert envelope["error"]["type"] == "FileNotFoundError"
+    assert "No such file or directory" in envelope["error"]["message"]

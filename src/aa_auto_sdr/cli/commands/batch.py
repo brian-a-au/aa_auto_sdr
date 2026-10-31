@@ -72,11 +72,10 @@ def _emit_run_summary(
 ) -> bool:
     """Write the run summary. Returns False only when the file write failed.
 
-     `batch_result` carries the sample fields on a
-    real run; `sample` supplies them on the `--dry-run` path, which returns
-    before `run_batch` and so has no BatchResult. On a dry run without
-    `--sample-seed` the recorded `rsids` are one illustrative draw, not the
-    draw a later real run will make."""
+    `batch_result` carries the sample fields on a real run; `sample` supplies
+    them on the `--dry-run` path, which returns before `run_batch` and so has
+    no BatchResult. On a dry run without `--sample-seed` the recorded `rsids`
+    are one illustrative draw, not the draw a later real run will make."""
     if not run_summary_json:
         return True
     source = batch_result if batch_result is not None else sample

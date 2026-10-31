@@ -79,7 +79,12 @@ def _emit_run_summary(
         try:
             atomic_write_text(Path(run_summary_json), payload + "\n")
         except OSError as exc:
-            print(f"error: could not write run summary {run_summary_json}: {exc}", file=sys.stderr, flush=True)
+            _emit_pipe_or_print(
+                is_pipe=is_pipe,
+                exc=exc,
+                message=f"error: could not write run summary {run_summary_json}: {exc}",
+                exit_code=ExitCode.OUTPUT.value,
+            )
             return False
         # Under --output - stdout carries only the SDR JSON.
         print(f"wrote run summary: {run_summary_json}", flush=True, file=sys.stderr if is_pipe else sys.stdout)
