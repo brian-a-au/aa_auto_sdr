@@ -52,6 +52,7 @@ def _emit_run_summary(
     profile: str | None,
     per_rsid: list[PerRsidResult],
     show_timings: bool,
+    is_pipe: bool = False,
 ) -> None:
     if not run_summary_json:
         return
@@ -75,7 +76,8 @@ def _emit_run_summary(
     else:
         payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
         atomic_write_text(Path(run_summary_json), payload + "\n")
-        print(f"wrote run summary: {run_summary_json}", flush=True)
+        # Under --output - stdout carries only the SDR JSON.
+        print(f"wrote run summary: {run_summary_json}", flush=True, file=sys.stderr if is_pipe else sys.stdout)
 
 
 def _emit_pipe_or_print(
@@ -322,6 +324,14 @@ def _run_impl(
         with timings.Timer("resolve"):
             canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid, name_match=name_match)
     except AmbiguousMatchError as e:
+        if is_pipe:
+            # Pipe-path failures are one JSON envelope on stderr, like every
+            # other error on this path.
+            from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+            emit_error_envelope(e, ExitCode.NOT_FOUND.value)
+            _emit_timings_if_enabled(show_timings=show_timings)
+            return ExitCode.NOT_FOUND.value
         print(
             f"error: identifier '{rsid}' is ambiguous; matched {len(e.candidates)} report suites:",
             file=sys.stderr,
@@ -410,6 +420,7 @@ def _run_impl(
             for rs in canonical_rsids
         ]
         _emit_run_summary(
+            is_pipe=is_pipe,
             run_summary_json=run_summary_json,
             started_at=started_at,
             finished_at=datetime.now(UTC),
@@ -456,6 +467,7 @@ def _run_impl(
                     ),
                 )
                 _emit_run_summary(
+                    is_pipe=is_pipe,
                     run_summary_json=run_summary_json,
                     started_at=started_at,
                     finished_at=datetime.now(UTC),
@@ -479,6 +491,7 @@ def _run_impl(
                     ),
                 )
                 _emit_run_summary(
+                    is_pipe=is_pipe,
                     run_summary_json=run_summary_json,
                     started_at=started_at,
                     finished_at=datetime.now(UTC),
@@ -519,6 +532,7 @@ def _run_impl(
                         ),
                     )
                     _emit_run_summary(
+                        is_pipe=is_pipe,
                         run_summary_json=run_summary_json,
                         started_at=started_at,
                         finished_at=datetime.now(UTC),
@@ -556,6 +570,7 @@ def _run_impl(
             )
             if rc != ExitCode.OK.value:
                 _emit_run_summary(
+                    is_pipe=is_pipe,
                     run_summary_json=run_summary_json,
                     started_at=started_at,
                     finished_at=datetime.now(UTC),
@@ -566,6 +581,7 @@ def _run_impl(
                 _emit_timings_if_enabled(show_timings=show_timings)
                 return rc
         _emit_run_summary(
+            is_pipe=is_pipe,
             run_summary_json=run_summary_json,
             started_at=started_at,
             finished_at=datetime.now(UTC),
@@ -626,6 +642,7 @@ def _run_impl(
                 ),
             )
             _emit_run_summary(
+                is_pipe=is_pipe,
                 run_summary_json=run_summary_json,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -649,6 +666,7 @@ def _run_impl(
                 ),
             )
             _emit_run_summary(
+                is_pipe=is_pipe,
                 run_summary_json=run_summary_json,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -672,6 +690,7 @@ def _run_impl(
                 ),
             )
             _emit_run_summary(
+                is_pipe=is_pipe,
                 run_summary_json=run_summary_json,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -695,6 +714,7 @@ def _run_impl(
                 ),
             )
             _emit_run_summary(
+                is_pipe=is_pipe,
                 run_summary_json=run_summary_json,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -729,6 +749,7 @@ def _run_impl(
                 file=sys.stderr,
             )
             _emit_run_summary(
+                is_pipe=is_pipe,
                 run_summary_json=run_summary_json,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -749,6 +770,7 @@ def _run_impl(
         )
         if rc != ExitCode.OK.value:
             _emit_run_summary(
+                is_pipe=is_pipe,
                 run_summary_json=run_summary_json,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
@@ -765,6 +787,7 @@ def _run_impl(
         os_open(first_output)
 
     _emit_run_summary(
+        is_pipe=is_pipe,
         run_summary_json=run_summary_json,
         started_at=started_at,
         finished_at=datetime.now(UTC),
