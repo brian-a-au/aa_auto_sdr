@@ -481,7 +481,7 @@ A filled workbook also carries two appended sheets that agents can read without 
 
 | Flag | Semantics |
 |------|-----------|
-| `--template PATH` | Path to an existing `.xlsx` template. Switches the Excel writer to fill-mode for the run. Required readable `.xlsx`; missing/dir/non-`.xlsx` → USAGE (2). Routes resolved `excel` formats to `excel-template`. Composes with `--batch`. Rejected with `--watch`, `--diff`, list/inspect actions, and naturally rejected by `--agent-mode` (no `excel` in agent-mode's forced format set). |
+| `--template PATH` | Path to an existing `.xlsx` template. Switches the Excel writer to fill-mode for the run. Required readable `.xlsx`; missing/dir/non-`.xlsx` → USAGE (2). `--format excel-template` without `--template` → USAGE (2). Routes resolved `excel` formats to `excel-template`. Composes with `--batch`. Rejected with `--watch`, `--diff`, list/inspect actions, and naturally rejected by `--agent-mode` (no `excel` in agent-mode's forced format set). |
 | `--template-organization NAME` | Organization string written to `Glossary!C2`. Defaults to report suite name. Requires `--template`. |
 
 **Dropped flags (v1.16.0 roadmap):**

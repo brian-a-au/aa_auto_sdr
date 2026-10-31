@@ -118,7 +118,7 @@ Path to an existing `.xlsx` template. When set, every resolved `excel` format sl
 
 The fill writer is non-destructive: it matches existing skeleton rows by id and overwrites in-place, leaves non-matching skeleton rows untouched, and appends API-only ids past `max_row` (with a `template_overflow` WARNING).
 
-USAGE (2) if the path is missing, a directory, or non-`.xlsx`. USAGE (2) if combined with `--diff` / `--watch` / a `--list-*` action / `--trending-window` / `--compare-with-prev` / `--inventory-summary` / `--describe-reportsuite`. USAGE (2) if `--format` resolves to a set without `excel` / `excel-template`.
+USAGE (2) if the path is missing, a directory, or non-`.xlsx`. USAGE (2) if combined with `--diff` / `--watch` / a `--list-*` action / `--trending-window` / `--compare-with-prev` / `--inventory-summary` / `--describe-reportsuite`. USAGE (2) if `--format` resolves to a set without `excel` / `excel-template`. USAGE (2) for `--format excel-template` without `--template` on a single report suite, `--batch` or `--render-from`.
 
 ### `--template-organization NAME`
 

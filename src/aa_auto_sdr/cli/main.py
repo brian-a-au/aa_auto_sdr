@@ -224,7 +224,11 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
 
     if template is None:
         # The template-fill writer needs a template path; without one it fails
-        # at write time. Unknown format names are reported elsewhere.
+        # at write time. Unknown format names are reported elsewhere. Only the
+        # routes that generate an SDR care; other actions report their own
+        # format errors.
+        if _non_generating_action_selected(ns) or bool(getattr(ns, "watch", False)):
+            return int(ExitCode.OK)
         from aa_auto_sdr.output.registry import resolve_formats
 
         try:

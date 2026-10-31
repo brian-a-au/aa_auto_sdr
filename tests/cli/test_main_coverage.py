@@ -391,3 +391,29 @@ def test_is_xlsx_package_false_when_zip_header_is_corrupt(
 
     monkeypatch.setattr(zipfile, "ZipFile", corrupt)
     assert main_mod._is_xlsx_package(tmp_path / "t.xlsx") is False
+
+
+def test_excel_template_check_skips_diff_route(capsys) -> None:
+    from aa_auto_sdr.cli.main import run
+
+    rc = run(["--diff", "a.json", "b.json", "--format", "excel-template"])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OUTPUT)
+    assert "not available for --diff" in err
+    assert "requires --template" not in err
+
+
+def test_excel_template_check_skips_trending_route(capsys) -> None:
+    from aa_auto_sdr.cli.main import run
+
+    rc = run(["--trending-window", "7d", "demo", "--format", "excel-template"])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OUTPUT)
+    assert "requires --template" not in err
+
+
+def test_excel_template_check_skips_list_route(capsys) -> None:
+    from aa_auto_sdr.cli.main import run
+
+    run(["--list-reportsuites", "--format", "excel-template"])
+    assert "requires --template" not in capsys.readouterr().err
