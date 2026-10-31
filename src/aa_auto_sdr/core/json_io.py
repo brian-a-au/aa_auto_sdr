@@ -25,7 +25,10 @@ def write_json(path: Path, payload: Any, *, indent: int = 2) -> None:
     tmp = Path(tmp_str)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(payload, fh, indent=indent, sort_keys=True, ensure_ascii=False)
+            # One write of a json.dumps() string, not json.dump(): dump()
+            # streams through the pure-Python encoder one token at a time,
+            # while dumps() can use the C encoder. Same bytes either way.
+            fh.write(json.dumps(payload, indent=indent, sort_keys=True, ensure_ascii=False))
             fh.write("\n")
         os.replace(tmp, path)
     except BaseException:
