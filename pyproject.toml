@@ -32,21 +32,21 @@ classifiers = [
     "Topic :: Office/Business",
 ]
 dependencies = [
-    # 0.5.3 is excluded: it dropped the `pyjwt` dependency declaration while its
-    # `token_provider` module still ran `import jwt` at load time, so a fresh
-    # install resolving to 0.5.3 failed with `ModuleNotFoundError: No module
-    # named 'jwt'` (upstream issue #116). 0.5.3.post1 fixed it by removing the
-    # JWT auth path entirely, which this tool never used (OAuth S2S only).
-    # 0.5.4 first supports raw dimensions AND metrics without column loss.
-    "aanalytics2>=0.5.4,!=0.5.3",
+    # 0.5.4 first supports raw dimensions AND metrics without column loss, but
+    # every 0.5.4 release is yanked on PyPI, so 0.5.5 is the real floor. It
+    # also stays clear of 0.5.3, which crashed at import with
+    # `ModuleNotFoundError: No module named 'jwt'` (upstream issue #116).
+    "aanalytics2>=0.5.5",
     "openpyxl>=3.1.0",
     "pandas>=2.3.3,<4",
     # `requests` is imported directly by api/resilience.py (`is_retryable`
     # checks `ConnectionError` / `Timeout` subclasses). aanalytics2 already
     # brings it transitively; declared here to keep the import surface
     # explicit so a future SDK-backend swap doesn't break us at module-
-    # import time.
-    "requests>=2.0",
+    # import time. Older releases fail to import on Python 3.10+
+    # (`collections.MutableMapping`) or carry security advisories; 2.32.4
+    # fixes the latest (`.netrc` credential leak).
+    "requests>=2.32.4",
     "xlsxwriter>=3.2.9",
 ]
 

@@ -47,13 +47,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aanalytics2", specifier = "!=0.5.3,>=0.5.4" },
+    { name = "aanalytics2", specifier = ">=0.5.5" },
     { name = "argcomplete", marker = "extra == 'completion'", specifier = ">=3.0.0" },
     { name = "notion-client", marker = "extra == 'notion'", specifier = ">=3.0.0" },
     { name = "openpyxl", specifier = ">=3.1.0" },
     { name = "pandas", specifier = ">=2.3.3,<4" },
     { name = "python-dotenv", marker = "extra == 'env'", specifier = ">=1.0.0" },
-    { name = "requests", specifier = ">=2.0" },
+    { name = "requests", specifier = ">=2.32.4" },
     { name = "xlsxwriter", specifier = ">=3.2.9" },
 ]
 provides-extras = ["completion", "env", "notion"]
