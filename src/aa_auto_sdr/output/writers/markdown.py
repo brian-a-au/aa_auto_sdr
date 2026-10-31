@@ -66,9 +66,9 @@ def _cell(value: Any) -> str:
     """Stringify a value and escape it for a GFM table cell."""
     s = stringify_cell(value)
     if isinstance(value, (dict, list)):
-        # Wrap nested JSON in backticks so it renders as inline code in tables.
-        # Pipes inside JSON still need escaping.
-        return f"`{escape_pipe(s)}`"
+        # Nested JSON renders as inline code. _code_cell sizes the fence past
+        # any backtick run in the JSON; without one it is a single backtick.
+        return _code_cell(s)
     return escape_pipe(s)
 
 
