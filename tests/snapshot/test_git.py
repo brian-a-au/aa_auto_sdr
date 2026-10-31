@@ -84,3 +84,35 @@ def test_git_show_rejects_option_like_ref_or_path(ref: str, path: str, tmp_path:
     monkeypatch.setattr(subprocess, "run", _no_subprocess)
     with pytest.raises(SnapshotResolveError, match="must not start with '-'"):
         git_show(ref=ref, path=path, repo_root=tmp_path)
+
+
+def _commit_bytes(repo: Path, name: str, data: bytes) -> None:
+    (repo / name).write_bytes(data)
+    subprocess.run(["git", "add", name], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", name], cwd=repo, check=True)
+
+
+def test_git_show_non_utf8_blob_raises_resolve_error(tiny_repo: Path) -> None:
+    # A Latin-1 byte (0xE9) is not UTF-8; it must surface as a snapshot
+    # error (exit 16), the same as the filesystem path reader.
+    _commit_bytes(tiny_repo, "latin1.json", b'{"name": "Caf\xe9"}\n')
+    with pytest.raises(SnapshotResolveError, match="not valid UTF-8"):
+        git_show(ref="HEAD", path="latin1.json", repo_root=tiny_repo)
+
+
+def test_git_show_decodes_utf8_regardless_of_locale(tiny_repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # text=True decodes with the locale encoding (cp1252 on Windows), which
+    # turns UTF-8 names into mojibake and reports false name changes.
+    import locale
+
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda do_setlocale=True: "latin-1")
+    monkeypatch.setattr(locale, "getencoding", lambda: "latin-1")
+    _commit_bytes(tiny_repo, "utf8.json", '{"name": "Café — 日本"}\n'.encode())
+    assert git_show(ref="HEAD", path="utf8.json", repo_root=tiny_repo) == '{"name": "Café — 日本"}\n'
+
+
+def test_git_show_crlf_blob_still_parses(tiny_repo: Path) -> None:
+    import json
+
+    _commit_bytes(tiny_repo, "crlf.json", b'{\r\n  "marker": "crlf"\r\n}\r\n')
+    assert json.loads(git_show(ref="HEAD", path="crlf.json", repo_root=tiny_repo)) == {"marker": "crlf"}
