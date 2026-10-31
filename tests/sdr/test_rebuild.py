@@ -497,3 +497,44 @@ def test_sdr_json_quality_block_without_parts_accepted() -> None:
     payload["quality"] = {}
     doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
     assert doc.quality == {}
+
+
+# --- quality scalar values ---------------------------------------------------
+
+BAD_QUALITY = [
+    {"summary": {"total": "many"}},
+    {"summary": {"by_severity": {"HIGH": "x"}}},
+    {"summary": {"excepted": [1]}},
+    {"issues": [{"severity": "HIGH", "component_ids": 5}]},
+]
+
+
+@pytest.mark.parametrize("quality", BAD_QUALITY)
+def test_sdr_json_bad_quality_values_raise_payload_error(quality) -> None:
+    payload = _sdr_json(_doc())
+    payload["quality"] = quality
+    with pytest.raises(SdrPayloadError):
+        rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+@pytest.mark.parametrize("quality", BAD_QUALITY)
+def test_envelope_bad_quality_values_raise_snapshot_corrupt(quality) -> None:
+    env = _envelope(_doc())
+    env["quality"] = quality
+    with pytest.raises(SnapshotCorruptError):
+        rebuild.document_from_payload(env, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+@pytest.mark.parametrize(
+    "quality",
+    [
+        {"summary": {"total": "3", "excepted": 2.0, "by_severity": {"HIGH": True}}},
+        {"issues": [{"severity": "HIGH", "component_ids": "metrics/a"}]},
+        {"summary": {"by_severity": {"NOT_A_LEVEL": "x"}}},  # key the renderer never reads
+    ],
+)
+def test_values_that_render_today_still_render(quality) -> None:
+    for payload in (_sdr_json(_doc()), _envelope(_doc())):
+        payload["quality"] = quality
+        doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+        doc.to_dict()
