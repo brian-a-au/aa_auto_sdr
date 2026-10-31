@@ -679,3 +679,6 @@ def test_pipe_ambiguous_name_emits_json_envelope(mock_client_cls, env_creds, cap
     envelope = json.loads(captured.err.strip())
     assert envelope["error"]["code"] == 13
     assert envelope["error"]["type"] == "AmbiguousMatchError"
+    # An unattended caller needs the candidates to retry with one of them.
+    assert "a.prod (Demo)" in envelope["error"]["message"]
+    assert "b.prod (Demo)" in envelope["error"]["message"]

@@ -345,3 +345,20 @@ def test_is_xlsx_package_false_when_unreadable(tmp_path: Path) -> None:
     from aa_auto_sdr.cli.main import _is_xlsx_package
 
     assert _is_xlsx_package(tmp_path / "missing.xlsx") is False
+
+
+@pytest.mark.parametrize("error", [NotImplementedError("zip file version 7.3"), ValueError("bad"), EOFError()])
+def test_is_xlsx_package_false_when_zip_header_is_corrupt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: BaseException
+) -> None:
+    # A corrupted extract-version byte makes ZipFile() raise
+    # NotImplementedError; the validator must report it, not crash.
+    import zipfile
+
+    from aa_auto_sdr.cli import main as main_mod
+
+    def corrupt(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr(zipfile, "ZipFile", corrupt)
+    assert main_mod._is_xlsx_package(tmp_path / "t.xlsx") is False

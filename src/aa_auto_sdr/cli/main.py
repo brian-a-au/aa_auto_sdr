@@ -276,7 +276,9 @@ def _is_xlsx_package(path: Path) -> bool:
     try:
         with zipfile.ZipFile(path) as zf:
             return "[Content_Types].xml" in zf.namelist()
-    except (zipfile.BadZipFile, OSError):
+    # A damaged header can raise more than BadZipFile (e.g. NotImplementedError
+    # for a corrupted extract version).
+    except (zipfile.BadZipFile, OSError, NotImplementedError, ValueError, EOFError):
         return False
 
 

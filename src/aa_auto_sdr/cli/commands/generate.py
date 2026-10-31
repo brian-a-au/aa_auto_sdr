@@ -329,7 +329,9 @@ def _run_impl(
             # other error on this path.
             from aa_auto_sdr.output.error_envelope import emit_error_envelope
 
-            emit_error_envelope(e, ExitCode.NOT_FOUND.value)
+            # The candidates go into the message so a caller can retry with one.
+            listed = ", ".join(f"{cand_rsid} ({cand_name})" for cand_rsid, cand_name in e.candidates)
+            emit_error_envelope(AmbiguousMatchError(f"{e}: {listed}", e.candidates), ExitCode.NOT_FOUND.value)
             _emit_timings_if_enabled(show_timings=show_timings)
             return ExitCode.NOT_FOUND.value
         print(
