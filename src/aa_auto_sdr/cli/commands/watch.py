@@ -304,6 +304,13 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
             file=sys.stderr,
         )
         return int(ExitCode.USAGE)
+    try:
+        # The loop computes cycle_start + interval; reject an interval that
+        # overflows datetime here rather than crash after the first cycle.
+        datetime.now(UTC) + interval
+    except OverflowError:
+        print(f"error: --interval is out of range (got {ns.interval!r})", file=sys.stderr)
+        return int(ExitCode.USAGE)
 
     threshold = int(ns.watch_threshold)
 

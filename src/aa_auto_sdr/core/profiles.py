@@ -39,7 +39,8 @@ def read_config_object(path: Path, label: str) -> dict[str, Any]:
     A file that cannot be opened, is not UTF-8 JSON, or holds something other
     than an object raises ConfigError (exit 10) naming `label` and the path."""
     try:
-        with path.open(encoding="utf-8") as fh:
+        # utf-8-sig: Windows PowerShell 5 writes UTF-8 with a byte-order mark.
+        with path.open(encoding="utf-8-sig") as fh:
             data = json.load(fh)
     except OSError as exc:
         raise ConfigError(f"{label}: could not read {path}: {exc.strerror or exc}") from exc

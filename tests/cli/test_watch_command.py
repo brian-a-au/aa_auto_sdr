@@ -142,6 +142,15 @@ class TestUsageValidation:
         assert rc == ExitCode.USAGE
         assert "greater than zero" in capsys.readouterr().err
 
+    def test_watch_with_out_of_range_interval_returns_usage(self, capsys) -> None:
+        # The timedelta fits, but cycle_start + interval overflows datetime;
+        # that used to crash the loop after the baseline cycle.
+        inj = _make_inj()
+        rc = watch_run(_ns(interval="3000000d"), _injected=inj)
+        assert rc == ExitCode.USAGE
+        assert "--interval is out of range" in capsys.readouterr().err
+        assert inj.emitter.events == []
+
     def test_watch_with_no_rsids_returns_usage(self) -> None:
         ns = _ns(rsids=[])
         rc = watch_run(ns, _injected=_make_inj())

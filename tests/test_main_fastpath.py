@@ -279,3 +279,100 @@ def test_help_lists_render_from() -> None:
         check=True,
     )
     assert "--render-from TOKEN" in result.stdout
+
+
+def _cp1252_env(tmp_path) -> dict[str, str]:
+    import os
+
+    # A Windows console redirected to a file or pipe on Python 3.11-3.14.
+    env = {k: v for k, v in os.environ.items() if k not in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE")}
+    env.update(HOME=str(tmp_path), PYTHONIOENCODING="cp1252", PYTHONUTF8="0")
+    env.update(ORG_ID="o@AdobeOrg", CLIENT_ID="c", SECRET="s", SCOPES="openid")
+    return env
+
+
+def test_config_status_on_cp1252_stdout_does_not_crash(tmp_path) -> None:
+    # The chain markers (U+2713, U+2298) are not in cp1252; printing them
+    # raised UnicodeEncodeError and exited 1.
+    result = subprocess.run(
+        [sys.executable, "-m", "aa_auto_sdr", "--config-status", "--quiet"],
+        capture_output=True,
+        cwd=tmp_path,
+        env=_cp1252_env(tmp_path),
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    assert b"\\u2713" in result.stdout or b"\\u2298" in result.stdout
+
+
+def _cp1252_stdout(monkeypatch):
+    import io
+
+    buf = io.BytesIO()
+    stream = io.TextIOWrapper(buf, encoding="cp1252", errors="strict", write_through=True)
+    monkeypatch.setattr(sys, "stdout", stream)
+    return buf, stream
+
+
+def test_softened_stdout_keeps_json_valid(monkeypatch) -> None:
+    # Characters the code page lacks are written as JSON-valid \\uXXXX
+    # escapes (surrogate pairs above the BMP), so an NDJSON watch event or
+    # --agent-mode payload still parses to the same values instead of
+    # crashing, or exiting 0 with JSON a parser rejects.
+    import json
+
+    from aa_auto_sdr.__main__ import _soften_stdout_errors
+    from aa_auto_sdr.output.watch_event import StdoutEmitter
+
+    buf, _stream = _cp1252_stdout(monkeypatch)
+    _soften_stdout_errors()
+    event = {"event": "error", "error": "Łódź 📊 \x81 café"}
+    StdoutEmitter().emit(event)
+    StdoutEmitter().emit({"event": "next"})
+    first, second = buf.getvalue().decode("cp1252").splitlines()
+    assert json.loads(first) == event
+    assert json.loads(second) == {"event": "next"}
+    assert "\\ud83d\\udcca" in first
+    assert "ó" in first  # cp1252 can encode it, so its bytes are unchanged
+
+
+def test_soften_leaves_utf8_stdout_alone(monkeypatch) -> None:
+    import io
+
+    from aa_auto_sdr.__main__ import _soften_stdout_errors
+
+    stream = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", errors="strict")
+    calls: list[dict] = []
+    monkeypatch.setattr(stream, "reconfigure", lambda **kw: calls.append(kw), raising=False)
+    monkeypatch.setattr(sys, "stdout", stream)
+    _soften_stdout_errors()
+    assert calls == []
+
+
+def test_soften_ignores_an_unknown_stdout_encoding(monkeypatch) -> None:
+    from aa_auto_sdr.__main__ import _soften_stdout_errors
+
+    class OddStream:
+        encoding = "no-such-codec"
+        errors = "strict"
+
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def reconfigure(self, **kw) -> None:
+            self.calls.append(kw)
+
+    stream = OddStream()
+    monkeypatch.setattr(sys, "stdout", stream)
+    _soften_stdout_errors()
+    assert stream.calls == []
+
+
+def test_json_escape_handler_only_handles_encode_errors() -> None:
+    import pytest
+
+    from aa_auto_sdr.__main__ import _json_escape
+
+    err = UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+    with pytest.raises(UnicodeDecodeError):
+        _json_escape(err)

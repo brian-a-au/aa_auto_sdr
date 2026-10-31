@@ -7,6 +7,7 @@ Action flags are mutually exclusive — one action per invocation. Common option
 from __future__ import annotations
 
 import argparse
+import math
 from pathlib import Path
 
 from aa_auto_sdr.cli.option_resolution import explicit_long_option_dests
@@ -42,6 +43,9 @@ def _non_negative_int(s: str) -> int:
 
 def _positive_float(s: str) -> float:
     v = float(s)
+    # isfinite first: nan <= 0 is False, so nan would pass the sign check.
+    if not math.isfinite(v):
+        raise argparse.ArgumentTypeError(f"must be a finite positive number, got {s}")
     if v <= 0:
         raise argparse.ArgumentTypeError(f"must be positive, got {v}")
     return v

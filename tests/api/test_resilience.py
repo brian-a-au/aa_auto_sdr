@@ -244,3 +244,25 @@ class TestClassifyPermanentVrsShapeError:
         from aa_auto_sdr.api.resilience import classify_permanent_vrs_shape_error
 
         assert classify_permanent_vrs_shape_error(lambda: 42) == 42
+
+
+@pytest.mark.parametrize("field", ["base_delay", "max_delay"])
+def test_policy_rejects_non_finite_delay(field: str) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        RetryPolicy(**{field: float("nan")})
+
+
+def test_backoff_does_not_overflow_with_large_max_retries(monkeypatch: pytest.MonkeyPatch) -> None:
+    # base_delay * 2**attempt used to be computed before the max_delay cap and
+    # overflowed float conversion past attempt ~1024.
+    sleeps: list[float] = []
+    monkeypatch.setattr("aa_auto_sdr.api.resilience.time.sleep", sleeps.append)
+    policy = RetryPolicy(max_retries=1100, base_delay=0.5, max_delay=10.0)
+
+    def always_transient() -> None:
+        raise TransientApiError("blip")
+
+    with pytest.raises(TransientApiError):
+        with_retries(always_transient, policy=policy)
+    assert len(sleeps) == 1100
+    assert max(sleeps) <= policy.max_delay
