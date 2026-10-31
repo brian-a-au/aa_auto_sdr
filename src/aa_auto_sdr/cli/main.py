@@ -223,6 +223,17 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
         return int(ExitCode.USAGE)
 
     if template is None:
+        # The template-fill writer needs a template path; without one it fails
+        # at write time. Unknown format names are reported elsewhere.
+        from aa_auto_sdr.output.registry import resolve_formats
+
+        try:
+            resolved_formats = resolve_formats(getattr(ns, "format", None) or "")
+        except KeyError:
+            resolved_formats = []
+        if "excel-template" in resolved_formats:
+            print("error: --format excel-template requires --template", file=sys.stderr)
+            return int(ExitCode.USAGE)
         return int(ExitCode.OK)
 
     if not os.path.exists(template):
