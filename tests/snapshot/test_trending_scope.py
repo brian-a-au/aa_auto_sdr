@@ -50,3 +50,52 @@ def test_trending_markdown_and_console_name_non_comparable_families(tmp_path: Pa
         assert "not comparable" in text.lower()
         assert "not collected in target" in text
         assert "segments" in text
+
+
+_NEW_DIM = {"id": "variables/evar2", "name": "eVar 2"}
+_WINDOW = WindowSpec(
+    duration="30d",
+    start_at=datetime(2026, 10, 1, tzinfo=UTC),
+    end_at=datetime(2026, 11, 1, tzinfo=UTC),
+)
+
+
+def _write_series(tmp_path: Path, specs: list[tuple[str, list[str], bool]]) -> None:
+    rs = tmp_path / "rs1"
+    rs.mkdir()
+    for ts, collected, extra in specs:
+        e = _env(collected=collected, captured_at=ts)
+        if extra:
+            e["components"]["dimensions"].append(dict(_NEW_DIM))
+        (rs / (ts.replace(":", "-") + ".json")).write_text(json.dumps(e))
+
+
+def test_mixed_scope_series_counts_change_once(tmp_path: Path) -> None:
+    # full A, dims-only B, dims-only C (+1 dimension), full D (still has it)
+    _write_series(
+        tmp_path,
+        [
+            ("2026-10-24T12:00:00+00:00", FULL, False),
+            ("2026-10-25T12:00:00+00:00", ["dimensions"], False),
+            ("2026-10-26T12:00:00+00:00", ["dimensions"], True),
+            ("2026-10-27T12:00:00+00:00", FULL, True),
+        ],
+    )
+    report = compute_trending(snapshot_dir=tmp_path, rsid="rs1", window=_WINDOW)
+    assert report.drift.total_changes == 1
+    assert report.drift.churn_by_component_type["dimensions"] == 1
+
+
+def test_all_full_series_drift_unchanged(tmp_path: Path) -> None:
+    _write_series(
+        tmp_path,
+        [
+            ("2026-10-24T12:00:00+00:00", FULL, False),
+            ("2026-10-25T12:00:00+00:00", FULL, True),
+            ("2026-10-26T12:00:00+00:00", FULL, False),
+            ("2026-10-27T12:00:00+00:00", FULL, True),
+        ],
+    )
+    report = compute_trending(snapshot_dir=tmp_path, rsid="rs1", window=_WINDOW)
+    assert report.drift.total_changes == 3
+    assert report.drift.volatility_score == 0.167  # value observed before the fix
