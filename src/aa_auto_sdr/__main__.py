@@ -3,12 +3,32 @@ without importing any heavy dependency. Delegates everything else to cli.main.""
 
 from __future__ import annotations
 
+import codecs
 import sys
 
 from aa_auto_sdr.core.version import __version__
 
 _FASTPATH_VERSION = {"-V", "--version"}
 _FASTPATH_HELP = {"-h", "--help"}
+
+
+def _soften_stdout_errors() -> None:
+    """On a stdout that is not UTF-8, write characters it cannot encode as
+    backslash escapes instead of raising UnicodeEncodeError.
+
+    Python 3.11-3.14 on Windows uses the ANSI code page (cp1252) when stdout
+    is a pipe or file, so a single glyph or non-Latin name killed the
+    command. Output a UTF-8 stdout can carry is never touched."""
+    stream = sys.stdout
+    reconfigure = getattr(stream, "reconfigure", None)
+    if reconfigure is None or getattr(stream, "errors", None) != "strict":
+        return
+    try:
+        if codecs.lookup(stream.encoding).name == "utf-8":
+            return
+    except (LookupError, TypeError):
+        return
+    reconfigure(errors="backslashreplace")
 
 
 def _print_version() -> int:
@@ -168,6 +188,7 @@ def _print_help() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _soften_stdout_errors()
     args = sys.argv[1:] if argv is None else argv
     if args and args[0] in _FASTPATH_VERSION:
         return _print_version()
