@@ -12,9 +12,30 @@ _FASTPATH_VERSION = {"-V", "--version"}
 _FASTPATH_HELP = {"-h", "--help"}
 
 
+_STDOUT_ERRORS = "aa_auto_sdr.json_escape"
+
+
+def _json_escape(exc: UnicodeError) -> tuple[str, int]:
+    r"""Codec error handler: write each character the stream cannot encode
+    as \uXXXX, with a surrogate pair above the BMP. Inside a JSON string
+    that is a valid escape for the same character, so JSON output stays
+    parseable; in plain text it reads like backslashreplace."""
+    if not isinstance(exc, UnicodeEncodeError):
+        raise exc
+    parts: list[str] = []
+    for ch in exc.object[exc.start : exc.end]:
+        code = ord(ch)
+        if code > 0xFFFF:
+            code -= 0x10000
+            parts.append(f"\\u{0xD800 + (code >> 10):04x}\\u{0xDC00 + (code & 0x3FF):04x}")
+        else:
+            parts.append(f"\\u{code:04x}")
+    return "".join(parts), exc.end
+
+
 def _soften_stdout_errors() -> None:
     """On a stdout that is not UTF-8, write characters it cannot encode as
-    backslash escapes instead of raising UnicodeEncodeError.
+    \\uXXXX escapes instead of raising UnicodeEncodeError.
 
     Python 3.11-3.14 on Windows uses the ANSI code page (cp1252) when stdout
     is a pipe or file, so a single glyph or non-Latin name killed the
@@ -28,7 +49,8 @@ def _soften_stdout_errors() -> None:
             return
     except (LookupError, TypeError):
         return
-    reconfigure(errors="backslashreplace")
+    codecs.register_error(_STDOUT_ERRORS, _json_escape)
+    reconfigure(errors=_STDOUT_ERRORS)
 
 
 def _print_version() -> int:

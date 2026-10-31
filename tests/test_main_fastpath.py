@@ -314,17 +314,26 @@ def _cp1252_stdout(monkeypatch):
     return buf, stream
 
 
-def test_soften_lets_watch_event_with_astral_char_through(monkeypatch) -> None:
-    # Review focus: a character outside the BMP becomes \U0001f4ca, which is
-    # not a JSON escape, but the loop keeps running instead of crashing.
+def test_softened_stdout_keeps_json_valid(monkeypatch) -> None:
+    # Characters the code page lacks are written as JSON-valid \\uXXXX
+    # escapes (surrogate pairs above the BMP), so an NDJSON watch event or
+    # --agent-mode payload still parses to the same values instead of
+    # crashing, or exiting 0 with JSON a parser rejects.
+    import json
+
     from aa_auto_sdr.__main__ import _soften_stdout_errors
     from aa_auto_sdr.output.watch_event import StdoutEmitter
 
-    buf, stream = _cp1252_stdout(monkeypatch)
+    buf, _stream = _cp1252_stdout(monkeypatch)
     _soften_stdout_errors()
-    StdoutEmitter().emit({"event": "error", "error": "Łódź 📊"})
-    assert stream.errors == "backslashreplace"
-    assert b"\\u0141" in buf.getvalue()
+    event = {"event": "error", "error": "Łódź 📊 \x81 café"}
+    StdoutEmitter().emit(event)
+    StdoutEmitter().emit({"event": "next"})
+    first, second = buf.getvalue().decode("cp1252").splitlines()
+    assert json.loads(first) == event
+    assert json.loads(second) == {"event": "next"}
+    assert "\\ud83d\\udcca" in first
+    assert "ó" in first  # cp1252 can encode it, so its bytes are unchanged
 
 
 def test_soften_leaves_utf8_stdout_alone(monkeypatch) -> None:
@@ -357,3 +366,13 @@ def test_soften_ignores_an_unknown_stdout_encoding(monkeypatch) -> None:
     monkeypatch.setattr(sys, "stdout", stream)
     _soften_stdout_errors()
     assert stream.calls == []
+
+
+def test_json_escape_handler_only_handles_encode_errors() -> None:
+    import pytest
+
+    from aa_auto_sdr.__main__ import _json_escape
+
+    err = UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+    with pytest.raises(UnicodeDecodeError):
+        _json_escape(err)
