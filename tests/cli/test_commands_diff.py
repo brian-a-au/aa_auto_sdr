@@ -564,3 +564,22 @@ def test_diff_output_parent_blocked_returns_output_exit(tmp_path: Path, capsys: 
 
     assert rc == 15
     assert "error: could not write" in capsys.readouterr().err
+
+
+def test_diff_console_to_file_has_no_ansi(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Color follows stdout's TTY state; a file target is never a terminal.
+    import sys
+
+    from aa_auto_sdr.cli.commands import diff as diff_cmd
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    a, b = _non_ascii_pair(tmp_path)
+    out_path = tmp_path / "diff.txt"
+
+    rc = diff_cmd.run(a=str(a), b=str(b), format_name="console", output=str(out_path), profile=None)
+
+    assert rc == 0
+    text = out_path.read_text(encoding="utf-8")
+    assert "SDR DIFF" in text
+    assert "\033[" not in text

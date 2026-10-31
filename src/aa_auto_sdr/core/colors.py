@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 _RESET = "\033[0m"
 _BOLD = "\033[1m"
@@ -19,6 +21,7 @@ _BLUE = "\033[34m"
 _ORANGE = "\033[38;5;208m"
 
 _active_theme = "default"
+_suppressed = False
 
 
 def set_theme(theme: str) -> None:
@@ -31,8 +34,21 @@ def set_theme(theme: str) -> None:
         _active_theme = theme
 
 
+@contextmanager
+def disabled() -> Iterator[None]:
+    """Turn color off for text rendered inside the block, e.g. text bound
+    for a file while stdout is a terminal. Restores the previous state."""
+    global _suppressed  # noqa: PLW0603 — module-level palette state
+    previous = _suppressed
+    _suppressed = True
+    try:
+        yield
+    finally:
+        _suppressed = previous
+
+
 def _enabled() -> bool:
-    if os.environ.get("NO_COLOR"):
+    if _suppressed or os.environ.get("NO_COLOR"):
         return False
     return sys.stdout.isatty()
 

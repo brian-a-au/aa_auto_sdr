@@ -3,6 +3,7 @@ changes-only, show-only, max-issues, $GITHUB_STEP_SUMMARY append)."""
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import sys
@@ -87,21 +88,25 @@ def run(
             exit_code = ExitCode.SNAPSHOT.value
             return exit_code
 
-        rendered = render_report(
-            full_report,
-            fmt=fmt,
-            side_by_side=side_by_side,
-            summary=summary,
-            quiet=quiet,
-            labels=labels,
-            changes_only=changes_only,
-            show_only=show_only,
-            max_issues=max_issues,
-            ignore_fields=ignore_fields,
-            extended_fields=extended_fields,
-            # A covering baseline (--compare-with-prev) is chosen by scope, not time.
-            baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
-        )
+        # Color follows stdout's TTY state; text bound for a file must not
+        # carry escape codes even when stdout is a terminal.
+        to_file = output is not None and output != "-"
+        with colors.disabled() if to_file else contextlib.nullcontext():
+            rendered = render_report(
+                full_report,
+                fmt=fmt,
+                side_by_side=side_by_side,
+                summary=summary,
+                quiet=quiet,
+                labels=labels,
+                changes_only=changes_only,
+                show_only=show_only,
+                max_issues=max_issues,
+                ignore_fields=ignore_fields,
+                extended_fields=extended_fields,
+                # A covering baseline (--compare-with-prev) is chosen by scope, not time.
+                baseline_by_time=covering_rsid is None and (is_time_relative_token(a) or is_time_relative_token(b)),
+            )
         try:
             write_output(rendered, output)
         except OSError as exc:
