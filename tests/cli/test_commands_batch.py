@@ -653,3 +653,25 @@ def test_batch_fail_fast_accounts_for_output_failure_and_cancellations(
     assert any("OutputError" in row["error"] for row in rows)
     assert any("CancelledError" in row["error"] for row in rows)
     assert not list(output_dir.iterdir())
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_run_summary_records_quality_verdict(mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+    # The single-RSID path records quality_verdict; batch left it "".
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    summary_path = tmp_path / "summary.json"
+    rc = batch_cmd.run(
+        rsids=["demo.prod"],
+        output_dir=tmp_path / "out",
+        format_name="json",
+        profile=None,
+        audit_naming=True,
+        flag_stale=True,
+        fail_on_quality="LOW",
+        run_summary_json=str(summary_path),
+    )
+
+    assert rc == 0
+    assert json.loads(summary_path.read_text())["rsids"][0]["quality_verdict"] == "pass"
