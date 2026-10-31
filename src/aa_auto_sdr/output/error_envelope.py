@@ -10,6 +10,7 @@ import json
 import sys
 
 from aa_auto_sdr.core.exit_codes import EXPLANATIONS, ExitCode
+from aa_auto_sdr.core.logging import redact_text
 
 
 def _hint_for(exit_code: int) -> str:
@@ -39,7 +40,9 @@ def emit_error_envelope(exc: BaseException, exit_code: int) -> None:
         "error": {
             "code": exit_code,
             "type": type(exc).__name__,
-            "message": str(exc).replace("\n", " ").strip(),
+            # Scrubbed like log records and watch events: API errors can echo
+            # request headers or form fields.
+            "message": redact_text(str(exc)).replace("\n", " ").strip(),
             "hint": _hint_for(exit_code),
         },
     }
