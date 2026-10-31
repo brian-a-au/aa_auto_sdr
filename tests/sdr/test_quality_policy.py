@@ -144,6 +144,29 @@ class TestApplyPolicyDefaults:
 
 
 class TestWriteQualityReport:
+    @pytest.mark.parametrize("fmt", ["csv", "json"])
+    def test_file_is_written_as_utf8(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fmt: str) -> None:
+        # open(encoding=None) follows the locale (cp1252 on Windows), which
+        # cannot encode non-Latin component names. Record the encoding the
+        # file write asks for and check the bytes on disk.
+        from aa_auto_sdr.sdr import quality_policy
+
+        seen: list[str | None] = []
+        real = quality_policy.atomic_write_text
+
+        def recording(target, content, **kwargs):
+            seen.append(kwargs.get("encoding"))
+            return real(target, content, **kwargs)
+
+        monkeypatch.setattr(quality_policy, "atomic_write_text", recording)
+        target = tmp_path / f"report.{fmt}"
+        issues = [Issue(SeverityLevel.LOW, "naming", "version_suffix", "evar6", "日本 Café", "x", {})]
+        quality_policy.write_quality_report(issues=issues, summary={"total": 1}, target=target, fmt=fmt)
+
+        assert seen == ["utf-8"]
+        text = target.read_bytes().decode("utf-8")
+        assert ("日本 Café" if fmt == "csv" else "\\u65e5") in text
+
     def test_json_writes_issues_and_summary(self, tmp_path: Path) -> None:
         from aa_auto_sdr.sdr.quality_policy import write_quality_report
 
