@@ -76,6 +76,24 @@ class TestProfileShow:
         assert "supersecret" not in out
         assert "sandbox" not in out.lower()  # v1.2.2: sandbox printer line dropped
 
+    @pytest.mark.parametrize(("client_id", "shown"), [(None, "client_id:  \n"), (12345678901, "1234…8901")])
+    def test_show_tolerates_non_string_client_id(
+        self,
+        aa_base: Path,
+        capsys: pytest.CaptureFixture[str],
+        client_id: object,
+        shown: str,
+    ) -> None:
+        # A hand-written or imported config.json can hold null or a number.
+        pdir = aa_base / "orgs" / "odd"
+        pdir.mkdir(parents=True)
+        (pdir / "config.json").write_text(
+            json.dumps({"org_id": "o@AdobeOrg", "client_id": client_id, "secret": "s", "scopes": "openid"})
+        )
+        rc = cmd.show_run("odd", base=aa_base)
+        assert rc == ExitCode.OK.value
+        assert shown in capsys.readouterr().out
+
     def test_missing_profile(
         self,
         aa_base: Path,
@@ -101,6 +119,14 @@ class TestProfileImport:
         rc = cmd.import_run("imported", str(src), base=aa_base)
         assert rc == ExitCode.OK.value
         assert (aa_base / "orgs" / "imported" / "config.json").exists()
+
+    def test_import_accepts_utf8_bom(self, aa_base: Path, tmp_path: Path) -> None:
+        src = tmp_path / "bom.json"
+        body = {"org_id": "o@AdobeOrg", "client_id": "c", "secret": "s", "scopes": "openid"}
+        src.write_bytes(b"\xef\xbb\xbf" + json.dumps(body).encode())
+        rc = cmd.import_run("bom", str(src), base=aa_base)
+        assert rc == ExitCode.OK.value
+        assert json.loads((aa_base / "orgs" / "bom" / "config.json").read_text()) == body
 
     def test_missing_required_fields(
         self,

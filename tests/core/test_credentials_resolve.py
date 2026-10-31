@@ -247,3 +247,23 @@ def test_null_credential_value_counts_as_missing(monkeypatch: pytest.MonkeyPatch
     # instead of sending the literal secret "None" to Adobe.
     with pytest.raises(ConfigError):
         credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+
+
+def test_resolution_chain_matches_resolve_when_an_env_var_is_blank(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # resolve() strips values before deciding env vars are complete; the
+    # --config-status chain must reach the same answer.
+    for var in ("ORG_ID", "CLIENT_ID", "AA_PROFILE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("ORG_ID", "x@AdobeOrg")
+    monkeypatch.setenv("CLIENT_ID", "x")
+    monkeypatch.setenv("SECRET", "   ")
+    monkeypatch.setenv("SCOPES", "openid")
+    (tmp_path / "config.json").write_text(
+        json.dumps({"org_id": "o@AdobeOrg", "client_id": "c", "secret": "s", "scopes": "openid"})
+    )
+    resolved = credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+    chain = credentials.resolution_chain(profiles_base=tmp_path, working_dir=tmp_path)
+    assert resolved.source == "config.json"
+    assert [e.source for e in chain if e.matched] == ["config.json (cwd)"]

@@ -242,7 +242,9 @@ def resolution_chain(
         entries.append(ResolutionEntry(priority=1, source="--profile (not set)", matched=False))
 
     # 2. env vars
-    env_complete = all(os.environ.get(v) for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES"))
+    # Same completeness test resolve() uses (values are stripped first), so a
+    # whitespace-only variable is not reported as a match.
+    env_complete = _is_complete(_from_env())
     env_ok = not matched_yet and env_complete
     entries.append(ResolutionEntry(priority=2, source="env vars", matched=env_ok))
     matched_yet = matched_yet or env_ok

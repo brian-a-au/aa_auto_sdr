@@ -74,3 +74,10 @@ def test_read_profile_raises_config_error_when_the_file_cannot_be_read(tmp_path:
     (tmp_path / "orgs" / "locked" / "config.json").mkdir(parents=True)
     with pytest.raises(ConfigError, match="could not read"):
         profiles.read_profile("locked", base=tmp_path)
+
+
+def test_read_config_object_accepts_utf8_bom(tmp_path: Path) -> None:
+    # Windows PowerShell 5 writes UTF-8 with a byte-order mark.
+    path = tmp_path / "config.json"
+    path.write_bytes(b"\xef\xbb\xbf" + json.dumps({"org_id": "o"}).encode())
+    assert profiles.read_config_object(path, "config.json") == {"org_id": "o"}

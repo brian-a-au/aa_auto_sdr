@@ -127,7 +127,8 @@ def show_run(name: str, *, base: Path | None = None) -> int:
             return exit_code
         snap_dir = (base or profiles.default_base()) / "orgs" / name / "snapshots"
         snap_count = len(list_snapshots(snap_dir))
-        cid = data.get("client_id", "")
+        # str(): a hand-written config.json can hold null or a number here.
+        cid = "" if data.get("client_id") is None else str(data["client_id"])
         masked = f"{cid[:4]}…{cid[-4:]}" if len(cid) > 8 else cid
         print(f"profile:    {name}")
         print(f"org_id:     {data.get('org_id', '')}")
@@ -172,7 +173,7 @@ def import_run(
             exit_code = ExitCode.CONFIG.value
             return exit_code
         try:
-            with src.open(encoding="utf-8") as fh:
+            with src.open(encoding="utf-8-sig") as fh:  # accepts a PowerShell 5 BOM
                 data = json.load(fh)
         except (ValueError, OSError) as exc:  # ValueError covers JSONDecodeError and UnicodeDecodeError
             print(f"error: could not read {src}: {exc}", flush=True, file=sys.stderr)
