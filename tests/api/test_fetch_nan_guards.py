@@ -10,9 +10,11 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
 
 
 def _client(**frames: pd.DataFrame) -> AaClient:
@@ -149,3 +151,14 @@ def test_extra_dict_drops_nan_cells() -> None:
     assert keeps.extra["extraTitleInfo"] == "t"
     assert "extraTitleInfo" not in bare.extra
     assert not any(isinstance(v, float) and math.isnan(v) for v in bare.extra.values())
+
+
+@pytest.mark.parametrize("ident", ["nan", "NaN"])
+@pytest.mark.parametrize("name_match", ["insensitive", "fuzzy"])
+def test_nan_identifier_does_not_match_unnamed_suite(ident: str, name_match: str) -> None:
+    """A suite with no name reads as float NaN; str(NaN) is 'nan', which must
+    not match a user identifier of 'nan'."""
+    handle = MagicMock()
+    handle.getReportSuites.return_value = pd.DataFrame([{"rsid": "a", "name": "Shop"}, {"rsid": "b"}])
+    with pytest.raises(ReportSuiteNotFoundError):
+        fetch.resolve_rsid(AaClient(handle=handle, company_id="testco"), ident, name_match=name_match)

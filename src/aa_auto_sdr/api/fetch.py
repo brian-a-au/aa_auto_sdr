@@ -383,7 +383,7 @@ def resolve_rsid(
     else:  # insensitive or fuzzy
         target = identifier.casefold()
         for raw in suites:
-            n = raw.get("name")
+            n = _get(raw, "name")
             if n is not None and str(n).casefold() == target:
                 name_matches.append((str(raw["rsid"]), str(n)))
 
@@ -391,7 +391,7 @@ def resolve_rsid(
     if name_match == "fuzzy" and not name_matches:
         target = identifier.casefold()
         for raw in suites:
-            n = raw.get("name")
+            n = _get(raw, "name")
             if n is None:
                 continue
             ratio = SequenceMatcher(None, target, str(n).casefold()).ratio()
