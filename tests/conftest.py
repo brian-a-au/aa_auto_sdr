@@ -1,6 +1,29 @@
 """Pytest fixtures and auto-marker classification."""
 
+import logging
+
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_root_logging():
+    """Undo root-logger changes a test makes, such as ``setup_logging()``.
+
+    ``setup_logging()`` attaches a ``StreamHandler`` bound to ``sys.stderr``,
+    which inside a test is that test's capture stream. Left in place, the next
+    test on the same process logs through a handler whose stream pytest has
+    closed, and the resulting ``--- Logging error ---`` lands in that test's
+    stderr. Under pytest-xdist this depends on which tests share a worker.
+    pytest's own capture handlers are left for pytest to manage.
+    """
+    root = logging.getLogger()
+    handlers, level = root.handlers[:], root.level
+    yield
+    for handler in root.handlers[:]:
+        if handler not in handlers and not type(handler).__module__.startswith("_pytest"):
+            root.removeHandler(handler)
+            handler.close()
+    root.setLevel(level)
 
 
 @pytest.fixture(autouse=True)
