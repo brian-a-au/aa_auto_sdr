@@ -86,7 +86,13 @@ def run(
             return exit_code
 
         end_at = datetime.now(UTC)
-        start_at = end_at - delta
+        try:
+            start_at = end_at - delta
+        except OverflowError:
+            # The timedelta fits but reaches back before year 1.
+            print(f"error: --trending-window {duration!r} is out of range", flush=True, file=sys.stderr)
+            exit_code = ExitCode.USAGE.value
+            return exit_code
         window = WindowSpec(duration=duration, start_at=start_at, end_at=end_at)
         logger.info(
             "trending_window_resolved duration=%s start_at=%s end_at=%s",
@@ -132,7 +138,12 @@ def run(
             # Console + markdown renderers emit em-dashes / unicode glyphs;
             # explicit utf-8 prevents the Windows cp1252 default from corrupting
             # them. Same fix as v1.12.0's quality_policy CSV path.
-            atomic_write_text(Path(output), rendered, encoding="utf-8")
+            try:
+                atomic_write_text(Path(output), rendered, encoding="utf-8")
+            except OSError as exc:
+                print(f"error: could not write {output}: {exc}", flush=True, file=sys.stderr)
+                exit_code = ExitCode.OUTPUT.value
+                return exit_code
 
         # Decide exit code based on per-RSID series presence.
         if len(empty_rsids) == len(rsids) and rsids:
