@@ -124,3 +124,14 @@ def test_html_replace_failure_leaves_absent_destination_absent(
 
     assert not target.exists()
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
+def test_table_html_escapes_title_and_body_identically() -> None:
+    from aa_auto_sdr.output.writers.html import _table_html
+
+    out = _table_html(["H&"], [["a<b & \"c\" 'd'"]])
+    esc = "a&lt;b &amp; &quot;c&quot; &#x27;d&#x27;"
+    assert out == (
+        "<table><thead><tr><th>H&amp;</th></tr></thead><tbody>"
+        f'<tr><td class="long" title="{esc}">{esc}</td></tr></tbody></table>'
+    )
