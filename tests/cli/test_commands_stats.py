@@ -253,6 +253,8 @@ def test_mixed_identifiers_preserve_order_duplicates_and_listing_count(command_n
     assert rc == ExitCode.OK.value
     output = json.loads(capsys.readouterr().out)
     rows = output if command_name == "stats" else output["per_rsid"]
-    assert [row["rsid"] for row in rows] == ["z", "a", "a"]
-    # One discovery plus the unchanged per-suite metadata fetches.
-    assert handle.getReportSuites.call_count == 4
+    # Stats keeps a repeated suite; inventory counts it once.
+    expected = ["z", "a", "a"] if command_name == "stats" else ["z", "a"]
+    assert [row["rsid"] for row in rows] == expected
+    # One discovery plus one per-suite metadata fetch for each reported row.
+    assert handle.getReportSuites.call_count == 1 + len(expected)
