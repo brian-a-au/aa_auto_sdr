@@ -675,3 +675,92 @@ def test_batch_run_summary_records_quality_verdict(mock_client_cls, mock_handle,
 
     assert rc == 0
     assert json.loads(summary_path.read_text())["rsids"][0]["quality_verdict"] == "pass"
+
+
+class TestBatchRunSummaryWriteFailure:
+    """A run summary that cannot be written turns an OK exit into OUTPUT (15)."""
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_write_failure_exits_output(self, mock_client_cls, mock_handle, authed_env, tmp_path, capsys) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        out_dir = tmp_path / "out"
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "demo.staging"],
+            output_dir=out_dir,
+            format_name="json",
+            profile=None,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+        )
+        assert rc == ExitCode.OUTPUT.value
+        assert "could not write run summary" in capsys.readouterr().err
+        assert sorted(p.name for p in out_dir.iterdir()) == ["demo.prod.json", "demo.staging.json"]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_write_failure_keeps_partial_code(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "nope"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+        )
+        assert rc == ExitCode.PARTIAL_SUCCESS.value
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_dry_run_write_failure_exits_output(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+        from aa_auto_sdr.core.exit_codes import ExitCode
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            dry_run=True,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+        )
+        assert rc == ExitCode.OUTPUT.value
+
+
+class TestFailFastResolutionCancellations:
+    def _rows(self, mock_client_cls, mock_handle, tmp_path, identifiers) -> list[dict]:
+        from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        summary_path = tmp_path / "summary.json"
+        batch_cmd.run(
+            rsids=identifiers,
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            dry_run=True,
+            fail_fast=True,
+            run_summary_json=str(summary_path),
+        )
+        return json.loads(summary_path.read_text())["rsids"]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_skips_identifier_that_already_resolved(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["Demo Production", "nope", "Demo Production"])
+        failed = [(r["rsid"], r["error"].split(":")[0]) for r in rows if not r["succeeded"]]
+        assert failed == [("nope", "ReportSuiteNotFoundError")]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_cancels_repeated_identifier_once(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["nope", "demo.dev", "demo.dev"])
+        cancelled = [r["rsid"] for r in rows if r["error"] and r["error"].startswith("CancelledError")]
+        assert cancelled == ["demo.dev"]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_distinct_identifiers_unchanged(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["demo.prod", "nope", "demo.dev"])
+        cancelled = [r["rsid"] for r in rows if r["error"] and r["error"].startswith("CancelledError")]
+        assert cancelled == ["demo.dev"]

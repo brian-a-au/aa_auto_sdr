@@ -107,8 +107,9 @@ imports, fixture construction, and live API latency.
   repeats the tests, lint, and version check that the required `test`, `lint`,
   and `check` jobs run; it builds, checks packaged README links, and
   smoke-installs the wheel. No GitHub settings were changed.
-- **Further engineering review:** stats/inventory duplicate resolution/count
-  assembly; single/batch CLI option threading remains large. Consolidation
+- **Further engineering review:** stats duplicate resolution/count assembly
+  (inventory now counts a repeated report suite once); single/batch CLI
+  option threading remains large. Consolidation
   should preserve their distinct errors, stdout conventions, and logging.
 - **Unresolved state-lifetime question:** Notion schema cache refresh after
   repair/external schema edits and singleton writer configuration across

@@ -135,21 +135,57 @@ def _from_sdr_json(payload: dict[str, Any], *, rendered: RenderProvenance) -> Sd
     )
 
 
-def _require_quality_parts(quality: dict[str, Any], err: type[AaAutoSdrError]) -> None:
+def _require_quality_parts(
+    quality: dict[str, Any],
+    err: type[AaAutoSdrError],
+    *,
+    label: str = "SDR JSON",
+) -> None:
     """Shape-check the quality parts the writers read, with the same rules
     snapshot `validate_envelope` applies: a part may be absent, but a
     present part must have the right type."""
     for key in ("naming_audit", "summary"):
         if key in quality and not isinstance(quality[key], dict):
-            raise err(f"SDR JSON 'quality.{key}' must be an object")
+            raise err(f"{label} 'quality.{key}' must be an object")
     summary = quality.get("summary")
     if isinstance(summary, dict) and "by_severity" in summary and not isinstance(summary["by_severity"], dict):
-        raise err("SDR JSON 'quality.summary.by_severity' must be an object")
+        raise err(f"{label} 'quality.summary.by_severity' must be an object")
     for key in ("stale_components", "issues"):
         if key in quality:
             rows = quality[key]
             if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
-                raise err(f"SDR JSON 'quality.{key}' must be a list of objects")
+                raise err(f"{label} 'quality.{key}' must be a list of objects")
+    _require_quality_numbers(quality, err, label)
+
+
+def _require_quality_numbers(quality: dict[str, Any], err: type[AaAutoSdrError], label: str) -> None:
+    """The counts the renderers pass through `int()`, and the id lists they
+    slice. Anything `int()` accepts today (`"3"`, `2.0`, `True`) stays valid;
+    only `by_severity` keys the renderers read are checked."""
+    from aa_auto_sdr.sdr.quality import SeverityLevel
+
+    summary = quality.get("summary")
+    if isinstance(summary, dict):
+        for key in ("total", "excepted"):
+            if summary.get(key) is not None:
+                _require_int(summary[key], f"quality.summary.{key}", err, label)
+        raw_counts = summary.get("by_severity")
+        if isinstance(raw_counts, dict):
+            for sev in SeverityLevel:
+                _require_int(raw_counts.get(sev.value, 0) or 0, f"quality.summary.by_severity.{sev.value}", err, label)
+    issues = quality.get("issues")
+    if isinstance(issues, list):
+        for i, issue in enumerate(issues):
+            ids = issue.get("component_ids")
+            if ids and not isinstance(ids, list | str):
+                raise err(f"{label} 'quality.issues[{i}].component_ids' must be a list or string")
+
+
+def _require_int(value: Any, path: str, err: type[AaAutoSdrError], label: str) -> None:
+    try:
+        int(value)
+    except (ValueError, TypeError, OverflowError):
+        raise err(f"{label} '{path}' must be an integer") from None
 
 
 def _from_envelope(env: dict[str, Any], *, rendered: RenderProvenance) -> SdrDocument:
@@ -178,12 +214,16 @@ def _from_envelope(env: dict[str, Any], *, rendered: RenderProvenance) -> SdrDoc
     fetch_status = _envelope_fetch_status(env["degraded_components"], env["partial_components"], err)
     _require_flagged_in_scope(fetch_status, collected, err)
 
+    quality = env.get("quality")
+    if isinstance(quality, dict):
+        _require_quality_parts(quality, err, label="snapshot")
+
     return SdrDocument(
         report_suite=report_suite,
         captured_at=_parse_captured_at(env["captured_at"], err),
         tool_version=tool_version,
         fetch_status=fetch_status,
-        quality=env.get("quality"),
+        quality=quality,
         collected_components=collected,
         rendered=rendered,
         **families,

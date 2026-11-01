@@ -115,6 +115,7 @@ def run(
 
         # Resolve identifiers (or list all visible RSes when none given).
         canonical: list[str] = []
+        seen: set[str] = set()
         if rsids:
             try:
                 preloaded_suites = fetch.fetch_report_suites_raw(client)
@@ -127,7 +128,10 @@ def run(
                     resolved, _ = fetch.resolve_rsid(
                         client, ident, name_match=name_match, preloaded_suites=preloaded_suites
                     )
-                    canonical.extend(resolved)
+                    for rs in resolved:
+                        if rs not in seen:
+                            seen.add(rs)
+                            canonical.append(rs)
                 except AmbiguousMatchError as exc:
                     print(
                         f"error: identifier '{ident}' is ambiguous; matched {len(exc.candidates)} report suites:",
