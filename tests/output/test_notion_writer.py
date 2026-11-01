@@ -138,7 +138,7 @@ def test_append_blocks_keeps_each_request_within_1000_elements():
     sent = _sent(client)
     assert len(sent) >= 2
     assert all(sum(notion_writer_mod._block_elements(b) for b in req) <= 1000 for req in sent)
-    assert sum(sent, []) == blocks
+    assert [b for req in sent for b in req] == blocks
 
 
 def test_append_blocks_keeps_each_request_under_byte_budget():
@@ -149,7 +149,7 @@ def test_append_blocks_keeps_each_request_under_byte_budget():
     sent = _sent(client)
     assert len(sent) >= 2
     assert all(len(json.dumps({"children": req})) <= 450_000 for req in sent)
-    assert sum(sent, []) == blocks
+    assert [b for req in sent for b in req] == blocks
 
 
 def test_append_blocks_sends_oversized_block_alone():

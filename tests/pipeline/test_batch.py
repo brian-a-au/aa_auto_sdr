@@ -330,7 +330,7 @@ def test_batch_continues_after_notion_failure(
     def _create(**kwargs):
         title = kwargs["properties"]["title"]["title"][0]["text"]["content"]
         if "(a.rs)" in title:
-            raise RequestTimeoutError()
+            raise RequestTimeoutError
         created.append(title)
         return {"id": f"page-{len(created)}"}
 
