@@ -73,6 +73,27 @@ def test_excel_replace_failure_preserves_readable_workbook(
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
 
 
+# The simulated failure leaves xlsxwriter's ZipFile half-written; its deallocator then complains.
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
+def test_disk_full_raises_oserror(doc, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """xlsxwriter wraps save errors in FileCreateError; the writer must surface the OSError."""
+    import errno
+    import gc
+    import zipfile
+
+    def _enospc(self, *_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(zipfile.ZipFile, "write", _enospc)
+    with pytest.raises(OSError) as info:
+        ExcelWriter().write(doc, tmp_path / "x.xlsx")
+    assert type(info.value) is OSError
+    assert info.value.errno == errno.ENOSPC
+    assert not (tmp_path / "x.xlsx").exists()
+    del info  # its traceback keeps the half-written ZipFile alive
+    gc.collect()  # collect it while the filter applies
+
+
 def test_excel_has_summary_and_one_sheet_per_component(doc, tmp_path: Path) -> None:
     target = tmp_path / "sdr.xlsx"
     ExcelWriter().write(doc, target)

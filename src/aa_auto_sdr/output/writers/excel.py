@@ -71,26 +71,34 @@ class ExcelWriter:
         engine_kwargs = {"options": {"strings_to_formulas": False, "strings_to_urls": False}}
 
         def serialize(staged: Path) -> None:
-            with pd.ExcelWriter(staged, engine="xlsxwriter", engine_kwargs=engine_kwargs) as xl:
-                for name, items in sheets.items():
-                    if name == "Quality":
-                        _write_quality_sheet(xl, doc)
-                        continue
-                    if name == "Summary":
-                        df = _summary_df(doc)
-                    elif name == "Coverage":
-                        df = _coverage_df(doc)
-                    elif name == "References":
-                        df = _references_df(doc)
-                    else:
-                        df = _component_df(families[name], items)
-                    df.to_excel(xl, sheet_name=name, index=False)
-                    ws = xl.sheets[name]
-                    ws.freeze_panes(1, 0)
-                    if df.shape[1] > 0 and df.shape[0] > 0:
-                        ws.autofilter(0, 0, df.shape[0], df.shape[1] - 1)
-                    _fit_columns(ws, df)
-                    del df
+            from xlsxwriter.exceptions import FileCreateError
+
+            try:
+                with pd.ExcelWriter(staged, engine="xlsxwriter", engine_kwargs=engine_kwargs) as xl:
+                    for name, items in sheets.items():
+                        if name == "Quality":
+                            _write_quality_sheet(xl, doc)
+                            continue
+                        if name == "Summary":
+                            df = _summary_df(doc)
+                        elif name == "Coverage":
+                            df = _coverage_df(doc)
+                        elif name == "References":
+                            df = _references_df(doc)
+                        else:
+                            df = _component_df(families[name], items)
+                        df.to_excel(xl, sheet_name=name, index=False)
+                        ws = xl.sheets[name]
+                        ws.freeze_panes(1, 0)
+                        if df.shape[1] > 0 and df.shape[0] > 0:
+                            ws.autofilter(0, 0, df.shape[0], df.shape[1] - 1)
+                        _fit_columns(ws, df)
+                        del df
+            except FileCreateError as exc:
+                # xlsxwriter wraps the OSError from saving (e.g. a full disk);
+                # unwrap it so callers map it to an output failure (exit 15).
+                cause = exc.args[0] if exc.args else None
+                raise (cause if isinstance(cause, OSError) else OSError(str(exc))) from exc
 
         atomic_write_path(target, serialize)
         duration_ms = int((time.monotonic() - started) * 1000)

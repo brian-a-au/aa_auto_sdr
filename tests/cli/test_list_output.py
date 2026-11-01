@@ -68,6 +68,30 @@ def test_csv_format_to_file_has_bom(tmp_path: Path) -> None:
     assert raw.startswith(b"\xef\xbb\xbf")  # UTF-8 BOM
 
 
+_HOSTILE = [
+    {"id": "a", "name": '=HYPERLINK("x")'},
+    {"id": "b", "name": "+1"},
+    {"id": "c", "name": "@x"},
+    {"id": "d", "name": "-y"},
+    {"id": "e", "name": "plain"},
+]
+_EXPECTED = ['\'=HYPERLINK("x")', "'+1", "'@x", "'-y", "plain"]
+
+
+def test_csv_file_neutralizes_formula_cells(tmp_path: Path) -> None:
+    target = tmp_path / "out.csv"
+    assert render_records(_HOSTILE, format_name="csv", output=target, columns=None) == 0
+    rows = list(_csv.reader(io.StringIO(target.read_text(encoding="utf-8-sig"))))
+    assert rows[0] == ["id", "name"]
+    assert [r[1] for r in rows[1:]] == _EXPECTED
+
+
+def test_csv_stdout_neutralizes_formula_cells(capsys) -> None:
+    assert render_records(_HOSTILE, format_name="csv", output=Path("-"), columns=None) == 0
+    rows = list(_csv.reader(io.StringIO(capsys.readouterr().out)))
+    assert [r[1] for r in rows[1:]] == _EXPECTED
+
+
 def test_csv_format_explicit_stdout_no_bom(capsys) -> None:
     rc = render_records(_RECORDS, format_name="csv", output=Path("-"), columns=None)
     assert rc == 0
@@ -169,8 +193,8 @@ def test_implicit_table_empty_records_no_columns_prints_note(capsys) -> None:
     assert "0 records" in captured.err
 
 
-def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch) -> None:
-    """If os.replace fails mid-write, the temp file is removed and the error propagates."""
+def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch, capsys) -> None:
+    """If os.replace fails mid-write, the temp file is removed and the run exits 15."""
     import aa_auto_sdr.cli.list_output as lo
 
     target = tmp_path / "out.json"
@@ -179,8 +203,20 @@ def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch) -> 
         raise OSError("disk full")
 
     monkeypatch.setattr(lo.os, "replace", _boom)
-    with pytest.raises(OSError, match="disk full"):
-        render_records(_RECORDS, format_name="json", output=target, columns=None)
+    assert render_records(_RECORDS, format_name="json", output=target, columns=None) == 15
+    assert "disk full" in capsys.readouterr().err
     # No target written and no orphaned temp file left behind.
     assert not target.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("fmt", ["json", "csv"])
+def test_file_write_failure_returns_output_exit(tmp_path: Path, capsys, fmt) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("")
+    target = blocker / f"out.{fmt}"
+    rc = render_records([{"id": "a"}], format_name=fmt, output=target, columns=None)
+    captured = capsys.readouterr()
+    assert rc == 15
+    assert f"error: could not write {target}" in captured.err
+    assert captured.out == ""
