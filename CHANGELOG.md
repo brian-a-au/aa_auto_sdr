@@ -2,6 +2,49 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.8] — 2026-11-01
+
+This patch fixes crashes and silent failures in logging, file output, CSV
+output and Notion publishing. Several paths that ended in a traceback with
+exit 1 now exit with a code that already exists. No new flags and no changed
+defaults. Output that worked before is byte for byte the same, except that
+list CSV cells that start a formula now get a `'` prefix.
+
+### Fixed
+- A command no longer crashes when the log file cannot open. Before, an
+  identifier with `/` in it, such as `aa_auto_sdr "Acme / Prod"`, or a
+  read-only `logs/` folder gave a traceback and exit 1. The tool now replaces
+  path separators in the log filename with `_`. If the file still cannot
+  open, the run logs to the console only and prints a warning. On Windows the
+  tool also replaces `:` in the log filename, so the log is a normal file you
+  can see.
+- The text log file is now written as UTF-8. Before, Windows used the system
+  code page, and a record with other characters printed a `--- Logging
+  error ---` traceback.
+- A disk-full error while the Excel writer saves now exits 15. In a batch,
+  the other report suites continue. Before, the error escaped as a traceback
+  with exit 1.
+- A failed `--output FILE` write in the `--list-*` and
+  `--describe-reportsuite` commands now prints `error: could not write
+  <path>: <reason>` and exits 15, the same as `--diff`. Before, it exited 1
+  with a traceback.
+- `--list-* --format csv` and `--inventory-summary --format csv` now add a
+  `'` before a cell that starts with `=`, `+`, `-`, `@`, a tab or a carriage
+  return, the same as the SDR CSV writer. Before, a spreadsheet could run that cell as a formula.
+- `--format notion` now publishes large report suites. The writer splits the
+  blocks into several requests, and each request stays within Notion's limits
+  of 1,000 block elements and 500 KB. Before, a suite with about 1,000
+  component rows was rejected and left an empty page. We checked the limits
+  with a fake Notion client that enforces them, not against live Notion.
+- A failed Notion request, such as an error response, a timeout or a network
+  failure, now exits 15 with a one-line error. With `--format notion` in a
+  batch, the tool records the failed report suite and the others continue.
+  `--push-to-notion` also exits 15 now. Before, both exited 1 with a
+  traceback. `--explain-exit-code 15` lists this cause.
+- `--push-to-notion` now prints a one-line error and exits 1 when the input
+  file is binary or its top-level JSON is not an object. Before, it printed a
+  traceback.
+
 ## [1.24.7] — 2026-10-31
 
 This patch fixes wrong counts, false "removed" diffs and crashes, and it makes
