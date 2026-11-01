@@ -276,12 +276,27 @@ def infer_run_mode(ns: argparse.Namespace) -> str:
     return "other"
 
 
+# Path separators keep an identifier one filename component. On Windows a ':'
+# would also open an NTFS alternate data stream and hide the log, so it goes too.
+# Other names the OS rejects fall back to console-only logging.
+_LOG_NAME_REPLACED_CHARS: tuple[str, ...] = tuple(c for c in (os.sep, os.altsep) if c) + (
+    (":",) if os.name == "nt" else ()
+)
+
+
+def _safe_log_component(text: str) -> str:
+    """Replace path separators (and ':' on Windows) so an identifier stays one filename component."""
+    for char in _LOG_NAME_REPLACED_CHARS:
+        text = text.replace(char, "_")
+    return text
+
+
 def _log_filename(run_mode: str, ns: argparse.Namespace, ts: str) -> str:
     """Map run mode + namespace to log filename (no path prefix)."""
     if run_mode == "single":
         rsids = getattr(ns, "rsids", []) or []
         if rsids:
-            return f"SDR_Generation_{rsids[0]}_{ts}.log"
+            return f"SDR_Generation_{_safe_log_component(rsids[0])}_{ts}.log"
     if run_mode == "batch":
         return f"SDR_Batch_Generation_{ts}.log"
     if run_mode == "diff":
@@ -301,8 +316,9 @@ def setup_logging(
 
     Wires a stderr console handler plus a best-effort ``RotatingFileHandler``
     whose filename is run-mode-aware. If the log directory cannot be created
-    (PermissionError / OSError) the file handler is skipped and a warning is
-    emitted on stderr — the run continues with console-only logging.
+    or the log file cannot be opened (PermissionError / OSError) the file
+    handler is skipped and a warning is emitted on stderr — the run continues
+    with console-only logging.
 
     Closes and removes any preexisting handlers on the root logger before
     wiring its own. Embedders that pre-configure logging on the root logger
@@ -348,9 +364,24 @@ def setup_logging(
     console.addFilter(WorkerIdFilter())
     logging.root.addHandler(console)
 
-    # File handler — best-effort.
+    # File handler — best-effort. UTF-8 so names in any alphabet reach the file
+    # on platforms whose default encoding is a narrower code page.
+    fh: RotatingFileHandler | None = None
     if log_file is not None:
-        fh = RotatingFileHandler(log_file, maxBytes=LOG_FILE_MAX_BYTES, backupCount=LOG_FILE_BACKUP_COUNT)
+        try:
+            fh = RotatingFileHandler(
+                log_file,
+                maxBytes=LOG_FILE_MAX_BYTES,
+                backupCount=LOG_FILE_BACKUP_COUNT,
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            print(  # noqa: T201
+                f"Warning: Cannot open log file {log_file}: {exc}. Logging to console only.",
+                file=sys.stderr,
+            )
+            log_file = None
+    if fh is not None:
         fh.setFormatter(formatter)
         fh.setLevel(numeric_level)
         fh.addFilter(SensitiveDataFilter())

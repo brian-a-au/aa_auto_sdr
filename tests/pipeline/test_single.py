@@ -369,3 +369,28 @@ def test_non_os_writer_errors_pass_through(mock_client, tmp_path, monkeypatch, e
             tool_version="test",
         )
     assert error.value is exception
+
+
+# The simulated failure leaves xlsxwriter's ZipFile half-written; its deallocator then complains.
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnraisableExceptionWarning")
+def test_excel_disk_full_raises_output_error(mock_client, tmp_path, monkeypatch) -> None:
+    import errno
+    import gc
+    import zipfile
+
+    def _enospc(self, *_args, **_kwargs):
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(zipfile.ZipFile, "write", _enospc)
+    with pytest.raises(OutputError) as error:
+        single.run_single(
+            client=mock_client,
+            rsid="demo.prod",
+            formats=["excel"],
+            output_dir=tmp_path,
+            captured_at=datetime(2026, 10, 17, tzinfo=UTC),
+            tool_version="test",
+        )
+    assert "format=excel" in str(error.value)
+    del error  # its traceback keeps the half-written ZipFile alive
+    gc.collect()  # collect it while the filter applies

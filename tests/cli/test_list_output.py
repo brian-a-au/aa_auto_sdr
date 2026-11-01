@@ -169,8 +169,8 @@ def test_implicit_table_empty_records_no_columns_prints_note(capsys) -> None:
     assert "0 records" in captured.err
 
 
-def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch) -> None:
-    """If os.replace fails mid-write, the temp file is removed and the error propagates."""
+def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch, capsys) -> None:
+    """If os.replace fails mid-write, the temp file is removed and the run exits 15."""
     import aa_auto_sdr.cli.list_output as lo
 
     target = tmp_path / "out.json"
@@ -179,8 +179,20 @@ def test_atomic_write_cleans_up_temp_on_failure(tmp_path: Path, monkeypatch) -> 
         raise OSError("disk full")
 
     monkeypatch.setattr(lo.os, "replace", _boom)
-    with pytest.raises(OSError, match="disk full"):
-        render_records(_RECORDS, format_name="json", output=target, columns=None)
+    assert render_records(_RECORDS, format_name="json", output=target, columns=None) == 15
+    assert "disk full" in capsys.readouterr().err
     # No target written and no orphaned temp file left behind.
     assert not target.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("fmt", ["json", "csv"])
+def test_file_write_failure_returns_output_exit(tmp_path: Path, capsys, fmt) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("")
+    target = blocker / f"out.{fmt}"
+    rc = render_records([{"id": "a"}], format_name=fmt, output=target, columns=None)
+    captured = capsys.readouterr()
+    assert rc == 15
+    assert f"error: could not write {target}" in captured.err
+    assert captured.out == ""

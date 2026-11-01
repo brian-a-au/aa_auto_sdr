@@ -113,7 +113,8 @@ def render_records(
         body = json.dumps([_project(r, cols) for r in records], indent=2, default=str)
         if is_file:
             target = output if output.suffix == ".json" else output.with_suffix(".json")
-            _atomic_write_text(target, body + "\n", encoding="utf-8")
+            if not _write_or_report(target, body + "\n", encoding="utf-8"):
+                return ExitCode.OUTPUT.value
         else:
             print(body, flush=True)
         if not records:
@@ -124,7 +125,8 @@ def render_records(
         body = _format_csv(records, cols)
         if is_file:
             target = output if output.suffix == ".csv" else output.with_suffix(".csv")
-            _atomic_write_text(target, body, encoding="utf-8-sig")
+            if not _write_or_report(target, body, encoding="utf-8-sig"):
+                return ExitCode.OUTPUT.value
         else:
             # No BOM for stdout; write the body as-is
             sys.stdout.write(body)
@@ -178,6 +180,16 @@ def _print_table(records: list[dict[str, Any]], cols: list[str]) -> None:
     print(sep)
     for row in str_rows:
         print("  ".join(row[c].ljust(widths[c]) for c in cols))
+
+
+def _write_or_report(path: Path, content: str, *, encoding: str) -> bool:
+    """Write `content` to `path`; on failure print the error and return False (caller exits OUTPUT)."""
+    try:
+        _atomic_write_text(path, content, encoding=encoding)
+    except OSError as exc:
+        print(f"error: could not write {path}: {exc}", file=sys.stderr, flush=True)
+        return False
+    return True
 
 
 def _atomic_write_text(path: Path, content: str, *, encoding: str) -> None:
