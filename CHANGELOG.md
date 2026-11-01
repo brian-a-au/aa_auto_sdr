@@ -2,6 +2,55 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.7] — 2026-10-31
+
+This patch fixes wrong counts, false "removed" diffs and crashes, and it makes
+diffs, trending and two report writers faster. Several paths that ended in a
+traceback with exit 1 now exit with a code that already exists. No new flags
+and no changed defaults. Output that worked before is byte for byte the same.
+
+### Changed
+- `--diff`, `--trending-window`, `--compare-with-prev` and `--watch` skip
+  components that are the same in both snapshots, so they no longer compare
+  each field of those components. Trending over 20 snapshots of a suite with
+  about 7,900 components went from 834 ms to 603 ms on Python 3.14, and
+  `--diff` went from 72 ms to 61 ms.
+- The Markdown writer is about 16 percent faster, and the HTML writer is about
+  13 percent faster. The Markdown writer now finds runs of backticks with one
+  regular expression, and the HTML writer escapes each table cell once.
+
+### Fixed
+- An error response from the classifications endpoint, such as a 403 or 500,
+  is now recorded as degraded. Before, the tool saved it as an empty list. The
+  next `--diff` then showed every classification dataset as removed, and
+  `--watch` reported a false change. A rate-limit or transient error stub is
+  retried first.
+- The identifier `nan` no longer matches report suites that have no name.
+- A failed `--run-summary-json PATH` write now exits 15 instead of 1. Before,
+  the run crashed after it wrote every SDR, and auto-prune, `--open` and the
+  quality gate never ran. They now run. The exit code changes only when the
+  run would otherwise exit 0. Under `--output -`, stderr gets the JSON error
+  envelope.
+- `--inventory-summary` now counts a report suite once when you list it twice,
+  or list it by both its RSID and its name.
+- `--fail-fast` now records each cancelled identifier once. Before, a repeated
+  identifier added extra "cancelled" rows to the banner counts and the run
+  summary.
+- `--trending-window` no longer counts one change twice in a series that mixes
+  full and filtered snapshots. A point is now left out when a later point has
+  the same or an earlier baseline and covers its scope. Series of only full
+  snapshots give the same numbers as before.
+- `--render-from` now rejects bad values inside a quality block, such as
+  `"total": "many"`, instead of crashing. A snapshot exits 16, and SDR JSON
+  gets the existing `invalid SDR JSON` message. Values that rendered before,
+  such as `"3"`, still render.
+- The template writer now writes text such as `#N/A` as text. Before, Excel
+  showed it as an error cell.
+- `--format excel-template` without `--template` now exits 2 before any fetch,
+  with a clear message. Before, it crashed with exit 1 after all the fetches.
+- The Markdown heading stays on one line when a report suite name holds a line
+  break. Before, the rest of the name could hide the whole page.
+
 ## [1.24.6] — 2026-10-31
 
 This patch fixes crashes, wrong exit codes and wrong output, and it makes
