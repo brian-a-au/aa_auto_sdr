@@ -115,3 +115,30 @@ class TestTemplateWriterNeutralizesFormulas:
         cell = ws.cell(row=2, column=1)
         assert cell.data_type != "f", "template fill wrote a live formula"
         assert str(cell.value).endswith(INJECTED)
+
+    def test_write_row_keeps_error_codes_as_text(self, tmp_path: Path) -> None:
+        wb = Workbook()
+        ws = wb.active
+        comp = models.Dimension(
+            id="evar1",
+            name="#N/A",
+            type="dimension",
+            category=None,
+            parent="",
+            pathable=False,
+            description="#DIV/0!",
+        )
+        _write_row(
+            ws,
+            row=2,
+            columns={"Name": 1, "Description": 2},
+            column_map={"Name": lambda c: c.name, "Description": lambda c: c.description},
+            comp=comp,
+        )
+        target = tmp_path / "errors.xlsx"
+        wb.save(target)
+        out = load_workbook(target).active
+        for col, expected in ((1, "#N/A"), (2, "#DIV/0!")):
+            cell = out.cell(row=2, column=col)
+            assert cell.data_type == "s"
+            assert cell.value == expected

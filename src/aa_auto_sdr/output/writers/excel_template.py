@@ -515,11 +515,13 @@ def _set_text_safe_cell(ws, *, row: int, col: int, value: Any) -> None:
     openpyxl marks any string starting with `=` as data_type 'f' (a live
     formula). Component names are user-authored in Adobe Analytics, so a name
     like `=HYPERLINK(...)` must land as literal text, not executable content.
+    Likewise a string equal to an Excel error code (`#N/A`, `#DIV/0!`) is
+    inferred as data_type 'e' and stays text here.
     Characters a worksheet cannot store are dropped (see `_storable`)."""
     if isinstance(value, str):
         value = _storable(value)
     cell = ws.cell(row=row, column=col, value=value)
-    if cell.data_type == "f":
+    if cell.data_type in ("f", "e"):
         cell.data_type = "s"
 
 

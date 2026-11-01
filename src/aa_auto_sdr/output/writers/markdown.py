@@ -136,11 +136,16 @@ def _render_note(doc: SdrDocument) -> list[str]:
     return [] if line is None else [f"> {escape_pipe(line)}\n"]
 
 
+def _one_line(text: str) -> str:
+    """`text` with each line break replaced by a space, so it stays on one line."""
+    return text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+
+
 def _document(doc: SdrDocument) -> str:
     rs = doc.report_suite
     coverage = coverage_rows(doc)
     parts = [
-        f"# SDR — {rs.name} ({rs.rsid})\n",
+        f"# SDR — {_one_line(rs.name)} ({rs.rsid})\n",
         f"> Captured at {doc.captured_at.isoformat()} · tool version {doc.tool_version}\n",
         *_render_note(doc),
         "## Coverage\n",

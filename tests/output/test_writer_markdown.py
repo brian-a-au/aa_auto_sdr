@@ -202,3 +202,32 @@ def test_markdown_nested_cell_without_backtick_is_unchanged() -> None:
 
     assert _cell({"k": 1}) == '`{"k": 1}`'
     assert _cell(["a|b"]) == r'`["a\|b"]`'
+
+
+@pytest.mark.parametrize(
+    ("name", "shown"),
+    [
+        ("Prod\n<!-- legacy", "Prod <!-- legacy"),
+        ("Prod\r\nEU", "Prod EU"),
+        ("Prod\rEU", "Prod EU"),
+    ],
+)
+def test_heading_is_one_line(name: str, shown: str, tmp_path: Path) -> None:
+    from aa_auto_sdr.api import models as m
+    from aa_auto_sdr.sdr.document import SdrDocument
+
+    doc = SdrDocument(
+        report_suite=m.ReportSuite(rsid="demo.prod", name=name, timezone=None, currency=None, parent_rsid=None),
+        dimensions=[],
+        metrics=[],
+        segments=[],
+        calculated_metrics=[],
+        virtual_report_suites=[],
+        classifications=[],
+        captured_at=datetime(2026, 4, 25, tzinfo=UTC),
+        tool_version="0.2.0",
+    )
+    target = tmp_path / "heading.md"
+    MarkdownWriter().write(doc, target)
+    text = target.read_text(encoding="utf-8")
+    assert text.splitlines()[0] == f"# SDR — {shown} (demo.prod)"
