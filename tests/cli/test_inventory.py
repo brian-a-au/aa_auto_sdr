@@ -249,6 +249,15 @@ class TestRunCsv:
         assert lines[3].startswith("TOTAL,")
         assert ",200," in lines[3]  # totals['dimensions']
 
+    def test_emit_csv_neutralizes_suite_name(self, capsys: pytest.CaptureFixture[str]) -> None:
+        import csv as _csv
+
+        rows = [{**_row("rs1", dimensions=3), "name": "=cmd"}]
+        inv_command._emit_csv(rows, _aggregate(rows))
+        parsed = list(_csv.reader(capsys.readouterr().out.splitlines()))
+        assert parsed[1][:3] == ["rs1", "'=cmd", "3"]
+        assert parsed[2][:3] == ["TOTAL", "", "3"]
+
 
 class TestRunFormatRejection:
     @pytest.mark.parametrize("bad_format", ["excel", "html", "markdown", "all"])

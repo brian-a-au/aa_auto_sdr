@@ -68,6 +68,30 @@ def test_csv_format_to_file_has_bom(tmp_path: Path) -> None:
     assert raw.startswith(b"\xef\xbb\xbf")  # UTF-8 BOM
 
 
+_HOSTILE = [
+    {"id": "a", "name": '=HYPERLINK("x")'},
+    {"id": "b", "name": "+1"},
+    {"id": "c", "name": "@x"},
+    {"id": "d", "name": "-y"},
+    {"id": "e", "name": "plain"},
+]
+_EXPECTED = ['\'=HYPERLINK("x")', "'+1", "'@x", "'-y", "plain"]
+
+
+def test_csv_file_neutralizes_formula_cells(tmp_path: Path) -> None:
+    target = tmp_path / "out.csv"
+    assert render_records(_HOSTILE, format_name="csv", output=target, columns=None) == 0
+    rows = list(_csv.reader(io.StringIO(target.read_text(encoding="utf-8-sig"))))
+    assert rows[0] == ["id", "name"]
+    assert [r[1] for r in rows[1:]] == _EXPECTED
+
+
+def test_csv_stdout_neutralizes_formula_cells(capsys) -> None:
+    assert render_records(_HOSTILE, format_name="csv", output=Path("-"), columns=None) == 0
+    rows = list(_csv.reader(io.StringIO(capsys.readouterr().out)))
+    assert [r[1] for r in rows[1:]] == _EXPECTED
+
+
 def test_csv_format_explicit_stdout_no_bom(capsys) -> None:
     rc = render_records(_RECORDS, format_name="csv", output=Path("-"), columns=None)
     assert rc == 0

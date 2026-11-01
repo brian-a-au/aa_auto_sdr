@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.core.exit_codes import ExitCode
-from aa_auto_sdr.output._helpers import stringify_cell
+from aa_auto_sdr.output._helpers import neutralize_formula, stringify_cell
 
 
 def build_footer(records: list[dict[str, Any]]) -> list[str]:
@@ -164,7 +164,9 @@ def _format_csv(records: list[dict[str, Any]], cols: list[str]) -> str:
     writer = _csv.writer(buf)
     writer.writerow(cols)
     for r in records:
-        writer.writerow([stringify_cell(r.get(c)) for c in cols])
+        # Component names are org-authored; defuse leading formula characters
+        # the same way the SDR CSV writer does.
+        writer.writerow([neutralize_formula(stringify_cell(r.get(c))) for c in cols])
     return buf.getvalue()
 
 

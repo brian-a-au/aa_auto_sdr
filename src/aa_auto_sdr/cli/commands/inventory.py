@@ -31,6 +31,7 @@ from aa_auto_sdr.core.exceptions import (
     ReportSuiteNotFoundError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.output._helpers import neutralize_formula
 
 logger = logging.getLogger(__name__)
 
@@ -260,6 +261,7 @@ def _emit_csv(rows: list[dict[str, Any]], summary: dict[str, Any]) -> None:
     writer.writerow(["rsid", "name", *_COMPONENT_TYPES])
     for row in rows:
         c = row["counts"]
-        writer.writerow([row["rsid"], row.get("name") or "", *(c[ct] for ct in _COMPONENT_TYPES)])
+        name = neutralize_formula(row.get("name") or "")
+        writer.writerow([neutralize_formula(row["rsid"]), name, *(c[ct] for ct in _COMPONENT_TYPES)])
     writer.writerow(["TOTAL", "", *(summary["totals"][ct] for ct in _COMPONENT_TYPES)])
     sys.stdout.write(buf.getvalue())
