@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -246,3 +247,19 @@ def test_log_file_is_written_as_utf8(tmp_path: Path) -> None:
     logging.getLogger("aa_auto_sdr.test").warning("name=東京サイト")
     fh.flush()
     assert "東京サイト" in next(tmp_path.glob("*.log")).read_bytes().decode("utf-8")
+
+
+def test_windows_colon_is_replaced_in_log_filename(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On Windows a ':' would open an NTFS alternate data stream, hiding the log."""
+    import aa_auto_sdr.core.logging as log_mod
+
+    monkeypatch.setattr(log_mod, "_LOG_NAME_REPLACED_CHARS", ("\\", "/", ":"))
+    assert _log_filename("single", _ns(rsids=["Acme: Prod"]), "TS") == "SDR_Generation_Acme_ Prod_TS.log"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="real Windows filename rules")
+def test_windows_bad_names_still_log_or_fall_back(tmp_path: Path) -> None:
+    setup_logging(_ns(rsids=["Acme: Prod"]), log_dir=tmp_path)
+    assert len(list(tmp_path.glob("SDR_Generation_Acme_ Prod_*.log"))) == 1
+    setup_logging(_ns(rsids=["Acme? Prod"]), log_dir=tmp_path / "q")  # '?' cannot be opened: console only
+    assert not any(isinstance(h, RotatingFileHandler) for h in logging.root.handlers)

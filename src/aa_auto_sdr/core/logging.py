@@ -276,11 +276,18 @@ def infer_run_mode(ns: argparse.Namespace) -> str:
     return "other"
 
 
+# Path separators keep an identifier one filename component. On Windows a ':'
+# would also open an NTFS alternate data stream and hide the log, so it goes too.
+# Other names the OS rejects fall back to console-only logging.
+_LOG_NAME_REPLACED_CHARS: tuple[str, ...] = tuple(c for c in (os.sep, os.altsep) if c) + (
+    (":",) if os.name == "nt" else ()
+)
+
+
 def _safe_log_component(text: str) -> str:
-    """Replace path separators so an identifier stays one filename component."""
-    for sep in (os.sep, os.altsep):
-        if sep:
-            text = text.replace(sep, "_")
+    """Replace path separators (and ':' on Windows) so an identifier stays one filename component."""
+    for char in _LOG_NAME_REPLACED_CHARS:
+        text = text.replace(char, "_")
     return text
 
 
