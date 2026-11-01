@@ -36,6 +36,18 @@ def _require_notion_client() -> Any:
         sys.exit(1)
 
 
+def notion_request_errors() -> tuple[type[BaseException], ...]:
+    """Exceptions a failed Notion request raises: HTTP error responses
+    (``APIResponseError`` included), timeouts, and transport failures.
+
+    Call only after ``_require_notion_client`` succeeded; the imports are
+    deferred so the optional extra stays off the import path."""
+    import httpx
+    from notion_client.errors import HTTPResponseError, RequestTimeoutError
+
+    return (HTTPResponseError, RequestTimeoutError, httpx.TransportError)
+
+
 def resolve_notion_token() -> str:
     """Return ``NOTION_TOKEN``, or exit 1 if missing.
 

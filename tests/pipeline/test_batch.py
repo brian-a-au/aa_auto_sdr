@@ -313,3 +313,39 @@ def test_sequential_fail_fast_stops_after_first_failure(
     assert by_rsid["a.rs"].error_type == "ApiError"
     assert by_rsid["b.rs"].error_type == "CancelledError"
     assert by_rsid["c.rs"].error_type == "CancelledError"
+
+
+def test_batch_continues_after_notion_failure(
+    mock_client: AaClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from notion_client.errors import RequestTimeoutError
+
+    from aa_auto_sdr.output.writers import notion as notion_writer_mod
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+    monkeypatch.delenv("NOTION_REGISTRY_DATABASE_ID", raising=False)
+    created: list[str] = []
+
+    def _create(**kwargs):
+        title = kwargs["properties"]["title"]["title"][0]["text"]["content"]
+        if "(a.rs)" in title:
+            raise RequestTimeoutError
+        created.append(title)
+        return {"id": f"page-{len(created)}"}
+
+    notion = MagicMock()
+    notion.pages.create.side_effect = _create
+    monkeypatch.setattr(notion_writer_mod, "_require_notion_client", lambda: MagicMock(return_value=notion))
+    result = batch.run_batch(
+        client=mock_client,
+        rsids=["a.rs", "b.rs", "c.rs"],
+        formats=["notion"],
+        output_dir=tmp_path,
+        captured_at=datetime(2026, 11, 1, tzinfo=UTC),
+        tool_version="1.24.8",
+    )
+    assert [f.rsid for f in result.failures] == ["a.rs"]
+    assert result.failures[0].error_type == "OutputError"
+    assert result.failures[0].exit_code == 15
+    assert sorted(r.rsid for r in result.successes) == ["b.rs", "c.rs"]

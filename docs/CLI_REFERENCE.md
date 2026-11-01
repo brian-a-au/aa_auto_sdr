@@ -645,6 +645,8 @@ aa_auto_sdr examplersid1 --watch --interval 1h --format notion
 
 Re-runs update the existing Notion page in place. Page IDs are tracked in `.notion_pages.json` in the output directory (or the input file's parent for `--push-to-notion`). Parallel batch (`--workers N>1`) is supported; a process-level lock serializes registry writes. Note Notion's ~3 req/s API rate limit; the client retries HTTP 429 responses automatically.
 
+A failed Notion request (an error response, a timeout, or a network failure) exits 15 (`OUTPUT`) with a one-line error. With `--format notion` in a batch, the failed report suite is recorded and the others continue. `--push-to-notion` exits 1 for bad input.
+
 ## Machine-readable errors
 
 When `--output -` (generate JSON pipe) or `--format json|markdown --output -` (diff pipe) is in effect and an error occurs, a one-line JSON envelope writes to stderr:

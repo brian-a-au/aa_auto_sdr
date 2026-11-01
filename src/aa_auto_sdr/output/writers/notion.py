@@ -10,14 +10,17 @@ Install the optional dep: ``uv pip install 'aa-auto-sdr[notion]'``.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.output.notion_blocks import build_blocks_from_document
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
+    notion_request_errors,
     resolve_notion_credentials,
     resolve_notion_database_id,
 )
@@ -58,12 +61,42 @@ def _clear_page_blocks(client: Any, page_id: str) -> None:
         client.blocks.delete(block_id=block_id)
 
 
+# Notion request limits: at most 1000 block elements per request (nested
+# children such as table rows count) and 500 KB of payload. The byte budget
+# leaves headroom for the request envelope; sizes are measured ASCII-escaped,
+# which over-counts non-ASCII text.
+_MAX_ELEMENTS_PER_REQUEST = 1000
+_MAX_BYTES_PER_REQUEST = 450_000
+
+
+def _block_elements(block: dict) -> int:
+    """Count `block` plus every block nested in its `children`."""
+    children = block.get(block.get("type"), {}).get("children", [])
+    return 1 + sum(_block_elements(child) for child in children)
+
+
 def _append_blocks(client: Any, page_id: str, blocks: list[dict], batch_size: int = 100) -> None:
-    for i in range(0, len(blocks), batch_size):
-        client.blocks.children.append(
-            block_id=page_id,
-            children=blocks[i : i + batch_size],
-        )
+    """Append `blocks` in order, packing each request within Notion's limits.
+
+    A single block over the byte budget still goes out, alone in its request."""
+    envelope = len(json.dumps({"children": []}))
+    batch: list[dict] = []
+    elements, size = 0, envelope
+    for block in blocks:
+        block_elements = _block_elements(block)
+        block_size = len(json.dumps(block)) + 2  # plus the ", " separator
+        if batch and (
+            len(batch) >= batch_size
+            or elements + block_elements > _MAX_ELEMENTS_PER_REQUEST
+            or size + block_size > _MAX_BYTES_PER_REQUEST
+        ):
+            client.blocks.children.append(block_id=page_id, children=batch)
+            batch, elements, size = [], 0, envelope
+        batch.append(block)
+        elements += block_elements
+        size += block_size
+    if batch:
+        client.blocks.children.append(block_id=page_id, children=batch)
 
 
 def _create_or_update_page(
@@ -147,16 +180,21 @@ class NotionWriter:
         # on disk. The registry lives in its parent dir (i.e. --output-dir).
         registry_path = get_registry_path(output_path.parent)
 
-        client = Client(auth=token)
-        page_id = _create_or_update_page(
-            client,
-            parent_page_id,
-            page_title,
-            rsid,
-            blocks,
-            registry_path,
-            force_new=self.force_new,
-        )
+        # A failed Notion request is an output failure (exit 15; a batch
+        # records it and continues), not a traceback.
+        try:
+            client = Client(auth=token)
+            page_id = _create_or_update_page(
+                client,
+                parent_page_id,
+                page_title,
+                rsid,
+                blocks,
+                registry_path,
+                force_new=self.force_new,
+            )
+        except notion_request_errors() as exc:
+            raise OutputError(f"notion publish failed for rsid={rsid}: {exc}") from exc
 
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(

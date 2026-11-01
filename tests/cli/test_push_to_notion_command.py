@@ -85,6 +85,34 @@ def test_push_to_notion_from_sdr_json(tmp_path, monkeypatch):
     mock_client.pages.create.assert_called_once()
 
 
+def test_push_to_notion_api_error_exits_15(tmp_path, monkeypatch, capsys):
+    import httpx
+    from notion_client.errors import APIResponseError
+
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    mock_client = MagicMock()
+    mock_client.pages.create.side_effect = APIResponseError(
+        code="object_not_found",
+        status=404,
+        message="Could not find page",
+        headers=httpx.Headers(),
+        raw_body_text="{}",
+    )
+    Client_factory = MagicMock(return_value=mock_client)
+    with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
+        exit_code = pt_mod.run_push_to_notion(str(json_path), output_dir=str(tmp_path), force_new=False)
+
+    assert exit_code == 15
+    err = capsys.readouterr().err
+    assert err.startswith("error: --push-to-notion: Notion request failed:")
+    assert "Traceback" not in err
+
+
 def test_push_to_notion_from_snapshot_envelope(tmp_path, monkeypatch):
     monkeypatch.setenv("NOTION_TOKEN", "secret-token")
     monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
@@ -118,6 +146,26 @@ def test_push_to_notion_file_not_found_exits_1(tmp_path, capsys):
     )
     assert code == 1
     assert "file not found" in capsys.readouterr().err.lower()
+
+
+def test_push_to_notion_list_payload_exits_1(tmp_path, capsys):
+    from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
+
+    f = tmp_path / "metrics.json"
+    f.write_text('[{"id": "metrics/pageviews"}]')
+    code = run_push_to_notion(str(f), output_dir=str(tmp_path), force_new=False)
+    assert code == 1
+    assert "unrecognized payload shape" in capsys.readouterr().err
+
+
+def test_push_to_notion_binary_file_exits_1(tmp_path, capsys):
+    from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
+
+    f = tmp_path / "rs.xlsx"
+    f.write_bytes(b"PK\x03\x04\xb5\x9c\xff\xfe")
+    code = run_push_to_notion(str(f), output_dir=str(tmp_path), force_new=False)
+    assert code == 1
+    assert "could not read" in capsys.readouterr().err
 
 
 def test_push_to_notion_invalid_json_exits_1(tmp_path, capsys):
