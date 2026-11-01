@@ -169,10 +169,26 @@ def run_push_to_notion(
         return int(ExitCode.GENERIC)
 
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError) as exc:
+        print(
+            f"error: --push-to-notion: could not read {json_file}: {exc}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.GENERIC)
+
+    try:
+        payload = json.loads(text)
     except json.JSONDecodeError as exc:
         print(
             f"error: --push-to-notion: invalid JSON in {json_file}: {exc}",
+            file=sys.stderr,
+        )
+        return int(ExitCode.GENERIC)
+
+    if not isinstance(payload, dict):
+        print(
+            f"error: --push-to-notion: unrecognized payload shape in {json_file}: top-level JSON is not an object",
             file=sys.stderr,
         )
         return int(ExitCode.GENERIC)

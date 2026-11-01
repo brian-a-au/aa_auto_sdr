@@ -148,6 +148,26 @@ def test_push_to_notion_file_not_found_exits_1(tmp_path, capsys):
     assert "file not found" in capsys.readouterr().err.lower()
 
 
+def test_push_to_notion_list_payload_exits_1(tmp_path, capsys):
+    from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
+
+    f = tmp_path / "metrics.json"
+    f.write_text('[{"id": "metrics/pageviews"}]')
+    code = run_push_to_notion(str(f), output_dir=str(tmp_path), force_new=False)
+    assert code == 1
+    assert "unrecognized payload shape" in capsys.readouterr().err
+
+
+def test_push_to_notion_binary_file_exits_1(tmp_path, capsys):
+    from aa_auto_sdr.cli.commands.push_to_notion import run_push_to_notion
+
+    f = tmp_path / "rs.xlsx"
+    f.write_bytes(b"PK\x03\x04\xb5\x9c\xff\xfe")
+    code = run_push_to_notion(str(f), output_dir=str(tmp_path), force_new=False)
+    assert code == 1
+    assert "could not read" in capsys.readouterr().err
+
+
 def test_push_to_notion_invalid_json_exits_1(tmp_path, capsys):
     bad = tmp_path / "bad.json"
     bad.write_text("{not valid json}")
