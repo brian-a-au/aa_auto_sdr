@@ -123,6 +123,44 @@ def test_append_blocks_batches_at_100():
     assert client.blocks.children.append.call_count == 3
 
 
+def _sent(client) -> list[list[dict]]:
+    """The `children` list of each append request, in call order."""
+    return [c.kwargs["children"] for c in client.blocks.children.append.call_args_list]
+
+
+def test_append_blocks_keeps_each_request_within_1000_elements():
+    from aa_auto_sdr.output.notion_blocks import _table_block
+
+    table = _table_block([["a", "b"]] * 99, ["c1", "c2"])  # 1 table + 100 rows = 101 elements
+    blocks = [table] * 12
+    client = MagicMock()
+    notion_writer_mod._append_blocks(client, "page-id", blocks)
+    sent = _sent(client)
+    assert len(sent) >= 2
+    assert all(sum(notion_writer_mod._block_elements(b) for b in req) <= 1000 for req in sent)
+    assert sum(sent, []) == blocks
+
+
+def test_append_blocks_keeps_each_request_under_byte_budget():
+    # 90 blocks stay under the 100-block cap, so only the byte budget can split them (about 540 KB).
+    blocks = [{"type": "paragraph", "paragraph": {"rich_text": [{"text": {"content": "x" * 6000}}]}}] * 90
+    client = MagicMock()
+    notion_writer_mod._append_blocks(client, "page-id", blocks)
+    sent = _sent(client)
+    assert len(sent) >= 2
+    assert all(len(json.dumps({"children": req})) <= 450_000 for req in sent)
+    assert sum(sent, []) == blocks
+
+
+def test_append_blocks_sends_oversized_block_alone():
+    small = {"type": "divider", "divider": {}}
+    big = {"type": "paragraph", "paragraph": {"rich_text": [{"text": {"content": "y" * 500_000}}]}}
+    blocks = [small, big, small]
+    client = MagicMock()
+    notion_writer_mod._append_blocks(client, "page-id", blocks)
+    assert _sent(client) == [[small], [big], [small]]
+
+
 def test_create_or_update_page_creates_new_when_not_in_registry(tmp_path):
     client = MagicMock()
     client.pages.create.return_value = {"id": "new-page-id"}
