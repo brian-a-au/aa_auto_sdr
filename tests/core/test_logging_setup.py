@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -210,3 +211,55 @@ def test_dep_summary_lists_three_packages() -> None:
     assert "aanalytics2=" in s
     assert "pandas=" in s
     assert "xlsxwriter=" in s
+
+
+def test_identifier_with_path_separator_writes_log_file(tmp_path: Path) -> None:
+    setup_logging(_ns(rsids=["Acme / Prod"]), log_dir=tmp_path)
+    assert len(list(tmp_path.glob("SDR_Generation_Acme _ Prod_*.log"))) == 1
+
+
+def test_plain_identifier_filename_unchanged() -> None:
+    assert _log_filename("single", _ns(rsids=["demo.prod"]), "TS") == "SDR_Generation_demo.prod_TS.log"
+    assert _log_filename("single", _ns(rsids=["Adobe Store"]), "TS") == "SDR_Generation_Adobe Store_TS.log"
+
+
+def test_unopenable_log_file_falls_back_to_console(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import aa_auto_sdr.core.logging as log_mod
+
+    def _boom(*_args, **_kwargs):
+        raise PermissionError(13, "Permission denied")
+
+    monkeypatch.setattr(log_mod, "RotatingFileHandler", _boom)
+    setup_logging(_ns(rsids=["demo.prod"]), log_dir=tmp_path)
+    assert not any(isinstance(h, RotatingFileHandler) for h in logging.root.handlers)
+    err = capsys.readouterr().err
+    assert "Warning: Cannot open log file" in err
+    assert "Logging to console only." in err
+    assert "Console output only." in err
+
+
+def test_log_file_is_written_as_utf8(tmp_path: Path) -> None:
+    setup_logging(_ns(rsids=["demo.prod"]), log_dir=tmp_path)
+    fh = next(h for h in logging.root.handlers if isinstance(h, RotatingFileHandler))
+    assert fh.encoding == "utf-8"
+    logging.getLogger("aa_auto_sdr.test").warning("name=東京サイト")
+    fh.flush()
+    assert "東京サイト" in next(tmp_path.glob("*.log")).read_bytes().decode("utf-8")
+
+
+def test_windows_colon_is_replaced_in_log_filename(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On Windows a ':' would open an NTFS alternate data stream, hiding the log."""
+    import aa_auto_sdr.core.logging as log_mod
+
+    monkeypatch.setattr(log_mod, "_LOG_NAME_REPLACED_CHARS", ("\\", "/", ":"))
+    assert _log_filename("single", _ns(rsids=["Acme: Prod"]), "TS") == "SDR_Generation_Acme_ Prod_TS.log"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="real Windows filename rules")
+def test_windows_bad_names_still_log_or_fall_back(tmp_path: Path) -> None:
+    setup_logging(_ns(rsids=["Acme: Prod"]), log_dir=tmp_path)
+    assert len(list(tmp_path.glob("SDR_Generation_Acme_ Prod_*.log"))) == 1
+    setup_logging(_ns(rsids=["Acme? Prod"]), log_dir=tmp_path / "q")  # '?' cannot be opened: console only
+    assert not any(isinstance(h, RotatingFileHandler) for h in logging.root.handlers)
