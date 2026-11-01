@@ -162,11 +162,15 @@ Likely causes:
 - `--list-snapshots` or `--profile-list` with a format value other than
   `json|table`.
 - Filesystem write failure (permissions, disk full).
+- Notion request failed (`--format notion` or `--push-to-notion`): an error
+  response, a timeout, or a network failure.
 
 What to try:
 - For piping, use `--format json` (single SDR) or `--format json|markdown`
   (diff). Use `--output-dir` for multi-format and batch.
-- For `--list-snapshots` / `--profile-list`, use `--format json` or `--format table`.""",
+- For `--list-snapshots` / `--profile-list`, use `--format json` or `--format table`.
+- For Notion, check that the integration is shared with the page in
+  `NOTION_PARENT_PAGE_ID` and that `NOTION_TOKEN` is current, then re-run.""",
     ExitCode.SNAPSHOT: """A snapshot could not be resolved, parsed, or read from git.
 
 Likely causes:

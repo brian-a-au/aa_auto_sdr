@@ -57,6 +57,13 @@ def test_explanations_complete() -> None:
         assert len(EXPLANATIONS[code]) > 50
 
 
+def test_output_explanation_names_notion_request_failure() -> None:
+    """--format notion and --push-to-notion exit 15 when a Notion request fails."""
+    text = EXPLANATIONS[ExitCode.OUTPUT]
+    assert "Notion request failed" in text
+    assert "NOTION_PARENT_PAGE_ID" in text
+
+
 def test_explanations_have_what_to_try_section_for_failures() -> None:
     """Failure codes (>=1) should include a 'What to try:' remediation block."""
     for code in ExitCode:
