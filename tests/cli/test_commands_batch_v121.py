@@ -111,15 +111,16 @@ def test_batch_run_summary_replace_failure_preserves_existing_file(
 
     monkeypatch.setattr("aa_auto_sdr.core.atomic_io.os.replace", fail_replace)
 
-    with pytest.raises(PermissionError, match="destination locked"):
-        cmd._emit_run_summary(
-            run_summary_json=str(summary_path),
-            started_at=now,
-            finished_at=now,
-            profile=None,
-            per_rsid=[],
-            show_timings=False,
-        )
+    ok = cmd._emit_run_summary(
+        run_summary_json=str(summary_path),
+        started_at=now,
+        finished_at=now,
+        profile=None,
+        per_rsid=[],
+        show_timings=False,
+    )
+
+    assert ok is False
 
     assert summary_path.read_bytes() == b"original summary"
     assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []

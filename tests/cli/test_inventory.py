@@ -475,3 +475,23 @@ class TestPrintTableAlignment:
         lines = [line for line in out.splitlines() if line.startswith("  ") and "/" in line]
         assert len(lines) == 2
         assert lines[0].index("1/1/1") == lines[1].index("2/2/2")
+
+
+class TestRunDedupe:
+    @pytest.mark.parametrize("idents", [["demo.prod", "Demo Production"], ["demo.prod", "demo.prod"]])
+    def test_repeated_report_suite_counts_once(self, idents: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+        def resolve(_client, ident, name_match="insensitive", preloaded_suites=None):
+            return (["demo.prod"], ident != "demo.prod")
+
+        patches = _patch_fetchers()
+        patches.append(patch.object(inv_command.fetch, "resolve_rsid", side_effect=resolve))
+        _enter_all(patches)
+        try:
+            exit_code = inv_command.run(rsids=idents, profile=None, format_name="json")
+        finally:
+            _exit_all(patches)
+        assert exit_code == ExitCode.OK.value
+        payload = _json.loads(capsys.readouterr().out)
+        assert payload["report_suites_count"] == 1
+        assert [r["rsid"] for r in payload["per_rsid"]] == ["demo.prod"]
+        assert payload["totals"]["dimensions"] == 100

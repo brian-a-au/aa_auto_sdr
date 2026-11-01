@@ -53,9 +53,10 @@ def _emit_run_summary(
     per_rsid: list[PerRsidResult],
     show_timings: bool,
     is_pipe: bool = False,
-) -> None:
+) -> bool:
+    """Write the run summary. Returns False only when the file write failed."""
     if not run_summary_json:
-        return
+        return True
     summary = RunSummary(
         started_at=started_at.isoformat(),
         finished_at=finished_at.isoformat(),
@@ -75,9 +76,19 @@ def _emit_run_summary(
         _sys.stdout.flush()
     else:
         payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
-        atomic_write_text(Path(run_summary_json), payload + "\n")
+        try:
+            atomic_write_text(Path(run_summary_json), payload + "\n")
+        except OSError as exc:
+            _emit_pipe_or_print(
+                is_pipe=is_pipe,
+                exc=exc,
+                message=f"error: could not write run summary {run_summary_json}: {exc}",
+                exit_code=ExitCode.OUTPUT.value,
+            )
+            return False
         # Under --output - stdout carries only the SDR JSON.
         print(f"wrote run summary: {run_summary_json}", flush=True, file=sys.stderr if is_pipe else sys.stdout)
+    return True
 
 
 def _emit_pipe_or_print(
@@ -421,7 +432,7 @@ def _run_impl(
             )
             for rs in canonical_rsids
         ]
-        _emit_run_summary(
+        summary_ok = _emit_run_summary(
             is_pipe=is_pipe,
             run_summary_json=run_summary_json,
             started_at=started_at,
@@ -431,7 +442,7 @@ def _run_impl(
             show_timings=show_timings,
         )
         _emit_timings_if_enabled(show_timings=show_timings)
-        return ExitCode.OK.value
+        return ExitCode.OK.value if summary_ok else ExitCode.OUTPUT.value
 
     if is_pipe:
         # JSON-only pipe path: build SdrDocuments and emit one JSON value
@@ -582,7 +593,7 @@ def _run_impl(
                 )
                 _emit_timings_if_enabled(show_timings=show_timings)
                 return rc
-        _emit_run_summary(
+        summary_ok = _emit_run_summary(
             is_pipe=is_pipe,
             run_summary_json=run_summary_json,
             started_at=started_at,
@@ -597,7 +608,7 @@ def _run_impl(
         # exactly like the file-output path below.
         if pipe_gate_failed:
             return ExitCode.QUALITY.value
-        return ExitCode.OK.value
+        return ExitCode.OK.value if summary_ok else ExitCode.OUTPUT.value
 
     # File-output path: per-RSID pipeline.run_single
     first_output: Path | None = None
@@ -788,7 +799,7 @@ def _run_impl(
 
         os_open(first_output)
 
-    _emit_run_summary(
+    summary_ok = _emit_run_summary(
         is_pipe=is_pipe,
         run_summary_json=run_summary_json,
         started_at=started_at,
@@ -805,7 +816,8 @@ def _run_impl(
     # already wrote successfully.
     if _fail_on_quality is not None and any(r.succeeded and r.quality_verdict == "fail" for r in per_rsid_results):
         return ExitCode.QUALITY.value
-    return ExitCode.OK.value
+    # A failed summary write only upgrades an otherwise-OK exit.
+    return ExitCode.OK.value if summary_ok else ExitCode.OUTPUT.value
 
 
 def _apply_auto_prune(
