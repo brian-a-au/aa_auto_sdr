@@ -17,6 +17,7 @@ from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.output.notion_blocks import build_blocks_from_dict
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
+    notion_request_errors,
     resolve_notion_company,
     resolve_notion_credentials,
     resolve_notion_database_id,
@@ -191,10 +192,10 @@ def run_push_to_notion(
     effective_output_dir = Path(output_dir) if output_dir else path.parent
     registry_path = get_registry_path(effective_output_dir)
 
-    client = Client(auth=token)
     company = resolve_notion_company(cli_override=notion_company, aa_company_id=None)
 
     try:
+        client = Client(auth=token)
         page_id = publish_payload_to_notion(
             client,
             payload,
@@ -212,6 +213,9 @@ def run_push_to_notion(
             file=sys.stderr,
         )
         return int(ExitCode.GENERIC)
+    except notion_request_errors() as exc:
+        print(f"error: --push-to-notion: Notion request failed: {exc}", file=sys.stderr)
+        return int(ExitCode.OUTPUT)
 
     print(f"notion://pages/{page_id}")
     return int(ExitCode.OK)

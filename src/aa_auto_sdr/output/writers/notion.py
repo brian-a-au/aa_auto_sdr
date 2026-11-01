@@ -16,9 +16,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.output.notion_blocks import build_blocks_from_document
 from aa_auto_sdr.output.notion_client_guard import (
     _require_notion_client,
+    notion_request_errors,
     resolve_notion_credentials,
     resolve_notion_database_id,
 )
@@ -178,16 +180,21 @@ class NotionWriter:
         # on disk. The registry lives in its parent dir (i.e. --output-dir).
         registry_path = get_registry_path(output_path.parent)
 
-        client = Client(auth=token)
-        page_id = _create_or_update_page(
-            client,
-            parent_page_id,
-            page_title,
-            rsid,
-            blocks,
-            registry_path,
-            force_new=self.force_new,
-        )
+        # A failed Notion request is an output failure (exit 15; a batch
+        # records it and continues), not a traceback.
+        try:
+            client = Client(auth=token)
+            page_id = _create_or_update_page(
+                client,
+                parent_page_id,
+                page_title,
+                rsid,
+                blocks,
+                registry_path,
+                force_new=self.force_new,
+            )
+        except notion_request_errors() as exc:
+            raise OutputError(f"notion publish failed for rsid={rsid}: {exc}") from exc
 
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info(

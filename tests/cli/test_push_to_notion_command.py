@@ -85,6 +85,34 @@ def test_push_to_notion_from_sdr_json(tmp_path, monkeypatch):
     mock_client.pages.create.assert_called_once()
 
 
+def test_push_to_notion_api_error_exits_15(tmp_path, monkeypatch, capsys):
+    import httpx
+    from notion_client.errors import APIResponseError
+
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    mock_client = MagicMock()
+    mock_client.pages.create.side_effect = APIResponseError(
+        code="object_not_found",
+        status=404,
+        message="Could not find page",
+        headers=httpx.Headers(),
+        raw_body_text="{}",
+    )
+    Client_factory = MagicMock(return_value=mock_client)
+    with patch.object(pt_mod, "_require_notion_client", return_value=Client_factory):
+        exit_code = pt_mod.run_push_to_notion(str(json_path), output_dir=str(tmp_path), force_new=False)
+
+    assert exit_code == 15
+    err = capsys.readouterr().err
+    assert err.startswith("error: --push-to-notion: Notion request failed:")
+    assert "Traceback" not in err
+
+
 def test_push_to_notion_from_snapshot_envelope(tmp_path, monkeypatch):
     monkeypatch.setenv("NOTION_TOKEN", "secret-token")
     monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")

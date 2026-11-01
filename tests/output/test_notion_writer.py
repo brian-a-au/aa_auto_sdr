@@ -361,6 +361,24 @@ def test_notion_writer_write_returns_registry_path(tmp_path, monkeypatch):
     mock_client.pages.create.assert_called_once()
 
 
+def test_notion_writer_wraps_request_error_as_output_error(tmp_path, monkeypatch):
+    from notion_client.errors import RequestTimeoutError
+
+    from aa_auto_sdr.core.exceptions import OutputError
+
+    monkeypatch.setenv("NOTION_TOKEN", "tok")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
+    doc = _make_doc()
+    mock_client = MagicMock()
+    mock_client.pages.create.side_effect = RequestTimeoutError()
+    Client_factory = MagicMock(return_value=mock_client)
+    with patch.object(notion_writer_mod, "_require_notion_client", return_value=Client_factory):
+        writer = notion_writer_mod.NotionWriter()
+        writer.force_new = False
+        with pytest.raises(OutputError, match="notion publish failed for rsid="):
+            writer.write(doc, tmp_path / f"{doc.report_suite.rsid}.notion")
+
+
 def test_notion_writer_force_new_creates_fresh_page(tmp_path, monkeypatch):
     monkeypatch.setenv("NOTION_TOKEN", "tok")
     monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent")
