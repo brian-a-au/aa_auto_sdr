@@ -134,6 +134,25 @@ def _response_rows(value: Any, *, rsid: str, component_type: str) -> list[Any]:
     return value
 
 
+def _reject_error_mapping(value: Any, *, rsid: str, id_keys: tuple[str, ...], component_type: str) -> Any:
+    """Raise on a connector error body; return `value` unchanged otherwise.
+
+    The connector discards HTTP status and hands back the parsed error body (or
+    `{"error": "Request Error"}`), which `_records` would otherwise read as one
+    junk row or none. Only a dict carrying none of `id_keys` is inspected, so a
+    single-record response still passes. Transient stubs are retried, matching
+    `_response_rows`; explicit error codes fail the call.
+    """
+    if not isinstance(value, dict) or any(key in value for key in id_keys):
+        return value
+    error = value.get("error")
+    if (isinstance(error, str) and error.strip()) or value.get("error_code") == "429050":
+        raise TransientApiError(f"{component_type} fetch failed for {rsid}: transient SDK error stub")
+    if any(key in value for key in ("errorCode", "error_code", "errorDescription")):
+        raise ApiError(f"{component_type} fetch failed for {rsid}: API returned an error response")
+    return value
+
+
 def _component_records(value: Any, *, rsid: str, component_type: str) -> list[dict[str, Any]]:
     """`_response_rows` plus the per-row id every inventory family needs.
 
@@ -364,7 +383,7 @@ def resolve_rsid(
     else:  # insensitive or fuzzy
         target = identifier.casefold()
         for raw in suites:
-            n = raw.get("name")
+            n = _get(raw, "name")
             if n is not None and str(n).casefold() == target:
                 name_matches.append((str(raw["rsid"]), str(n)))
 
@@ -372,7 +391,7 @@ def resolve_rsid(
     if name_match == "fuzzy" and not name_matches:
         target = identifier.casefold()
         for raw in suites:
-            n = raw.get("name")
+            n = _get(raw, "name")
             if n is None:
                 continue
             ratio = SequenceMatcher(None, target, str(n).casefold()).ratio()
@@ -999,7 +1018,12 @@ def fetch_classification_datasets(
         raws = _records(
             with_retries(
                 lambda: classify_transient_sdk_call(
-                    lambda: client.handle.getClassificationDatasets(rsid=rsid),
+                    lambda: _reject_error_mapping(
+                        client.handle.getClassificationDatasets(rsid=rsid),
+                        rsid=rsid,
+                        id_keys=_CLASSIFICATION_ID_KEYS,
+                        component_type="classification",
+                    ),
                     component_type="classification",
                 ),
                 policy=client.retry_policy,

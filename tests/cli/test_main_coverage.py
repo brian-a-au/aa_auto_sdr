@@ -91,6 +91,35 @@ def test_template_unknown_format_defers_to_generate(tmp_path: Path) -> None:
     assert _validate_template_modifiers(ns) == int(ExitCode.OK)
 
 
+def test_excel_template_format_without_template_is_usage(capsys, monkeypatch) -> None:
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.cli.main import run
+
+    def _never(*_a, **_k):
+        raise AssertionError("AaClient must not be reached")
+
+    monkeypatch.setattr(AaClient, "from_credentials", _never, raising=False)
+    rc = run(["demo.prod", "--format", "excel-template"])
+    assert rc == int(ExitCode.USAGE)
+    assert "--format excel-template requires --template" in capsys.readouterr().err
+
+
+def test_excel_template_format_without_template_validator(capsys) -> None:
+    ns = build_parser().parse_args(["rs1", "--format", "excel-template"])
+    assert _validate_template_modifiers(ns) == int(ExitCode.USAGE)
+    assert "--format excel-template requires --template" in capsys.readouterr().err
+
+
+def test_excel_format_without_template_still_ok() -> None:
+    ns = build_parser().parse_args(["rs1", "--format", "excel"])
+    assert _validate_template_modifiers(ns) == int(ExitCode.OK)
+
+
+def test_unknown_format_without_template_defers() -> None:
+    ns = build_parser().parse_args(["rs1", "--format", "totally-bogus"])
+    assert _validate_template_modifiers(ns) == int(ExitCode.OK)
+
+
 def test_template_excel_format_passes(tmp_path: Path) -> None:
     from openpyxl import Workbook
 
@@ -362,3 +391,29 @@ def test_is_xlsx_package_false_when_zip_header_is_corrupt(
 
     monkeypatch.setattr(zipfile, "ZipFile", corrupt)
     assert main_mod._is_xlsx_package(tmp_path / "t.xlsx") is False
+
+
+def test_excel_template_check_skips_diff_route(capsys) -> None:
+    from aa_auto_sdr.cli.main import run
+
+    rc = run(["--diff", "a.json", "b.json", "--format", "excel-template"])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OUTPUT)
+    assert "not available for --diff" in err
+    assert "requires --template" not in err
+
+
+def test_excel_template_check_skips_trending_route(capsys) -> None:
+    from aa_auto_sdr.cli.main import run
+
+    rc = run(["--trending-window", "7d", "demo", "--format", "excel-template"])
+    err = capsys.readouterr().err
+    assert rc == int(ExitCode.OUTPUT)
+    assert "requires --template" not in err
+
+
+def test_excel_template_check_skips_list_route(capsys) -> None:
+    from aa_auto_sdr.cli.main import run
+
+    run(["--list-reportsuites", "--format", "excel-template"])
+    assert "requires --template" not in capsys.readouterr().err

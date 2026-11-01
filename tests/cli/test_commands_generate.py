@@ -682,3 +682,43 @@ def test_pipe_ambiguous_name_emits_json_envelope(mock_client_cls, env_creds, cap
     # An unattended caller needs the candidates to retry with one of them.
     assert "a.prod (Demo)" in envelope["error"]["message"]
     assert "b.prod (Demo)" in envelope["error"]["message"]
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_run_summary_write_failure_exits_output(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+        run_summary_json=str(tmp_path / "missing" / "s.json"),
+    )
+
+    assert rc == 15
+    assert "could not write run summary" in capsys.readouterr().err
+    assert (tmp_path / "demo.prod.json").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_run_summary_write_failure_keeps_stdout_clean(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="json",
+        profile=None,
+        run_summary_json=str(tmp_path / "missing" / "s.json"),
+    )
+
+    out, err = capsys.readouterr()
+    assert rc == 15
+    assert json.loads(out)["report_suite"]["rsid"] == "demo.prod"
+    envelope = json.loads(err.strip().splitlines()[-1])
+    assert envelope["error"]["code"] == 15
+    assert envelope["error"]["type"] == "FileNotFoundError"
+    assert "No such file or directory" in envelope["error"]["message"]

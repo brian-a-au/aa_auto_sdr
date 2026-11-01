@@ -574,3 +574,21 @@ def test_command_refuses_output_path_outside_output_dir(bad: str, tmp_path: Path
     assert "outside" in capsys.readouterr().err
     assert not (tmp_path / "work" / "escaped.json").exists()
     assert not list((tmp_path / "work").glob("escaped*"))
+
+
+def test_cli_render_from_envelope_bad_quality_exits_16(tmp_path: Path, capsys) -> None:
+    env = document_to_envelope(_built_doc())
+    env["quality"] = {"summary": {"total": "many"}}
+    bad = _write_envelope(env, tmp_path / "x.json")
+    assert _rc(["--render-from", str(bad)]) == 16
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_cli_render_from_sdr_json_bad_quality_is_invalid_sdr_json(tmp_path: Path, capsys) -> None:
+    payload = json.loads(json.dumps(_built_doc().to_dict()))
+    payload["quality"] = {"summary": {"total": "many"}}
+    bad = _write_envelope(payload, tmp_path / "x.json")
+    assert _rc(["--render-from", str(bad)]) == 1
+    err = capsys.readouterr().err
+    assert "invalid SDR JSON" in err
+    assert "Traceback" not in err
