@@ -193,7 +193,7 @@ _HOSTILE = [
     {"id": "d", "name": "-y"},
     {"id": "e", "name": "plain"},
 ]
-_EXPECTED = ["'=HYPERLINK(\"x\")", "'+1", "'@x", "'-y", "plain"]
+_EXPECTED = ['\'=HYPERLINK("x")', "'+1", "'@x", "'-y", "plain"]
 
 
 def test_csv_file_neutralizes_formula_cells(tmp_path: Path) -> None:
