@@ -145,7 +145,7 @@ def _compute_drift_summary(series: list[SnapshotPoint]) -> DriftSummary:
 
     Only counted points contribute (and `n_pairs` counts only them): a point
     with no delta is skipped, and so is a point superseded by a later one that
-    compared against the same baseline and covers its scope. Otherwise a
+    has the same or an earlier baseline and covers its scope. Otherwise a
     filtered snapshot between two full ones would count its families'
     changes twice (once itself, once again in the next full point).
     """
@@ -191,7 +191,8 @@ def _drift_points(series: list[SnapshotPoint]) -> list[SnapshotPoint]:
         if point.delta_by_type is None:
             continue
         superseded = point.baseline_captured_at is not None and any(
-            later.baseline_captured_at == point.baseline_captured_at
+            later.baseline_captured_at is not None
+            and later.baseline_captured_at <= point.baseline_captured_at
             and covers(later.collected_components, point.collected_components)
             for later in series[i + 1 :]
         )
