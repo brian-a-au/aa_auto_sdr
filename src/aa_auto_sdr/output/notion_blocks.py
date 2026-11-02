@@ -13,6 +13,7 @@ premature).
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
@@ -24,6 +25,10 @@ _NOTION_RICH_TEXT_LIMIT = 2000
 # that array, so we cap data rows at 99 (= 100 children minus the header) and
 # split larger sections into multiple sibling tables under the same heading.
 _NOTION_MAX_TABLE_DATA_ROWS = 99
+# Notion also caps a request at 500 KB, and the writer cannot split inside
+# one block, so a table closes early once its rows pass this size. Measured
+# ASCII-escaped (the writer's measure), which over-counts non-ASCII text.
+_NOTION_MAX_TABLE_BYTES = 400_000
 _MISSING = "—"
 
 _SECTION_ORDER: list[tuple[str, str, list[str]]] = [
@@ -111,8 +116,17 @@ def _section_blocks(heading: str, columns: list[str], rows: list[list[str]]) -> 
     if not rows:
         return []
     blocks: list[dict] = [_heading2_block(heading)]
-    for start in range(0, len(rows), _NOTION_MAX_TABLE_DATA_ROWS):
-        chunk = rows[start : start + _NOTION_MAX_TABLE_DATA_ROWS]
+    header_size = len(json.dumps(_table_row_block(columns)))
+    chunk: list[list[str]] = []
+    size = header_size
+    for row in rows:
+        row_size = len(json.dumps(_table_row_block(row))) + 2  # plus the ", " separator
+        if chunk and (len(chunk) >= _NOTION_MAX_TABLE_DATA_ROWS or size + row_size > _NOTION_MAX_TABLE_BYTES):
+            blocks.append(_table_block(chunk, columns))
+            chunk, size = [], header_size
+        chunk.append(row)
+        size += row_size
+    if chunk:
         blocks.append(_table_block(chunk, columns))
     return blocks
 

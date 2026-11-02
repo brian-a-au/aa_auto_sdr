@@ -309,3 +309,36 @@ def test_table_cell_truncated_at_2000_chars():
     long = next(c for c in contents if c.startswith("d"))
     assert len(long) == 2000
     assert long.endswith("…")
+
+
+def test_section_blocks_split_tables_by_payload_size() -> None:
+    import json
+
+    from aa_auto_sdr.output import notion_blocks as nb
+
+    desc = "説明" * 1000  # 2000 chars, 12000 bytes ASCII-escaped
+    rows = [[f"Name {i}", f"metrics/m{i}", "int", desc] for i in range(99)]
+    blocks = nb._section_blocks("Metrics", ["Name", "ID", "Type", "Description"], rows)
+    tables = [b for b in blocks if b["type"] == "table"]
+    assert len(tables) >= 2
+    assert all(len(json.dumps(t)) <= nb._NOTION_MAX_TABLE_BYTES for t in tables)
+    data_rows = [row for t in tables for row in t["table"]["children"][1:]]
+    assert [r["table_row"]["cells"][0][0]["text"]["content"] for r in data_rows] == [f"Name {i}" for i in range(99)]
+
+
+def test_append_blocks_requests_stay_under_notion_limit() -> None:
+    import json
+    from unittest.mock import MagicMock
+
+    from aa_auto_sdr.output import notion_blocks as nb
+    from aa_auto_sdr.output.writers import notion as nw
+
+    desc = "説明" * 1000
+    rows = [[f"Name {i}", f"metrics/m{i}", "int", desc] for i in range(250)]
+    blocks = nb._section_blocks("Metrics", ["Name", "ID", "Type", "Description"], rows)
+    client = MagicMock()
+    nw._append_blocks(client, "page", blocks)
+    for call in client.blocks.children.append.call_args_list:
+        body = {"children": call.kwargs["children"]}
+        assert len(json.dumps(body, ensure_ascii=False).encode("utf-8")) <= 500_000
+        assert len(json.dumps(body)) <= 500_000

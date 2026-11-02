@@ -71,3 +71,25 @@ def test_escape_pipe_replaces_crlf_with_one_br() -> None:
 def test_escape_pipe_replaces_bare_cr_with_br() -> None:
     # A bare \r ends a line in CommonMark/GFM and would split the table row.
     assert escape_pipe("line1\rline2") == "line1<br>line2"
+
+
+def test_inline_code_sizes_fence_past_backtick_runs() -> None:
+    from aa_auto_sdr.output._helpers import inline_code
+
+    assert inline_code("plain") == "`plain`"
+    assert inline_code("a`b") == "``a`b``"
+    assert inline_code("a``b") == "```a``b```"
+
+
+def test_inline_code_pads_edge_backticks() -> None:
+    from aa_auto_sdr.output._helpers import inline_code
+
+    assert inline_code("`x") == "`` `x ``"
+    assert inline_code("x`") == "`` x` ``"
+
+
+def test_inline_code_collapses_line_breaks() -> None:
+    from aa_auto_sdr.output._helpers import inline_code
+
+    assert inline_code("a\nb\r\nc\rd") == "`a b c d`"
+    assert inline_code("") == ""
