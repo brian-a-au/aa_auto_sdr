@@ -53,6 +53,9 @@ T = TypeVar("T")
 OnAttemptCb = Callable[[int, int, float, BaseException], None]
 
 
+MAX_RETRY_DELAY_SECONDS = 86_400.0  # one day
+
+
 @dataclass(slots=True, frozen=True)
 class RetryPolicy:
     """Retry budget + exponential-backoff parameters."""
@@ -73,6 +76,9 @@ class RetryPolicy:
             raise ValueError(f"base_delay must be positive, got {self.base_delay}")
         if self.max_delay < self.base_delay:
             raise ValueError(f"max_delay ({self.max_delay}) must be >= base_delay ({self.base_delay})")
+        # time.sleep() overflows on huge finite delays (near 1e10 s on macOS).
+        if self.max_delay > MAX_RETRY_DELAY_SECONDS:
+            raise ValueError(f"max_delay ({self.max_delay}) must be <= {MAX_RETRY_DELAY_SECONDS:g} seconds")
 
 
 DEFAULT_RETRY_POLICY = RetryPolicy()

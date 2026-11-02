@@ -412,8 +412,15 @@ def test_excel_template_check_skips_trending_route(capsys) -> None:
     assert "requires --template" not in err
 
 
-def test_excel_template_check_skips_list_route(capsys) -> None:
+def test_excel_template_check_skips_list_route(capsys, monkeypatch) -> None:
     from aa_auto_sdr.cli.main import run
+    from aa_auto_sdr.core import credentials
+    from aa_auto_sdr.core.exceptions import ConfigError
 
+    # Stop at credential resolution: a checkout may hold real credentials.
+    def no_creds(*_a, **_k):
+        raise ConfigError("stub: no creds")
+
+    monkeypatch.setattr(credentials, "resolve", no_creds)
     run(["--list-reportsuites", "--format", "excel-template"])
     assert "requires --template" not in capsys.readouterr().err

@@ -542,7 +542,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--warn-threshold",
-        type=int,
+        type=_non_negative_int,
         default=None,
         metavar="N",
         help="Exit code 3 if total changes >= N",
@@ -560,7 +560,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--max-issues",
-        type=int,
+        type=_non_negative_int,
         default=None,
         metavar="N",
         help="Cap each component's added/removed/modified to N items in render",

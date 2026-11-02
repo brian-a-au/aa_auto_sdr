@@ -669,7 +669,7 @@ For unattended runs against the live AA API, tune retry behavior with:
 aa_auto_sdr <RSID> --max-retries 6 --retry-base-delay 1.0 --retry-max-delay 30.0
 ```
 
-Defaults: `--max-retries 3`, `--retry-base-delay 0.5`, `--retry-max-delay 10.0`.
+Defaults: `--max-retries 3`, `--retry-base-delay 0.5`, `--retry-max-delay 10.0`. `--retry-max-delay` above `86400` (one day) exits `USAGE` (2).
 Retries fire on transient SDK failures (the spike-confirmed shape — `KeyError`/
 `ValueError` from indexing into urllib3-stub error responses, plus
 `requests.ConnectionError`/`Timeout`); permanent failures (auth, validation,
