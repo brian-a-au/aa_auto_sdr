@@ -2,6 +2,64 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.9] — 2026-11-01
+
+This patch fixes bugs found in a review of the 1.24.6 to 1.24.8 fixes. Most
+of them are places where an earlier fix did not reach a sibling code path.
+No new flags and no changed defaults. A few bad inputs that used to run, or
+used to crash, now exit 2 before any work.
+
+### Fixed
+- Error messages from the tool now hide client secrets and tokens
+  everywhere. Before, only the `--output -` error envelope hid them. The
+  plain `auth error:` and `api error:` lines on stderr, and the `error`
+  field in `--run-summary-json`, showed them as is.
+- `--dry-run` with `--output -` now exits 2. Before, it printed its text
+  preview to stdout and exited 0, where callers expect only JSON.
+  `--agent-mode` alone is not affected.
+- Under `--output -`, a failed `--run-summary-json` write no longer prints
+  an error envelope with code 15 when the run exits with another code, such
+  as 13 or 17. Stderr now holds one envelope, and its code is the exit code.
+  The error names your path, not the temporary staging file.
+- `--format notion` and `--push-to-notion` now also split a table by size.
+  Before, 99 rows of long non-ASCII text made one table larger than Notion's
+  500 KB request limit, and an existing page was left blank.
+- `--push-to-notion` now exits 15 when it created the page but could not
+  save the local page registry, and it prints the page id. Before, it
+  crashed with exit 1, and the next run made a duplicate page. A
+  `report_suite` or `components` value that is not an object now gets the
+  usual payload error and exit 1 instead of a traceback.
+- `--diff --format pr-comment` now keeps a changed value with backticks or
+  line breaks inside one code span. Before, the rest of the value rendered
+  as Markdown and could close the collapsible block or add a heading.
+- `--compare-with-prev` with several RSIDs now prints a plain `error: could
+  not write` line when a console or markdown file write fails, the same as
+  one RSID. Before, it printed a JSON envelope.
+- `--max-issues` and `--warn-threshold` now must be 0 or more. Before, a
+  negative `--max-issues` dropped the last items, and a negative
+  `--warn-threshold` made identical snapshots exit 3.
+- `--retry-max-delay` above `86400` (one day) now exits 2. Before, a value
+  such as `1e10` crashed on the first retry with `OverflowError`.
+- `--quality-policy` now reads a file that starts with a UTF-8 byte-order
+  mark, the same as `config.json`. Before, it exited 10.
+- `--template` now rejects a workbook with a damaged member and exits 2.
+  Before, the workbook passed the check and the run crashed later with exit 1.
+- With `--fail-fast`, an identifier that failed and also appears later in
+  the list now gets one row. Before, it also got a cancelled row, which
+  changed the counts. One case remains: a report suite name after the
+  failure still gets a cancelled row when that suite was already generated
+  by its RSID.
+- `--trending-window` now counts each component id once, the same as
+  `--diff`. Before, a snapshot with a duplicated id showed a drop with no
+  removals.
+- `--list-virtual-reportsuites` no longer shows `nan` for a missing parent
+  RSID or id.
+
+### Tests
+- The test suite now refuses network connections to hosts that are not
+  local. One test ran `--list-reportsuites` without stubbing credentials, so
+  a checkout with a `config.json` logged in to Adobe Analytics on every run.
+
 ## [1.24.8] — 2026-11-01
 
 This patch fixes crashes and silent failures in logging, file output, CSV
