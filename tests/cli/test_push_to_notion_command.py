@@ -529,3 +529,55 @@ def test_run_push_to_notion_publish_value_error_guarded(tmp_path, monkeypatch, c
 
     assert code == 1
     assert "unrecognized" in capsys.readouterr().err.lower()
+
+
+def test_push_to_notion_registry_write_failure_exits_15(tmp_path, monkeypatch, capsys):
+    """The page is created, then saving the local page registry fails: exit 15, no traceback."""
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    json_path = _make_sdr_json(tmp_path)
+
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+    from aa_auto_sdr.output.writers import notion as notion_writer
+
+    mock_client = MagicMock()
+    mock_client.pages.create.return_value = {"id": "new-page"}
+
+    def deny(*_a, **_k):
+        raise PermissionError(13, "Permission denied", str(tmp_path / ".notion_pages.json.tmp"))
+
+    monkeypatch.setattr(notion_writer, "store_page_id", deny)
+    with patch.object(pt_mod, "_require_notion_client", return_value=MagicMock(return_value=mock_client)):
+        exit_code = pt_mod.run_push_to_notion(str(json_path), output_dir=str(tmp_path), force_new=False)
+
+    assert exit_code == 15
+    err = capsys.readouterr().err
+    assert "could not be written" in err
+    assert "new-page" in err
+    assert "Permission denied" in err
+
+
+def _write_payload(tmp_path: Path, payload: dict) -> Path:
+    p = tmp_path / "bad.json"
+    p.write_text(json.dumps(payload))
+    return p
+
+
+def test_push_to_notion_report_suite_not_object_exits_1(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    path = _write_payload(tmp_path, {"report_suite": "examplersid1"})
+    assert pt_mod.run_push_to_notion(str(path), output_dir=str(tmp_path), force_new=False) == 1
+    assert "unrecognized payload shape" in capsys.readouterr().err
+
+
+def test_push_to_notion_snapshot_components_not_object_exits_1(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("NOTION_TOKEN", "secret-token")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "parent-id")
+    from aa_auto_sdr.cli.commands import push_to_notion as pt_mod
+
+    path = _write_payload(tmp_path, {"schema": "aa-sdr-snapshot/v4", "rsid": "examplersid1", "components": "x"})
+    assert pt_mod.run_push_to_notion(str(path), output_dir=str(tmp_path), force_new=False) == 1
+    assert "unrecognized payload shape" in capsys.readouterr().err

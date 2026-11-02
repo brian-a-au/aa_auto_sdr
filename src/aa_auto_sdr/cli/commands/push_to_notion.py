@@ -44,12 +44,17 @@ def _extract_rsid_and_title(payload: dict) -> tuple[str, str]:
     schema = payload.get("schema")
     if isinstance(schema, str) and schema.startswith("aa-sdr-snapshot/"):
         rsid = payload.get("rsid")
-        rs = (payload.get("components") or {}).get("report_suite") or {}
-        name = rs.get("name") or rsid
+        components = payload.get("components") or {}
+        if not isinstance(components, dict):
+            raise ValueError("components is not an object")
+        rs = components.get("report_suite") or {}
     else:
         rs = payload.get("report_suite") or {}
+    if not isinstance(rs, dict):
+        raise ValueError("report_suite is not an object")
+    if not (isinstance(schema, str) and schema.startswith("aa-sdr-snapshot/")):
         rsid = rs.get("rsid")
-        name = rs.get("name") or rsid
+    name = rs.get("name") or rsid
     if not rsid:
         raise ValueError("Payload has no rsid — cannot determine target page")
     return rsid, f"{name} ({rsid}) — SDR"
@@ -194,7 +199,7 @@ def run_push_to_notion(
         return int(ExitCode.GENERIC)
 
     try:
-        _extract_rsid_and_title(payload)  # validate shape early for a clear error
+        rsid, _title = _extract_rsid_and_title(payload)  # validate shape early for a clear error
     except (ValueError, KeyError) as exc:
         print(
             f"error: --push-to-notion: unrecognized payload shape in {json_file}: {exc}",
@@ -210,6 +215,7 @@ def run_push_to_notion(
 
     company = resolve_notion_company(cli_override=notion_company, aa_company_id=None)
 
+    known_pages: dict[str, str] = {}
     try:
         client = Client(auth=token)
         page_id = publish_payload_to_notion(
@@ -221,6 +227,7 @@ def run_push_to_notion(
             database_id=notion_registry_database,
             disable_registry=no_notion_registry,
             company=company,
+            known_pages=known_pages,
         )
     except (ValueError, KeyError) as exc:
         # Should not happen — we validated above, but guard anyway.
@@ -231,6 +238,17 @@ def run_push_to_notion(
         return int(ExitCode.GENERIC)
     except notion_request_errors() as exc:
         print(f"error: --push-to-notion: Notion request failed: {exc}", file=sys.stderr)
+        return int(ExitCode.OUTPUT)
+    except OSError as exc:
+        # The local page registry write failed. Name any page already created
+        # so it can be found; the next run cannot look it up and makes a new one.
+        created = known_pages.get(rsid)
+        page_note = f" (Notion page {created} was created)" if created else ""
+        print(
+            f"error: --push-to-notion: the page registry {registry_path} could not be written"
+            f"{page_note}: {exc.strerror or exc}",
+            file=sys.stderr,
+        )
         return int(ExitCode.OUTPUT)
 
     print(f"notion://pages/{page_id}")
