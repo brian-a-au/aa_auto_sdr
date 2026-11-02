@@ -1376,6 +1376,14 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         output_format=(ns.format or "excel"),
         stdout_formats=frozenset(),
     )
+    # The dry-run preview is plain text; stdout under --output - carries only JSON.
+    if ns.dry_run and resolved_output == "-":
+        print(
+            "error: --dry-run prints a text preview and cannot be used with --output -",
+            file=sys.stderr,
+            flush=True,
+        )
+        return ExitCode.USAGE.value
     output_dir: Path = Path("-") if resolved_output == "-" else ns.output_dir
     from aa_auto_sdr.cli.commands import generate as generate_cmd
 
