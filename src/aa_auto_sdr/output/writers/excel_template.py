@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from aa_auto_sdr.core.atomic_io import atomic_write_path
+from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.output._template_anchors import ANCHORS, SheetAnchor, resolve_sheet
 from aa_auto_sdr.output._template_report import (
     REASON_CLIPPED,
@@ -355,11 +356,17 @@ class ExcelTemplateWriter:
             raise RuntimeError(
                 "ExcelTemplateWriter dispatched without template_path; CLI validator should have caught this.",
             )
-        from openpyxl import load_workbook  # method-scoped lazy import
+        import zipfile
+        import zlib
+
+        import openpyxl  # method-scoped lazy import
 
         started = time.monotonic()
         target = output_path if output_path.suffix == self.extension else output_path.with_suffix(self.extension)
-        wb = load_workbook(self.template_path)  # data_only=False; preserve formulas
+        try:
+            wb = openpyxl.load_workbook(self.template_path)  # data_only=False; preserve formulas
+        except (zipfile.BadZipFile, zlib.error) as exc:
+            raise OutputError(f"could not read template {self.template_path}: {exc}") from exc
 
         logger.info(
             "template_load path=%s sheets=%d",

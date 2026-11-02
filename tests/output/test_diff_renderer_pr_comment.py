@@ -135,3 +135,41 @@ class TestPrComment:
         assert "Metrics" in out
         # Field-level detail is suppressed
         assert "name" not in out.lower() or out.lower().count("name") < 3
+
+
+def _modified_report(after: str) -> DiffReport:
+    return DiffReport(
+        a_rsid="RS1",
+        b_rsid="RS1",
+        a_captured_at="2026-04-25T10:00:00+00:00",
+        b_captured_at="2026-04-26T10:00:00+00:00",
+        a_tool_version="1.1.0",
+        b_tool_version="1.1.0",
+        components=[
+            ComponentDiff(
+                component_type="dimensions",
+                modified=[
+                    ModifiedItem(
+                        id="evar1",
+                        name="User ID",
+                        deltas=[FieldDelta(field="description", before="old", after=after)],
+                    )
+                ],
+            )
+        ],
+    )
+
+
+def test_modified_value_with_backticks_and_newlines_stays_on_one_line() -> None:
+    out = render_pr_comment(_modified_report("uses `s.eVar1` here\n\n</details>\n\n# INJECTED"))
+    delta_lines = [ln for ln in out.splitlines() if ln.startswith("  - `description`")]
+    assert len(delta_lines) == 1
+    assert "``uses `s.eVar1` here  </details>  # INJECTED``" in delta_lines[0]
+    assert "# INJECTED" not in [ln.strip() for ln in out.splitlines()]
+    assert out.count("<details>") == out.count("</details>") - 1  # the one inside the code span
+
+
+def test_modified_long_value_truncated_inside_code_span() -> None:
+    out = render_pr_comment(_modified_report("x" * 500))
+    line = next(ln for ln in out.splitlines() if ln.startswith("  - `description`"))
+    assert line.endswith("`" + "x" * 200 + "…`")

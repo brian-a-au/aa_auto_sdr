@@ -285,15 +285,20 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
 
 
 def _is_xlsx_package(path: Path) -> bool:
-    """True when `path` opens as a ZIP holding the OOXML content-types part."""
+    """True when `path` is a ZIP holding the OOXML content-types part and every
+    member reads back with a good CRC. The workbook part's name is not checked:
+    openpyxl finds it through the package relationships."""
     import zipfile
+    import zlib
 
     try:
         with zipfile.ZipFile(path) as zf:
-            return "[Content_Types].xml" in zf.namelist()
+            if "[Content_Types].xml" not in zf.namelist():
+                return False
+            return zf.testzip() is None
     # A damaged header can raise more than BadZipFile (e.g. NotImplementedError
-    # for a corrupted extract version).
-    except (zipfile.BadZipFile, OSError, NotImplementedError, ValueError, EOFError):
+    # for a corrupted extract version); damaged member data raises zlib.error.
+    except (zipfile.BadZipFile, OSError, NotImplementedError, ValueError, EOFError, zlib.error):
         return False
 
 
@@ -1376,6 +1381,14 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
         output_format=(ns.format or "excel"),
         stdout_formats=frozenset(),
     )
+    # The dry-run preview is plain text; stdout under --output - carries only JSON.
+    if ns.dry_run and resolved_output == "-":
+        print(
+            "error: --dry-run prints a text preview and cannot be used with --output -",
+            file=sys.stderr,
+            flush=True,
+        )
+        return ExitCode.USAGE.value
     output_dir: Path = Path("-") if resolved_output == "-" else ns.output_dir
     from aa_auto_sdr.cli.commands import generate as generate_cmd
 

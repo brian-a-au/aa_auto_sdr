@@ -298,3 +298,21 @@ def test_write_row_skips_a_value_made_only_of_control_characters() -> None:
     ws.cell(row=1, column=2, value="example")
     _write_row(ws, row=1, columns={"Name": 2}, column_map={"Name": lambda _c: "\x01\x02"}, comp=object())
     assert ws.cell(row=1, column=2).value == "example"
+
+
+def test_write_wraps_unreadable_template_as_output_error(tmp_path, monkeypatch) -> None:
+    import zlib
+
+    import openpyxl
+    import pytest
+
+    from aa_auto_sdr.core.exceptions import OutputError
+
+    def broken(*_a, **_k):
+        raise zlib.error("Error -3 while decompressing data")
+
+    monkeypatch.setattr(openpyxl, "load_workbook", broken)
+    writer = ExcelTemplateWriter()
+    writer.template_path = tmp_path / "t.xlsx"
+    with pytest.raises(OutputError, match="could not read template"):
+        writer.write(_make_doc(), tmp_path / "out")

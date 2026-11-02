@@ -94,3 +94,17 @@ class TestRetryFlagMutex:
         assert "--retry-base-delay" in captured.err
         assert "max_delay" not in captured.err
         assert "base_delay" not in captured.err
+
+
+def test_huge_retry_delays_exit_usage(capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    from aa_auto_sdr.cli.main import run
+    from aa_auto_sdr.core import credentials
+
+    def forbid(*_a, **_k):
+        raise AssertionError("credentials must not be resolved")
+
+    monkeypatch.setattr(credentials, "resolve", forbid)
+
+    rc = run(["--list-reportsuites", "--retry-base-delay", "1e10", "--retry-max-delay", "1e10"])
+    assert rc == ExitCode.USAGE.value
+    assert "--retry-max-delay" in capsys.readouterr().err

@@ -102,7 +102,7 @@ Exit codes: `0`, `14` (partial), `17` (quality gate, if `--fail-on-quality` is s
 | Flag | Behavior |
 |---|---|
 | `--metrics-only` / `--dimensions-only` (mutex) | Slim the SDR by skipping API calls for excluded component types. With `--snapshot` / `--auto-snapshot` the snapshot records its scope (`aa-sdr-snapshot/v5`), and diffs suppress the excluded families as "not collected" rather than reporting removals. |
-| `--dry-run` | Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then print what would be written without doing the heavy component fetch or any file writes. |
+| `--dry-run` | Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then print what would be written without doing the heavy component fetch or any file writes. Cannot be combined with `--output -` (exit 2). |
 | `--open` | After successful generation, open the first output file (single) or output dir (batch) in the OS default app. Best-effort; silently skips on headless. |
 
 ```bash
@@ -312,10 +312,10 @@ Exit codes: `0`, `3` (`--warn-threshold` exceeded), `15` (bad format/output comb
 | `--quiet-diff` | Suppress unchanged trailers; show only changed sections. |
 | `--diff-labels A=… B=…` | Override "Source" / "Target" labels in renderer output. |
 | `--reverse-diff` | Swap a and b before compare. |
-| `--warn-threshold N` | Exit 3 (`WARN`) if total component changes ≥ N. Report-suite setting changes are always shown but do not count. Diff itself still runs. |
+| `--warn-threshold N` | Exit 3 (`WARN`) if total component changes ≥ N. Report-suite setting changes are always shown but do not count. Diff itself still runs. N must be 0 or more. |
 | `--changes-only` | In rendered output, drop component types with no changes. |
 | `--show-only TYPES` | Restrict diff output to listed types (CSV: `metrics,dimensions`). |
-| `--max-issues N` | Cap each component's added/removed/modified to N items in render. |
+| `--max-issues N` | Cap each component's added/removed/modified to N items in render. N must be 0 or more. |
 | `--color-theme {default,accessible}` | Diff color palette. |
 
 ```bash
@@ -483,7 +483,7 @@ For per-RSID API stability under flaky orgs or noisy CI:
 |----|----|
 | `--max-retries N` | Retry attempts on transient SDK failures (429 / 5xx, connection timeout). Default `3`. |
 | `--retry-base-delay SECS` | Initial exponential-backoff delay (default `0.5`). |
-| `--retry-max-delay SECS` | Cap between retries (default `10.0`). |
+| `--retry-max-delay SECS` | Cap between retries (default `10.0`, at most `86400`). |
 
 Retries fire only on transient failures; permanent errors (auth, validation, unknown RSID) surface immediately. See [`AGENTS.md`](../AGENTS.md) "Retry Budget" for the worst-case request-count math.
 

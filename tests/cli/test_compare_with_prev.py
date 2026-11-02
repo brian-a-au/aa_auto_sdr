@@ -333,3 +333,16 @@ def test_multi_console_to_file_has_no_ansi(tmp_path, monkeypatch):
     text = out.read_text(encoding="utf-8")
     assert "rs2" in text
     assert "\033[" not in text
+
+
+@pytest.mark.parametrize("fmt", ["console", "markdown"])
+def test_multi_text_write_failure_prints_plain_error(tmp_path, capsys, fmt):
+    for rsid in ("rs1", "rs2"):
+        _history(tmp_path, rsid)
+    target = tmp_path / "isadir"
+    target.mkdir()
+    rc = cmd.run(rsids=["rs1", "rs2"], profile=None, snapshot_dir=tmp_path, format_name=fmt, output=str(target))
+    err = capsys.readouterr().err
+    assert rc == 15
+    assert err.startswith(f"error: could not write {target}:")
+    assert not err.lstrip().startswith("{")
