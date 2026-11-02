@@ -364,3 +364,83 @@ def test_run_summary_json_file_path_with_output_error(
     payload = json.loads(summary_path.read_text())
     assert payload["rsids"][0]["succeeded"] is False
     assert "disk full" in (payload["rsids"][0]["error"] or "")
+
+
+def _envelopes(err: str) -> list[dict]:
+    """Error envelopes on stderr (log records are skipped)."""
+    out = []
+    for line in err.splitlines():
+        if not line.startswith("{"):
+            continue
+        obj = json.loads(line)
+        if isinstance(obj.get("error"), dict):
+            out.append(obj["error"])
+    return out
+
+
+def _quality_handle() -> MagicMock:
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    dims = [*raw["dimensions"], {"id": "variables/evar99", "name": "v_old_dim", "type": "string", "category": "x"}]
+    handle.getDimensions.return_value = pd.DataFrame(dims)
+    return handle
+
+
+def _pipe_run(tmp_path: Path, handle: MagicMock, **kwargs) -> int:
+    with patch("aa_auto_sdr.cli.commands.generate.AaClient") as cls:
+        cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+        return cmd.run(
+            rsid="demo.prod",
+            output_dir=Path("-"),
+            format_name="json",
+            profile=None,
+            run_summary_json=str(tmp_path / "missing" / "s.json"),
+            **kwargs,
+        )
+
+
+def test_pipe_quality_fail_and_summary_fail_no_code15_envelope(env_creds, tmp_path: Path, capsys) -> None:
+    rc = _pipe_run(tmp_path, _quality_handle(), audit_naming=True, flag_stale=True, fail_on_quality="LOW")
+    assert rc == ExitCode.QUALITY.value
+    assert all(e["code"] == rc for e in _envelopes(capsys.readouterr().err))
+
+
+def test_pipe_not_found_and_summary_fail_single_envelope(env_creds, tmp_path: Path, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
+
+    raw = json.loads(FIXTURE.read_text())
+    with patch("aa_auto_sdr.api.fetch.fetch_report_suite", side_effect=ReportSuiteNotFoundError("gone")):
+        rc = _pipe_run(tmp_path, _build_handle(raw))
+    assert rc == ExitCode.NOT_FOUND.value
+    assert [e["code"] for e in _envelopes(capsys.readouterr().err)] == [ExitCode.NOT_FOUND.value]
+
+
+def test_pipe_summary_fail_only_envelope_15_names_user_path(env_creds, tmp_path: Path, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    rc = _pipe_run(tmp_path, _build_handle(raw))
+    out, err = capsys.readouterr()
+    assert rc == ExitCode.OUTPUT.value
+    assert json.loads(out)["report_suite"]["rsid"] == "demo.prod"
+    envs = _envelopes(err)
+    assert [e["code"] for e in envs] == [ExitCode.OUTPUT.value]
+    assert str(tmp_path / "missing" / "s.json") in envs[0]["message"]
+    assert ".tmp" not in envs[0]["message"]
+
+
+def test_file_path_summary_fail_message_names_user_path(env_creds, tmp_path: Path, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    target = tmp_path / "missing" / "s.json"
+    with patch("aa_auto_sdr.cli.commands.generate.AaClient") as cls:
+        cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=tmp_path,
+            format_name="json",
+            profile=None,
+            run_summary_json=str(target),
+        )
+    err = capsys.readouterr().err
+    assert rc == ExitCode.OUTPUT.value
+    line = next(ln for ln in err.splitlines() if "could not write run summary" in ln)
+    assert f"could not write run summary {target}:" in line
+    assert ".s." not in line.split(":", 1)[1]

@@ -44,7 +44,12 @@ def _emit_timings_if_enabled(*, show_timings: bool) -> None:
     timings.disable()
 
 
-def _emit_run_summary(
+def _emit_run_summary(**kwargs) -> bool:
+    """Write the run summary. Returns False only when the file write failed."""
+    return _write_run_summary(**kwargs) is None
+
+
+def _write_run_summary(
     *,
     run_summary_json: str | None,
     started_at: datetime,
@@ -53,10 +58,11 @@ def _emit_run_summary(
     per_rsid: list[PerRsidResult],
     show_timings: bool,
     is_pipe: bool = False,
-) -> bool:
-    """Write the run summary. Returns False only when the file write failed."""
+) -> OSError | None:
+    """Write the run summary. Returns the write error, naming the user's path
+    rather than the atomic-write staging file, or None on success."""
     if not run_summary_json:
-        return True
+        return None
     summary = RunSummary(
         started_at=started_at.isoformat(),
         finished_at=finished_at.isoformat(),
@@ -79,16 +85,18 @@ def _emit_run_summary(
         try:
             atomic_write_text(Path(run_summary_json), payload + "\n")
         except OSError as exc:
-            _emit_pipe_or_print(
-                is_pipe=is_pipe,
-                exc=exc,
-                message=f"error: could not write run summary {run_summary_json}: {exc}",
-                exit_code=ExitCode.OUTPUT.value,
-            )
-            return False
+            reason = exc.strerror or str(exc)
+            error = type(exc)(exc.errno, reason, run_summary_json) if exc.errno is not None else exc
+            if is_pipe:
+                # The caller emits the one error envelope, with the code the
+                # run exits with; an envelope here could contradict it.
+                logger.warning("run_summary_write_failed path=%s error=%s", run_summary_json, reason)
+            else:
+                print(f"error: could not write run summary {run_summary_json}: {reason}", file=sys.stderr, flush=True)
+            return error
         # Under --output - stdout carries only the SDR JSON.
         print(f"wrote run summary: {run_summary_json}", flush=True, file=sys.stderr if is_pipe else sys.stdout)
-    return True
+    return None
 
 
 def _emit_pipe_or_print(
@@ -593,7 +601,7 @@ def _run_impl(
                 )
                 _emit_timings_if_enabled(show_timings=show_timings)
                 return rc
-        summary_ok = _emit_run_summary(
+        summary_error = _write_run_summary(
             is_pipe=is_pipe,
             run_summary_json=run_summary_json,
             started_at=started_at,
@@ -608,7 +616,10 @@ def _run_impl(
         # exactly like the file-output path below.
         if pipe_gate_failed:
             return ExitCode.QUALITY.value
-        return ExitCode.OK.value if summary_ok else ExitCode.OUTPUT.value
+        if summary_error is not None:
+            emit_error_envelope(summary_error, ExitCode.OUTPUT.value)
+            return ExitCode.OUTPUT.value
+        return ExitCode.OK.value
 
     # File-output path: per-RSID pipeline.run_single
     first_output: Path | None = None
