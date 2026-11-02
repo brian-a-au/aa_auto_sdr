@@ -43,3 +43,22 @@ def test_transient_api_error_is_api_error_subclass() -> None:
     assert issubclass(TransientApiError, ApiError)
     err = TransientApiError("transient")
     assert isinstance(err, ApiError)
+
+
+@pytest.mark.parametrize(
+    ("cls", "raw", "secret", "redacted"),
+    [
+        (exc.AuthError, "token failed: client_secret=SUPERSECRET123", "SUPERSECRET123", "client_secret=[REDACTED]"),
+        (exc.ApiError, "GET /x?access_token=abc.def failed", "abc.def", "access_token=[REDACTED]"),
+        (exc.ApiError, "headers Authorization: Bearer abc.def", "abc.def", "Authorization: [REDACTED]"),
+    ],
+)
+def test_str_redacts_secrets(cls: type[Exception], raw: str, secret: str, redacted: str) -> None:
+    text = str(cls(raw))
+    assert secret not in text
+    assert redacted in text
+
+
+def test_str_without_secrets_is_unchanged() -> None:
+    assert str(exc.ConfigError("missing ORG_ID")) == "missing ORG_ID"
+    assert str(exc.AmbiguousMatchError("two matches", [("a", "A")])) == "two matches"

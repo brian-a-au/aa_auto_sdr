@@ -655,12 +655,14 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
   than putting a human sentence in the stream a caller is parsing.
 - `--output -` implies `--quiet` (banner/progress and INFO records on stderr suppressed; errors, warnings, and final result paths still print; the per-run log file is unaffected). Same for `--run-summary-json -`.
 - Under `--agent-mode`, the preset always applies the implicit `--output -` *before* the per-command-family resolver suppresses it for file-only formats (single SDR / batch). The implicit `--quiet` is derived from that pre-suppression output, so `aa_auto_sdr <RSID> --agent-mode --format excel` runs silently on stderr even though the SDR artifact is written to a file. This is the intended UX for unattended runs. For verbose stderr under agent-mode, pass `--log-level DEBUG` (widens the file logger; the console stays quiet by contract). `--quiet=false` is not a supported override — for verbose stderr you must avoid the implicit `--output -` by passing a non-stdout `--output PATH` (or, for SDR generation, simply omit `--agent-mode`).
-- On failure, **stderr** receives a JSON error envelope:
+- On failure under `--output -`, **stderr** receives one JSON error envelope on one line, and its `code` is the process exit code:
   ```json
-  {"error": "Configuration error: Missing credentials", "error_type": "ConfigError"}
+  {"error":{"code":10,"type":"ConfigError","message":"Missing credentials","hint":"..."}}
   ```
+  `message` is scrubbed of secrets. `hint` is the first remediation line from `--explain-exit-code CODE`, or `""`.
 - `--run-summary-json PATH` writes a structured run summary to file or stdout (`-`). Generate / batch only — discovery, inspect, and diff routes ignore it.
 - **Mutex:** `--run-summary-json -` + `--output -` exits `OUTPUT` (15) before any work. `--agent-mode` applies the implicit `--output -`, so explicit `--run-summary-json -` triggers this on generate / batch routes.
+- **Mutex:** `--dry-run` + `--output -` on a single SDR exits `USAGE` (2) before any work, because the preview is plain text. `--agent-mode` alone does not trigger it: a single SDR under agent mode writes a file.
 - `--explain-exit-code CODE` writes the explanation to stdout (always). It is a fast-path action that does not interact with `--run-summary-json` or `--agent-mode`.
 
 For unattended runs against the live AA API, tune retry behavior with:

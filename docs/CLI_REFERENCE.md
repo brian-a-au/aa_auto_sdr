@@ -102,7 +102,7 @@ Exit codes: `0`, `14` (partial), `17` (quality gate, if `--fail-on-quality` is s
 | Flag | Behavior |
 |---|---|
 | `--metrics-only` / `--dimensions-only` (mutex) | Slim the SDR by skipping API calls for excluded component types. With `--snapshot` / `--auto-snapshot` the snapshot records its scope (`aa-sdr-snapshot/v5`), and diffs suppress the excluded families as "not collected" rather than reporting removals. |
-| `--dry-run` | Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then print what would be written without doing the heavy component fetch or any file writes. |
+| `--dry-run` | Resolve credentials, authenticate, resolve RSID/name → canonical RSIDs, then print what would be written without doing the heavy component fetch or any file writes. Cannot be combined with `--output -` (exit 2). |
 | `--open` | After successful generation, open the first output file (single) or output dir (batch) in the OS default app. Best-effort; silently skips on headless. |
 
 ```bash
