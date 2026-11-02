@@ -450,12 +450,28 @@ def test_is_xlsx_package_false_when_member_is_corrupt(tmp_path: Path) -> None:
     assert _is_xlsx_package(bad) is False
 
 
-def test_is_xlsx_package_false_without_workbook_part(tmp_path: Path) -> None:
+def test_is_xlsx_package_accepts_renamed_workbook_part(tmp_path: Path) -> None:
+    """The workbook part is found through the package relationships, so a
+    valid workbook may name it something other than xl/workbook.xml."""
     import zipfile
+
+    from openpyxl import Workbook, load_workbook
 
     from aa_auto_sdr.cli.main import _is_xlsx_package
 
-    path = tmp_path / "ct_only.xlsx"
-    with zipfile.ZipFile(path, "w") as zf:
-        zf.writestr("[Content_Types].xml", "<Types/>")
-    assert _is_xlsx_package(path) is False
+    src = tmp_path / "src.xlsx"
+    Workbook().save(src)
+    renamed = tmp_path / "renamed.xlsx"
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(renamed, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            name = info.filename
+            if name == "xl/workbook.xml":
+                name = "xl/main.xml"
+            elif name == "xl/_rels/workbook.xml.rels":
+                name = "xl/_rels/main.xml.rels"
+            if name in ("[Content_Types].xml", "_rels/.rels"):
+                data = data.replace(b"xl/workbook.xml", b"xl/main.xml")
+            zout.writestr(name, data)
+    load_workbook(renamed)  # a real, valid workbook
+    assert _is_xlsx_package(renamed) is True
