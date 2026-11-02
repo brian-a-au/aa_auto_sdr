@@ -301,6 +301,14 @@ def _path_in_window(path: Path, window: WindowSpec) -> bool:
     return window.start_at <= captured <= window.end_at
 
 
+def _distinct_ids(rows: list[Any]) -> int:
+    """Count components the way the comparator does: one per id, first row wins.
+
+    Rows without an id are each counted, as before."""
+    ids = {row["id"] for row in rows if isinstance(row, dict) and "id" in row}
+    return len(ids) + sum(1 for row in rows if not (isinstance(row, dict) and "id" in row))
+
+
 def _to_snapshot_point(
     envelope: dict[str, Any],
     delta_by_type: dict[str, LifecycleDelta] | None,
@@ -310,12 +318,12 @@ def _to_snapshot_point(
     """Convert a snapshot envelope dict into a SnapshotPoint."""
     components = envelope.get("components", {})
     counts = ComponentCounts(
-        dimensions=len(components.get("dimensions", [])),
-        metrics=len(components.get("metrics", [])),
-        segments=len(components.get("segments", [])),
-        calculated_metrics=len(components.get("calculated_metrics", [])),
-        virtual_report_suites=len(components.get("virtual_report_suites", [])),
-        classifications=len(components.get("classifications", [])),
+        dimensions=_distinct_ids(components.get("dimensions", [])),
+        metrics=_distinct_ids(components.get("metrics", [])),
+        segments=_distinct_ids(components.get("segments", [])),
+        calculated_metrics=_distinct_ids(components.get("calculated_metrics", [])),
+        virtual_report_suites=_distinct_ids(components.get("virtual_report_suites", [])),
+        classifications=_distinct_ids(components.get("classifications", [])),
     )
     captured_str = envelope.get("captured_at", "")
     captured = datetime.fromisoformat(captured_str)
