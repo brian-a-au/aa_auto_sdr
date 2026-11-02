@@ -7,7 +7,7 @@ caller adds). Truncation prefers to drop modified-component detail first
 
 from __future__ import annotations
 
-from aa_auto_sdr.output._helpers import escape_pipe, stringify_cell
+from aa_auto_sdr.output._helpers import escape_pipe, inline_code, stringify_cell
 from aa_auto_sdr.snapshot.models import (
     DiffReport,
     ModifiedItem,
@@ -173,8 +173,9 @@ def _modified_block(report: DiffReport) -> str:
 def _short(value: object) -> str:
     s = "" if value is None else str(value)
     if len(s) > _INLINE_VALUE_CAP:
-        return f"`{s[:_INLINE_VALUE_CAP]}…`"
-    return f"`{s}`"
+        s = s[:_INLINE_VALUE_CAP] + "…"
+    # An empty value still shows as an empty span, as before.
+    return inline_code(s) or "``"
 
 
 def _enforce_cap(body: str) -> str:

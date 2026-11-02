@@ -5,7 +5,6 @@ Self-registers with the registry on import. Returns a single Path."""
 from __future__ import annotations
 
 import logging
-import re
 import time
 from pathlib import Path
 from typing import Any
@@ -17,6 +16,7 @@ from aa_auto_sdr.output._helpers import (
     component_headers,
     component_values,
     escape_pipe,
+    inline_code,
     reference_display_rows,
     render_provenance_line,
     render_provenance_pairs,
@@ -50,17 +50,11 @@ _COMPONENT_SECTIONS: list[tuple[str, str, str]] = [
 _SUMMARY_COLUMNS = frozenset({"formula_summary", "definition_summary"})
 
 
-_BACKTICK_RUN = re.compile("`+")
-
-
 def _code_cell(text: str) -> str:
     """Inline-code span for a table cell, so GFM specials (`*`, `_`, `\\`)
     render literally. The fence is one backtick longer than the longest run
     inside; pipes are still escaped for the table."""
-    longest = max(map(len, _BACKTICK_RUN.findall(text)), default=0)
-    fence = "`" * (longest + 1)
-    pad = " " if text.startswith("`") or text.endswith("`") else ""
-    return f"{fence}{pad}{escape_pipe(text)}{pad}{fence}" if text else ""
+    return inline_code(escape_pipe(text))
 
 
 def _cell(value: Any) -> str:
