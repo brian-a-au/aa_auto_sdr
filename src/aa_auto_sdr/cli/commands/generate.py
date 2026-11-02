@@ -90,7 +90,12 @@ def _write_run_summary(
             if is_pipe:
                 # The caller emits the one error envelope, with the code the
                 # run exits with; an envelope here could contradict it.
-                logger.warning("run_summary_write_failed path=%s error=%s", run_summary_json, reason)
+                logger.warning(
+                    "run_summary_write_failed path=%s error_class=%s",
+                    run_summary_json,
+                    type(exc).__name__,
+                    extra={"path": run_summary_json, "error_class": type(exc).__name__},
+                )
             else:
                 print(f"error: could not write run summary {run_summary_json}: {reason}", file=sys.stderr, flush=True)
             return error
