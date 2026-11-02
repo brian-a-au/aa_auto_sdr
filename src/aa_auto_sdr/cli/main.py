@@ -285,15 +285,20 @@ def _validate_template_modifiers(ns: argparse.Namespace) -> int:
 
 
 def _is_xlsx_package(path: Path) -> bool:
-    """True when `path` opens as a ZIP holding the OOXML content-types part."""
+    """True when `path` is a ZIP holding the OOXML content-types and workbook
+    parts, and every member reads back with a good CRC."""
     import zipfile
+    import zlib
 
     try:
         with zipfile.ZipFile(path) as zf:
-            return "[Content_Types].xml" in zf.namelist()
+            names = set(zf.namelist())
+            if not {"[Content_Types].xml", "xl/workbook.xml"} <= names:
+                return False
+            return zf.testzip() is None
     # A damaged header can raise more than BadZipFile (e.g. NotImplementedError
-    # for a corrupted extract version).
-    except (zipfile.BadZipFile, OSError, NotImplementedError, ValueError, EOFError):
+    # for a corrupted extract version); damaged member data raises zlib.error.
+    except (zipfile.BadZipFile, OSError, NotImplementedError, ValueError, EOFError, zlib.error):
         return False
 
 

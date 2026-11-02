@@ -424,3 +424,38 @@ def test_excel_template_check_skips_list_route(capsys, monkeypatch) -> None:
     monkeypatch.setattr(credentials, "resolve", no_creds)
     run(["--list-reportsuites", "--format", "excel-template"])
     assert "requires --template" not in capsys.readouterr().err
+
+
+def _corrupt_member(src: Path, dst: Path, member: str) -> None:
+    """Copy an .xlsx and flip one byte inside `member`'s compressed data."""
+    import zipfile
+
+    raw = bytearray(src.read_bytes())
+    with zipfile.ZipFile(src) as zf:
+        info = zf.getinfo(member)
+    raw[info.header_offset + 30 + len(info.filename) + len(info.extra) + 5] ^= 0xFF
+    dst.write_bytes(bytes(raw))
+
+
+def test_is_xlsx_package_false_when_member_is_corrupt(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+
+    from aa_auto_sdr.cli.main import _is_xlsx_package
+
+    good = tmp_path / "good.xlsx"
+    Workbook().save(good)
+    bad = tmp_path / "bad.xlsx"
+    _corrupt_member(good, bad, "xl/workbook.xml")
+    assert _is_xlsx_package(good) is True
+    assert _is_xlsx_package(bad) is False
+
+
+def test_is_xlsx_package_false_without_workbook_part(tmp_path: Path) -> None:
+    import zipfile
+
+    from aa_auto_sdr.cli.main import _is_xlsx_package
+
+    path = tmp_path / "ct_only.xlsx"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("[Content_Types].xml", "<Types/>")
+    assert _is_xlsx_package(path) is False
