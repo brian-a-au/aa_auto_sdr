@@ -183,7 +183,7 @@ def load_policy(path: Path) -> QualityPolicy:
     if not os.path.exists(path):
         raise ConfigError(f"--quality-policy file not found: {path}")
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))  # Windows editors add a BOM
     except OSError as exc:
         raise ConfigError(f"--quality-policy: could not read {path}: {exc.strerror or exc}") from exc
     except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError
