@@ -760,6 +760,14 @@ class TestFailFastResolutionCancellations:
         assert cancelled == ["demo.dev"]
 
     @patch("aa_auto_sdr.cli.commands.batch.AaClient")
+    def test_failing_identifier_repeated_is_not_cancelled(
+        self, mock_client_cls, mock_handle, authed_env, tmp_path
+    ) -> None:
+        rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["nope", "demo.dev", "nope"])
+        failed = [(r["rsid"], r["error"].split(":")[0]) for r in rows if not r["succeeded"]]
+        assert failed == [("nope", "ReportSuiteNotFoundError"), ("demo.dev", "CancelledError")]
+
+    @patch("aa_auto_sdr.cli.commands.batch.AaClient")
     def test_distinct_identifiers_unchanged(self, mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
         rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["demo.prod", "nope", "demo.dev"])
         cancelled = [r["rsid"] for r in rows if r["error"] and r["error"].startswith("CancelledError")]

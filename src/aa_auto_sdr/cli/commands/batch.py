@@ -414,6 +414,7 @@ def _run_impl(
             # phase. Without --fail-fast we continue so every bad identifier is
             # reported in one run.
             if fail_fast:
+                cancelled.add(identifier)  # its own failure row already exists
                 for skipped in rsids[i + 1 :]:
                     if skipped in seen or skipped in resolved_identifiers or skipped in cancelled:
                         continue  # already resolved (by rsid or name) or already cancelled
