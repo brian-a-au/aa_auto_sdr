@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import re
 from typing import Any
 
 
@@ -53,6 +54,24 @@ def escape_pipe(text: str) -> str:
     Pipes become \\|. Line breaks (\\r\\n, \\r, \\n) become <br> (GFM-supported);
     a bare \\r also ends a line in CommonMark and would split the row."""
     return text.replace("|", r"\|").replace("\r\n", "<br>").replace("\r", "<br>").replace("\n", "<br>")
+
+
+_BACKTICK_RUN = re.compile("`+")
+
+
+def inline_code(text: str) -> str:
+    """Markdown inline-code span that cannot be closed early by its content.
+
+    Line breaks become spaces (a blank line would end the span's paragraph).
+    The fence is one backtick longer than the longest run inside, and edge
+    backticks get a space of padding. Empty text gives ""."""
+    text = text.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    if not text:
+        return ""
+    longest = max(map(len, _BACKTICK_RUN.findall(text)), default=0)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
 
 
 def escape_html(text: str) -> str:
