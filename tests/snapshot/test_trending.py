@@ -313,3 +313,21 @@ class TestComputeTrending:
         # Only new_ts is in window.
         assert len(report.series) == 1
         assert report.series[0].captured_at == new_ts
+
+
+def test_snapshot_point_counts_collapse_duplicate_ids() -> None:
+    """Counts follow the comparator's first-row-wins rule, so a duplicated id counts once."""
+    from aa_auto_sdr.snapshot.trending import _to_snapshot_point
+
+    envelope = {
+        "captured_at": "2026-04-26T10:00:00+00:00",
+        "tool_version": "1.24.9",
+        "components": {
+            "dimensions": [{"id": "evar1", "name": "A"}, {"id": "evar1", "name": "B"}, {"id": "evar2", "name": "C"}],
+            "metrics": [{"id": "m1"}],
+        },
+    }
+    counts = _to_snapshot_point(envelope, None).counts
+    assert counts.dimensions == 2
+    assert counts.metrics == 1
+    assert counts.segments == 0
