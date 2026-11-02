@@ -423,7 +423,8 @@ def test_pipe_summary_fail_only_envelope_15_names_user_path(env_creds, tmp_path:
     assert json.loads(out)["report_suite"]["rsid"] == "demo.prod"
     envs = _envelopes(err)
     assert [e["code"] for e in envs] == [ExitCode.OUTPUT.value]
-    assert str(tmp_path / "missing" / "s.json") in envs[0]["message"]
+    # OSError text quotes the path with repr(), so Windows shows doubled backslashes.
+    assert repr(str(tmp_path / "missing" / "s.json")) in envs[0]["message"]
     assert ".tmp" not in envs[0]["message"]
 
 
