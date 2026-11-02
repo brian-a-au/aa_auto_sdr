@@ -4,6 +4,13 @@
 class AaAutoSdrError(Exception):
     """Base class for all aa_auto_sdr errors."""
 
+    def __str__(self) -> str:
+        # Scrub secrets at the source, so every stderr line, error envelope
+        # and run-summary `error` field that renders this message is safe.
+        from aa_auto_sdr.core.logging import redact_text
+
+        return redact_text(super().__str__())
+
 
 class ConfigError(AaAutoSdrError):
     """Bad config or missing credentials."""

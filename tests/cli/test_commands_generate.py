@@ -722,3 +722,43 @@ def test_pipe_run_summary_write_failure_keeps_stdout_clean(mock_client_cls, env_
     assert envelope["error"]["code"] == 15
     assert envelope["error"]["type"] == "FileNotFoundError"
     assert "No such file or directory" in envelope["error"]["message"]
+
+
+_SECRET_TEXT = "client_secret=SUPERSECRET123"
+
+
+def test_generate_file_path_auth_error_is_redacted(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    from aa_auto_sdr.core.exceptions import AuthError
+
+    monkeypatch.setattr(cmd.credentials, "resolve", lambda **_k: object())
+
+    def boom(*_a, **_k):
+        raise AuthError(f"token request failed: {_SECRET_TEXT}")
+
+    monkeypatch.setattr(cmd.AaClient, "from_credentials", boom)
+    rc = cmd.run(rsid="rs1", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 11
+    assert "SUPERSECRET123" not in capsys.readouterr().err
+
+
+@patch("aa_auto_sdr.cli.commands.generate.single.run_single")
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_file_path_api_error_redacted_in_stderr_and_summary(
+    mock_client_cls, mock_run_single, env_creds, tmp_path: Path, capsys
+) -> None:
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    mock_run_single.side_effect = ApiError(f"fetch failed: {_SECRET_TEXT}")
+    summary = tmp_path / "summary.json"
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+        run_summary_json=str(summary),
+    )
+    assert rc == 12
+    assert "SUPERSECRET123" not in capsys.readouterr().err
+    assert "SUPERSECRET123" not in summary.read_text(encoding="utf-8")
