@@ -921,14 +921,16 @@ def fetch_virtual_report_suite_summaries(
         raise ApiError(
             f"virtual report suites fetch failed: {type(e).__name__}: {e}",
         ) from e
+    # _str_or_none, not str(): a DataFrame row missing a column holds NaN,
+    # which str() turns into the text "nan".
     summaries = [
         models.VirtualReportSuiteSummary(
-            id=str(r.get("id", "")),
+            id=vrs_id,
             name=_str_or_none(r, "name"),
-            parent_rsid=str(r.get("parentRsid", "")),
+            parent_rsid=_str_or_none(r, "parentRsid") or "",
         )
         for r in raw
-        if r.get("id")
+        if (vrs_id := _str_or_none(r, "id"))
     ]
     duration_ms = int((time.monotonic() - started) * 1000)
     logger.debug(

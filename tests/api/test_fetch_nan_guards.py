@@ -162,3 +162,16 @@ def test_nan_identifier_does_not_match_unnamed_suite(ident: str, name_match: str
     handle.getReportSuites.return_value = pd.DataFrame([{"rsid": "a", "name": "Shop"}, {"rsid": "b"}])
     with pytest.raises(ReportSuiteNotFoundError):
         fetch.resolve_rsid(AaClient(handle=handle, company_id="testco"), ident, name_match=name_match)
+
+
+def test_vrs_summaries_missing_parent_and_id_are_not_nan() -> None:
+    handle = MagicMock()
+    handle.getVirtualReportSuites.return_value = pd.DataFrame(
+        [
+            {"id": "vrs_a", "name": "A", "parentRsid": "rs1"},
+            {"id": "vrs_b", "name": "B"},
+            {"name": "no id"},
+        ]
+    )
+    summaries = fetch.fetch_virtual_report_suite_summaries(AaClient(handle=handle, company_id="c"))
+    assert [(s.id, s.parent_rsid) for s in summaries] == [("vrs_a", "rs1"), ("vrs_b", "")]
