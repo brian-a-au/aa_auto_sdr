@@ -215,6 +215,10 @@ def _run_multiple(
     try:
         diff_cmd.write_output(rendered, output)
     except OSError as exc:
+        if fmt != "json" and output not in (None, "-"):
+            # Same plain line --diff prints for a failed file write.
+            print(f"error: could not write {output}: {exc.strerror or exc}", file=sys.stderr, flush=True)
+            return ExitCode.OUTPUT.value
         raise OutputError(f"Unable to write previous comparisons to {output or 'stdout'}: {exc}") from exc
     for report in full_reports:
         diff_cmd._maybe_append_step_summary(report, labels=labels)
