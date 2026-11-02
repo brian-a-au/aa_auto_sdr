@@ -661,6 +661,7 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
   ```
 - `--run-summary-json PATH` writes a structured run summary to file or stdout (`-`). Generate / batch only — discovery, inspect, and diff routes ignore it.
 - **Mutex:** `--run-summary-json -` + `--output -` exits `OUTPUT` (15) before any work. `--agent-mode` applies the implicit `--output -`, so explicit `--run-summary-json -` triggers this on generate / batch routes.
+- **Mutex:** `--dry-run` + `--output -` on a single SDR exits `USAGE` (2) before any work, because the preview is plain text. `--agent-mode` alone does not trigger it: a single SDR under agent mode writes a file.
 - `--explain-exit-code CODE` writes the explanation to stdout (always). It is a fast-path action that does not interact with `--run-summary-json` or `--agent-mode`.
 
 For unattended runs against the live AA API, tune retry behavior with:
