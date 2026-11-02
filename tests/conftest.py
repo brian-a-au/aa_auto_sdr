@@ -42,6 +42,41 @@ def _clear_notion_data_source_cache() -> None:
         pass  # module not yet imported — nothing to clear
 
 
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+@pytest.fixture(autouse=True)
+def _block_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Refuse outbound connections so no test reaches Adobe or Notion.
+
+    A developer checkout can hold real credentials (``config.json``,
+    ``~/.aa/orgs/``); a test that resolves them by accident must fail here
+    instead of calling the live API. Loopback and Unix sockets stay allowed.
+    """
+    import socket
+
+    real_connect = socket.socket.connect
+    real_connect_ex = socket.socket.connect_ex
+
+    def _check(sock: socket.socket, address: object) -> None:
+        if sock.family == getattr(socket, "AF_UNIX", None):
+            return
+        host = address[0] if isinstance(address, tuple) else address
+        if host not in _LOOPBACK_HOSTS:
+            raise RuntimeError(f"network access is disabled in tests (tried {address!r})")
+
+    def guarded_connect(sock: socket.socket, address: object) -> None:
+        _check(sock, address)
+        return real_connect(sock, address)
+
+    def guarded_connect_ex(sock: socket.socket, address: object) -> int:
+        _check(sock, address)
+        return real_connect_ex(sock, address)
+
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", guarded_connect_ex)
+
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Auto-apply `unit` marker to anything not otherwise marked."""
     other_markers = {"integration", "smoke", "e2e"}

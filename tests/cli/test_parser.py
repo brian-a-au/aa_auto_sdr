@@ -377,3 +377,16 @@ def test_retry_delay_rejects_non_finite(flag: str, value: str) -> None:
     with pytest.raises(SystemExit) as exc:
         build_parser().parse_args(["rs1", flag, value])
     assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("flag", ["--max-issues", "--warn-threshold"])
+def test_diff_count_flags_reject_negative(flag: str) -> None:
+    with pytest.raises(SystemExit) as exc:
+        build_parser().parse_args(["--diff", "a.json", "b.json", flag, "-1"])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("flag", ["--max-issues", "--warn-threshold"])
+def test_diff_count_flags_accept_zero(flag: str) -> None:
+    ns = build_parser().parse_args(["--diff", "a.json", "b.json", flag, "0"])
+    assert getattr(ns, flag.lstrip("-").replace("-", "_")) == 0

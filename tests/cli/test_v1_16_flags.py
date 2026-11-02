@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -29,13 +31,24 @@ def test_template_overwrite_reserved_rejected_by_argparse() -> None:
         parser.parse_args(["RS1", "--template", "/tmp/foo.xlsx", "--template-overwrite-reserved"])
 
 
+_CRED_ENV = ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "SANDBOX", "AA_PROFILE")
+
+
 def _run_cli(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sys.executable, "-m", "aa_auto_sdr", *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # The in-process network guard does not reach a subprocess, so isolate it
+    # from any real credentials: a tmp cwd (no config.json), a tmp HOME (no
+    # ~/.aa profiles) and no credential env vars.
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {k: v for k, v in os.environ.items() if k not in _CRED_ENV}
+        env["HOME"] = env["USERPROFILE"] = tmp
+        return subprocess.run(
+            [sys.executable, "-m", "aa_auto_sdr", *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=tmp,
+            env=env,
+        )
 
 
 def test_template_missing_file_yields_usage(tmp_path: Path) -> None:
@@ -152,3 +165,10 @@ def test_template_zip_without_content_types_yields_usage(tmp_path: Path) -> None
     result = _run_cli("RS1", "--template", str(bad))
     assert result.returncode == 2
     assert "Template is not a valid .xlsx workbook" in result.stderr
+
+
+def test_run_cli_cannot_see_checkout_credentials() -> None:
+    """_run_cli must not find a developer's config.json, ~/.aa profiles or env creds."""
+    result = _run_cli("--show-config")
+    assert result.returncode == 10
+    assert "No credentials found" in result.stderr

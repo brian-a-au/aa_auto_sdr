@@ -262,3 +262,12 @@ class TestWriteQualityReport:
 
         assert target.read_bytes() == b"original quality report"
         assert [path for path in tmp_path.iterdir() if path.name.startswith(".")] == []
+
+
+def test_policy_with_utf8_bom_loads(tmp_path: Path) -> None:
+    body = json.dumps({"fail_on_quality": "HIGH", "quality_report": "json"})
+    plain = tmp_path / "plain.json"
+    plain.write_text(body, encoding="utf-8")
+    bom = tmp_path / "bom.json"
+    bom.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    assert load_policy(bom) == load_policy(plain)

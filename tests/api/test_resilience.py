@@ -45,6 +45,8 @@ class TestRetryPolicy:
             (3, -0.1, 10.0),
             (3, 1.0, 0.5),  # max < base
             (3, 1.0, 0.0),
+            (3, 1.0, 86_401.0),  # past the one-day cap; time.sleep overflows near 1e10
+            (3, 1e10, 1e10),
         ],
     )
     def test_validation_rejects_invalid_combinations(
@@ -52,6 +54,9 @@ class TestRetryPolicy:
     ) -> None:
         with pytest.raises(ValueError):
             RetryPolicy(max_retries=max_retries, base_delay=base_delay, max_delay=max_delay)
+
+    def test_max_delay_at_cap_is_valid(self) -> None:
+        assert RetryPolicy(base_delay=1.0, max_delay=86_400.0).max_delay == 86_400.0
 
     def test_max_retries_zero_is_valid(self) -> None:
         p = RetryPolicy(max_retries=0, base_delay=0.5, max_delay=10.0)

@@ -412,8 +412,66 @@ def test_excel_template_check_skips_trending_route(capsys) -> None:
     assert "requires --template" not in err
 
 
-def test_excel_template_check_skips_list_route(capsys) -> None:
+def test_excel_template_check_skips_list_route(capsys, monkeypatch) -> None:
     from aa_auto_sdr.cli.main import run
+    from aa_auto_sdr.core import credentials
+    from aa_auto_sdr.core.exceptions import ConfigError
 
+    # Stop at credential resolution: a checkout may hold real credentials.
+    def no_creds(*_a, **_k):
+        raise ConfigError("stub: no creds")
+
+    monkeypatch.setattr(credentials, "resolve", no_creds)
     run(["--list-reportsuites", "--format", "excel-template"])
     assert "requires --template" not in capsys.readouterr().err
+
+
+def _corrupt_member(src: Path, dst: Path, member: str) -> None:
+    """Copy an .xlsx and flip one byte inside `member`'s compressed data."""
+    import zipfile
+
+    raw = bytearray(src.read_bytes())
+    with zipfile.ZipFile(src) as zf:
+        info = zf.getinfo(member)
+    raw[info.header_offset + 30 + len(info.filename) + len(info.extra) + 5] ^= 0xFF
+    dst.write_bytes(bytes(raw))
+
+
+def test_is_xlsx_package_false_when_member_is_corrupt(tmp_path: Path) -> None:
+    from openpyxl import Workbook
+
+    from aa_auto_sdr.cli.main import _is_xlsx_package
+
+    good = tmp_path / "good.xlsx"
+    Workbook().save(good)
+    bad = tmp_path / "bad.xlsx"
+    _corrupt_member(good, bad, "xl/workbook.xml")
+    assert _is_xlsx_package(good) is True
+    assert _is_xlsx_package(bad) is False
+
+
+def test_is_xlsx_package_accepts_renamed_workbook_part(tmp_path: Path) -> None:
+    """The workbook part is found through the package relationships, so a
+    valid workbook may name it something other than xl/workbook.xml."""
+    import zipfile
+
+    from openpyxl import Workbook, load_workbook
+
+    from aa_auto_sdr.cli.main import _is_xlsx_package
+
+    src = tmp_path / "src.xlsx"
+    Workbook().save(src)
+    renamed = tmp_path / "renamed.xlsx"
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(renamed, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            name = info.filename
+            if name == "xl/workbook.xml":
+                name = "xl/main.xml"
+            elif name == "xl/_rels/workbook.xml.rels":
+                name = "xl/_rels/main.xml.rels"
+            if name in ("[Content_Types].xml", "_rels/.rels"):
+                data = data.replace(b"xl/workbook.xml", b"xl/main.xml")
+            zout.writestr(name, data)
+    load_workbook(renamed)  # a real, valid workbook
+    assert _is_xlsx_package(renamed) is True
