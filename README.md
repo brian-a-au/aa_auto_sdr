@@ -454,7 +454,7 @@ High-level layout (representative, not exhaustive):
 ```
 aa_auto_sdr/
 ├── .github/
-│   └── workflows/             # tests, lint, version-sync, release-gate
+│   └── workflows/             # tests, lint, version-sync, release-gate, release, codeql
 ├── src/
 │   └── aa_auto_sdr/           # main package (src layout)
 │       ├── __init__.py
@@ -505,6 +505,7 @@ aa_auto_sdr/
 │   └── meta/                  # CI-enforced architectural invariants
 ├── scripts/
 │   ├── check_version_sync.py  # version drift gate
+│   ├── extract_release_notes.py  # CHANGELOG section for the GitHub Release
 │   └── build_sample_outputs.py  # deterministic sample generator
 ├── docs/                      # user-facing markdown (gitignored docs/superpowers/ excluded)
 ├── sample_outputs/            # representative outputs, generated from fixture

@@ -129,7 +129,16 @@ uv run aa_auto_sdr --diff <a> <b>        # Compare snapshots
 
 ## Releasing
 
-Full runbook: [`RELEASING.md`](RELEASING.md). In short: bump `src/aa_auto_sdr/core/version.py` and add a `CHANGELOG.md` entry, merge to `main`, then push a `vX.Y.Z` tag and publish a GitHub Release. `.github/workflows/release.yml` builds and uploads to PyPI over OIDC trusted publishing — no token. The tag must match `version.py` or the workflow's guard fails the publish. Docs-only and CI-only changes ship without a version bump or a release.
+Full runbook: [`RELEASING.md`](RELEASING.md). The steps are:
+
+1. Open a PR that bumps `src/aa_auto_sdr/core/version.py` and `tests/test_version.py` and adds a `CHANGELOG.md` section.
+2. Merge it with `gh pr merge <PR> --merge`. `main` is protected.
+3. Optional dry run: "Run workflow" on the `release` workflow. It runs the build job only and uploads nothing.
+4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. Approve the `pypi` deployment in the workflow run.
+6. Check PyPI and the GitHub Release.
+
+The tag push starts `.github/workflows/release.yml`. Its `build` job runs every release check and fails if the tag is not `v` plus the version in `version.py`. `publish` uploads to PyPI over OIDC trusted publishing, with no token. `github-release` then creates the GitHub Release from the `CHANGELOG.md` section. Do not create the release by hand. The PyPI publisher is registered for workflow `release.yml` and environment `pypi`, so keep both names. Docs-only and CI-only changes ship without a version bump or a release.
 
 ## When in Doubt
 
