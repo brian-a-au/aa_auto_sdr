@@ -1,0 +1,17 @@
+name: "aa_auto_sdr CodeQL configuration"
+
+# Turn off two import-style queries from the security-and-quality suite.
+#
+# - py/cyclic-import flags modules that import each other. In this package,
+#   each of those cycles has at least one import inside a function, e.g.
+#   output/registry.py imports the writers inside bootstrap(). Python runs
+#   that import after both modules have loaded, so the cycle does not fail.
+# - py/import-and-import-from flags a module that is imported with both
+#   `import x` and `from x import y`. That is a style choice, not a bug.
+#
+# Every other security and quality query still runs.
+query-filters:
+  - exclude:
+      id: py/cyclic-import
+  - exclude:
+      id: py/import-and-import-from
