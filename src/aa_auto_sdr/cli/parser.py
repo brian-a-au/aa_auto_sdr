@@ -12,21 +12,6 @@ from pathlib import Path
 
 from aa_auto_sdr.cli.option_resolution import explicit_long_option_dests
 
-# Generate command supports all 5 formats + 4 aliases
-_GENERATE_FORMATS = [
-    "excel",
-    "csv",
-    "json",
-    "html",
-    "markdown",
-    "all",
-    "reports",
-    "data",
-    "ci",
-]
-# List/inspect commands: strict CJA parity — only json|csv (no markdown for lists)
-_LIST_FORMATS = ["json", "csv"]
-
 _AGENT_MODE_DEFAULTS: dict[str, str] = {
     "format": "json",
     "output": "-",

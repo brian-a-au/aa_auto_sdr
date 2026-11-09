@@ -65,6 +65,7 @@ class CoverageRow:
                 return "Partial fetch"
             case CoverageState.UNKNOWN_SCOPE:
                 return "Scope unknown — may not have been collected"
+        raise ValueError(f"unknown coverage state: {self.state!r}")
 
 
 def _meta_field(meta: Any, name: str) -> Any:

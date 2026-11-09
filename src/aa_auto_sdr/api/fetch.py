@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 import time
 from collections.abc import Callable
 from copy import deepcopy
@@ -175,7 +176,7 @@ def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     must resolve to `default` before any coercion. NaN is the only float that
     is != itself."""
     val = d.get(key, default)
-    if isinstance(val, float) and val != val:
+    if isinstance(val, float) and math.isnan(val):
         return default
     return val
 
@@ -225,7 +226,7 @@ def _extra(d: dict[str, Any], known: set[str]) -> dict[str, Any]:
     A NaN that reaches a snapshot becomes a bare `NaN` token under json.dump
     (invalid strict JSON); dropping the key matches the raw path, where an
     absent cell is an absent key."""
-    return {k: v for k, v in d.items() if k not in known and not (isinstance(v, float) and v != v)}
+    return {k: v for k, v in d.items() if k not in known and not (isinstance(v, float) and math.isnan(v))}
 
 
 def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
@@ -955,8 +956,8 @@ def _first_present(d: dict[str, Any], keys: tuple[str, ...]) -> str | None:
         v = d.get(k)
         if v is None or v == "":
             continue
-        # pandas yields float-NaN for missing cells; NaN is the only float != itself
-        if isinstance(v, float) and v != v:
+        # pandas yields float-NaN for missing cells
+        if isinstance(v, float) and math.isnan(v):
             continue
         return str(v)
     return None

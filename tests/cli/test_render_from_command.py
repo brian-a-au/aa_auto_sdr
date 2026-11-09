@@ -119,7 +119,8 @@ def test_round_trip_matches_live_output_in_every_local_format(tmp_path: Path, ca
     # JSON: identical apart from the two additive render keys.
     live_json = json.loads((live / "demo.prod.json").read_text())
     rendered_json = json.loads((rendered / "demo.prod.json").read_text())
-    assert rendered_json.pop("rendered_by_tool_version")
+    rendered_tool_version = rendered_json.pop("rendered_by_tool_version")
+    assert rendered_tool_version
     datetime.fromisoformat(rendered_json.pop("rendered_at"))
     assert rendered_json == live_json
     assert rendered_json["captured_at"] == CAPTURED.isoformat()

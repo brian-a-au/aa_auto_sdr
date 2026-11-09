@@ -19,6 +19,7 @@ def _maybe_load_dotenv() -> None:
 
         load_dotenv()
     except ImportError:
+        # python-dotenv is optional, so a missing package is not an error.
         pass
 
 

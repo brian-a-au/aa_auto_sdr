@@ -35,6 +35,7 @@ def locked(tmp_path: Path) -> Iterator[Path]:
         try:
             os.stat(d / "probe")
         except PermissionError:
+            # The expected result. The directory blocks the stat.
             pass
         except FileNotFoundError:
             pytest.skip("environment does not enforce directory permissions (running as root?)")
