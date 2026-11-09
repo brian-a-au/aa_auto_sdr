@@ -536,8 +536,6 @@ def test_fail_fast_late_success_emits_rsid_complete_log(
     """A still-running worker that completes after fail-fast triggers must go
     through the same rsid_complete logging as a normally-completed future —
     it still wrote output and appears in the summary."""
-    import logging
-
     import aa_auto_sdr.pipeline.workers as workers_mod
     from aa_auto_sdr.core.exceptions import ApiError
 
@@ -579,8 +577,6 @@ def test_fail_fast_late_failure_logs_and_invokes_callback(
 ) -> None:
     """A still-running worker that fails after fail-fast triggers must emit
     rsid_failure and invoke failure_callback, matching the normal failure path."""
-    import logging
-
     import aa_auto_sdr.pipeline.workers as workers_mod
     from aa_auto_sdr.core.exceptions import ApiError
 

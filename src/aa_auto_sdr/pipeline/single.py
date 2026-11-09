@@ -123,7 +123,8 @@ def run_single(
 
         with timings.Timer(f"snapshot:{rsid}"):
             snap_path = save_snapshot(doc, snapshot_dir=snapshot_dir, payload=snapshot_payload)
-            snapshot_payload = None
+            # Free the serialized payload before the git commit and the rest of the run.
+            del snapshot_payload
         paths.append(snap_path)
 
     # v1.15.0 — git commit after snapshot save.

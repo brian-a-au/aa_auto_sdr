@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import argparse  # noqa: F401
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
-
-import pytest  # noqa: F401
 
 from aa_auto_sdr.snapshot.git import GitOpResult
 

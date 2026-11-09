@@ -64,8 +64,6 @@ def test_hint_for_code_without_remediation_returns_empty() -> None:
 
 def test_envelope_redacts_authorization_and_client_secret(capsys) -> None:
     # Logs and watch events already scrub these; the envelope must too.
-    import json
-
     from aa_auto_sdr.output.error_envelope import emit_error_envelope
 
     exc = RuntimeError("GET x failed: client_secret=p8e-XYZ Authorization: Bearer abc.def")

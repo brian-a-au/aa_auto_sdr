@@ -212,8 +212,6 @@ class _NotionWatchPublisher:
     known_pages: dict[str, str] = field(default_factory=dict)
 
     def publish(self, *, snapshot_path: Path, rsid: str) -> None:
-        import json
-
         from aa_auto_sdr.cli.commands.push_to_notion import publish_payload_to_notion
 
         payload = json.loads(snapshot_path.read_text(encoding="utf-8"))

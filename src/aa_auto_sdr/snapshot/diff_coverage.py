@@ -41,7 +41,6 @@ _FAMILY_MODELS: dict[str, type] = {
     "virtual_report_suites": models.VirtualReportSuite,
     "classifications": models.ClassificationDataset,
 }
-_COMPONENT_MODELS: tuple[type, ...] = tuple(_FAMILY_MODELS.values())
 
 
 def _field_names(*classes: type) -> set[str]:

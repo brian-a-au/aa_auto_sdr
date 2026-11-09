@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from aa_auto_sdr.cli.main import run as cli_run  # noqa: F401  (import smoke)
 from aa_auto_sdr.cli.parser import build_parser
 
 

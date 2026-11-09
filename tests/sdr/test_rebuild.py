@@ -143,8 +143,10 @@ def test_sdr_json_round_trip_is_lossless() -> None:
     assert rebuilt.rendered == RenderProvenance(rendered_at=RENDERED_AT, tool_version="9.9.9")
     expected = doc.to_dict()
     actual = rebuilt.to_dict()
-    assert actual.pop("rendered_at") == RENDERED_AT.isoformat()
-    assert actual.pop("rendered_by_tool_version") == "9.9.9"
+    rendered_at = actual.pop("rendered_at")
+    rendered_by_tool_version = actual.pop("rendered_by_tool_version")
+    assert rendered_at == RENDERED_AT.isoformat()
+    assert rendered_by_tool_version == "9.9.9"
     assert actual == expected
 
 
