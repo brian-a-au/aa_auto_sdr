@@ -1,8 +1,8 @@
 """Meta-test: CI tests every Python version the package says it supports.
 
 The pyproject classifiers are the list of supported versions. The
-`tests.yml` matrix and the `release-gate.yml` pip smoke loop must list the
-same versions, and the lowest one must match `requires-python`. The README
+`tests.yml` matrix and the pip smoke loops in `release-gate.yml` and
+`release.yml` must list the same versions, and the lowest one must match `requires-python`. The README
 badge shows only the floor (`Python 3.11+`), so it must match
 `requires-python`. Adding a version in one place and not the others fails
 here."""
@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 import tomllib
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).parent.parent.parent
 WORKFLOWS = ROOT / ".github" / "workflows"
@@ -48,10 +50,11 @@ def test_tests_workflow_matrix_lists_every_supported_version() -> None:
     assert matrix == _classifier_versions()
 
 
-def test_release_gate_smoke_installs_every_supported_version() -> None:
-    text = (WORKFLOWS / "release-gate.yml").read_text(encoding="utf-8")
+@pytest.mark.parametrize("workflow", ["release-gate.yml", "release.yml"])
+def test_smoke_install_covers_every_supported_version(workflow: str) -> None:
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
     match = re.search(r"^\s*for py in ([\d. ]+); do\s*$", text, re.MULTILINE)
-    assert match, "release-gate.yml has no `for py in ...` smoke loop"
+    assert match, f"{workflow} has no `for py in ...` smoke loop"
     assert match.group(1).split() == _classifier_versions()
 
 

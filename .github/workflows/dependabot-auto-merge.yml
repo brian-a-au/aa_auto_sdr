@@ -2,7 +2,7 @@ name: dependabot-auto-merge
 
 on:
   workflow_run:
-    workflows: [dependabot-policy, tests, lint, version-sync, release-gate, dependency-review]
+    workflows: [dependabot-policy, tests, lint, version-sync, release-gate, dependency-review, codeql]
     types: [completed]
   workflow_dispatch:
     inputs:

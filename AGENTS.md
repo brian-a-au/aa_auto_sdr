@@ -825,7 +825,16 @@ uv run aa_auto_sdr $RSIDS --agent-mode --output-dir /reports
 
 ## Releasing
 
-Releasing is a human-initiated action; agent-mode and unattended runs never publish. The tool is read-only against Adobe Analytics, and cutting a release is the one workflow that writes outside the repo (it uploads to PyPI). See [`RELEASING.md`](RELEASING.md) for the runbook: bump `src/aa_auto_sdr/core/version.py` and `CHANGELOG.md`, merge to `main`, tag `vX.Y.Z`, and publish a GitHub Release — [`.github/workflows/release.yml`](.github/workflows/release.yml) then builds and uploads to PyPI over OIDC, with no token and no manual upload step.
+Releasing is a human-initiated action; agent-mode and unattended runs never publish. The tool is read-only against Adobe Analytics, and cutting a release is the one workflow that writes outside the repo (it uploads to PyPI). See [`RELEASING.md`](RELEASING.md) for the runbook. The steps are:
+
+1. Open a PR with the version bump in `src/aa_auto_sdr/core/version.py` and a `CHANGELOG.md` section.
+2. Merge it with a merge commit. `main` is protected. RELEASING.md has the command.
+3. Optional dry run with "Run workflow" on the `release` workflow. It uploads nothing.
+4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. A person approves the `pypi` deployment.
+6. Check PyPI and the GitHub Release.
+
+The tag push starts [`.github/workflows/release.yml`](.github/workflows/release.yml). It builds and tests the package, uploads it to PyPI over OIDC with no token, and then creates the GitHub Release. An agent must not push a release tag or approve the `pypi` deployment unless a person asks it to.
 
 ## See Also
 
