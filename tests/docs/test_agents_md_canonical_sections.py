@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from aa_auto_sdr.core.exit_codes import ExitCode
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_MD = REPO_ROOT / "AGENTS.md"
 
@@ -35,26 +37,15 @@ def test_canonical_heading_present(heading):
     assert re.search(pattern, text, re.MULTILINE), f"Missing heading: {heading}"
 
 
-REQUIRED_EXIT_CODES = [
-    "`0`",
-    "`1`",
-    "`2`",
-    "`3`",
-    "`10`",
-    "`11`",
-    "`12`",
-    "`13`",
-    "`14`",
-    "`15`",
-    "`16`",
-    "`130`",
-]
+# Every ExitCode member plus 130 (KeyboardInterrupt, the OS/shell convention).
+REQUIRED_EXIT_CODES = [*(int(code) for code in ExitCode), 130]
 
 
 @pytest.mark.parametrize("code", REQUIRED_EXIT_CODES)
 def test_exit_code_present(code):
     text = AGENTS_MD.read_text()
-    assert code in text, f"Missing exit-code entry: {code}"
+    row = rf"^\| `{code}`\s*\|"
+    assert re.search(row, text, re.MULTILINE), f"Missing exit-code table row: `{code}`"
 
 
 REQUIRED_APPLICABILITY_ROWS = [

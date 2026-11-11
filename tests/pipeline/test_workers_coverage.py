@@ -230,13 +230,24 @@ def test_normal_failure_callback_invoked(base_kwargs: dict) -> None:
 
 def test_normal_keyboard_interrupt_cancels_and_reraises(base_kwargs: dict) -> None:
     """Normal mode: KeyboardInterrupt propagates after cancelling pending futures."""
+    import time
+
     import aa_auto_sdr.pipeline.workers as workers_mod
 
+    ran: list[str] = []
+
     def fake_run_single(*, rsid: str, **_kw: object) -> RunResult:
+        ran.append(rsid)
+        if rsid != "k1":
+            # If the single worker picks up a later suite before the main
+            # thread cancels, hold it so the cancel of the rest wins the race.
+            time.sleep(0.2)
         raise KeyboardInterrupt
 
     with (
         patch.object(workers_mod, "_run_single_for_batch", side_effect=fake_run_single),
         pytest.raises(KeyboardInterrupt),
     ):
-        run_parallel(**{**base_kwargs, "rsids": ["k1"]}, workers=1)
+        run_parallel(**{**base_kwargs, "rsids": ["k1", "k2", "k3", "k4"]}, workers=1)
+
+    assert len(ran) < 4, f"pending futures were not cancelled: {ran}"
