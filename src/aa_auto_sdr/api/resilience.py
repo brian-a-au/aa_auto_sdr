@@ -11,7 +11,7 @@ configures urllib3.Retry(total=max(max_retries, 3), backoff_factor=1,
 status_forcelist=[429, 500, 502, 503, 504], raise_on_status=False).
 A 5xx that exhausts urllib3's budget surfaces as a swallowed stub dict,
 which the SDK then indexes into and raises KeyError/ValueError. The
-`_classify_transient_sdk_call` helper translates those to
+`classify_transient_sdk_call` helper translates those to
 `TransientApiError` so `is_retryable` can dispatch on a typed signal.
 
 Worst-case total attempt count for a hard-failing endpoint at default
@@ -28,7 +28,7 @@ fast-fails in exactly 1 SDK call regardless of
 ``--max-retries``. The full retry budget above applies only to
 genuinely transient errors on the VRS endpoint.
 
-The helpers ``_classify_transient_sdk_call`` and ``_log_retry_attempt``
+The helpers ``classify_transient_sdk_call`` and ``log_retry_attempt``
 live here (not in ``api/fetch.py``) so ``api/client.py`` can use them
 for the auth bootstrap retry without creating a circular import
 (``api/fetch.py`` already imports ``AaClient`` from ``api/client.py``).

@@ -167,7 +167,7 @@ def _print_help() -> int:
         "\n"
         "Snapshots:\n"
         "  --snapshot-dir PATH       Override the active profile's snapshot directory\n"
-        "  --auto-snapshot           Save a snapshot per RSID on generate/batch (requires --profile)\n"
+        "  --auto-snapshot           Save a snapshot per RSID on generate/batch (default store without --profile)\n"
         "  --list-snapshots          List snapshots in the active snapshot dir (pass <RSID> to filter)\n"
         "  --prune-snapshots         Delete snapshots by retention policy (needs --keep-last or --keep-since)\n"
         "  --keep-last N             Retention: keep the N most recent snapshots per RSID\n"

@@ -16,7 +16,7 @@ The architectural patterns called out below (SDK isolation, writer-protocol outp
 
 ## Stack & Toolchain (binding)
 
-- **Python:** `>=3.11` (matches the sister project). CI tests every version from 3.11 through 3.15 on Linux, macOS, and Windows. When you add a Python version, add it to the pyproject classifiers, the `tests.yml` matrix, and the `release-gate.yml` smoke loop (`tests/meta/test_python_version_matrix.py` checks all three, and checks that the README `Python 3.X+` badge matches the floor). Do not use syntax or stdlib APIs newer than 3.11 in `src/`, `tests/`, `scripts/`, or `benchmarks/` (ruff `target-version = "py311"` catches the syntax). Use `os.path.exists`/`isdir`/`isfile`/`islink` instead of the `Path` methods in `src/`, which raise `PermissionError` before 3.14 (`tests/meta/test_no_raising_path_checks.py`).
+- **Python:** `>=3.11` (matches the sister project). CI tests every version from 3.11 through 3.15 on Linux, macOS, and Windows. When you add a Python version, add it to the pyproject classifiers, the `tests.yml` matrix, and the smoke loops in `release-gate.yml` and `release.yml` (`tests/meta/test_python_version_matrix.py` checks all four, and checks that the README `Python 3.X+` badge matches the floor). Do not use syntax or stdlib APIs newer than 3.11 in `src/`, `tests/`, `scripts/`, or `benchmarks/` (ruff `target-version = "py311"` catches the syntax). Use `os.path.exists`/`isdir`/`isfile`/`islink` instead of the `Path` methods in `src/`, which raise `PermissionError` before 3.14 (`tests/meta/test_no_raising_path_checks.py`).
 - **Package manager:** `uv`. All commands are `uv run …`.
 - **Build backend:** `hatchling` with dynamic version sourced from `src/aa_auto_sdr/core/version.py`.
 - **AA SDK:** [`aanalytics2`](https://github.com/pitchmuc/adobe-analytics-api-2.0) (PyPI: `aanalytics2`). This is the AA equivalent of `cjapy` in the sister project — wrapped in our own client module so the rest of the codebase never imports it directly.
@@ -44,7 +44,7 @@ Mirror the sister project so users moving between AA and CJA see the same surfac
 
 Format aliases (`excel`, `csv`, `json`, `html`, `markdown`, `all`, `reports`, `data`, `ci`) and shared flags (`--filter`, `--exclude`, `--sort`, `--limit`, `--output -`, `--output-dir`) match the CJA tool exactly.
 
-Fast-path flags (no heavy imports — handle in `__main__.py` before pandas/aanalytics2 load): `--version`/`-V`, `--help`/`-h`, `--exit-codes`, `--explain-exit-code CODE`, `--completion {bash,zsh,fish}`.
+Fast-path flags (no heavy imports — handle in `__main__.py` before pandas/aanalytics2 load): `--version`/`-V`, `--help`/`-h`, `--exit-codes`, `--explain-exit-code CODE`, `--completion {bash,zsh,fish}`, `--notion-print-database-schema`.
 
 See `docs/CLI_REFERENCE.md` for the full flag inventory and `AGENTS.md` for the agent-mode contract.
 

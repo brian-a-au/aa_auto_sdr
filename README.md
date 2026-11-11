@@ -84,7 +84,7 @@ A **Solution Design Reference** is the documentation that bridges your business 
 | **Developer UX** | `--exit-codes` lists every code; `--explain-exit-code <CODE>` prints meaning + remediation |
 | | `--completion {bash,zsh,fish}` emits a static shell-completion script |
 | | Lightweight fast path for `-V`/`--version`/`-h`/`--help`/`--exit-codes`/`--explain-exit-code`/`--completion` |
-| | `--help` prints a curated usage overview; the [CLI reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md) lists every flag |
+| | `--help` prints a usage overview that lists every flag; the [CLI reference](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CLI_REFERENCE.md) explains each one |
 
 ### Who It's For
 
@@ -114,7 +114,7 @@ pip install aa-auto-sdr
 Optional features ship as extras:
 
 ```bash
-uv tool install "aa-auto-sdr[env,completion,notion]"   # .env support + shell completion + Notion export
+uv tool install "aa-auto-sdr[env,notion]"   # .env support + Notion export
 ```
 
 Verify with `aa-auto-sdr --version`, then skip ahead to [Configure Credentials](#3-configure-credentials-adobe-analytics-api-20-oauth-server-to-server) — installed from PyPI you run `aa-auto-sdr` directly, so the `uv run` prefix in the numbered steps below is only for the from-source path.
@@ -460,7 +460,7 @@ aa_auto_sdr/
 │       ├── __init__.py
 │       ├── __main__.py        # fast-path entry (sub-100ms for --version/--help/--exit-codes/--completion)
 │       ├── api/               # aanalytics2 wrapper, auth, fetchers, normalized models
-│       │   ├── client.py      # only file (besides auth/fetch) that imports aanalytics2
+│       │   ├── client.py      # the only file that imports aanalytics2
 │       │   ├── auth.py
 │       │   ├── fetch.py       # per-component fetchers; coerces SDK shapes
 │       │   └── models.py      # normalized dataclasses (boundary types)
