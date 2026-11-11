@@ -116,3 +116,42 @@ def test_git_show_crlf_blob_still_parses(tiny_repo: Path) -> None:
 
     _commit_bytes(tiny_repo, "crlf.json", b'{\r\n  "marker": "crlf"\r\n}\r\n')
     assert json.loads(git_show(ref="HEAD", path="crlf.json", repo_root=tiny_repo)) == {"marker": "crlf"}
+
+
+def _locale_available(name: str) -> bool:
+    try:
+        out = subprocess.run(["locale", "-a"], capture_output=True, check=False).stdout
+    except OSError:
+        return False
+    return name in out.decode("ascii", errors="replace").split()
+
+
+@pytest.mark.skipif(not _locale_available("en_US.ISO8859-1"), reason="en_US.ISO8859-1 locale not installed")
+def test_second_commit_succeeds_in_non_ascii_dir_under_latin1_locale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Git prints the repo path as UTF-8. Decoding it with the locale encoding
+    # (cp1252 on Windows, Latin-1 here) gives a path that never matches, so the
+    # repo probe says "not a repo" and every later commit fails to re-init.
+    import locale
+
+    from aa_auto_sdr.snapshot.git import git_commit_snapshot, is_git_repository
+
+    monkeypatch.setenv("LC_ALL", "en_US.ISO8859-1")
+    monkeypatch.setattr(locale, "getpreferredencoding", lambda *_args: "latin-1")
+    monkeypatch.setattr(locale, "getencoding", lambda: "latin-1")
+    for var in ("GIT_AUTHOR_NAME", "GIT_COMMITTER_NAME"):
+        monkeypatch.setenv(var, "Test User")
+    for var in ("GIT_AUTHOR_EMAIL", "GIT_COMMITTER_EMAIL"):
+        monkeypatch.setenv(var, "test@example.com")
+
+    snap_dir = tmp_path / "snäps"
+    (snap_dir / "rs1").mkdir(parents=True)
+    (snap_dir / "rs1" / "a.json").write_text("{}\n")
+    first = git_commit_snapshot(snap_dir, rsid="rs1", message=None, push=False)
+    (snap_dir / "rs1" / "b.json").write_text("{}\n")
+    second = git_commit_snapshot(snap_dir, rsid="rs1", message=None, push=False)
+
+    assert first.ok is True, first
+    assert second.ok is True, second
+    assert is_git_repository(snap_dir) is True
