@@ -379,14 +379,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--snapshot",
         action="store_true",
-        help="Persist the built SdrDocument to ~/.aa/orgs/<profile>/snapshots/<RSID>/<ts>.json (requires --profile)",
+        help=(
+            "Persist the built SdrDocument to ~/.aa/orgs/<profile>/snapshots/<RSID>/<ts>.json "
+            "(uses the 'default' profile store without --profile)"
+        ),
     )
 
     # v1.1 — auto-snapshot + retention
     p.add_argument(
         "--auto-snapshot",
         action="store_true",
-        help="On generate/batch, save a snapshot per RSID (requires --profile)",
+        help="On generate/batch, save a snapshot per RSID (uses the 'default' profile store without --profile)",
     )
     p.add_argument(
         "--auto-prune",
@@ -674,7 +677,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch_grp.add_argument(
         "--fail-fast",
         action="store_true",
-        help="In parallel batch mode, cancel pending workers on first failure.",
+        help="Stop the batch on the first failure. In parallel mode, cancel pending workers.",
     )
 
     # v1.10.0 — batch sampling

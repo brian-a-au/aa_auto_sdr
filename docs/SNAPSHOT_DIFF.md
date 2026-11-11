@@ -131,7 +131,7 @@ Profile-form tokens (`<rsid>@<spec>`) resolve against the active snapshot dir, c
 uv run aa_auto_sdr --diff a.json b.json
 
 # Profile-scoped aliases (most common workflow)
-uv run aa_auto_sdr --diff demo.prod@latest demo.prod@previous --profile prod
+uv run aa_auto_sdr --diff demo.prod@previous demo.prod@latest --profile prod
 
 # Specific timestamp
 uv run aa_auto_sdr --diff demo.prod@2026-04-20T10-00-00+00-00 demo.prod@latest --profile prod
@@ -158,7 +158,7 @@ For each component type (`dimensions`, `metrics`, `segments`, `calculated_metric
 - **`modified`** — components present in both with at least one field-level delta
 - **`unchanged_count`** — integer; no detail
 
-The `report_suite` header is also diffed (rare — name/timezone/currency change) and reported as a `ReportSuiteDiff` with field deltas.
+The `report_suite` header is also diffed (rare — name/timezone/currency change) and reported as `report_suite_deltas`, a list of field deltas (`field`, `before`, `after`).
 
 ### Identity by ID, never by name
 
@@ -212,7 +212,7 @@ A side with unknown scope that has rows counts as collected, since the rows show
 
 **Filtered snapshots in a history.** Automatic baselines skip snapshots that left out families the current capture collected. Watch, `--compare-with-prev`, and each `--trending-window` point compare against the newest earlier snapshot whose scope covers the current one: it collected every family the current capture collected, and a snapshot without scope counts as a full capture. So a `--metrics-only --snapshot` run between two full captures never hides changes to dimensions, segments, or the other families. A metrics-only capture compares against the last capture that included metrics.
 
-- Diff JSON (from `--compare-with-prev`) carries `baseline_skipped`, the `captured_at` values of the newer snapshots that were passed over; `a_captured_at` names the baseline used (`b_captured_at` with `--reverse`). Older snapshots that cannot be read are passed over with a `baseline_candidate_skipped` warning; only the latest snapshot must load.
+- Diff JSON (from `--compare-with-prev`) carries `baseline_skipped`, the `captured_at` values of the newer snapshots that were passed over; `a_captured_at` names the baseline used (`b_captured_at` with `--reverse-diff`). Older snapshots that cannot be read are passed over with a `baseline_candidate_skipped` warning; only the latest snapshot must load.
 - Watch `change` events carry `baseline: {captured_at, skipped}`. Watch always captures every family, so its baseline is the newest full capture; with only filtered history, the next cycle is a new `baseline` event that carries `baseline: {captured_at: null, skipped}`.
 - Trending series points carry `baseline_captured_at` (the snapshot each point was compared against) and `collected_components`. A point with no covering earlier snapshot has no deltas. Drift counts each change once: a point is left out of drift (but keeps its deltas) when a later point has the same or an earlier baseline and covers its scope, and only counted points enter `n_pairs` for volatility.
 - `--keep-last` / `--keep-since` pruning never deletes the newest full capture, so a covering baseline survives retention.
@@ -345,7 +345,7 @@ uv run aa_auto_sdr <RSID> --profile prod --snapshot
 
 # Quarterly review: capture a new snapshot, diff against the previous
 uv run aa_auto_sdr <RSID> --profile prod --snapshot
-uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod
+uv run aa_auto_sdr --diff <RSID>@previous <RSID>@latest --profile prod
 ```
 
 ### Track snapshots in git for audit
@@ -368,8 +368,8 @@ uv run aa_auto_sdr --diff git:HEAD~1:snapshots/<RSID>.json git:HEAD:snapshots/<R
 ```bash
 # Capture a snapshot, diff against last week's, exit non-zero if anything changed
 uv run aa_auto_sdr <RSID> --profile prod --snapshot
-uv run aa_auto_sdr --diff <RSID>@latest <RSID>@previous --profile prod --format json --output - \
-  | jq -e '.components[] | select(.added or .removed or .modified | length > 0)' \
+uv run aa_auto_sdr --diff <RSID>@previous <RSID>@latest --profile prod --format json --output - \
+  | jq -e '.components[] | select((.added + .removed + .modified) | length > 0)' \
   && echo "DRIFT DETECTED" || echo "no changes"
 ```
 
@@ -470,7 +470,7 @@ aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | 
 aa_auto_sdr --compare-with-prev <RSID> --profile prod
 ```
 
-`--compare-with-prev` is shorthand for `--diff <RSID>@previous <RSID>@latest --profile <name>`. It's the typical "what changed since last capture" form, so prefer it to the long form unless you need a non-default base.
+`--compare-with-prev` diffs the latest snapshot against a baseline, much like `--diff <RSID>@previous <RSID>@latest --profile <name>`. The baseline is the newest earlier snapshot whose scope covers the latest one, so it is not always `@previous`: a filtered snapshot in between is skipped (see [Comparability](#comparability-capture-scope-and-fetch-quality)). It's the typical "what changed since last capture" form, so prefer it to the long form unless you need a non-default base.
 
 ### Multiple previous comparisons
 
@@ -510,7 +510,7 @@ was not emitted. Failed atomic replacement preserves an existing destination.
 
 ```bash
 aa_auto_sdr --trending-window 30d <RSID> --profile prod
-aa_auto_sdr --trending-window 30d <RSID> --profile prod --format json --output - | jq '.summary'
+aa_auto_sdr --trending-window 30d <RSID> --profile prod --format json --output - | jq '.drift'
 ```
 
 `--trending-window <DURATION>` reads existing snapshots from the active snapshot store (no API contact) and reports component counts and lifecycle changes across the window. Its drift summary includes total changes, a volatility score, the most active component type, and churn by component type; it does not summarize quality findings. Duration grammar is the same as `--keep-since` (`Nh|Nd|Nw`). `--snapshot-dir <PATH>` overrides the active snapshot directory for capture (`--snapshot` / `--auto-snapshot`), `--diff`, `--list-snapshots`, `--prune-snapshots`, `--compare-with-prev`, `--trending-window`, and `--watch`.

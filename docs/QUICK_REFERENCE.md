@@ -393,13 +393,13 @@ aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr
 
 | Format | File pattern | Description |
 |--------|--------------|-------------|
-| Excel | `<RSID>.xlsx` | 7-sheet workbook |
+| Excel | `<RSID>.xlsx` | 10-sheet workbook |
 | CSV | `<RSID>.<component>.csv` | 9 files: dimensions, metrics, segments, calculated_metrics, virtual_report_suites, classifications, summary, coverage, references; plus quality_issues when a quality audit ran; then `<RSID>._manifest.json` (SHA-256, rows, and bytes per file) written last |
 | JSON | `<RSID>.json` | Self-contained `SdrDocument` |
 | HTML | `<RSID>.html` | Self-contained static report |
 | Markdown | `<RSID>.md` | GFM, one H2 per component type |
 
-**Excel sheet order:** 1. Summary · 2. Dimensions · 3. Metrics · 4. Segments · 5. Calculated Metrics · 6. Virtual Report Suites · 7. Classifications. Every sheet has a frozen header row and an autofilter. See [`OUTPUT_FORMATS.md`](OUTPUT_FORMATS.md) for full file layouts.
+**Excel sheet order:** 1. Summary · 2. Coverage · 3. Quality · 4. Dimensions · 5. Metrics · 6. Segments · 7. Calculated Metrics · 8. Virtual Report Suites · 9. Classifications · 10. References. Every sheet except Quality has a frozen header row and an autofilter. See [`OUTPUT_FORMATS.md`](OUTPUT_FORMATS.md) for full file layouts.
 
 ## Exit codes
 
