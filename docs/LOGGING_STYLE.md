@@ -309,7 +309,7 @@ Emitted by `--notion-create-database` via `cli/commands/notion_create.py`.
 
 ## Appendix A — Event and field introductions
 
-Most maintainers will not need this table. It records when each event and field was introduced into the logging surface. Note the scope of enforcement: the vocabulary meta-test only checks the modules in `INSTRUMENTED_MODULES` (`tests/core/test_logging_vocabulary.py`), which does **not** include the Notion writer or the `notion_*` commands. The Notion rows below (v1.20.0+) are therefore documented for history but are not enforced by the meta-test. For everyday use, the canonical-events and vocabulary sections above describe the *current* contract — every event listed there is active, regardless of when it landed.
+Most maintainers will not need this table. It records when each event and field was introduced into the logging surface. Note the scope of enforcement: the vocabulary meta-test only checks the modules in `INSTRUMENTED_MODULES` (`tests/core/test_logging_vocabulary.py`). Modules that log but are not checked are named in `EXEMPT_MODULES` in the same file. The Notion writer and every `notion_*` command except `notion_prune` are exempt. The Notion rows below (v1.20.0+) are therefore documented for history but are not enforced by the meta-test. For everyday use, the canonical-events and vocabulary sections above describe the *current* contract — every event listed there is active, regardless of when it landed.
 
 | Event / field | Introduced |
 |---|---|
