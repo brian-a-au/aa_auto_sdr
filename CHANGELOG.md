@@ -2,6 +2,85 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.24.10] — 2026-11-11
+
+This patch ships the safe fixes from a review of the whole repository. No
+new flags, no changed defaults, and no changed exit codes on any path that
+worked before. Two of the fixes are for Windows.
+
+### Fixed
+- `--git-commit` now reads git output as UTF-8 on every platform. Before,
+  when the snapshot folder path had a non-ASCII character (for example
+  `C:\Users\José\...` on Windows), the first commit worked and every later
+  commit failed with `GitInitError`.
+- `--keep-last` no longer deletes snapshot files whose names are not
+  timestamps, and those files no longer take one of the keep slots. This
+  matches what `--keep-since` already did and what `docs/SNAPSHOT_DIFF.md`
+  describes.
+- CSV written to stdout by the list, describe, and inventory commands no
+  longer gets doubled carriage returns on Windows. Rows now end with a
+  single `\r\n`, so spreadsheet tools no longer show an empty line between
+  rows. Output on Linux and macOS is the same as before.
+- A parallel batch (`--workers 2` or more) now cancels the queued report
+  suites when a worker raises an unexpected error, such as the Notion token
+  check. Before, every remaining suite ran before the error appeared.
+- `--template` with a merged range over a cell the writer fills now fails
+  with an output error (exit 15) that names the sheet and the cell. Before,
+  it crashed with `AttributeError`. `--render-from --template` now also
+  exits 15 for a writer error instead of printing a traceback.
+- `--profile-import <name>` no longer reports "already exists" when the
+  profile folder holds only snapshots, for example
+  `~/.aa/orgs/default/snapshots/` from a run with no `--profile`.
+- `--render-from` now rejects a `quality.summary.verdict` or
+  `quality.summary.policy_threshold` that is a non-string value such as
+  `3`, with the same error as the other quality checks (exit 1 for SDR
+  JSON, exit 16 for a snapshot). Before, `--format csv` crashed with
+  `AttributeError` and the other formats rendered the file.
+
+### Changed
+- SDR generation and `--describe-reportsuite` reuse the report suite
+  listing fetched to resolve the identifier, so each report suite needs one
+  fewer API call. A batch of 3 makes 1 listing call where it made 4. Output,
+  exit codes, and log events are unchanged, with two narrow exceptions. A
+  report suite whose name Adobe returns as null now gets its RSID as the
+  name, where it used to get the text `None`. Retry log records for the
+  removed call no longer appear.
+- `--describe-reportsuite` fetches the virtual report suite listing once
+  when a name matches several report suites, instead of once per suite.
+
+### Documentation
+- Fixed the `AGENTS.md` auto-prune example, which combined `--keep-last`
+  and `--keep-since`. The parser rejects those two together. A new test
+  runs the example through the parser.
+- Fixed the drift check in `docs/SNAPSHOT_DIFF.md`. Its jq filter always
+  errored. The `--diff` examples now put `@previous` before `@latest`, so
+  added and removed are no longer swapped. The doc now names
+  `report_suite_deltas`, `--reverse-diff`, and the trending `drift` key.
+- Corrected statements about how `--compare-with-prev` picks its baseline,
+  which commands emit the JSON error envelope, `"quality": null`, the watch
+  `snapshot_path`, the CSV `references` file, the ten-sheet workbook, the
+  Overflow reasons, the three Notion maintenance modes, and `--profile-test`
+  exit 12.
+- Template docs now say that template images are kept only when Pillow is
+  installed. The docs no longer say that the `completion` extra gives
+  dynamic completion.
+- `docs/LOGGING_STYLE.md` now documents six emitted records and 11 fields
+  that were missing, and corrects several emitter locations and extras.
+- The help text for `--snapshot`, `--auto-snapshot`, and `--fail-fast` now
+  matches the behavior.
+
+### Internal
+- The 1.4 API meta-test now also catches the SDK's own 1.4 entry points.
+  The SDK isolation meta-test now allows `aanalytics2` imports only in
+  `api/client.py`.
+- The logging vocabulary test now fails when a module that logs is neither
+  checked nor named as exempt.
+- New test pins for `--sample-seed`, the Windows open command, the
+  `min-versions.yml` Python list, and every exit code row in `AGENTS.md`.
+- CI: the metrics step in `tests.yml` can now reach its warning branch when
+  coverage or the test count cannot be parsed.
+- Removed two benchmark scripts that no longer measured anything.
+
 ## [1.24.9] — 2026-11-01
 
 This patch fixes bugs found in a review of the 1.24.6 to 1.24.8 fixes. Most
