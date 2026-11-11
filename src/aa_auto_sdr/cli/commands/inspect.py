@@ -380,6 +380,11 @@ def run_describe_reportsuite(
             exit_code = ExitCode.API.value
             return exit_code
 
+        from aa_auto_sdr.api.vrs_source import VrsSource
+
+        # One VRS listing for every matched suite, as in stats and inventory.
+        # A single match has nothing to share and keeps the unshared call.
+        vrs_source = VrsSource(client) if len(canonical_rsids) > 1 else None
         records: list[dict[str, Any]] = []
         for canonical_rsid in canonical_rsids:
             try:
@@ -395,6 +400,7 @@ def run_describe_reportsuite(
                     client,
                     canonical_rsid,
                     count_only=True,
+                    source=vrs_source,
                 )
                 cls_outcome = fetch.fetch_classification_datasets(
                     client,
