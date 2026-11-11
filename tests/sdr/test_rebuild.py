@@ -549,7 +549,9 @@ def test_non_string_quality_verdict_rejected(shape: str, key: str, value: object
 
 
 @pytest.mark.parametrize("shape", sorted(_SHAPES))
-@pytest.mark.parametrize("value", [None, "fail"])
+# Falsy non-strings (0, False) never reached a string method in any writer,
+# so they rendered in every format and must keep rendering.
+@pytest.mark.parametrize("value", [None, "fail", "", 0, False])
 @pytest.mark.parametrize("key", ["verdict", "policy_threshold"])
 def test_string_or_null_quality_verdict_accepted(shape: str, key: str, value: object) -> None:
     make_payload, _error_class, _label = _SHAPES[shape]

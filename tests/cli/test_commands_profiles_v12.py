@@ -96,3 +96,31 @@ class TestProfileOverwrite:
         assert rc == ExitCode.OK.value
         assert (aa_base / "orgs" / "default" / "config.json").exists()
         assert (aa_base / "orgs" / "default" / "snapshots").is_dir()
+
+    def test_import_still_refuses_when_target_is_a_file(self, aa_base: Path, tmp_path: Path, capsys) -> None:
+        """orgs/<name> as a plain file is refused with CONFIG, not a traceback."""
+        (aa_base / "orgs" / "f").write_text("not a profile", encoding="utf-8")
+        rc = cmd.import_run("f", str(_make_creds_file(tmp_path)), base=aa_base)
+        assert rc == ExitCode.CONFIG.value
+        assert "already exists" in capsys.readouterr().err
+        assert (aa_base / "orgs" / "f").read_text(encoding="utf-8") == "not a profile"
+
+    @pytest.mark.parametrize("name", ["..", ".", ""])
+    def test_import_still_refuses_dot_names(self, aa_base: Path, tmp_path: Path, name: str) -> None:
+        """Names that resolve to orgs/ or its parent were always refused; the
+        snapshot-only allowance must not open them up."""
+        rc = cmd.import_run(name, str(_make_creds_file(tmp_path)), base=aa_base)
+        assert rc == ExitCode.CONFIG.value
+        assert not (aa_base / "config.json").exists()
+        assert not (aa_base / "orgs" / "config.json").exists()
+
+    def test_import_still_refuses_dangling_config_symlink(self, aa_base: Path, tmp_path: Path) -> None:
+        target_dir = aa_base / "orgs" / "linked"
+        target_dir.mkdir(parents=True)
+        try:
+            (target_dir / "config.json").symlink_to(tmp_path / "missing.json")
+        except OSError:
+            pytest.skip("symlinks not available")
+        rc = cmd.import_run("linked", str(_make_creds_file(tmp_path)), base=aa_base)
+        assert rc == ExitCode.CONFIG.value
+        assert (target_dir / "config.json").is_symlink()
