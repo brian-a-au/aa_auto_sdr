@@ -31,6 +31,9 @@ def test_windows_uses_start(monkeypatch) -> None:
     with patch("subprocess.run") as run:
         os_open(Path("C:/tmp/x.xlsx"))
         run.assert_called_once()
+        args = run.call_args[0][0]
+        assert args[:3] == ["cmd", "/c", "start"]
+        assert args[-1] == str(Path("C:/tmp/x.xlsx"))
 
 
 def test_failure_does_not_raise(monkeypatch) -> None:

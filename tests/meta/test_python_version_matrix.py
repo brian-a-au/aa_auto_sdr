@@ -2,7 +2,8 @@
 
 The pyproject classifiers are the list of supported versions. The
 `tests.yml` matrix and the pip smoke loops in `release-gate.yml` and
-`release.yml` must list the same versions, and the lowest one must match `requires-python`. The README
+`release.yml` must list the same versions, and the lowest one must match `requires-python`. The
+`min-versions.yml` matrix runs only the lowest and highest of them. The README
 badge shows only the floor (`Python 3.11+`), so it must match
 `requires-python`. Adding a version in one place and not the others fails
 here."""
@@ -42,12 +43,20 @@ def test_classifiers_are_contiguous_from_requires_python() -> None:
     assert minors == list(range(minors[0], minors[-1] + 1)), f"gap in classifiers: {versions}"
 
 
-def test_tests_workflow_matrix_lists_every_supported_version() -> None:
-    text = (WORKFLOWS / "tests.yml").read_text(encoding="utf-8")
+def _matrix_versions(workflow: str) -> list[str]:
+    text = (WORKFLOWS / workflow).read_text(encoding="utf-8")
     match = re.search(r"^\s*python-version: \[(.*)\]\s*$", text, re.MULTILINE)
-    assert match, "tests.yml has no python-version matrix list"
-    matrix = [v.strip().strip("\"'") for v in match.group(1).split(",")]
-    assert matrix == _classifier_versions()
+    assert match, f"{workflow} has no python-version matrix list"
+    return [v.strip().strip("\"'") for v in match.group(1).split(",")]
+
+
+def test_tests_workflow_matrix_lists_every_supported_version() -> None:
+    assert _matrix_versions("tests.yml") == _classifier_versions()
+
+
+def test_min_versions_workflow_uses_floor_and_ceiling() -> None:
+    versions = _classifier_versions()
+    assert _matrix_versions("min-versions.yml") == [versions[0], versions[-1]]
 
 
 @pytest.mark.parametrize("workflow", ["release-gate.yml", "release.yml"])

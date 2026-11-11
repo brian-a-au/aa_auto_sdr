@@ -215,7 +215,33 @@ INSTRUMENTED_MODULES = [
     # v1.16.0
     Path("src/aa_auto_sdr/output/writers/excel_template.py"),
     Path("src/aa_auto_sdr/cli/commands/render_from.py"),
+    Path("src/aa_auto_sdr/api/cache.py"),
+    Path("src/aa_auto_sdr/cli/commands/inventory.py"),
+    Path("src/aa_auto_sdr/core/logging.py"),
+    Path("src/aa_auto_sdr/cli/commands/notion_prune.py"),
 ]
+
+# Modules that call logger.* but are deliberately outside the vocabulary
+# rules above. Each entry carries a one-line reason.
+_NOTION_REASON = "Notion surface; docs/LOGGING_STYLE.md excludes it from the meta-test"
+EXEMPT_MODULES: dict[Path, str] = {
+    Path("src/aa_auto_sdr/api/resilience.py"): (
+        "extra= is built in a variable the AST rules cannot read; "
+        "test_log_retry_attempt_extras_use_vocabulary checks it directly"
+    ),
+    Path("src/aa_auto_sdr/pipeline/watch.py"): (
+        "only notion_watch_publish_failed, which LOGGING_STYLE.md documents with rsid in the message only"
+    ),
+    Path("src/aa_auto_sdr/cli/commands/notion_create.py"): _NOTION_REASON,
+    Path("src/aa_auto_sdr/cli/commands/notion_repair.py"): _NOTION_REASON,
+    Path("src/aa_auto_sdr/cli/commands/push_to_notion.py"): _NOTION_REASON,
+    Path("src/aa_auto_sdr/output/notion_database.py"): _NOTION_REASON,
+    Path("src/aa_auto_sdr/output/notion_prune.py"): _NOTION_REASON,
+    Path("src/aa_auto_sdr/output/writers/notion.py"): _NOTION_REASON,
+}
+
+_REPO = Path(__file__).resolve().parent.parent.parent
+_SRC = _REPO / "src" / "aa_auto_sdr"
 
 
 def _logger_calls(tree: ast.AST):
@@ -311,6 +337,42 @@ def test_canonical_event_calls_carry_required_extras(module_path):
                 )
 
 
+def test_every_logging_module_is_listed_or_exempt() -> None:
+    """Every module under src/ that calls logger.<level>(...) must be checked
+    by the rules above or carry a named exemption. Keeps INSTRUMENTED_MODULES
+    from silently falling behind the source tree."""
+    known = set(INSTRUMENTED_MODULES) | set(EXEMPT_MODULES)
+    unlisted: list[str] = []
+    for py in sorted(_SRC.rglob("*.py")):
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        if next(_logger_calls(tree), None) is None:
+            continue
+        rel = Path(py.relative_to(_REPO).as_posix())
+        if rel not in known:
+            unlisted.append(rel.as_posix())
+    assert not unlisted, f"modules that log but are neither in INSTRUMENTED_MODULES nor in EXEMPT_MODULES: {unlisted}"
+
+
+def test_log_retry_attempt_extras_use_vocabulary(caplog: pytest.LogCaptureFixture) -> None:
+    """``log_retry_attempt`` builds its ``extra=`` in a variable, which the AST
+    rules above cannot read. Check the emitted record directly."""
+    import logging
+
+    from aa_auto_sdr.api import resilience
+
+    with caplog.at_level(logging.DEBUG, logger=resilience.logger.name):
+        resilience.log_retry_attempt(2, 5, 0.25, TimeoutError("boom"), rsid="rs1", component_type="metric")
+    records = [r for r in caplog.records if r.name == resilience.logger.name]
+    assert len(records) == 1
+    record = records[0]
+    assert record.getMessage().startswith("retry_attempt")
+    standard = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
+    extras = set(record.__dict__) - standard
+    assert extras, "log_retry_attempt emitted no extras"
+    assert extras <= VOCAB, f"extras not in vocabulary: {sorted(extras - VOCAB)}"
+    assert CANONICAL_EVENT_EXTRAS["retry_attempt"] <= extras
+
+
 # v1.8.0 — value-level enforcement for the two enum-shaped vocabulary keys.
 # Cleanup item C3 from v1.7.2: count_only must be in the expansion_level
 # allowed-values list (was missing despite v1.7.2 emitting it from fetch.py).
@@ -319,20 +381,59 @@ EXPANSION_LEVEL_ALLOWED_VALUES = {"full", "exhausted", "count_only"}
 CACHE_EVENT_ALLOWED_VALUES = {"hit", "miss", "evict", "expire"}
 
 
-def test_expansion_level_allowed_values_include_count_only() -> None:
-    """Regression for v1.7.2 cleanup item C3.
-
-    fetch.py emits expansion_level=count_only on count_only-path failures
-    (see docs/LOGGING_STYLE.md "Request-time minimal scope" paragraph).
-    The allowed-values set MUST include this value alongside
-    full / exhausted. ("minimal" retired with the reduced-expansion ladder.)
-    """
-    assert "count_only" in EXPANSION_LEVEL_ALLOWED_VALUES
-    # Sanity: the set is exactly the three values; alarm if another slips in
-    # without spec/doc update.
-    assert {"full", "exhausted", "count_only"} == EXPANSION_LEVEL_ALLOWED_VALUES
+def _string_constants(node: ast.AST) -> set[str]:
+    return {n.value for n in ast.walk(node) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
 
 
-def test_cache_event_allowed_values() -> None:
-    """v1.8.0 cache_event vocabulary uses exactly four enum values."""
-    assert {"hit", "miss", "evict", "expire"} == CACHE_EVENT_ALLOWED_VALUES
+def _literal_values_for(tree: ast.AST, key: str) -> set[str]:
+    """String literals that reach ``key`` in a module: as a dict value under
+    ``"key"`` (the ``extra={...}`` shape) or as a ``key=...`` keyword argument.
+    A bare name is followed to the module's assignments of that name; a name
+    with no assignment (a function parameter) is covered by its call sites."""
+    assigned: dict[str, list[ast.AST]] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    assigned.setdefault(target.id, []).append(node.value)
+
+    def resolve(value: ast.AST) -> set[str]:
+        if isinstance(value, ast.Name):
+            return set().union(*(_string_constants(v) for v in assigned.get(value.id, [])))
+        return _string_constants(value)
+
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values, strict=False):
+                if isinstance(k, ast.Constant) and k.value == key:
+                    found |= resolve(v)
+        elif isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg == key:
+                    found |= resolve(kw.value)
+    return found
+
+
+def test_cache_event_values_in_source_are_allowed() -> None:
+    """Every literal ``cache_event`` value in api/cache.py is an allowed value."""
+    tree = ast.parse((_SRC / "api" / "cache.py").read_text(encoding="utf-8"))
+    values = _literal_values_for(tree, "cache_event")
+    assert values, "found no cache_event literals in api/cache.py; the scan is broken"
+    assert values <= CACHE_EVENT_ALLOWED_VALUES, (
+        f"cache_event values not in the allowed set: {sorted(values - CACHE_EVENT_ALLOWED_VALUES)}"
+    )
+
+
+def test_expansion_level_values_in_source_are_allowed() -> None:
+    """Every literal ``expansion_level`` value in api/fetch.py is an allowed value.
+
+    Regression for v1.7.2 cleanup item C3: fetch.py emits
+    expansion_level=count_only on count_only-path failures, so the allowed set
+    must carry it alongside full / exhausted."""
+    tree = ast.parse((_SRC / "api" / "fetch.py").read_text(encoding="utf-8"))
+    values = _literal_values_for(tree, "expansion_level")
+    assert values, "found no expansion_level literals in api/fetch.py; the scan is broken"
+    assert values <= EXPANSION_LEVEL_ALLOWED_VALUES, (
+        f"expansion_level values not in the allowed set: {sorted(values - EXPANSION_LEVEL_ALLOWED_VALUES)}"
+    )
