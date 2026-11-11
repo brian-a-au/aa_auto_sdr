@@ -527,6 +527,38 @@ def test_envelope_bad_quality_values_raise_snapshot_corrupt(quality) -> None:
         rebuild.document_from_payload(env, rendered_at=RENDERED_AT, rendering_tool_version="x")
 
 
+_SHAPES = {
+    "sdr_json": (lambda: _sdr_json(_doc()), SdrPayloadError, "SDR JSON"),
+    "envelope": (lambda: _envelope(_doc()), SnapshotCorruptError, "snapshot"),
+}
+
+
+@pytest.mark.parametrize("shape", sorted(_SHAPES))
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [("verdict", 3), ("policy_threshold", 3), ("verdict", ["x"])],
+)
+def test_non_string_quality_verdict_rejected(shape: str, key: str, value: object) -> None:
+    # The CSV writer calls str methods on these; a non-string used to pass
+    # rebuild and crash the writer with AttributeError.
+    make_payload, error_class, label = _SHAPES[shape]
+    payload = make_payload()
+    payload["quality"] = {"summary": {"by_severity": {}, "total": 0, key: value}}
+    with pytest.raises(error_class, match=rf"{label} 'quality\.summary\.{key}' must be a string or null"):
+        rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+
+
+@pytest.mark.parametrize("shape", sorted(_SHAPES))
+@pytest.mark.parametrize("value", [None, "fail"])
+@pytest.mark.parametrize("key", ["verdict", "policy_threshold"])
+def test_string_or_null_quality_verdict_accepted(shape: str, key: str, value: object) -> None:
+    make_payload, _error_class, _label = _SHAPES[shape]
+    payload = make_payload()
+    payload["quality"] = {"summary": {"by_severity": {}, "total": 0, key: value}}
+    doc = rebuild.document_from_payload(payload, rendered_at=RENDERED_AT, rendering_tool_version="x")
+    assert doc.quality["summary"][key] == value
+
+
 @pytest.mark.parametrize(
     "quality",
     [
