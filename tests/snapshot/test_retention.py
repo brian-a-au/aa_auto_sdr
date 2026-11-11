@@ -138,6 +138,31 @@ class TestSelectForDeletion:
         # The malformed file returns datetime.max → kept.
         assert deleted == []
 
+    _MIXED_STEMS = (
+        "2026-01-01T00-00-00+00-00",
+        "2026-01-02T00-00-00+00-00",
+        "2026-01-03T00-00-00+00-00",
+        "2025-manual-backup",
+        "baseline",
+    )
+
+    def test_keep_last_never_deletes_malformed_filename(self) -> None:
+        """keep_last counts and deletes only timestamp-named files. A stray
+        file is neither deleted nor allowed to take a keep slot."""
+        files = [self._file(s) for s in self._MIXED_STEMS]
+        deleted = select_for_deletion(files, RetentionPolicy(keep_last=2))
+        assert [f.name for f in deleted] == ["2026-01-01T00-00-00+00-00.json"]
+
+    def test_keep_last_and_keep_since_union_with_malformed_file(self) -> None:
+        now = datetime(2026, 1, 3, 12, 0, 0, tzinfo=UTC)
+        files = [self._file(s) for s in self._MIXED_STEMS]
+        policy = RetentionPolicy(keep_last=2, keep_since=timedelta(days=1))
+        deleted = select_for_deletion(files, policy, now=now)
+        assert [f.name for f in deleted] == [
+            "2026-01-01T00-00-00+00-00.json",
+            "2026-01-02T00-00-00+00-00.json",
+        ]
+
     def test_z_suffix_filename_parses_correctly(self) -> None:
         """Filenames with `Z` UTC suffix (alternate ISO form accepted by schema)
         must parse to a real datetime, not the fail-closed `datetime.max`."""
