@@ -234,3 +234,50 @@ class TestCollectedComponents:
             classifications=False,
         )
         assert flt.collected() == ("dimensions", "metrics", "virtual_report_suites")
+
+
+class TestReportSuitesListing:
+    """`report_suites` hands build_sdr the listing the caller resolved against."""
+
+    def test_listing_hit_skips_the_report_suite_call_and_keeps_the_document(self) -> None:
+        from aa_auto_sdr.api import fetch
+
+        captured_at = datetime(2026, 4, 25, 12, 0, tzinfo=UTC)
+        expected = build_sdr(_mock_client(), "demo.prod", captured_at=captured_at, tool_version="x")
+        client = _mock_client()
+        listing = fetch.fetch_report_suites_raw(client)
+        client.handle.getReportSuites.reset_mock()
+        doc = build_sdr(client, "demo.prod", captured_at=captured_at, tool_version="x", report_suites=listing)
+        client.handle.getReportSuites.assert_not_called()
+        assert doc == expected
+        assert doc.to_dict() == expected.to_dict()
+
+    def test_listing_miss_falls_back_to_the_filtered_call(self) -> None:
+        client = _mock_client()
+        doc = build_sdr(
+            client,
+            "demo.prod",
+            captured_at=datetime(2026, 4, 25, 12, 0, tzinfo=UTC),
+            tool_version="x",
+            report_suites=[{"rsid": "other", "name": "Other"}],
+        )
+        assert doc.report_suite.rsid == "demo.prod"
+        assert client.handle.getReportSuites.call_count == 1
+        assert client.handle.getReportSuites.call_args.kwargs["rsid_list"] == "demo.prod"
+
+    def test_no_listing_calls_fetch_report_suite_with_two_arguments(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without a listing the call shape is unchanged, so two-argument fakes
+        of fetch_report_suite keep working."""
+        from aa_auto_sdr.api import fetch
+        from aa_auto_sdr.api.models import ReportSuite
+
+        seen: list[tuple] = []
+
+        def _two_args(c, r):
+            seen.append((c, r))
+            return ReportSuite(rsid=r, name=r, timezone=None, currency=None, parent_rsid=None)
+
+        monkeypatch.setattr(fetch, "fetch_report_suite", _two_args)
+        client = _mock_client()
+        build_sdr(client, "demo.prod", captured_at=datetime(2026, 4, 25, tzinfo=UTC), tool_version="x")
+        assert seen == [(client, "demo.prod")]

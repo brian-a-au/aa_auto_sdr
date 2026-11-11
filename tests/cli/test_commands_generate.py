@@ -762,3 +762,113 @@ def test_generate_file_path_api_error_redacted_in_stderr_and_summary(
     assert rc == 12
     assert "SUPERSECRET123" not in capsys.readouterr().err
     assert "SUPERSECRET123" not in summary.read_text(encoding="utf-8")
+
+
+# --- the resolve listing is reused for the report suite row (one listing call) ---
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_single_run_makes_one_get_report_suites_call(mock_client_cls, env_creds, tmp_path: Path) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 0
+    assert handle.getReportSuites.call_count == 1
+    assert "rsid_list" not in handle.getReportSuites.call_args.kwargs
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_run_makes_one_get_report_suites_call(mock_client_cls, env_creds, capsys) -> None:
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = cmd.run(rsid="demo.prod", output_dir=Path("-"), format_name="json", profile=None)
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["report_suite"]["rsid"] == "demo.prod"
+    assert handle.getReportSuites.call_count == 1
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_multi_match_run_makes_one_get_report_suites_call(mock_client_cls, env_creds, tmp_path: Path) -> None:
+    import pandas as pd
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    handle.getReportSuites.return_value = pd.DataFrame(
+        [{"rsid": "demo.prod", "name": "Shared Name"}, {"rsid": "demo.dev", "name": "Shared Name"}]
+    )
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = cmd.run(rsid="Shared Name", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 0
+    assert json.loads((tmp_path / "demo.dev.json").read_text())["report_suite"]["rsid"] == "demo.dev"
+    assert handle.getReportSuites.call_count == 1
+
+
+def _generate_json_with_and_without_reuse(tmp_path: Path, *, pipe: bool, capsys) -> list[dict]:
+    """Run generate twice on the same fixture: once with the listing reused and
+    once with fetch_report_suite forced back onto its filtered SDK call. Returns
+    both JSON documents without their capture timestamp."""
+    from aa_auto_sdr.api import fetch as fetch_mod
+
+    raw = json.loads(FIXTURE.read_text())
+    docs: list[dict] = []
+    real = fetch_mod.fetch_report_suite
+
+    def _sdk_only(client, rsid, **_kw):
+        return real(client, rsid)
+
+    for reuse in (True, False):
+        handle = _build_handle(raw)
+        out_dir = tmp_path / ("reuse" if reuse else "sdk")
+        with (
+            patch("aa_auto_sdr.cli.commands.generate.AaClient") as cls,
+            patch.object(fetch_mod, "fetch_report_suite", real if reuse else _sdk_only),
+        ):
+            cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+            rc = cmd.run(
+                rsid="demo.prod",
+                output_dir=Path("-") if pipe else out_dir,
+                format_name="json",
+                profile=None,
+            )
+        assert rc == 0
+        assert handle.getReportSuites.call_count == (1 if reuse else 2)
+        text = capsys.readouterr().out if pipe else (out_dir / "demo.prod.json").read_text()
+        doc = json.loads(text)
+        doc.pop("captured_at")
+        docs.append(doc)
+    return docs
+
+
+def test_listing_reuse_does_not_change_file_output(env_creds, tmp_path: Path, capsys) -> None:
+    reused, sdk = _generate_json_with_and_without_reuse(tmp_path, pipe=False, capsys=capsys)
+    assert reused == sdk
+
+
+def test_listing_reuse_does_not_change_pipe_output(env_creds, tmp_path: Path, capsys) -> None:
+    reused, sdk = _generate_json_with_and_without_reuse(tmp_path, pipe=True, capsys=capsys)
+    assert reused == sdk
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_listing_failure_keeps_message_and_exit_code(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    """The listing is still fetched inside the resolve step, so a listing
+    failure reaches the same `except ApiError` arm as before (exit 12)."""
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.resilience import RetryPolicy
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    handle.getReportSuites.side_effect = AttributeError("listing exploded")
+    mock_client_cls.from_credentials.return_value = AaClient(
+        handle=handle, company_id="testco", retry_policy=RetryPolicy(max_retries=0)
+    )
+
+    rc = cmd.run(rsid="demo.prod", output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 12
+    assert capsys.readouterr().err == "api error: fetch failed: AttributeError: listing exploded\n"
+    assert handle.getReportSuites.call_count == 1

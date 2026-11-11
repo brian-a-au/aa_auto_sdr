@@ -772,3 +772,65 @@ class TestFailFastResolutionCancellations:
         rows = self._rows(mock_client_cls, mock_handle, tmp_path, ["demo.prod", "nope", "demo.dev"])
         cancelled = [r["rsid"] for r in rows if r["error"] and r["error"].startswith("CancelledError")]
         assert cancelled == ["demo.dev"]
+
+
+# --- the resolve-phase listing is reused for each report suite row ---
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_of_three_makes_one_get_report_suites_call(
+    mock_client_cls, mock_handle, authed_env, tmp_path, workers
+) -> None:
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging", "demo.dev"],
+        output_dir=tmp_path,
+        format_name="json",
+        profile=None,
+        workers=workers,
+    )
+    assert rc == 0
+    assert mock_handle.getReportSuites.call_count == 1
+    for rsid, name in (("demo.prod", "Demo Production"), ("demo.staging", "Demo Staging"), ("demo.dev", "Demo Dev")):
+        doc = json.loads((tmp_path / f"{rsid}.json").read_text())
+        assert doc["report_suite"]["rsid"] == rsid
+        assert doc["report_suite"]["name"] == name
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_of_one_makes_one_get_report_suites_call(mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+    """One identifier keeps the plain list (no ReportSuiteIndex); still one call."""
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    rc = batch_cmd.run(rsids=["demo.dev"], output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 0
+    assert mock_handle.getReportSuites.call_count == 1
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_falls_back_when_listing_preload_fails(mock_client_cls, mock_handle, authed_env, tmp_path) -> None:
+    """A failed preload leaves no listing to reuse, so every build makes its own
+    filtered per-suite call, as before."""
+    from aa_auto_sdr.cli.commands import batch as batch_cmd
+    from aa_auto_sdr.core.exceptions import ApiError
+
+    listing_df = mock_handle.getReportSuites.return_value
+    calls: list[dict] = []
+
+    def _get_report_suites(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise ApiError("listing endpoint down")
+        return listing_df
+
+    mock_handle.getReportSuites.side_effect = _get_report_suites
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    rc = batch_cmd.run(rsids=["demo.prod", "demo.staging"], output_dir=tmp_path, format_name="json", profile=None)
+    assert rc == 0
+    # 1 failed preload + 2 per-identifier resolves + 2 per-suite builds.
+    assert len(calls) == 5
+    assert [c.get("rsid_list") for c in calls[3:]] == ["demo.prod", "demo.staging"]

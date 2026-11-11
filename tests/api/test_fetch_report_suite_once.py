@@ -123,6 +123,31 @@ def test_preloaded_hit_logs_debug_record(caplog):
     _assert_debug_record(caplog.records, rsid="rs1", count=1)
 
 
+def test_resolve_rsid_listing_out_receives_the_fetched_listing(caplog):
+    plain = _Client(_ROWS)
+    with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch"):
+        assert fetch.resolve_rsid(plain, "Two") == (["rs2"], True)
+    plain_records = [(r.levelname, r.getMessage()) for r in caplog.records]
+    caplog.clear()
+
+    client = _Client(_ROWS)
+    listing: list[dict] = []
+    with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch"):
+        assert fetch.resolve_rsid(client, "Two", listing_out=listing) == (["rs2"], True)
+    assert listing == _ROWS
+    assert client.handle.calls == plain.handle.calls
+    # Same records in the same order as without listing_out.
+    assert [(r.levelname, r.getMessage()) for r in caplog.records] == plain_records
+
+
+def test_resolve_rsid_listing_out_untouched_with_preloaded_suites():
+    client = _Client(_ROWS)
+    listing: list[dict] = []
+    fetch.resolve_rsid(client, "rs1", preloaded_suites=list(_ROWS), listing_out=listing)
+    assert listing == []
+    assert client.handle.calls == []
+
+
 def test_sdk_path_debug_record_has_the_same_shape(caplog):
     client = _Client(_ROWS)
     with caplog.at_level(logging.DEBUG, logger="aa_auto_sdr.api.fetch"):

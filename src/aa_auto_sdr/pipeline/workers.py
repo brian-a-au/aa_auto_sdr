@@ -22,8 +22,10 @@ from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, CancelledError, Future, ThreadPoolExecutor, as_completed, wait
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core.exceptions import AaAutoSdrError
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -61,6 +63,7 @@ def _run_single_for_batch(
     component_filter: ComponentFilter | None = None,
     cache: object = None,
     vrs_source: VrsSource | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
@@ -112,6 +115,7 @@ def _run_single_for_batch(
         quality_rules=quality_rules,
         cache=cache,  # type: ignore[arg-type]
         vrs_source=vrs_source,
+        report_suites=report_suites,
         git_commit=git_commit,
         git_push=git_push,
         git_message=git_message,
@@ -137,6 +141,7 @@ def _run_with_worker_id(
     component_filter: ComponentFilter | None,
     cache: object,
     vrs_source: VrsSource | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
     audit_naming: bool = False,  # v1.9.0
     flag_stale: bool = False,  # v1.9.0
     fail_on_quality: str | None = None,  # v1.12.0
@@ -175,6 +180,7 @@ def _run_with_worker_id(
             component_filter=component_filter,
             cache=cache,
             vrs_source=vrs_source,
+            report_suites=report_suites,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,
@@ -212,6 +218,7 @@ def run_parallel(
     component_filter: ComponentFilter | None = None,
     cache: object = None,
     vrs_source: VrsSource | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
     progress_callback: Callable[[int, int, str], None] | None = None,
     failure_callback: Callable[[int, int, str, str], None] | None = None,
     audit_naming: bool = False,  # v1.9.0
@@ -289,6 +296,7 @@ def run_parallel(
             component_filter=component_filter,
             cache=cache,
             vrs_source=vrs_source,
+            report_suites=report_suites,
             audit_naming=audit_naming,
             flag_stale=flag_stale,
             fail_on_quality=fail_on_quality,

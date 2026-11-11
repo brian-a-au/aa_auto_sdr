@@ -18,9 +18,11 @@ import uuid
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
+from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 from aa_auto_sdr.api.vrs_source import VrsSource
 from aa_auto_sdr.core.exceptions import AaAutoSdrError
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -120,6 +122,7 @@ def run_batch(
     fail_on_quality: str | None = None,  # v1.12.0
     quality_report: str | None = None,  # v1.12.0
     quality_rules: QualityRules | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -142,6 +145,9 @@ def run_batch(
     fail_fast stops at the first failure on both paths; unattempted RSIDs are
     recorded as cancelled failures so accounting matches across the two paths.
     cache is shared with the quality engine on sequential and parallel paths.
+    report_suites is the listing the caller resolved against; each build reads
+    its report suite row from it (read-only, shared across workers) instead of
+    making its own listing call. None keeps the per-suite call.
 
     v1.10.0: when ``sample_size`` is provided and strictly less than
     ``len(rsids)``, the input list is replaced by a sampled subset (random or
@@ -182,6 +188,7 @@ def run_batch(
             quality_rules=quality_rules,
             cache=cache,
             vrs_source=vrs_source,
+            report_suites=report_suites,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,
@@ -199,6 +206,7 @@ def run_batch(
             client=client,
             cache=cache,
             vrs_source=vrs_source,
+            report_suites=report_suites,
             fail_fast=fail_fast,
             formats=formats,
             output_dir=output_dir,
@@ -261,6 +269,7 @@ def _run_sequential(
     quality_rules: QualityRules | None = None,
     cache: ValidationCache | None = None,  # v1.12.0
     vrs_source: VrsSource | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -326,6 +335,7 @@ def _run_sequential(
                 quality_rules=quality_rules,
                 cache=cache,
                 vrs_source=vrs_source,
+                report_suites=report_suites,
                 git_commit=git_commit,
                 git_push=git_push,
                 git_message=git_message,

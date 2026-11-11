@@ -578,6 +578,9 @@ def _run_impl(
             fail_on_quality=fail_on_quality,
             quality_report=quality_report,
             quality_rules=quality_rules,
+            # The resolve-phase listing (None when that preload failed): each
+            # build reads its report suite row from it, read-only.
+            report_suites=preloaded_suites,
             git_commit=git_commit,
             git_push=git_push,
             git_message=git_message,

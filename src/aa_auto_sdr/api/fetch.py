@@ -357,6 +357,7 @@ def resolve_rsid(
     *,
     name_match: NameMatchStrategy = "insensitive",
     preloaded_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
+    listing_out: list[dict[str, Any]] | None = None,
 ) -> tuple[list[str], bool]:
     """Resolve a user-supplied identifier to one or more canonical RSIDs.
 
@@ -378,6 +379,12 @@ def resolve_rsid(
     callers resolving many identifiers (batch/stats/inventory) fetch the
     listing once via `fetch_report_suites_raw` and pass it in here.
 
+    `listing_out`, when given, receives the rows of the listing this call
+    fetches (nothing when `preloaded_suites` is given), so a caller that
+    resolves one identifier (generate, describe) can build each matched
+    suite's model from the same listing. The fetch stays here, so its log
+    records and its errors are the same with or without it.
+
     Returns (rsids, was_name_lookup). `rsids` is always a non-empty list
     on successful return.
     """
@@ -389,6 +396,8 @@ def resolve_rsid(
         suites = preloaded_suites
     else:
         suites = _list_report_suites(client)
+        if listing_out is not None:
+            listing_out.extend(suites)
 
     index = suites if isinstance(suites, ReportSuiteIndex) else None
     if index is not None:

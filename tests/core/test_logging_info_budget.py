@@ -169,7 +169,8 @@ def test_batch_n2_excel_info_budget(tmp_path, monkeypatch):
         )
 
         login.return_value.getCompanyId.return_value = [{"globalCompanyId": "co"}]
-        rs_patch.side_effect = lambda _client, rsid: _make_report_suite_mock(rsid)
+        # **_kwargs: batch hands each build the resolve listing as preloaded_suites.
+        rs_patch.side_effect = lambda _client, rsid, **_kwargs: _make_report_suite_mock(rsid)
 
         exit_code = run(
             [

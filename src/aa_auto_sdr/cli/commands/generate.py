@@ -344,9 +344,14 @@ def _run_impl(
         _emit_timings_if_enabled(show_timings=show_timings)
         return ExitCode.API.value
 
+    # resolve_rsid fills this with the listing it fetches, so each build below
+    # reads its report suite row from it instead of listing again.
+    listing: list[dict] = []
     try:
         with timings.Timer("resolve"):
-            canonical_rsids, was_name_lookup = fetch.resolve_rsid(client, rsid, name_match=name_match)
+            canonical_rsids, was_name_lookup = fetch.resolve_rsid(
+                client, rsid, name_match=name_match, listing_out=listing
+            )
     except AmbiguousMatchError as e:
         if is_pipe:
             # Pipe-path failures are one JSON envelope on stderr, like every
@@ -394,6 +399,7 @@ def _run_impl(
 
     captured_at = datetime.now(UTC)
     total = len(canonical_rsids)
+    report_suites = listing or None
 
     if dry_run:
         # Preview-only path (v1.2): credentials resolved + auth round-trip done +
@@ -478,6 +484,7 @@ def _run_impl(
                         flag_stale=flag_stale,
                         fail_on_quality=_fail_on_quality,
                         quality_rules=quality_rules,
+                        report_suites=report_suites,
                     )
             except ReportSuiteNotFoundError as e:
                 emit_error_envelope(e, ExitCode.NOT_FOUND.value)
@@ -647,6 +654,7 @@ def _run_impl(
                 fail_on_quality=_fail_on_quality,
                 quality_report=quality_report,
                 quality_rules=quality_rules,
+                report_suites=report_suites,
                 git_commit=git_commit,
                 git_push=git_push,
                 git_message=git_message,

@@ -16,7 +16,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
@@ -27,6 +27,7 @@ from aa_auto_sdr.sdr.quality import QualityRules, SeverityLevel
 
 if TYPE_CHECKING:
     from aa_auto_sdr.api.cache import ValidationCache
+    from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 
 logger = logging.getLogger(__name__)
 
@@ -141,8 +142,13 @@ def build_sdr(
     cache: ValidationCache | None = None,  # NEW (v1.12.0)
     quality_rules: QualityRules | None = None,
     vrs_source: VrsSource | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
 ) -> SdrDocument:
-    """Fetch components for `rsid` (per `component_filter`) and assemble an SdrDocument."""
+    """Fetch components for `rsid` (per `component_filter`) and assemble an SdrDocument.
+
+    `report_suites` is the report suite listing the caller resolved `rsid`
+    against. When it has the row, the report suite model comes from it and
+    the per-suite listing call is skipped; otherwise that call runs."""
     flt = component_filter or ComponentFilter()
     started = time.monotonic()
     logger.debug(
@@ -151,7 +157,10 @@ def build_sdr(
         tool_version,
         extra={"rsid": rsid, "tool_version": tool_version},
     )
-    rs = fetch.fetch_report_suite(client, rsid)
+    if report_suites is None:
+        rs = fetch.fetch_report_suite(client, rsid)
+    else:
+        rs = fetch.fetch_report_suite(client, rsid, preloaded_suites=report_suites)
 
     # Graceful-degrade fetchers return FetchOutcome; bubbling fetchers return list[T].
     # Only collect fetch_status entries for non-healthy outcomes from the two
