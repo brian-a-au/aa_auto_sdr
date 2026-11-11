@@ -129,14 +129,35 @@ def render_records(
                 return ExitCode.OUTPUT.value
         else:
             # No BOM for stdout; write the body as-is
-            sys.stdout.write(body)
-            sys.stdout.flush()
+            write_stdout_exact(body)
         if not records:
             print("# 0 records", file=sys.stderr, flush=True)
         return ExitCode.OK.value
 
     print(f"error: unknown format {format_name!r}", file=sys.stderr, flush=True)
     return ExitCode.OUTPUT.value
+
+
+def write_stdout_exact(text: str) -> None:
+    """Write `text` to stdout with no newline translation.
+
+    CSV text already ends each row with "\\r\\n". A Windows text stdout turns
+    each "\\n" into "\\r\\n" again, which gives "\\r\\r\\n" and a blank line
+    between rows. So when stdout has a byte buffer, encode the text with the
+    stream's own encoding and error handler (which keeps the handler that
+    __main__ installs on a non-UTF-8 stdout) and write the bytes there.
+    Streams without a buffer get a plain text write."""
+    stream = sys.stdout
+    buffer = getattr(stream, "buffer", None)
+    if buffer is None:
+        stream.write(text)
+        stream.flush()
+        return
+    stream.flush()
+    encoding = getattr(stream, "encoding", None) or "utf-8"
+    errors = getattr(stream, "errors", None) or "strict"
+    buffer.write(text.encode(encoding, errors))
+    buffer.flush()
 
 
 def _derive_columns(records: list[dict[str, Any]]) -> list[str]:

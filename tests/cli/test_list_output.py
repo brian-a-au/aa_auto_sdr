@@ -220,3 +220,61 @@ def test_file_write_failure_returns_output_exit(tmp_path: Path, capsys, fmt) -> 
     assert rc == 15
     assert f"error: could not write {target}" in captured.err
     assert captured.out == ""
+
+
+# --- CSV on a Windows-style stdout -------------------------------------------
+# csv.writer already ends each row with "\r\n". A Windows text stdout turns
+# every "\n" into "\r\n" again, so writing the CSV text through it gives
+# "\r\r\n" and a blank line between rows. These tests use a TextIOWrapper with
+# newline="\r\n" to emulate that stream on any platform.
+
+_STDOUT_RECORDS = [
+    {"rsid": "rs-a", "name": "Shop"},
+    {"rsid": "rs-b", "name": "shop"},
+]
+
+
+def _windows_stdout(**kwargs) -> tuple[io.BytesIO, io.TextIOWrapper]:
+    raw = io.BytesIO()
+    kwargs.setdefault("encoding", "utf-8")
+    return raw, io.TextIOWrapper(raw, newline="\r\n", **kwargs)
+
+
+def test_csv_stdout_has_single_cr_on_windows_text_stream(monkeypatch) -> None:
+    raw, stream = _windows_stdout()
+    monkeypatch.setattr("sys.stdout", stream)
+    assert render_records(_STDOUT_RECORDS, format_name="csv", output=Path("-"), columns=None) == 0
+    stream.flush()
+    assert raw.getvalue() == b"rsid,name\r\nrs-a,Shop\r\nrs-b,shop\r\n"
+
+
+def test_csv_stdout_non_ascii_uses_stream_error_handler(monkeypatch) -> None:
+    raw, stream = _windows_stdout(encoding="cp1252", errors="backslashreplace")
+    monkeypatch.setattr("sys.stdout", stream)
+    records = [{"rsid": "rs-a", "name": "日本"}]
+    assert render_records(records, format_name="csv", output=Path("-"), columns=None) == 0
+    stream.flush()
+    data = raw.getvalue()
+    assert b"\\u65e5" in data
+    assert b"\r\r\n" not in data
+
+
+def test_csv_stdout_non_ascii_uses_softened_stdout_handler(monkeypatch) -> None:
+    """The error handler __main__ installs on a non-UTF-8 stdout must still apply."""
+    from aa_auto_sdr.__main__ import _soften_stdout_errors
+
+    raw, stream = _windows_stdout(encoding="cp1252")
+    monkeypatch.setattr("sys.stdout", stream)
+    _soften_stdout_errors()
+    assert stream.errors == "aa_auto_sdr.json_escape"
+    records = [{"rsid": "rs-a", "name": "Café 日本"}]
+    assert render_records(records, format_name="csv", output=Path("-"), columns=None) == 0
+    stream.flush()
+    assert raw.getvalue() == b"rsid,name\r\nrs-a,Caf\xe9 \\u65e5\\u672c\r\n"
+
+
+def test_csv_stdout_falls_back_without_buffer(monkeypatch) -> None:
+    out = io.StringIO()
+    monkeypatch.setattr("sys.stdout", out)
+    assert render_records(_STDOUT_RECORDS, format_name="csv", output=Path("-"), columns=None) == 0
+    assert out.getvalue() == "rsid,name\r\nrs-a,Shop\r\nrs-b,shop\r\n"
