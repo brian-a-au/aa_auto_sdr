@@ -67,7 +67,7 @@ Supports `--filter`, `--exclude`, `--sort`, `--limit`.
 | Format value | Output produced                       |
 |--------------|---------------------------------------|
 | `excel`      | `.xlsx` workbook (default)            |
-| `csv`        | CSV file set: `<RSID>.<component>.csv` per component, plus `summary`, `coverage`, and `quality_issues` (only when a quality audit ran), then `<RSID>._manifest.json` written last (`manifest_version`, `complete`, `generated_at`, `files: [{name, sheet, sha256, rows, bytes}]`). Files are staged and published together; read the manifest to confirm a complete set. |
+| `csv`        | CSV file set: `<RSID>.<component>.csv` per component, plus `summary`, `coverage`, `references`, and `quality_issues` (only when a quality audit ran), then `<RSID>._manifest.json` written last (`manifest_version`, `complete`, `generated_at`, `files: [{name, sheet, sha256, rows, bytes}]`). Files are staged and published together; read the manifest to confirm a complete set. |
 | `json`       | JSON file, with a top-level `coverage` object: `families: [{family, state, count, detail}]` and `quality: {state, detail, issue_count, severity_counts, gate}` |
 | `html`       | HTML report                           |
 | `markdown`   | Markdown file                         |
@@ -163,8 +163,8 @@ block listing components matching stale-keyword / version-suffix /
 date-pattern regexes.
 
 Both flags are independent (either alone, or both together). Default
-behavior (both off) leaves the `quality` field as `None` (absent from
-JSON output).
+behavior (both off) leaves the `quality` field as `None` (`"quality": null`
+in JSON output).
 
 Snapshot envelope schema is `aa-sdr-snapshot/v4` for a full capture and
 `aa-sdr-snapshot/v5` for a filtered one. Every new envelope carries a
@@ -323,7 +323,7 @@ exclusive with the rest of the actions group.
 | Flag | Effect |
 |------|--------|
 | `--trending-window <DURATION>` | Per-RSID time-series of component lifecycle counts plus a derived drift summary. Duration grammar `Nh|Nd|Nw` (e.g. `30d`, `12h`, `4w`). Multi-RSID supported via positionals. |
-| `--compare-with-prev` | Sugar over `--diff <RSID>@previous <RSID>@latest`. Multi-RSID emits one combined result; maximum per-suite exit code wins. JSON schema `aa-compare-with-prev/v1` has ordered `results` and top-level `exit_code`; each result contains `rsid`, `exit_code`, and either `report` or `error` (`error_type`, `error`). Reuses diff flags. |
+| `--compare-with-prev` | Diffs each RSID's latest snapshot against a baseline. The baseline is the newest earlier snapshot whose scope covers the latest one, so it is not always `@previous`: a filtered snapshot in between is skipped. Labels still read `@previous` and `@latest`. Multi-RSID emits one combined result; maximum per-suite exit code wins. JSON schema `aa-compare-with-prev/v1` has ordered `results` and top-level `exit_code`; each result contains `rsid`, `exit_code`, and either `report` or `error` (`error_type`, `error`). Reuses diff flags. |
 | `--snapshot-dir <PATH>` | Override the active snapshot directory used by capture, diff, list/prune, compare-with-prev, trending, and watch actions. |
 
 Examples:
@@ -447,7 +447,7 @@ A creation failure that returns no page ID cannot guarantee duplicate prevention
 
 ### Notion standalone modes
 
-Two maintenance modes operate without generating SDRs. Both default to **preview** (no changes) and require `--yes` to apply changes.
+Three maintenance modes operate without generating SDRs. All three default to **preview** (no changes) and require `--yes` to apply changes.
 
 | Flag | Exit on success | What it does |
 |------|-----------------|--------------|
@@ -477,16 +477,16 @@ Without `--yes`, all three modes only preview and make no changes (including on 
 
 Hands-on workflow guide: [`docs/TEMPLATE_WORKFLOW.md`](docs/TEMPLATE_WORKFLOW.md) — covers first-run, batch, snapshot/git composition, coverage map, and the six `template_*` log events used as health signals in unattended runs.
 
-A filled workbook also carries two appended sheets that agents can read without parsing logs. `Template Coverage` is always present: it counts rows matched, appended, and sent to overflow, lists skipped sheets (missing or unanchored) and template columns the writer cannot fill, and gives each component family's coverage state. `Overflow` is present only when a template sheet hit its `max_row + 50` soft cap or a template sheet was skipped: it holds every such row with its template sheet, a `Reason` (`clipped`, `sheet missing or unanchored`, `sheet has no id column`), component type, component ID, and the values the template sheet would have received. Overflow never changes the exit code.
+A filled workbook also carries two appended sheets that agents can read without parsing logs. `Template Coverage` is always present: it counts rows matched, appended, and sent to overflow, lists skipped sheets (missing or unanchored) and template columns the writer cannot fill, and gives each component family's coverage state. `Overflow` is present only when a template sheet hit its `max_row + 50` soft cap or a template sheet was skipped: it holds every such row with its template sheet, a `Reason` (`clipped`, `sheet missing or unanchored`, `sheet has no id column`, `sheet has none of the expected columns`), component type, component ID, and the values the template sheet would have received. Overflow never changes the exit code.
 
 | Flag | Semantics |
 |------|-----------|
 | `--template PATH` | Path to an existing `.xlsx` template. Switches the Excel writer to fill-mode for the run. Required readable `.xlsx`; missing/dir/non-`.xlsx` → USAGE (2). `--format excel-template` without `--template` → USAGE (2). Routes resolved `excel` formats to `excel-template`. Composes with `--batch`. Rejected with `--watch`, `--diff`, list/inspect actions, and naturally rejected by `--agent-mode` (no `excel` in agent-mode's forced format set). |
 | `--template-organization NAME` | Organization string written to `Glossary!C2`. Defaults to report suite name. Requires `--template`. |
 
-**Dropped flags (v1.16.0 roadmap):**
+**Dropped flags:**
 
-- `--template-overwrite-reserved` — dropped from the v1.16.0 roadmap. Per the
+- `--template-overwrite-reserved` — dropped from the roadmap. Per the
   spec: match-by-id is the uniform rule, customer-edited descriptions should
   be re-applied after generation. argparse-rejected if passed.
 
@@ -533,10 +533,12 @@ on success:
 ```json
 {"schema": "aa-watch-event/v1", "event": "change", "cycle": 7,
  "rsid": "rs_a", "started_at": "…", "ended_at": "…",
- "snapshot_path": "rs_a/2026-05-11T15-00-00+00-00.json",
+ "snapshot_path": "/home/me/.aa/orgs/prod/snapshots/rs_a/2026-05-11T15-00-00+00-00.json",
  "summary": {},
  "git": {"committed": true, "commit_sha": "abc1234567…", "pushed": true}}
 ```
+
+`snapshot_path` is the full path of the snapshot file (the snapshot directory plus `<RSID>/<timestamp>.json`), written with forward slashes.
 
 On Git failure, the original baseline/change event emits first, followed by a
 separate `error` event. If the snapshot commit completed before a later failure,
@@ -588,7 +590,7 @@ Key flags: `--changes-only`, `--summary`, `--show-only TYPES`, `--max-issues N`,
 uv run aa_auto_sdr <RSID> --profile <name> --snapshot
 
 # Auto-snapshot + retention (per-RSID; profile-scoped, default store without --profile)
-uv run aa_auto_sdr <RSID> --profile <name> --auto-snapshot --auto-prune --keep-last 20 --keep-since 30d
+uv run aa_auto_sdr <RSID> --profile <name> --auto-snapshot --auto-prune --keep-last 20
 
 # List / prune snapshots (both require --profile or --snapshot-dir)
 uv run aa_auto_sdr --profile <name> --list-snapshots [<RSID>]
@@ -627,7 +629,7 @@ uv run aa_auto_sdr <RSID> --dry-run
 | Code | Meaning                                                     | Agent Action                                       |
 |------|-------------------------------------------------------------|----------------------------------------------------|
 | `0`  | Success                                                     | Continue; consume stdout output                    |
-| `1`  | Generic / uncategorized failure                             | Abort; parse stderr JSON for `error`/`error_type`  |
+| `1`  | Generic / uncategorized failure                             | Abort; read stderr (JSON error envelope or `error:` line, see Output Conventions) |
 | `2`  | Argument / usage error                                      | Abort; check `--help`                              |
 | `3`  | Diff `--warn-threshold` exceeded (diff itself ran OK)       | Notify; optionally escalate                        |
 | `10` | Bad config / missing credentials                            | Abort; run `--config-status` or `--validate-config` |
@@ -655,11 +657,12 @@ Exit code 1 takes precedence over 2 if both apply. Use `--explain-exit-code CODE
   than putting a human sentence in the stream a caller is parsing.
 - `--output -` implies `--quiet` (banner/progress and INFO records on stderr suppressed; errors, warnings, and final result paths still print; the per-run log file is unaffected). Same for `--run-summary-json -`.
 - Under `--agent-mode`, the preset always applies the implicit `--output -` *before* the per-command-family resolver suppresses it for file-only formats (single SDR / batch). The implicit `--quiet` is derived from that pre-suppression output, so `aa_auto_sdr <RSID> --agent-mode --format excel` runs silently on stderr even though the SDR artifact is written to a file. This is the intended UX for unattended runs. For verbose stderr under agent-mode, pass `--log-level DEBUG` (widens the file logger; the console stays quiet by contract). `--quiet=false` is not a supported override — for verbose stderr you must avoid the implicit `--output -` by passing a non-stdout `--output PATH` (or, for SDR generation, simply omit `--agent-mode`).
-- On failure under `--output -`, **stderr** receives one JSON error envelope on one line, and its `code` is the process exit code:
+- On failure under `--output -`, single SDR generation, `--diff`, `--compare-with-prev`, and `--render-from` write one JSON error envelope on one line to **stderr**, and its `code` is the process exit code:
   ```json
   {"error":{"code":10,"type":"ConfigError","message":"Missing credentials","hint":"..."}}
   ```
   `message` is scrubbed of secrets. `hint` is the first remediation line from `--explain-exit-code CODE`, or `""`.
+  Other commands print a plain `error:` line to stderr instead, even under `--output -`. This covers discovery, inspection, `--stats`, `--inventory-summary`, `--trending-window`, and the snapshot commands. Batch rejects `--output -` with a plain `error:` line too.
 - `--run-summary-json PATH` writes a structured run summary to file or stdout (`-`). Generate / batch only — discovery, inspect, and diff routes ignore it.
 - **Mutex:** `--run-summary-json -` + `--output -` exits `OUTPUT` (15) before any work. `--agent-mode` applies the implicit `--output -`, so explicit `--run-summary-json -` triggers this on generate / batch routes.
 - **Mutex:** `--dry-run` + `--output -` on a single SDR exits `USAGE` (2) before any work, because the preview is plain text. `--agent-mode` alone does not trigger it: a single SDR under agent mode writes a file.
@@ -742,8 +745,8 @@ carry two fetch-status keys directly accessible via `jq`:
 Both keys are always present (empty `[]` / `{}` when nothing is
 degraded). Pre-`v2` snapshots lack these keys; the loader fills them
 in-memory at load time. The `v4` envelope additionally carries a
-`quality` block (`issues`, `summary`) — empty when the quality engine
-was not run.
+`quality` block (`issues`, `summary`). It is `null` when the quality
+engine did not run.
 
 ---
 

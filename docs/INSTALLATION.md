@@ -130,7 +130,7 @@ Three optional extras enable extra features. They are not required for core SDR 
 | Extra | Package | Enables |
 |-------|---------|---------|
 | `env` | `python-dotenv` | Reading credentials from a `.env` file in the working directory |
-| `completion` | `argcomplete` | Dynamic shell tab-completion (a static script is always available via `--completion`) |
+| `completion` | `argcomplete` | Nothing yet. The tool does not use `argcomplete`. Shell completion comes from the static script that `--completion` prints, with or without this extra. |
 | `notion` | `notion-client` | Publishing SDRs to Notion (`--format notion`, `--push-to-notion`, the SDR Registry) |
 
 Install everything at once, or one extra at a time:
