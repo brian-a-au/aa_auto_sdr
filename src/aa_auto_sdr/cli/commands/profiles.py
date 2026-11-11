@@ -191,7 +191,9 @@ def import_run(
             return exit_code
 
         target_dir = (base or profiles.default_base()) / "orgs" / name
-        if os.path.exists(target_dir) and not overwrite:
+        # A profile exists when its config.json does. A snapshot run with no
+        # --profile creates orgs/default/snapshots/ alone; that is not a profile.
+        if os.path.exists(target_dir / "config.json") and not overwrite:
             print(
                 f"error: profile '{name}' already exists at {target_dir}. Pass --profile-overwrite to replace.",
                 flush=True,

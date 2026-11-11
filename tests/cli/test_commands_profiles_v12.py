@@ -82,3 +82,17 @@ class TestProfileOverwrite:
         src = _make_creds_file(tmp_path)
         rc = cmd.import_run("fresh", str(src), base=aa_base)
         assert rc == ExitCode.OK.value
+
+    def test_import_succeeds_when_dir_has_only_snapshots(
+        self,
+        aa_base: Path,
+        tmp_path: Path,
+    ) -> None:
+        """A snapshot run with no --profile creates orgs/default/snapshots/ but no
+        config.json. That folder is not a profile, so import needs no overwrite flag."""
+        (aa_base / "orgs" / "default" / "snapshots").mkdir(parents=True)
+        src = _make_creds_file(tmp_path)
+        rc = cmd.import_run("default", str(src), base=aa_base)
+        assert rc == ExitCode.OK.value
+        assert (aa_base / "orgs" / "default" / "config.json").exists()
+        assert (aa_base / "orgs" / "default" / "snapshots").is_dir()
