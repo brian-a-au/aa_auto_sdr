@@ -229,10 +229,56 @@ def _extra(d: dict[str, Any], known: set[str]) -> dict[str, Any]:
     return {k: v for k, v in d.items() if k not in known and not (isinstance(v, float) and math.isnan(v))}
 
 
-def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
+def _report_suite_from_row(raw: dict[str, Any], rsid: str) -> models.ReportSuite:
+    """Build the model from one extended-info listing row. Shared by the
+    filtered SDK call and the preloaded listing so both give the same model."""
+    return models.ReportSuite(
+        rsid=str(raw["rsid"]),
+        name=str(_get(raw, "name", rsid)),
+        timezone=_str_or_none(raw, "timezone") or _str_or_none(raw, "timezoneZoneinfo"),
+        currency=_str_or_none(raw, "currency"),
+        parent_rsid=_str_or_none(raw, "parentRsid"),
+    )
+
+
+def _preloaded_row(
+    preloaded_suites: list[dict[str, Any]] | ReportSuiteIndex,
+    rsid: str,
+) -> dict[str, Any] | None:
+    """First dict row for `rsid` in a preloaded listing, or None. Read-only:
+    batch workers share one listing across threads."""
+    rows = preloaded_suites.rows if isinstance(preloaded_suites, ReportSuiteIndex) else preloaded_suites
+    for raw in rows:
+        if isinstance(raw, dict) and raw.get("rsid") == rsid:
+            return raw
+    return None
+
+
+def fetch_report_suite(
+    client: AaClient,
+    rsid: str,
+    *,
+    preloaded_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
+) -> models.ReportSuite:
     """Find the report suite with the given rsid. Uses extended_info to get
-    currency / parentRsid / timezone fields."""
+    currency / parentRsid / timezone fields.
+
+    `preloaded_suites` is a full extended-info listing the caller already
+    holds (the one used to resolve identifiers). When it has a row for
+    `rsid`, the model is built from that row with no SDK call. When it does
+    not, the filtered SDK call runs as usual."""
     started = time.monotonic()
+    if preloaded_suites is not None:
+        row = _preloaded_row(preloaded_suites, rsid)
+        if row is not None:
+            duration_ms = int((time.monotonic() - started) * 1000)
+            logger.debug(
+                "fetch_report_suite count=%s duration_ms=%s",
+                1,
+                duration_ms,
+                extra={"rsid": rsid, "count": 1, "duration_ms": duration_ms},
+            )
+            return _report_suite_from_row(row, rsid)
     suites = _records(
         _retry_and_normalize(
             lambda: client.handle.getReportSuites(rsid_list=rsid, extended_info=True, limit=1000),
@@ -249,13 +295,7 @@ def fetch_report_suite(client: AaClient, rsid: str) -> models.ReportSuite:
     )
     for raw in suites:
         if raw.get("rsid") == rsid:
-            return models.ReportSuite(
-                rsid=str(raw["rsid"]),
-                name=str(_get(raw, "name", rsid)),
-                timezone=_str_or_none(raw, "timezone") or _str_or_none(raw, "timezoneZoneinfo"),
-                currency=_str_or_none(raw, "currency"),
-                parent_rsid=_str_or_none(raw, "parentRsid"),
-            )
+            return _report_suite_from_row(raw, rsid)
     logger.error(
         "fetch_report_suite not_found rsid=%s",
         rsid,
@@ -272,12 +312,7 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
 
     Sort order: alphabetical by rsid."""
     started = time.monotonic()
-    raw = _records(
-        _retry_and_normalize(
-            lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
-            policy=client.retry_policy,
-        )
-    )
+    raw = _list_report_suites(client)
     summaries = [
         models.ReportSuiteSummary(
             rsid=rsid,
@@ -296,15 +331,24 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
     return sorted(summaries, key=lambda s: s.rsid)
 
 
-def fetch_report_suites_raw(client: AaClient) -> list[dict[str, Any]]:
-    """One full report-suite listing as raw records, for callers that resolve
-    many identifiers against a single fetch (batch/stats/inventory)."""
+def _list_report_suites(client: AaClient) -> list[dict[str, Any]]:
+    """The one full extended-info listing call, shared by every listing reader.
+
+    Private so a test that patches the public `fetch_report_suites_raw` (the
+    callers' best-effort preload) does not also replace the fetch inside
+    `resolve_rsid` and `fetch_report_suite_summaries`."""
     return _records(
         _retry_and_normalize(
             lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
             policy=client.retry_policy,
         )
     )
+
+
+def fetch_report_suites_raw(client: AaClient) -> list[dict[str, Any]]:
+    """One full report-suite listing as raw records, for callers that resolve
+    many identifiers against a single fetch (batch/stats/inventory)."""
+    return _list_report_suites(client)
 
 
 def resolve_rsid(
@@ -344,12 +388,7 @@ def resolve_rsid(
     if preloaded_suites is not None:
         suites = preloaded_suites
     else:
-        suites = _records(
-            _retry_and_normalize(
-                lambda: client.handle.getReportSuites(extended_info=True, limit=1000),
-                policy=client.retry_policy,
-            )
-        )
+        suites = _list_report_suites(client)
 
     index = suites if isinstance(suites, ReportSuiteIndex) else None
     if index is not None:
