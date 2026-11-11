@@ -21,7 +21,7 @@ from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 from aa_auto_sdr.api.resilience import RetryPolicy
-from aa_auto_sdr.cli.list_output import build_footer
+from aa_auto_sdr.cli.list_output import build_footer, write_stdout_exact
 from aa_auto_sdr.core import credentials
 from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
@@ -264,4 +264,4 @@ def _emit_csv(rows: list[dict[str, Any]], summary: dict[str, Any]) -> None:
         name = neutralize_formula(row.get("name") or "")
         writer.writerow([neutralize_formula(row["rsid"]), name, *(c[ct] for ct in _COMPONENT_TYPES)])
     writer.writerow(["TOTAL", "", *(summary["totals"][ct] for ct in _COMPONENT_TYPES)])
-    sys.stdout.write(buf.getvalue())
+    write_stdout_exact(buf.getvalue())
