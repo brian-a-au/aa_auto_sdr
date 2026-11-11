@@ -21,7 +21,8 @@ from aa_auto_sdr.snapshot.retention import RetentionPolicy, select_for_deletion
 
 
 def test_keep_last_selects_all_but_last_k() -> None:
-    files = [Path(f"2026-01-{d:02d}.json") for d in range(1, 6)]  # 5 files, sorted
+    # Real snapshot stems: keep_last only counts files whose name is a timestamp.
+    files = [Path(f"2026-01-{d:02d}T00-00-00+00-00.json") for d in range(1, 6)]  # 5 files, sorted
     policy = RetentionPolicy(keep_last=2, keep_since=None)
     result = select_for_deletion(files, policy)  # returns a sorted list
     assert result == sorted(files[:-2])  # oldest 3 deleted, newest 2 kept
