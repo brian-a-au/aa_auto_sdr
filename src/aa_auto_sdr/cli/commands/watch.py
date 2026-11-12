@@ -296,7 +296,9 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
         ("keep_since", "--keep-since"),
         ("run_summary_json", "--run-summary-json"),
     ):
-        if getattr(ns, attr, None) not in (None, False):
+        # Identity checks, not `in`: `--keep-last 0` is set, but 0 == False.
+        value = getattr(ns, attr, None)
+        if value is not None and value is not False:
             print(
                 f"error: {flag} is not compatible with --watch (watch does not apply it)",
                 file=sys.stderr,

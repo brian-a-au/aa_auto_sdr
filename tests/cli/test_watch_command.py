@@ -357,6 +357,8 @@ class TestIgnoredGenerationFlags:
             (["--auto-prune", "--keep-last", "5"], "--auto-prune"),
             (["--auto-prune", "--keep-since", "7d"], "--auto-prune"),
             (["--keep-last", "5"], "--keep-last"),
+            # 0 == False, so a value check like `not in (None, False)` would let it through.
+            (["--keep-last", "0"], "--keep-last"),
             (["--keep-since", "7d"], "--keep-since"),
             (["--run-summary-json", "x.json"], "--run-summary-json"),
         ],
