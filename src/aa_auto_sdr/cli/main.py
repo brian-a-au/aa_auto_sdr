@@ -175,6 +175,7 @@ def _non_generating_action_selected(ns: argparse.Namespace) -> bool:
         or bool(getattr(ns, "exit_codes", False))
         or getattr(ns, "explain_exit_code", None) is not None
         or getattr(ns, "completion", None) is not None
+        or bool(getattr(ns, "notion_print_database_schema", False))
     )
 
 
@@ -345,6 +346,7 @@ _PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("exit_codes", "--exit-codes"),
     ("explain_exit_code", "--explain-exit-code"),
     ("completion", "--completion"),
+    ("notion_print_database_schema", "--notion-print-database-schema"),
 )
 
 
@@ -865,6 +867,22 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             dry_run=not getattr(ns, "yes", False),
             registry_already_configured=bool(already),
         )
+
+    # Print-and-exit, no credentials and no Notion call. The __main__.py fast
+    # path handles the bare form; this branch serves every other position
+    # (e.g. `--quiet --notion-print-database-schema`). Positional arguments
+    # would be silently dropped, so reject them like the fast path used to.
+    if getattr(ns, "notion_print_database_schema", False):
+        if ns.rsids:
+            print(
+                "error: --notion-print-database-schema cannot be combined with positional arguments",
+                file=sys.stderr,
+                flush=True,
+            )
+            return ExitCode.USAGE.value
+        from aa_auto_sdr.cli.commands.notion_schema import run_notion_print_schema
+
+        return run_notion_print_schema()
 
     from aa_auto_sdr.core import colors
 

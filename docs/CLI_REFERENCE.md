@@ -572,7 +572,7 @@ Set `NOTION_REGISTRY_DATABASE_ID` to also upsert one row per RSID into a Notion 
 
 - `--notion-registry-database <DATABASE_ID>` — override `NOTION_REGISTRY_DATABASE_ID` for this run. Requires `--format notion` or `--push-to-notion`.
 - `--no-notion-registry` — skip the registry-database upsert even when the env var is set. The detail page is still written. Requires `--format notion` or `--push-to-notion`.
-- `--notion-print-database-schema` — print the canonical property names and types for the registry database and exit. Fast-path: no AA or Notion API calls.
+- `--notion-print-database-schema` — print the canonical property names and types for the registry database and exit. It makes no AA or Notion API calls and needs no credentials. It works in any argument position. It cannot be combined with positional RSIDs, another top-level action, or `--push-to-notion`; those exit `2`.
 - `--notion-company NAME` — write `NAME` to the `Company` column of each registry row. When set, the registry row key becomes `(Company, RSID)` instead of RSID alone, which lets one database index multiple Adobe Analytics organizations without RSID collisions. Env-var equivalent: `NOTION_REGISTRY_COMPANY`. Precedence: flag → env → resolved Adobe global company id (generate path); push path uses flag or env only.
 
 ```bash
@@ -669,6 +669,7 @@ These complete in <100ms with no `pandas` / `aanalytics2` import:
 | `aa_auto_sdr --exit-codes` | List every exit code with a one-line meaning. |
 | `aa_auto_sdr --explain-exit-code <CODE>` | Paragraph explanation: meaning, likely causes, "What to try". |
 | `aa_auto_sdr --completion {bash,zsh,fish}` | Emit a static shell-completion script. Redirect to your shell's completion dir. |
+| `aa_auto_sdr --notion-print-database-schema` | Print the Notion registry database schema. No API calls and no credentials. |
 
 ```bash
 aa_auto_sdr --completion zsh > ~/.zsh/completions/_aa_auto_sdr

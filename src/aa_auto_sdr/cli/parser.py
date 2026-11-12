@@ -195,6 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Emit a shell completion script (redirect to your shell's completion dir)",
     )
     actions.add_argument(
+        "--notion-print-database-schema",
+        action="store_true",
+        help="Print the Notion SDR Registry database schema and exit (no AA or Notion API calls)",
+    )
+    actions.add_argument(
         "--profile-add",
         metavar="NAME",
         default=None,

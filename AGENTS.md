@@ -607,6 +607,7 @@ uv run aa_auto_sdr --version                      # alias: -V
 uv run aa_auto_sdr --exit-codes                   # full exit-code list
 uv run aa_auto_sdr --explain-exit-code <CODE>     # human-readable explanation
 uv run aa_auto_sdr --completion {bash,zsh,fish}   # shell completion script
+uv run aa_auto_sdr --notion-print-database-schema  # Notion registry schema (no API calls)
 ```
 
 ### Validation
@@ -804,7 +805,7 @@ uv run aa_auto_sdr --config-status                       # full credential resol
 | Diff Family               | ✅              | JSON on stdout for `--diff` (the only stdout-capable diff format under the agent contract). PR-comment markdown (`--format pr-comment`) also writes to stdout when `--output PATH` is omitted — the agent-mode preset's implicit `--output -` does not suppress this, since `output=None` and `output="-"` follow the same stdout-write code path in the diff command. Agents using `--format pr-comment` should pipe to a file, pass an explicit `--output PATH`, or use `$GITHUB_STEP_SUMMARY` (auto-append on CI). |
 | Stats                     | ✅              | JSON on stdout (`--format json`). |
 | Validation / Preflight    | Partial        | Both `--config-status` (text) and `--validate-config` are exit-code driven. No JSON output mode today; use exit codes for branching. |
-| Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, and `--completion {bash,zsh,fish}` work with the full parser in supported argument orders. Exact standalone forms use the lightweight fast path. `--version` and `--help`, when first on argv, take that fast path even if extra arguments follow; other diagnostic flags with extra arguments use normal parsing and validation. The agent-mode preset does not change their output contract. |
+| Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, `--completion {bash,zsh,fish}`, and `--notion-print-database-schema` work with the full parser in supported argument orders. Exact standalone forms use the lightweight fast path. `--version` and `--help`, when first on argv, take that fast path even if extra arguments follow; other diagnostic flags with extra arguments use normal parsing and validation. The agent-mode preset does not change their output contract. |
 | Snapshots (list / prune)  | Partial        | `--profile <name> --list-snapshots --format json` emits JSON to stdout (no `--output` flag is needed). Standalone lifecycle commands require `--profile` or `--snapshot-dir`. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
 
 ### Exact-ID Guidance
