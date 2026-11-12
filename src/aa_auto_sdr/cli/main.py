@@ -34,8 +34,10 @@ def _argv_summary(argv: list[str]) -> list[str]:
 
     Used as ``extra={"argv_summary": ...}`` on run_start. Positional values
     (RSIDs, file paths) are never included — they ride on their own
-    structured fields. See LOGGING_STYLE.md §message-style rules."""
-    return [a for a in argv if a.startswith("-")]
+    structured fields. A ``--opt=value`` token keeps only ``--opt``, so a
+    value such as a commit message never reaches the log. See
+    LOGGING_STYLE.md §message-style rules."""
+    return [a.split("=", 1)[0] if a.startswith("--") else a for a in argv if a.startswith("-")]
 
 
 def _derive_quiet_from_output_destination(ns: argparse.Namespace) -> None:
@@ -175,6 +177,7 @@ def _non_generating_action_selected(ns: argparse.Namespace) -> bool:
         or bool(getattr(ns, "exit_codes", False))
         or getattr(ns, "explain_exit_code", None) is not None
         or getattr(ns, "completion", None) is not None
+        or bool(getattr(ns, "notion_print_database_schema", False))
     )
 
 
@@ -345,6 +348,7 @@ _PUSH_TO_NOTION_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("exit_codes", "--exit-codes"),
     ("explain_exit_code", "--explain-exit-code"),
     ("completion", "--completion"),
+    ("notion_print_database_schema", "--notion-print-database-schema"),
 )
 
 
@@ -673,6 +677,46 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _reject_flag_like_identifiers(ns: argparse.Namespace) -> int:
+    """Reject a report-suite identifier that starts with ``--``.
+
+    argparse reads a token with a space in it, like ``"--completion bash"``,
+    as a positional value even when it starts with ``--``. Without this check
+    the tool would resolve credentials, sign in, and look the token up as a
+    report-suite name. Two hyphens only: a real report-suite name can start
+    with one. Runs before any credential, client, or network work. Diff and
+    render-from tokens, file paths, and other flag values are not checked.
+    Returns OK or USAGE."""
+    candidates: list[str] = list(getattr(ns, "rsids", None) or [])
+    candidates.extend(getattr(ns, "batch", None) or [])
+    # Actions that take their report-suite identifier inline.
+    for attr in (
+        "describe_reportsuite",
+        "list_metrics",
+        "list_dimensions",
+        "list_segments",
+        "list_calculated_metrics",
+        "list_classification_datasets",
+    ):
+        value = getattr(ns, attr, None)
+        if isinstance(value, str):
+            candidates.append(value)
+    for value in candidates:
+        if value.startswith("--"):
+            message = (
+                f"identifier '{value}' looks like a flag; pass the flag and its value as "
+                "separate arguments (do not quote them together)"
+            )
+            if is_stdout_path(getattr(ns, "output", None)):
+                from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+                emit_error_envelope(ValueError(message), ExitCode.USAGE.value)
+            else:
+                print(f"error: {message}", file=sys.stderr, flush=True)
+            return ExitCode.USAGE.value
+    return ExitCode.OK.value
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -698,6 +742,11 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+
+    # A flag passed as one quoted token must not reach credential resolution.
+    rc = _reject_flag_like_identifiers(ns)
+    if rc != ExitCode.OK.value:
+        return rc
 
     # v1.10.0 — sampling flag mode-scoping. Uses raise SystemExit (not return)
     # so the exit happens before setup_logging/run_start fire — matches argparse's
@@ -866,6 +915,22 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
             registry_already_configured=bool(already),
         )
 
+    # Print-and-exit, no credentials and no Notion call. The __main__.py fast
+    # path handles the bare form; this branch serves every other position
+    # (e.g. `--quiet --notion-print-database-schema`). Positional arguments
+    # would be silently dropped, so reject them like the fast path used to.
+    if getattr(ns, "notion_print_database_schema", False):
+        if ns.rsids:
+            print(
+                "error: --notion-print-database-schema cannot be combined with positional arguments",
+                file=sys.stderr,
+                flush=True,
+            )
+            return ExitCode.USAGE.value
+        from aa_auto_sdr.cli.commands.notion_schema import run_notion_print_schema
+
+        return run_notion_print_schema()
+
     from aa_auto_sdr.core import colors
 
     colors.set_theme(getattr(ns, "color_theme", "default"))
@@ -962,7 +1027,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     _apply_quality_auto_enable(ns)
 
     # Profile/config actions
-    if ns.profile_add:
+    if ns.profile_add is not None:  # an empty name reaches the name check
         return config_cmd.profile_add(ns.profile_add)
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)

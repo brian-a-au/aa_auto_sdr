@@ -26,7 +26,9 @@ def _ns(**fields) -> argparse.Namespace:
 
 def test_is_stdout_path():
     assert is_stdout_path("-") is True
-    assert is_stdout_path("stdout") is True
+    # "-" is the only stdout sentinel. The writers treat "stdout" as a file
+    # name, so it must not quiet the logs either.
+    assert is_stdout_path("stdout") is False
     assert is_stdout_path(None) is False
     assert is_stdout_path("/tmp/foo") is False
     # Case-sensitive — only lowercase Unix conventions count

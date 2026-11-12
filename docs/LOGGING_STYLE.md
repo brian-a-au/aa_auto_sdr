@@ -31,7 +31,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `error_class` | str (exception class name) | Every `ERROR` and `CRITICAL` record. |
 | `retry_attempt` | int | Retry/backoff records (DEBUG). |
 | `run_mode` | str — `single`/`batch`/`diff`/`config`/`discovery`/`inspect`/`render` (`--render-from`)/etc. | `run_start` records — derived from `infer_run_mode(ns)`. |
-| `argv_summary` | list[str] | `run_start` records — flag names only (anything starting with `-`); never positional values like RSIDs or file paths. |
+| `argv_summary` | list[str] | `run_start` records — flag names only (anything starting with `-`); never positional values like RSIDs or file paths. A `--opt=value` token is logged as `--opt`. |
 | `exit_code` | int | `run_complete`, `run_failure`, `rsid_failure` — the exit code being returned/escalated. |
 | `count_failed` | int | Batch summary records — count of RSIDs that failed (paired with `count` for successes). |
 | `company_id` | str | `api/client.py` bootstrap-success record — the resolved AA `globalCompanyId`. |
@@ -238,7 +238,7 @@ For N=10 RSIDs: **102 records.** For N=50: **462 records** — within `RotatingF
 
 ## VRS fetch behavior
 
-Two fetchers in `api/fetch.py` degrade gracefully instead of failing the run: `fetch_classification_datasets` and `fetch_virtual_report_suites`. On SDK-side exception, both emit a WARNING instead of `component_fetch` INFO, return `[]`, and let the SDR build complete. The WARNING record carries `rsid`, `component_type` (`"classification"` or `"virtual_report_suite"`), and `error_class` — but not `count` or `duration_ms` (the call did not complete). All other component fetchers fail the run on exception.
+Two fetchers in `api/fetch.py` degrade gracefully instead of failing the run: `fetch_classification_datasets` and `fetch_virtual_report_suites`. On SDK-side exception, both emit a WARNING instead of `component_fetch` INFO, return `[]`, and let the SDR build complete. A classification listing with a row that is not a JSON object takes the same path, with `error_class="ApiError"`. The WARNING record carries `rsid`, `component_type` (`"classification"` or `"virtual_report_suite"`), and `error_class` — but not `count` or `duration_ms` (the call did not complete). All other component fetchers fail the run on exception, and a response row they cannot read (a row that is not an object, or a segment or calculated metric `definition`, or a segment `compatibility`, that is not an object) fails the run with exit 12.
 
 ### Full expansion only
 

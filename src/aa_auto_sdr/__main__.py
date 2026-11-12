@@ -1,5 +1,6 @@
-"""Fast-path entry point. Handles --version/--help/--exit-codes/--completion
-without importing any heavy dependency. Delegates everything else to cli.main."""
+"""Fast-path entry point. Handles --version/--help/--exit-codes/--completion/
+--notion-print-database-schema without importing any heavy dependency.
+Delegates everything else to cli.main."""
 
 from __future__ import annotations
 
@@ -203,6 +204,7 @@ def _print_help() -> int:
         "  --notion-repair-database  Add missing registry database properties (preview; --yes applies)\n"
         "  --notion-create-database  Create the SDR Registry database (preview; --yes creates)\n"
         "  --notion-database-title NAME  Title for --notion-create-database (default: AA SDR Registry)\n"
+        "  --notion-print-database-schema  Print the registry database schema and exit (no API calls)\n"
         "\n"
         "See CHANGELOG.md for release history.\n"
     )
@@ -243,16 +245,9 @@ def main(argv: list[str] | None = None) -> int:
             print("error: --completion requires a SHELL argument (bash, zsh, or fish)", file=sys.stderr, flush=True)
             return 2
         return run_completion(args[1])
-    if args and args[0] == "--notion-print-database-schema":
-        # Print-and-exit: must be used alone. Combining it with generation
-        # work (RSIDs, --batch, etc.) is operator confusion → USAGE.
-        if len(args) > 1:
-            print(
-                "error: --notion-print-database-schema cannot be combined with other arguments",
-                file=sys.stderr,
-                flush=True,
-            )
-            return 2
+    if args == ["--notion-print-database-schema"]:
+        # Any other form goes through the parser, which accepts the flag in
+        # any position and rejects positional arguments or another action.
         from aa_auto_sdr.cli.commands.notion_schema import run_notion_print_schema
 
         return run_notion_print_schema()

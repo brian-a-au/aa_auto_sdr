@@ -18,6 +18,24 @@ def test_no_args_returns_usage_error(capsys) -> None:
     assert "rsid" in err.lower() or "usage" in err.lower()
 
 
+def test_profile_add_with_an_empty_name_is_a_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    """`--profile-add ""` reaches the name check (exit 10) instead of falling
+    through to the no-action usage error."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+
+    def no_prompt(*_a, **_k):
+        raise AssertionError("must not prompt for an invalid name")
+
+    monkeypatch.setattr("builtins.input", no_prompt)
+    rc = run(["--profile-add", ""])
+    assert rc == 10
+    assert "error: invalid profile name ''" in capsys.readouterr().err
+    assert list(tmp_path.rglob("config.json")) == []
+
+
 def test_show_config_with_no_creds_returns_10(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for v in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
         monkeypatch.delenv(v, raising=False)
