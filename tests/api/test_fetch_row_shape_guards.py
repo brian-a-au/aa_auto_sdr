@@ -271,3 +271,159 @@ def test_vrs_skipped_rows_do_not_skew_the_parent_filter_record(shared, caplog) -
     record = records[0]
     assert record.pulled - record.filtered - record.dropped_no_parent == record.dropped_other_parent
     assert record.dropped_other_parent == 1  # vrs2 only, not the id-less row
+
+
+# ---------------------------------------------------------------------------
+# Malformed rows beyond the id: each one is a typed error (exit 12) or, for
+# the graceful-degrade families, a degraded outcome. Never a traceback.
+# ---------------------------------------------------------------------------
+
+_RAW_VALUE = "zz-raw-value-qq"  # must never appear in an error message
+
+
+@pytest.mark.parametrize(
+    ("fetcher", "component_type", "field", "value"),
+    [
+        pytest.param(fetch.fetch_segments, "segment", "definition", _RAW_VALUE, id="segment_definition_string"),
+        pytest.param(fetch.fetch_segments, "segment", "definition", [_RAW_VALUE], id="segment_definition_list"),
+        pytest.param(fetch.fetch_segments, "segment", "compatibility", _RAW_VALUE, id="segment_compatibility_string"),
+        pytest.param(
+            fetch.fetch_calculated_metrics, "calculated_metric", "definition", [1], id="calc_metric_definition_list"
+        ),
+        pytest.param(
+            fetch.fetch_calculated_metrics,
+            "calculated_metric",
+            "definition",
+            _RAW_VALUE,
+            id="calc_metric_definition_string",
+        ),
+    ],
+)
+def test_non_object_definition_is_an_api_error(fetcher, component_type, field, value) -> None:
+    client = _FakeClient([{"id": "one", "name": "One"}, {"id": "two", field: value}])
+    with pytest.raises(ApiError) as excinfo:
+        fetcher(client, "rs")
+    message = str(excinfo.value)
+    assert component_type in message
+    assert field in message
+    assert _RAW_VALUE not in message
+
+
+@pytest.mark.parametrize("fetcher", _ROW_FETCHERS)
+def test_non_object_definition_is_permanent_not_retried(fetcher) -> None:
+    """A malformed row will be malformed on the next call too. It must be a
+    plain ApiError after one SDK call, not a transient error that spends the
+    retry budget."""
+    client = _FakeClient([{"id": "one", "definition": "not an object"}], max_retries=2)
+    with pytest.raises(ApiError) as excinfo:
+        fetcher(client, "rs")
+    assert type(excinfo.value) is ApiError
+    assert client.handle.calls == 1
+
+
+@pytest.mark.parametrize("fetcher", _ROW_FETCHERS)
+@pytest.mark.parametrize("value", [None, {}, ""], ids=["null", "empty_object", "empty_string"])
+def test_absent_or_empty_definition_still_reads_as_empty(fetcher, value) -> None:
+    client = _FakeClient([{"id": "one", "definition": value}])
+    assert fetcher(client, "rs")[0].definition == {}
+
+
+def test_ragged_dataframe_definition_reads_as_empty() -> None:
+    """A DataFrame leaves NaN in the cell of a row with no definition. NaN is
+    an absent value here, as it is for every other field."""
+    frame = pd.DataFrame([{"id": "one", "definition": {"func": "segment"}}, {"id": "two"}])
+    out = fetch.fetch_segments(_FakeClient(frame), "rs")
+    assert [s.definition for s in out] == [{"func": "segment"}, {}]
+
+
+class _ListingHandle:
+    def __init__(self, rows: Any) -> None:
+        self._rows = rows
+
+    def getReportSuites(self, **_kwargs: Any) -> Any:
+        return self._rows
+
+    def getVirtualReportSuites(self, **_kwargs: Any) -> Any:
+        return self._rows
+
+
+class _ListingClient:
+    def __init__(self, rows: Any) -> None:
+        self.handle = _ListingHandle(rows)
+        self.retry_policy = RetryPolicy(max_retries=0, base_delay=0.001, max_delay=0.001)
+        self.company_id = "testco"
+
+
+_NOT_OBJECTS = [["oops"], [{"rsid": "rs", "name": "Shop"}, "oops"], [None, {"rsid": "rs", "name": "Shop"}]]
+_NOT_OBJECT_IDS = ["string_row", "string_after_good_row", "null_row"]
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [["oops"], ["oops", {"rsid": "rs", "name": "Shop"}], [None, {"rsid": "rs", "name": "Shop"}]],
+    ids=["string_row", "string_before_match", "null_before_match"],
+)
+def test_report_suite_filtered_call_with_a_non_object_row_is_an_api_error(rows) -> None:
+    with pytest.raises(ApiError, match="report_suite"):
+        fetch.fetch_report_suite(_ListingClient(rows), "rs")
+
+
+def test_report_suite_filtered_call_stops_at_the_match() -> None:
+    """The scan stops at the matching row, as it always has, so a row after
+    it is never read. Matches the preloaded path, which skips such rows."""
+    rs = fetch.fetch_report_suite(_ListingClient([{"rsid": "rs", "name": "Shop"}, "oops"]), "rs")
+    assert (rs.rsid, rs.name) == ("rs", "Shop")
+
+
+@pytest.mark.parametrize("rows", _NOT_OBJECTS, ids=_NOT_OBJECT_IDS)
+def test_report_suite_listing_with_a_non_object_row_is_an_api_error(rows) -> None:
+    client = _ListingClient(rows)
+    with pytest.raises(ApiError, match="report_suite"):
+        fetch.fetch_report_suite_summaries(client)
+    with pytest.raises(ApiError, match="report_suite"):
+        fetch.resolve_rsid(client, "Shop")
+
+
+@pytest.mark.parametrize("rows", _NOT_OBJECTS, ids=_NOT_OBJECT_IDS)
+def test_vrs_summaries_with_a_non_object_row_are_an_api_error(rows) -> None:
+    """Discovery is not graceful-degrade: the user asked for the list."""
+    with pytest.raises(ApiError, match="virtual_report_suite"):
+        fetch.fetch_virtual_report_suite_summaries(_ListingClient(rows))
+
+
+@pytest.mark.parametrize("rows", [["oops"], [{"id": "v1", "name": "V", "parentRsid": "rs"}, "oops"]])
+def test_vrs_generate_path_with_a_non_object_row_degrades(rows) -> None:
+    outcome = fetch.fetch_virtual_report_suites(_ListingClient(rows), "rs")
+    assert outcome.status == "degraded"
+
+
+@pytest.mark.parametrize("rows", [["oops"], [_pair("ds1", "m1"), "oops"], [None]], ids=["string", "mixed", "null"])
+def test_classifications_with_a_non_object_row_degrade(rows, caplog) -> None:
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="aa_auto_sdr.api.fetch"):
+        outcome = fetch.fetch_classification_datasets(_ClassificationClient(rows), "rs")
+    assert outcome.status == "degraded"
+    assert outcome.data == []
+    records = [r for r in caplog.records if r.msg.startswith("classifications fetch failed")]
+    assert len(records) == 1
+    assert records[0].error_class == "ApiError"
+    assert records[0].component_type == "classification"
+
+
+@pytest.mark.parametrize("name_match", ["exact", "insensitive", "fuzzy"])
+@pytest.mark.parametrize("indexed", [False, True], ids=["scan", "index"])
+def test_name_match_on_a_row_without_rsid_is_skipped(name_match, indexed) -> None:
+    """A row with no rsid cannot be resolved to a suite, so it is not a match."""
+    from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
+    from aa_auto_sdr.core.exceptions import ReportSuiteNotFoundError
+
+    def resolve(rows):
+        client = _ListingClient(rows)
+        preloaded = ReportSuiteIndex(list(rows)) if indexed else None
+        return fetch.resolve_rsid(client, "Shop", name_match=name_match, preloaded_suites=preloaded)
+
+    for unusable in ({"name": "Shop"}, {"name": "Shop", "rsid": None}, {"name": "Shop", "rsid": float("nan")}):
+        with pytest.raises(ReportSuiteNotFoundError):
+            resolve([unusable])
+        assert resolve([unusable, {"rsid": "rs1", "name": "Shop"}]) == (["rs1"], True)

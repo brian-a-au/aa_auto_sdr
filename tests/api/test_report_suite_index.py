@@ -6,7 +6,7 @@ import pytest
 
 from aa_auto_sdr.api.fetch import resolve_rsid
 from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
-from aa_auto_sdr.core.exceptions import AmbiguousMatchError, ReportSuiteNotFoundError
+from aa_auto_sdr.core.exceptions import AmbiguousMatchError, ApiError, ReportSuiteNotFoundError
 
 
 @pytest.fixture(params=[list, ReportSuiteIndex], ids=["list", "index"])
@@ -39,7 +39,9 @@ def test_unrelated_missing_id_is_lazy(preload, strategy):
     suites = preload([{"name": "Unrelated"}, {"rsid": "ok", "name": "Production"}])
     assert resolve_rsid(None, "ok", name_match=strategy, preloaded_suites=suites) == (["ok"], False)
     assert resolve_rsid(None, "Production", name_match=strategy, preloaded_suites=suites) == (["ok"], True)
-    with pytest.raises(KeyError, match="rsid"):
+    # A name match on a row with no rsid cannot resolve to a suite: it is
+    # skipped, so the identifier is not found (exit 13), not a KeyError.
+    with pytest.raises(ReportSuiteNotFoundError):
         resolve_rsid(None, "Unrelated", name_match=strategy, preloaded_suites=suites)
 
 
@@ -88,5 +90,7 @@ def test_results_are_fresh_and_invocations_do_not_share_rows():
 def test_non_mapping_rows_keep_short_circuit_and_failure(preload):
     suites = preload([{"rsid": "first", "name": "First"}, None, {"rsid": "last", "name": "Last"}])
     assert resolve_rsid(None, "first", preloaded_suites=suites) == (["first"], False)
-    with pytest.raises(AttributeError, match="get"):
+    # The scan still stops at the first match; a row it does reach that is
+    # not a mapping is a typed ApiError (exit 12), not an AttributeError.
+    with pytest.raises(ApiError, match="row 1 is not an object"):
         resolve_rsid(None, "last", preloaded_suites=suites)

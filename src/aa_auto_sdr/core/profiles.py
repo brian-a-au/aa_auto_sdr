@@ -19,6 +19,23 @@ def default_base() -> Path:
     return Path(os.environ.get("HOME", "~")).expanduser() / ".aa"
 
 
+def validate_profile_name(name: str) -> None:
+    """Refuse a name that is not one plain folder under orgs/.
+
+    Used by the commands that create a profile (--profile-add and
+    --profile-import). Reading an existing profile does not call it.
+    Raises ConfigError (exit 10) with the reason."""
+    if name == "":
+        reason = "the name is empty"
+    elif name in (".", ".."):
+        reason = "the name cannot be '.' or '..'"
+    elif "/" in name or "\\" in name:
+        reason = "the name cannot contain '/' or '\\'"
+    else:
+        return
+    raise ConfigError(f"invalid profile name '{name}': {reason}")
+
+
 def _profile_dir(name: str, base: Path | None) -> Path:
     return (base or default_base()) / "orgs" / name
 

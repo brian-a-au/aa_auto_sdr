@@ -54,4 +54,7 @@ def run_notion_prune_orphans(output_dir: str | None, dry_run: bool) -> int:
 
     result = archive_orphans(client, registry_path, orphans, dry_run=False, is_not_found=_is_notion_not_found)
     print(f"Archived {len(result.archived)} page(s); {len(result.failed)} failed.")
+    if result.failed:
+        # Same code push_to_notion uses for a failed Notion request.
+        return int(ExitCode.OUTPUT)
     return int(ExitCode.OK)

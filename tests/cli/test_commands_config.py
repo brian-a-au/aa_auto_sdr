@@ -41,6 +41,86 @@ def test_profile_add_stops_cleanly_when_input_ends(monkeypatch: pytest.MonkeyPat
     assert not (tmp_path / "orgs" / "prod").exists()
 
 
+def test_profile_add_ctrl_c_exits_130_without_writing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
+    """The prompt says "Press Ctrl+C to cancel": Ctrl+C is a clean cancel
+    (exit 130, one stderr line, no profile), not a KeyboardInterrupt traceback."""
+
+    def interrupt(*_a, **_k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", interrupt)
+    rc = cmd.profile_add("prod", base=tmp_path)
+    assert rc == 130
+    assert capsys.readouterr().err == "cancelled; profile not written\n"
+    assert not (tmp_path / "orgs" / "prod").exists()
+
+
+def test_profile_add_ctrl_c_after_some_answers_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys
+) -> None:
+    answers = iter(["O@AdobeOrg", "Cid"])
+
+    def answer_then_interrupt(*_a, **_k):
+        try:
+            return next(answers)
+        except StopIteration:
+            raise KeyboardInterrupt from None
+
+    monkeypatch.setattr("builtins.input", answer_then_interrupt)
+    rc = cmd.profile_add("prod", base=tmp_path)
+    assert rc == 130
+    assert "cancelled; profile not written" in capsys.readouterr().err
+    assert not (tmp_path / "orgs" / "prod").exists()
+
+
+@pytest.mark.parametrize(
+    ("answers", "field"),
+    [
+        (["", "Cid", "Sec", "Scp"], "ORG_ID"),
+        (["O@AdobeOrg", "   ", "Sec", "Scp"], "CLIENT_ID"),
+        (["O@AdobeOrg", "Cid", "", "Scp"], "SECRET"),
+        (["O@AdobeOrg", "Cid", "Sec", " \t "], "SCOPES"),
+    ],
+)
+def test_profile_add_rejects_an_empty_answer(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, answers: list[str], field: str
+) -> None:
+    """An empty or blank answer is a config error (exit 10) naming the field,
+    and no profile is written."""
+    inputs = iter(answers)
+    monkeypatch.setattr("builtins.input", lambda *_a, **_k: next(inputs))
+    rc = cmd.profile_add("prod", base=tmp_path)
+    assert rc == 10
+    err = capsys.readouterr().err
+    assert f"error: {field} is empty" in err
+    assert not (tmp_path / "orgs" / "prod").exists()
+
+
+@pytest.mark.parametrize("name", ["", "../../escape", "a/b", "a\\b", "..", "."])
+def test_profile_add_rejects_an_unsafe_name_before_prompting(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys, name: str
+) -> None:
+    """The name becomes a folder under orgs/. A name that is empty, '.' or '..',
+    or holds a path separator is refused (exit 10) before any prompt, and
+    nothing is written anywhere."""
+    base = tmp_path / "home" / ".aa"
+    prompts: list[str] = []
+
+    def record(prompt: str = "") -> str:
+        prompts.append(prompt)
+        return "v"
+
+    monkeypatch.setattr("builtins.input", record)
+    rc = cmd.profile_add(name, base=base)
+    assert rc == 10
+    captured = capsys.readouterr()
+    assert f"error: invalid profile name '{name}'" in captured.err
+    assert prompts == []
+    assert captured.out == ""
+    assert list(tmp_path.rglob("config.json")) == []
+    assert not base.exists()
+
+
 def test_show_config_prints_source(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys) -> None:
     monkeypatch.setenv("ORG_ID", "O")
     monkeypatch.setenv("CLIENT_ID", "C")

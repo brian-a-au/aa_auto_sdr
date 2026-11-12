@@ -139,6 +139,33 @@ class FakePruneClient:
         self.pages = FakePrunePages()
 
 
+class FailingPrunePages(FakePrunePages):
+    """Fake pages object whose archive call fails for the listed page ids.
+
+    ``fail_ids=None`` fails every page. The error is a plain RuntimeError, so
+    the prune command does not treat it as "page not found"."""
+
+    def __init__(self, fail_ids=None):
+        super().__init__()
+        self._fail_ids = fail_ids
+
+    def update(self, *, page_id, archived):
+        if self._fail_ids is None or page_id in self._fail_ids:
+            raise RuntimeError("401 unauthorized")
+        super().update(page_id=page_id, archived=archived)
+
+
+def failing_prune_client(fail_ids=None):
+    """Return a client class (called as ``Client(auth=...)``) whose archive
+    calls fail for ``fail_ids`` (``None`` = every page)."""
+
+    class _FailingPruneClient:
+        def __init__(self, *, auth):
+            self.pages = FailingPrunePages(fail_ids)
+
+    return _FailingPruneClient
+
+
 # ---------------------------------------------------------------------------
 # FakeCreateClient
 # Minimal fake for create_database tests: only databases.create is needed.
