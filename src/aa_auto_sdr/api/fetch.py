@@ -209,6 +209,17 @@ def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     return val
 
 
+def _str_or(d: dict[str, Any], key: str, default: str) -> str:
+    """`str(value)`, or `default` when the value is absent, JSON null, or NaN.
+
+    `str(_get(d, key, default))` turns a JSON null into the text "None",
+    because `_get` returns a present None as is. A ragged DataFrame turns
+    the same null into NaN, so the two shapes of one response used to give
+    different text. Here both read as absent."""
+    val = _get(d, key)
+    return default if val is None else str(val)
+
+
 def _str_or_none(d: dict[str, Any], key: str) -> str | None:
     val = _get(d, key)
     if val is None:
@@ -270,7 +281,7 @@ def _report_suite_from_row(raw: dict[str, Any], rsid: str) -> models.ReportSuite
     filtered SDK call and the preloaded listing so both give the same model."""
     return models.ReportSuite(
         rsid=str(raw["rsid"]),
-        name=str(_get(raw, "name", rsid)),
+        name=_str_or(raw, "name", rsid),
         timezone=_str_or_none(raw, "timezone") or _str_or_none(raw, "timezoneZoneinfo"),
         currency=_str_or_none(raw, "currency"),
         parent_rsid=_str_or_none(raw, "parentRsid"),
@@ -536,8 +547,8 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     out = [
         models.Dimension(
             id=str(r["id"]),
-            name=str(_get(r, "name", r["id"])),
-            type=str(_get(r, "type", "unknown")),
+            name=_str_or(r, "name", str(r["id"])),
+            type=_str_or(r, "type", "unknown"),
             category=_str_or_none(r, "category"),
             parent=str(_get(r, "parent") or ""),
             pathable=_bool(r, "pathable"),
@@ -589,8 +600,8 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
     out = [
         models.Metric(
             id=str(r["id"]),
-            name=str(_get(r, "name", r["id"])),
-            type=str(_get(r, "type", "unknown")),
+            name=_str_or(r, "name", str(r["id"])),
+            type=_str_or(r, "type", "unknown"),
             category=_str_or_none(r, "category"),
             precision=_int(r, "precision"),
             segmentable=_bool(r, "segmentable"),
@@ -646,9 +657,9 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     out = [
         models.Segment(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
+            name=_str_or(r, "name", str(r["id"])),
             description=_str_or_none(r, "description"),
-            rsid=str(r.get("rsid", rsid)),
+            rsid=_str_or(r, "rsid", rsid),
             owner_id=_owner_id(r),
             definition=_object_field(r, "definition"),
             compatibility=_object_field(r, "compatibility"),
@@ -708,13 +719,13 @@ def fetch_calculated_metrics(
     out = [
         models.CalculatedMetric(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
+            name=_str_or(r, "name", str(r["id"])),
             description=_str_or_none(r, "description"),
-            rsid=str(r.get("rsid", rsid)),
+            rsid=_str_or(r, "rsid", rsid),
             owner_id=_owner_id(r),
-            polarity=str(r.get("polarity", "positive")),
+            polarity=_str_or(r, "polarity", "positive"),
             precision=_int(r, "precision"),
-            type=str(r.get("type", "decimal")),
+            type=_str_or(r, "type", "decimal"),
             definition=_object_field(r, "definition"),
             tags=_list(r, "tags"),
             categories=_list(r, "categories"),
@@ -786,7 +797,7 @@ def _finalize_vrs_fetch(
     out = [
         models.VirtualReportSuite(
             id=str(r["id"]),
-            name=str(_get(r, "name", r["id"])),
+            name=_str_or(r, "name", str(r["id"])),
             parent_rsid=str(r.get("parentRsid", "")),
             timezone=_str_or_none(r, "timezone") or _str_or_none(r, "timezoneZoneinfo"),
             description=_str_or_none(r, "description"),
@@ -1185,7 +1196,7 @@ def fetch_classification_datasets(
         dataset = models.ClassificationDataset(
             id=ds_id,
             name=ds_name,
-            rsid=str(r.get("rsid", rsid)),
+            rsid=_str_or(r, "rsid", rsid),
             extra=_extra(r, known),
         )
         seen = by_id.get(ds_id)
