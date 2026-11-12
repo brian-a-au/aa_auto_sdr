@@ -840,20 +840,20 @@ uv run aa_auto_sdr $RSIDS --agent-mode --output-dir /reports
 
 ## Releasing
 
-Releasing is a human-initiated action; agent-mode and unattended runs never publish. The tool is read-only against Adobe Analytics, and cutting a release is the one workflow that writes outside the repo (it uploads to PyPI). See [`RELEASING.md`](RELEASING.md) for the runbook. The steps are:
+Releasing starts only when a person asks for it; agent-mode and unattended runs never publish. The tool is read-only against Adobe Analytics, and cutting a release is the one workflow that writes outside the repo (it uploads to PyPI). See [`RELEASING.md`](RELEASING.md) for the runbook. The steps are:
 
-1. Open a PR with the version bump in `src/aa_auto_sdr/core/version.py` and a `CHANGELOG.md` section.
+1. Open a PR with the version bump in `src/aa_auto_sdr/core/version.py` and `tests/test_version.py`, and a `CHANGELOG.md` section.
 2. Merge it with a merge commit. `main` is protected. RELEASING.md has the command.
 3. Optional dry run with "Run workflow" on the `release` workflow. It uploads nothing.
-4. `git tag vX.Y.Z && git push origin vX.Y.Z`.
-5. A person approves the `pypi` deployment.
+4. `git tag vX.Y.Z && git push origin vX.Y.Z`. This publishes the release.
+5. Watch the release workflow run. There is no approval step.
 6. Check PyPI and the GitHub Release.
 
-The tag push starts [`.github/workflows/release.yml`](.github/workflows/release.yml). It builds and tests the package, uploads it to PyPI over OIDC with no token, and then creates the GitHub Release. An agent must not push a release tag or approve the `pypi` deployment unless a person asks it to.
+The tag push starts [`.github/workflows/release.yml`](.github/workflows/release.yml). It builds and tests the package, uploads it to PyPI over OIDC with no token, and then creates the GitHub Release. The `pypi` environment has no required reviewer, so the tag push is the step that publishes, and a PyPI version can never be reused. An agent may carry out every step, including the tag push, but only when a person asks it to publish that version.
 
 ## See Also
 
-- [`RELEASING.md`](RELEASING.md) — how to cut a release and publish to PyPI (human-initiated)
+- [`RELEASING.md`](RELEASING.md) — how to cut a release and publish to PyPI (started by a person)
 - [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) — credential resolution chain, profile layout, scopes
 - [`README.md`](README.md) — human-facing CLI tour
 - [`docs/LOGGING_STYLE.md`](docs/LOGGING_STYLE.md) — structured-fields vocabulary used by `--log-format json`

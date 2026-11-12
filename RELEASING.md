@@ -29,14 +29,16 @@ The workflow has three jobs.
      version.
    - Writes `SHA256SUMS` and stores the packages, the sums, and the release
      notes as the `dist` artifact.
-2. `publish` runs only for a tag push. It runs in the `pypi` environment, which
-   waits for a reviewer to approve it. It checks the sums and uploads the
-   packages to PyPI.
+2. `publish` runs only for a tag push, as soon as `build` passes. It runs in
+   the `pypi` environment, which has no required reviewer. It checks the sums
+   and uploads the packages to PyPI.
 3. `github-release` runs after `publish`. It checks the sums and creates the
    GitHub Release. The release body is the `CHANGELOG.md` section, and the
    wheel, the source package, and `SHA256SUMS` are attached.
 
 The `pypi` environment allows deployments only from tags that match `v*.*.*`.
+Because there is no approval step, pushing the tag is the step that publishes.
+Check the version, the changelog, and CI on `main` before you push it.
 A ruleset named "Protect release tags" stops anyone from deleting or moving a
 `v*` tag.
 
@@ -64,19 +66,18 @@ A ruleset named "Protect release tags" stops anyone from deleting or moving a
    gh workflow run release.yml --ref main
    ```
 
-4. **Tag the merge commit and push the tag.**
+4. **Tag the merge commit and push the tag.** This publishes the release.
    ```bash
    git checkout main && git pull
    git tag vX.Y.Z && git push origin vX.Y.Z
    ```
    The tag must be exactly `v` plus the version in `version.py`.
 
-5. **Approve the `pypi` deployment.** When `build` passes, the `publish` job
-   waits. Open the workflow run and click "Review deployments". To find the
-   run from the terminal:
+5. **Watch the workflow run.** `build`, `publish`, and `github-release` run
+   one after another with no pause. To follow the run from the terminal:
    ```bash
    gh run list --workflow release.yml --limit 1
-   gh run view <RUN_ID> --web
+   gh run watch <RUN_ID>
    ```
 
 6. **Check PyPI and the GitHub Release.**
