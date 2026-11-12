@@ -451,7 +451,7 @@ Three maintenance modes operate without generating SDRs. All three default to **
 
 | Flag | Exit on success | What it does |
 |------|-----------------|--------------|
-| `--notion-prune-orphans` | `OK` (0) | Preview: print orphaned page ids. With `--yes`: archive each page in `.notion_pages.json`'s `superseded` list (Notion trash, recoverable). |
+| `--notion-prune-orphans` | `OK` (0) | Preview: print orphaned page ids. With `--yes`: archive each page in `.notion_pages.json`'s `superseded` list (Notion trash, recoverable). If any archive call fails, the run exits `OUTPUT` (15) and keeps that page's tombstone so the next run can retry it. |
 | `--notion-repair-database` | `OK` (0) | Preview: print missing and conflicting properties. With `--yes`: additively create missing properties in the registry database. Requires `NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`. |
 | `--notion-create-database` | `OK` (0) | Preview: print the planned title and parent page. With `--yes`: create the SDR Registry database with the full canonical schema under `NOTION_PARENT_PAGE_ID` and print the new database id. Requires `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID`. Standalone mode: exits `USAGE` (2) if combined with generation, `--batch`, `--push-to-notion`, `--diff`, `--watch`, `--notion-prune-orphans`, or `--notion-repair-database`. |
 | `--notion-database-title NAME` | — | Override the title of the database created by `--notion-create-database` (default: `AA SDR Registry`). Exits `USAGE` (2) without `--notion-create-database`. |

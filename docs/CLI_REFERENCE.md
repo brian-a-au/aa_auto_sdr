@@ -606,7 +606,7 @@ aa_auto_sdr --notion-repair-database
 aa_auto_sdr --notion-repair-database --yes
 ```
 
-- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared.
+- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared. If any archive call fails, the command still prints the `Archived N page(s); M failed.` line, keeps the failed pages in the `superseded` list, and exits `15` (OUTPUT).
 - `--notion-repair-database` — compares the live registry database schema against the canonical layout (`--notion-print-database-schema`) and additively creates any missing properties. Never changes existing property types or deletes existing properties; type conflicts are reported and left untouched. Requires a database id (`NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`).
 - `--notion-create-database` — creates the SDR Registry database under `NOTION_PARENT_PAGE_ID`. See the flag table below.
 - `--yes` / `-y` — confirms the actions above. Without it, each mode only previews and changes nothing, on a tty or not.
