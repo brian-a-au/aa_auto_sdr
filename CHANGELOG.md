@@ -2,6 +2,97 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.25.0] — 2026-11-11
+
+This minor release ships the fixes from the repository review that change
+what a user or a script can see. Each change is listed under "Behavior
+changes" with the old and the new behavior. No new exit codes and no new
+dependencies. One flag that already worked as the first argument,
+`--notion-print-database-schema`, is now a normal flag. The Excel writer is
+also about 1.7 times faster.
+
+### Behavior changes
+- A report suite identifier that starts with two hyphens, such as
+  `aa_auto_sdr "--completion bash"`, used to be looked up as a report suite
+  name after sign-in, and the run exited 13. It now exits 2 before any
+  credential or network work. An identifier with one leading hyphen is still
+  accepted.
+- `--git-commit` with `--format json --output -` used to save the snapshot
+  and never commit it, and `--git-push` and `--git-message` were ignored. The
+  snapshot is now committed after the SDR JSON is written to stdout. A failed
+  git step exits 16 with one JSON error envelope on stderr, where it used to
+  exit 0.
+- `--watch` used to accept `--dry-run`, `--auto-prune`, `--keep-last`,
+  `--keep-since`, and `--run-summary-json` and then ignore them. Each of these
+  now exits 2 before sign-in.
+- `--auto-prune` with no keep rule used to fetch from the API and write every
+  output, and then exit 10. It now exits 10 with the same message before
+  sign-in and writes nothing. Because this check runs first, a run that also
+  has another problem, such as an unknown format or a report suite that is
+  not found, now exits 10. The check is skipped under `--dry-run`.
+- `--interactive` used to print its selection prompt and the "(no report
+  suites visible)" line to stdout, so `RSIDS=$(aa_auto_sdr --interactive)`
+  captured the prompt. Both now go to stderr.
+- `--prune-snapshots` used to print its refusal to stdout. It now goes to
+  stderr. When you answer no at a terminal, it now says
+  `aborted; no snapshots were deleted`.
+- `--list-segments`, `--list-calculated-metrics`, and
+  `--list-classification-datasets` used to show the `rsid` column twice in
+  CSV and table output when a name matched several report suites. They now
+  show it once. JSON output is unchanged.
+- `--notion-prune-orphans --yes` used to exit 0 even when every archive call
+  failed. It now exits 15 when any archive call fails.
+- `--profile-add` used to print a traceback on Ctrl+C, and to save empty
+  answers. It now exits 130 on Ctrl+C and exits 10 on an empty answer, and
+  writes nothing in either case.
+- `--profile-add` and `--profile-import` used to accept names that write
+  outside the profile's own folder, such as `../../escape` or `a/b`. A name
+  that is empty, is `.` or `..`, or contains `/` or `\` now exits 10.
+- A listing of more than 1,000 report suites or virtual report suites used to
+  lose a page without any error when that page came back as an error. The
+  listing is now retried. If the page keeps failing, listings and name
+  resolution exit 12, and SDR generation records virtual report suites as
+  degraded.
+- A segment or calculated metric whose `definition` is not an object, or a
+  listing row that is not an object, used to end the run with a traceback and
+  exit 1. It now exits 12, or gives a degraded classifications section.
+- A component whose `name` Adobe returns as null used to be written as the
+  text `None`, or `nan`. It is now written as its id. Null `rsid`, `type`, and
+  `polarity` use the default the tool already used when the field is absent.
+  A `--diff` between a snapshot from before the upgrade and one from after
+  shows each such row as modified once.
+- A report suite row with a blank rsid is now skipped during name matching.
+- The `run_start` log record used to include the value of a `--opt=value`
+  flag. It now logs the flag name only.
+- `--output stdout` used to switch on `--quiet` while writing a file named
+  `stdout.json`. Only `-` means stdout now.
+- A batch run summary that could not be written used to name a hidden staging
+  file in its error. It now names the path you gave.
+- In `--format pr-comment`, a line break in a component name could close a
+  block or start a heading. It is now a space. A block that alone was larger
+  than the 60K cap used to be dropped whole. The comment now keeps as many
+  whole items as fit.
+- With pandas 2.x installed, Excel header rows used to be bold with borders,
+  because pandas 2 styled them. They are now plain on every pandas version,
+  as they already were with pandas 3. A cell longer than 32,767 characters now
+  also gives the "Cell contents too long" warning on pandas 2.x, as it already
+  did on pandas 3.
+
+### Fixed
+- `--notion-print-database-schema` now works in any argument position and is
+  listed in `--help` and the shell completions.
+- `--watch --keep-last 0` is rejected like any other `--keep-last` value.
+
+### Changed
+- The Excel writer writes worksheets with `xlsxwriter` directly instead of
+  through pandas. It is about 1.7 times faster, for example 1.1 s to 0.65 s
+  at 2,000 components per family. The workbook is unchanged apart from the
+  pandas 2.x header style above. The Excel writer no longer imports pandas.
+
+### Documentation
+- `--explain-exit-code 16` now covers git commit and push failures.
+- `AGENTS.md` and `docs/CLI_REFERENCE.md` describe each behavior change above.
+
 ## [1.24.10] — 2026-11-11
 
 This patch ships the safe fixes from a review of the whole repository. No
