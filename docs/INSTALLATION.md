@@ -153,7 +153,7 @@ Core dependencies, installed automatically:
 | Package | Purpose |
 |---------|---------|
 | `aanalytics2` | Adobe Analytics 2.0 API wrapper (isolated behind `api/client.py`) |
-| `pandas` | Tabular data handling for output writers |
+| `pandas` | Reading the tables the Adobe Analytics SDK returns |
 | `openpyxl` | Reading/filling Excel templates |
 | `xlsxwriter` | Writing Excel workbooks from scratch |
 | `requests` | Transient-failure classification in the resilience layer |

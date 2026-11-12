@@ -9,7 +9,7 @@ Rows past each sheet's soft cap go to an appended `Overflow` sheet, and a
 
 Heavy import (`openpyxl`) is deferred to method scope so the registry can be
 bootstrapped on fast paths without paying the import cost. Mirrors the
-deferred-pandas pattern in `excel.py`.
+deferred-import pattern in `excel.py`.
 
 Self-registers under the `excel-template` format key on import.
 
