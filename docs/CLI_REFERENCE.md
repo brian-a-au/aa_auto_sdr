@@ -73,6 +73,8 @@ Default format: Excel. Output filename keys off the canonical RSID.
 
 Exit codes: `0`, `10`, `11`, `12`, `13`, `15`, `17` (when `--fail-on-quality` is set).
 
+An identifier that starts with two hyphens (`--`) exits with code 2 before any sign-in. This usually means a flag and its value were quoted as one argument, such as `"--completion bash"`. Pass them as two arguments instead. The same check applies to every report-suite identifier: positional identifiers for any command, `--batch` values, and the values of `--describe-reportsuite` and the `--list-*` inspection commands. An identifier that starts with one hyphen is still accepted.
+
 ### `aa_auto_sdr <RSID...> [<NAME>...]` — auto-batch
 
 Pass two or more identifiers and the tool automatically routes to batch mode — no `--batch` flag needed. **RSIDs and names may be mixed freely** in a single invocation; per-RSID name resolution happens inside the batch loop.

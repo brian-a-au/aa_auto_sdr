@@ -206,6 +206,8 @@ grammar as `[unparsed: <func>]`. See `docs/OUTPUT_FORMATS.md`
 
 Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr. Under `--output -` (and `--agent-mode`) stderr carries the JSON error envelope instead, and its `message` lists the candidates as `rsid (name)`. `insensitive` mode returns all matches (the CLI then generates per-RSID).
 
+An identifier that starts with two hyphens (`--`) is rejected with exit code 2 before the tool reads credentials or calls Adobe. This usually means a flag and its value were quoted as one argument, as in `aa_auto_sdr "--completion bash"`. The check covers positional identifiers, `--batch` values, and the values of `--describe-reportsuite`, `--list-metrics`, `--list-dimensions`, `--list-segments`, `--list-calculated-metrics`, and `--list-classification-datasets`. The error is a plain `error:` line on stderr, or the JSON error envelope under `--output -` and `--agent-mode`. An identifier that starts with one hyphen is still accepted, because a report-suite name can start with one.
+
 ### Diff field shaping
 
 `aa_auto_sdr --diff <a> <b> --extended-fields` includes noisy fields
