@@ -6,6 +6,7 @@ Test-only; no behavior change."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -69,7 +70,10 @@ def test_batch_run_summary_json_to_stdout(
     def fail_atomic_write(*args, **kwargs) -> None:
         raise AssertionError("stdout must not use atomic file output")
 
-    monkeypatch.setattr(batch_cmd, "atomic_write_text", fail_atomic_write)
+    # Batch writes the summary through generate's shared writer.
+    from aa_auto_sdr.cli.commands import generate as generate_cmd
+
+    monkeypatch.setattr(generate_cmd, "atomic_write_text", fail_atomic_write)
     rc = batch_cmd.run(
         rsids=["demo.prod"],
         output_dir=tmp_path,
@@ -80,6 +84,134 @@ def test_batch_run_summary_json_to_stdout(
     assert rc == ExitCode.OK.value
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert payload["rsids"][0]["rsid"] == "demo.prod"
+
+
+# The batch summary file before batch shared generate's writer: a frozen copy
+# of the old payload, so the shared writer must reproduce it byte for byte.
+# The old writer wrote the text with atomic_write_text (platform newlines), so
+# the frozen copy goes through the same call: on Windows both files end lines
+# with CRLF.
+def _legacy_batch_summary_bytes(*, started_at, finished_at, profile, per_rsid, source, path: Path) -> bytes:
+    from aa_auto_sdr.core.run_summary import RunSummary
+    from aa_auto_sdr.core.version import __version__
+
+    summary = RunSummary(
+        started_at=started_at.isoformat(),
+        finished_at=finished_at.isoformat(),
+        duration_seconds=(finished_at - started_at).total_seconds(),
+        tool_version=__version__,
+        profile=profile,
+        rsids=per_rsid,
+        timings=[],
+        sampled=source.sampled if source is not None else False,
+        sample_size=source.sample_size if source is not None else None,
+        sample_seed=source.sample_seed if source is not None else None,
+        sample_strategy=source.sample_strategy if source is not None else None,
+        total_available=source.total_available if source is not None else 0,
+    )
+    from aa_auto_sdr.core.atomic_io import atomic_write_text
+
+    atomic_write_text(path, json.dumps(summary.to_dict(), sort_keys=True, indent=2) + "\n")
+    return path.read_bytes()
+
+
+def _summary_sources():
+    from aa_auto_sdr.pipeline.batch import SampleOutcome
+    from aa_auto_sdr.pipeline.models import BatchResult
+
+    return [
+        ("no-sample", {}, None),
+        (
+            "batch-result-sampled",
+            {
+                "batch_result": BatchResult(
+                    sampled=True, sample_size=2, sample_seed=7, sample_strategy="stratified", total_available=5
+                )
+            },
+            "batch_result",
+        ),
+        ("batch-result-unsampled", {"batch_result": BatchResult(total_available=3)}, "batch_result"),
+        (
+            "dry-run-sample",
+            {
+                "sample": SampleOutcome(
+                    rsids=["a", "b"],
+                    total_available=4,
+                    sampled=True,
+                    sample_size=2,
+                    sample_seed=1,
+                    sample_strategy="random",
+                )
+            },
+            "sample",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("case", _summary_sources(), ids=lambda c: c[0])
+def test_batch_run_summary_file_bytes_unchanged(case, tmp_path: Path, capsys) -> None:
+    from datetime import UTC, datetime
+
+    from aa_auto_sdr.core.run_summary import PerRsidResult
+
+    _name, kwargs, source_key = case
+    started = datetime(2026, 11, 11, 9, 0, 0, tzinfo=UTC)
+    finished = datetime(2026, 11, 11, 9, 0, 3, 250000, tzinfo=UTC)
+    per_rsid = [
+        PerRsidResult(rsid="demo.prod", name="Demo", succeeded=True, formats=["json"], output_paths=["/x/a.json"]),
+        PerRsidResult(rsid="demo.dev", name=None, succeeded=False, error="ApiError: boom"),
+    ]
+    target = tmp_path / "summary.json"
+    ok = batch_cmd._emit_run_summary(
+        run_summary_json=str(target),
+        started_at=started,
+        finished_at=finished,
+        profile="prod",
+        per_rsid=per_rsid,
+        show_timings=False,
+        **kwargs,
+    )
+    assert ok is True
+    expected = _legacy_batch_summary_bytes(
+        started_at=started,
+        finished_at=finished,
+        profile="prod",
+        per_rsid=per_rsid,
+        source=kwargs[source_key] if source_key else None,
+        path=tmp_path / "legacy.json",
+    )
+    assert target.read_bytes() == expected
+    captured = capsys.readouterr()
+    assert captured.out == f"wrote run summary: {target}\n"
+    assert captured.err == ""
+
+
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), reason="needs POSIX perms")
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_run_summary_write_failure_names_the_users_path(
+    mock_client_cls, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """Batch reports the path the user gave, not the hidden staging file, the
+    same way generate does."""
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    target = str(ro / "summary.json")
+    os.chmod(ro, 0o500)
+    try:
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            run_summary_json=target,
+        )
+    finally:
+        os.chmod(ro, 0o700)
+    assert rc == ExitCode.OUTPUT.value
+    err_lines = capsys.readouterr().err.strip().splitlines()
+    assert f"error: could not write run summary {target}: Permission denied" in err_lines
+    assert ".summary." not in "\n".join(err_lines)
 
 
 # ---------------------------------------------------------------------------

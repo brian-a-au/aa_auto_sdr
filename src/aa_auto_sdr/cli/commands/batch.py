@@ -14,7 +14,6 @@ The runner in pipeline/batch.py is pure; this module owns all stdout printing
 from __future__ import annotations
 
 import dataclasses
-import json as _json
 import logging
 import sys
 import time
@@ -27,8 +26,8 @@ from aa_auto_sdr.api.cache import ValidationCache
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 from aa_auto_sdr.api.resilience import RetryPolicy
+from aa_auto_sdr.cli.commands.generate import _write_run_summary
 from aa_auto_sdr.core import colors, credentials, timings
-from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.constants import BANNER_WIDTH
 from aa_auto_sdr.core.exceptions import (
     AmbiguousMatchError,
@@ -38,7 +37,7 @@ from aa_auto_sdr.core.exceptions import (
     ReportSuiteNotFoundError,
 )
 from aa_auto_sdr.core.exit_codes import ExitCode
-from aa_auto_sdr.core.run_summary import PerRsidResult, RunSummary
+from aa_auto_sdr.core.run_summary import PerRsidResult
 from aa_auto_sdr.core.version import __version__
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import batch as batch_runner
@@ -80,40 +79,28 @@ def _emit_run_summary(
     them on the `--dry-run` path, which returns before `run_batch` and so has
     no BatchResult. On a dry run without `--sample-seed` the recorded `rsids`
     are one illustrative draw, not the draw a later real run will make."""
-    if not run_summary_json:
-        return True
     source = batch_result if batch_result is not None else sample
-    summary = RunSummary(
-        started_at=started_at.isoformat(),
-        finished_at=finished_at.isoformat(),
-        duration_seconds=(finished_at - started_at).total_seconds(),
-        tool_version=__version__,
-        profile=profile,
-        rsids=per_rsid,
-        timings=timings.report() if show_timings else [],
-        sampled=source.sampled if source is not None else False,
-        sample_size=source.sample_size if source is not None else None,
-        sample_seed=source.sample_seed if source is not None else None,
-        sample_strategy=source.sample_strategy if source is not None else None,
-        total_available=source.total_available if source is not None else 0,
+    extra = (
+        None
+        if source is None
+        else {
+            "sampled": source.sampled,
+            "sample_size": source.sample_size,
+            "sample_seed": source.sample_seed,
+            "sample_strategy": source.sample_strategy,
+            "total_available": source.total_available,
+        }
     )
-    if run_summary_json == "-":
-        # Compact single-line JSON on stdout — easier to consume from scripts and
-        # plays nicely with `splitlines()[-1]` shaped pipelines.
-        payload = _json.dumps(summary.to_dict(), sort_keys=True)
-        import sys as _sys
-
-        _sys.stdout.write(payload + "\n")
-        _sys.stdout.flush()
-    else:
-        payload = _json.dumps(summary.to_dict(), sort_keys=True, indent=2)
-        try:
-            atomic_write_text(Path(run_summary_json), payload + "\n")
-        except OSError as exc:
-            print(f"error: could not write run summary {run_summary_json}: {exc}", file=sys.stderr, flush=True)
-            return False
-        print(f"wrote run summary: {run_summary_json}", flush=True)
-    return True
+    error = _write_run_summary(
+        run_summary_json=run_summary_json,
+        started_at=started_at,
+        finished_at=finished_at,
+        profile=profile,
+        per_rsid=per_rsid,
+        show_timings=show_timings,
+        extra=extra,
+    )
+    return error is None
 
 
 def run(
