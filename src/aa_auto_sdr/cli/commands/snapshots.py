@@ -138,10 +138,13 @@ def prune_run(
                 f"about to delete {len(would_delete)} snapshots; continue?",
                 assume_yes=assume_yes,
             ):
-                print(
-                    "aborted: non-interactive stdin detected; pass --yes to skip the confirmation",
-                    flush=True,
-                )
+                # confirm() refuses without asking when stdin is not a
+                # terminal; at a terminal the person answered no.
+                if sys.stdin.isatty():
+                    message = "aborted; no snapshots were deleted"
+                else:
+                    message = "aborted: non-interactive stdin detected; pass --yes to skip the confirmation"
+                print(message, flush=True, file=sys.stderr)
                 exit_code = ExitCode.USAGE.value
                 return exit_code
 

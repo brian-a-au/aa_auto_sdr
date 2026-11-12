@@ -195,7 +195,11 @@ def _list_per_component(
             )
 
         records: list[dict[str, Any]] = []
-        cols = (["rsid", *columns]) if multi else columns
+        # A multi-suite match leads with an `rsid` column. Segments, calculated
+        # metrics, and classification datasets already carry their own `rsid`;
+        # move it to the front instead of listing it twice. JSON already had
+        # one `rsid` key first, so its shape does not change.
+        cols = ["rsid", *(c for c in columns if c != "rsid")] if multi else columns
         for canonical_rsid in canonical_rsids:
             try:
                 items = fetcher(client, canonical_rsid)

@@ -222,11 +222,59 @@ class TestPruneConfirmation:
             assume_yes=False,
         )
         assert rc == ExitCode.USAGE.value
-        out = capsys.readouterr().out
-        assert "aborted" in out
-        assert "non-interactive" in out  # new wording
-        assert "--yes" in out  # new wording references the flag
+        err = capsys.readouterr().err
+        assert "aborted" in err
+        assert "non-interactive" in err  # new wording
+        assert "--yes" in err  # new wording references the flag
         # Files NOT deleted
+        rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
+        assert len(list(rs_dir.glob("*.json"))) == 2
+
+    def test_prune_refusal_on_piped_stdin_goes_to_stderr(
+        self,
+        aa_home: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """The refusal is an error message, so stdout stays empty."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False, raising=False)
+        rc = cmd.prune_run(
+            profile="prod",
+            rsid=None,
+            keep_last=1,
+            keep_since=None,
+            dry_run=False,
+            assume_yes=False,
+        )
+        assert rc == ExitCode.USAGE.value
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "aborted: non-interactive stdin detected; pass --yes to skip the confirmation" in captured.err
+        rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
+        assert len(list(rs_dir.glob("*.json"))) == 2
+
+    def test_prune_refusal_at_terminal_does_not_say_non_interactive(
+        self,
+        aa_home: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """A person who types "n" at a terminal declined; stdin was interactive."""
+        monkeypatch.setattr("sys.stdin.isatty", lambda: True, raising=False)
+        monkeypatch.setattr("builtins.input", lambda *_a: "n")
+        rc = cmd.prune_run(
+            profile="prod",
+            rsid=None,
+            keep_last=1,
+            keep_since=None,
+            dry_run=False,
+            assume_yes=False,
+        )
+        assert rc == ExitCode.USAGE.value
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "aborted" in captured.err
+        assert "non-interactive" not in captured.err
         rs_dir = aa_home / "orgs" / "prod" / "snapshots" / "RS1"
         assert len(list(rs_dir.glob("*.json"))) == 2
 
