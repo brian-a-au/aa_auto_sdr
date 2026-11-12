@@ -33,6 +33,8 @@ export AA_PROFILE=<name>                    # set default
 
 Profiles stored in `~/.aa/orgs/<name>/`. Profile overrides env vars.
 
+`--profile-add` and `--profile-import` refuse a profile name that is empty, is `.` or `..`, or contains `/` or `\`. They exit `CONFIG` (10) with `error: invalid profile name '<name>'` and a short reason on stderr. `--profile-add` also exits `CONFIG` (10) when an answer is empty, and exits `130` with `cancelled; profile not written` on stderr when you press Ctrl+C. In each of these cases nothing is written.
+
 ---
 
 ## Command Reference

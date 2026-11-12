@@ -962,7 +962,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     _apply_quality_auto_enable(ns)
 
     # Profile/config actions
-    if ns.profile_add:
+    if ns.profile_add is not None:  # an empty name reaches the name check
         return config_cmd.profile_add(ns.profile_add)
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)

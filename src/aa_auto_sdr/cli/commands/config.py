@@ -21,27 +21,45 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
     logger.info("command_start command=profile_add", extra={"command": "profile_add"})
     exit_code = ExitCode.GENERIC.value
     try:
-        print(f"Creating profile '{name}'. Press Ctrl+C to cancel.")
         try:
-            org_id = input("ORG_ID (e.g. abc@AdobeOrg): ").strip()
-            client_id = input("CLIENT_ID: ").strip()
-            secret = input("SECRET: ").strip()
-            scopes = input("SCOPES: ").strip()
-        except EOFError:
-            print(
-                f"\nerror: input ended before all four fields were entered; profile '{name}' not written",
-                flush=True,
-                file=sys.stderr,
-            )
+            profiles.validate_profile_name(name)
+        except ConfigError as exc:
+            print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
 
-        data = {
-            "org_id": org_id,
-            "client_id": client_id,
-            "secret": secret,
-            "scopes": scopes,
-        }
+        print(f"Creating profile '{name}'. Press Ctrl+C to cancel.")
+        fields = (
+            ("org_id", "ORG_ID", "ORG_ID (e.g. abc@AdobeOrg): "),
+            ("client_id", "CLIENT_ID", "CLIENT_ID: "),
+            ("secret", "SECRET", "SECRET: "),
+            ("scopes", "SCOPES", "SCOPES: "),
+        )
+        data: dict[str, str] = {}
+        for key, label, prompt in fields:
+            try:
+                answer = input(prompt).strip()
+            except KeyboardInterrupt:
+                # End the prompt line on stdout (where input() wrote it) so the
+                # one stderr line starts on a line of its own.
+                print(flush=True)
+                print("cancelled; profile not written", flush=True, file=sys.stderr)
+                exit_code = 130  # shell SIGINT convention, as in --interactive
+                return exit_code
+            except EOFError:
+                print(
+                    f"\nerror: input ended before all four fields were entered; profile '{name}' not written",
+                    flush=True,
+                    file=sys.stderr,
+                )
+                exit_code = ExitCode.CONFIG.value
+                return exit_code
+            if not answer:
+                print(f"error: {label} is empty; profile '{name}' not written", flush=True, file=sys.stderr)
+                exit_code = ExitCode.CONFIG.value
+                return exit_code
+            data[key] = answer
+
         path = profiles.write_profile(name, data, base=base)
         print(f"profile written: {path}")
         exit_code = ExitCode.OK.value

@@ -493,12 +493,12 @@ Retries fire only on transient failures; permanent errors (auth, validation, unk
 
 | Command | Purpose |
 |---|---|
-| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. |
+| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. Exit 10 if the name is empty, is `.` or `..`, or contains `/` or `\`, or if an answer is empty. Exit 130 on Ctrl+C. In these cases nothing is written. |
 | `aa_auto_sdr --profile <name> …` | Use a named profile for credentials. |
 | `aa_auto_sdr --profile-list` | List profile names in `~/.aa/orgs/`. `--format json` for scripts. |
 | `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked and `secret` never shown. Includes snapshot count for the profile. Exit 10 if not found. |
 | `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure, 12 on an API failure (for example, an exhausted retry budget). |
-| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
+| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on an invalid profile name (the same rule as `--profile-add`), missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
 | `aa_auto_sdr --profile-overwrite` | Allow `--profile-import` to overwrite an existing profile. |
 
 ### Credential resolution diagnostics
