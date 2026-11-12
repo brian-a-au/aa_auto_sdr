@@ -434,10 +434,21 @@ def _documents() -> dict[str, SdrDocument]:
     }
 
 
+def _posix_bytes(data: bytes) -> bytes:
+    """xlsxwriter writes each XML part in text mode, so on Windows every "\n"
+    it writes becomes "\r\n" (the old pandas-based writer did the same). The
+    reference hashes were recorded on POSIX. Every "\n" in a translated part
+    is preceded by an inserted "\r", so replacing "\r\n" with "\n" restores
+    the POSIX bytes exactly, including a "\r\n" that was part of a cell value."""
+    if os.linesep == "\r\n":
+        return data.replace(b"\r\n", b"\n")
+    return data
+
+
 def _member_hashes(path: Path) -> dict[str, str]:
     with zipfile.ZipFile(path) as archive:
         return {
-            name: hashlib.sha256(archive.read(name)).hexdigest()
+            name: hashlib.sha256(_posix_bytes(archive.read(name))).hexdigest()
             for name in sorted(archive.namelist())
             if name not in EXCLUDED_MEMBERS
         }
