@@ -872,3 +872,105 @@ def test_listing_failure_keeps_message_and_exit_code(mock_client_cls, env_creds,
     assert rc == 12
     assert capsys.readouterr().err == "api error: fetch failed: AttributeError: listing exploded\n"
     assert handle.getReportSuites.call_count == 1
+
+
+@pytest.fixture
+def git_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A commit identity for runners with no global user.name/user.email."""
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "Test User")
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", "test@example.com")
+    monkeypatch.setenv("GIT_COMMITTER_NAME", "Test User")
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_path_git_commit_creates_commit(mock_client_cls, env_creds, git_identity, tmp_path: Path, capsys) -> None:
+    """--output - with --git-commit commits the snapshot, like the file path,
+    and stdout still carries only the SDR JSON."""
+    import subprocess
+
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    snap = tmp_path / "snaps"
+
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=Path("-"),
+        format_name="json",
+        profile=None,
+        snapshot=True,
+        git_commit=True,
+        snapshot_dir=snap,
+    )
+
+    out, _err = capsys.readouterr()
+    assert rc == 0
+    assert json.loads(out)["report_suite"]["rsid"] == "demo.prod"
+    assert (snap / ".git").is_dir()
+    log = subprocess.run(
+        ["git", "log", "--oneline"], cwd=snap, capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+    # The initial README commit plus the snapshot commit.
+    assert len(log) == 2
+    tracked = subprocess.run(
+        ["git", "ls-files", "demo.prod"], cwd=snap, capture_output=True, text=True, check=True
+    ).stdout.split()
+    assert len(tracked) == 1
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_path_git_failure_exits_16_with_envelope(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    """A failed git step after the document is written leaves stdout holding
+    the full SDR JSON and puts one JSON error envelope (code 16) on stderr."""
+    from aa_auto_sdr.snapshot.git import GitOpResult
+
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    failed = GitOpResult(ok=False, error_kind="GitCommitError", error_message="index locked")
+
+    with patch("aa_auto_sdr.snapshot.git.git_commit_snapshot", return_value=failed):
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=Path("-"),
+            format_name="json",
+            profile=None,
+            git_commit=True,
+            snapshot_dir=tmp_path / "snaps",
+        )
+
+    out, err = capsys.readouterr()
+    assert rc == 16
+    assert json.loads(out)["report_suite"]["rsid"] == "demo.prod"
+    err_lines = err.strip().splitlines()
+    assert len(err_lines) == 1
+    envelope = json.loads(err_lines[0])
+    assert envelope["error"]["code"] == 16
+    assert "GitCommitError" in envelope["error"]["message"]
+    assert "index locked" in envelope["error"]["message"]
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_path_git_message_is_used(mock_client_cls, env_creds, tmp_path: Path, capsys) -> None:
+    """--git-message and --git-push reach the git step on the pipe path."""
+    from aa_auto_sdr.snapshot.git import GitOpResult
+
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    snap = tmp_path / "snaps"
+    ok = GitOpResult(ok=True, committed=True, pushed=True, commit_sha="a" * 40)
+
+    with patch("aa_auto_sdr.snapshot.git.git_commit_snapshot", return_value=ok) as mock_commit:
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=Path("-"),
+            format_name="json",
+            profile=None,
+            git_commit=True,
+            git_push=True,
+            git_message="nightly SDR",
+            snapshot_dir=snap,
+        )
+
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["report_suite"]["rsid"] == "demo.prod"
+    mock_commit.assert_called_once_with(snap, rsid="demo.prod", message="nightly SDR", push=True)

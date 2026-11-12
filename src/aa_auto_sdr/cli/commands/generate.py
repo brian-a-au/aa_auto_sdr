@@ -593,6 +593,40 @@ def _run_impl(
         _sys.stdout.write(_json.dumps(payload, indent=2, default=str) + "\n")
         _sys.stdout.flush()
 
+        # Git step, after the document is on stdout, as the file path runs it
+        # after each snapshot save. A failure is one envelope on stderr.
+        if git_commit and snapshot_dir is not None:
+            from aa_auto_sdr.snapshot.git import git_commit_snapshot
+
+            for canonical_rsid in canonical_rsids:
+                with timings.Timer(f"git_commit:{canonical_rsid}"):
+                    git_op = git_commit_snapshot(
+                        snapshot_dir,
+                        rsid=canonical_rsid,
+                        message=git_message,
+                        push=git_push,
+                    )
+                if not git_op.ok:
+                    from aa_auto_sdr.core.exceptions import SnapshotError
+
+                    emit_error_envelope(
+                        SnapshotError(
+                            f"git {git_op.error_kind or 'operation'} failed: {git_op.error_message or '(no message)'}"
+                        ),
+                        ExitCode.SNAPSHOT.value,
+                    )
+                    _emit_run_summary(
+                        is_pipe=is_pipe,
+                        run_summary_json=run_summary_json,
+                        started_at=started_at,
+                        finished_at=datetime.now(UTC),
+                        profile=profile,
+                        per_rsid=pipe_per_rsid,
+                        show_timings=show_timings,
+                    )
+                    _emit_timings_if_enabled(show_timings=show_timings)
+                    return ExitCode.SNAPSHOT.value
+
         if auto_prune and snapshot_dir is not None:
             rc = _apply_auto_prune(
                 is_pipe=is_pipe,

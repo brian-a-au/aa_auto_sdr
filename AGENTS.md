@@ -526,6 +526,11 @@ credentials or remotes.
 - `--git-push` requires `--git-commit` (USAGE 2 otherwise).
 - `--git-message` requires `--git-commit` (USAGE 2 otherwise).
 
+**Pipe composition:** `--git-commit` also works with `--format json --output -`.
+The SDR JSON is written to stdout first, and then each snapshot is committed.
+Stdout holds only the SDR JSON. If a git step fails, the run exits `SNAPSHOT`
+(16) and writes one JSON error envelope to stderr.
+
 **Watch composition:** Each cycle that emits a `baseline` or `change`
 event also commits. NDJSON event payload gains an optional `git` block
 on success:
