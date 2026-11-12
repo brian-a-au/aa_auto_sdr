@@ -42,6 +42,20 @@ def test_derive_quiet_returns_early_when_already_quiet() -> None:
     assert ns.quiet is True  # untouched — early return
 
 
+def test_derive_quiet_ignores_the_word_stdout() -> None:
+    """`--output stdout` writes a file named stdout, so it does not imply --quiet."""
+    ns = argparse.Namespace(quiet=False, output="stdout", run_summary_json="stdout")
+    _derive_quiet_from_output_destination(ns)
+    assert ns.quiet is False
+
+
+def test_derive_quiet_still_honors_dash() -> None:
+    for fields in ({"output": "-", "run_summary_json": None}, {"output": None, "run_summary_json": "-"}):
+        ns = argparse.Namespace(quiet=False, **fields)
+        _derive_quiet_from_output_destination(ns)
+        assert ns.quiet is True
+
+
 # --- _validate_template_modifiers (lines 172-228) --------------------------
 
 
