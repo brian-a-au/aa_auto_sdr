@@ -85,6 +85,8 @@ These failures surface as `template_sheet_skipped` WARNINGs in the log. The writ
 - **Renaming the match-key column.** If you rename `Analytics Variable` to `Variable Slot` on `eVars`, the writer can't match by ID → `reason=no_id_column`.
 - **Renaming every column on `metrics-segments`.** That sheet has no ID column and is filled by appending rows under `Type`, `Name`, `Description`, and `Format`. If none of those headers is left, the writer has nowhere to write → `reason=no_known_columns`, and every calculated metric and segment goes to the `Overflow` sheet. Segments have no `Format` column, so if `Format` is the only header left, calculated metrics are still written and segments go to `Overflow`.
 
+One more break stops the run instead of skipping a sheet. When a merged range covers a cell the writer fills (any cell of the range except its top-left cell), the writer writes no file and reports an output error that names the sheet and the cell. A single report suite run exits 15. In a `--batch` run, that report suite fails with exit 15. Unmerge the range or move it out of the filled area.
+
 Additive changes are always safe. Subtractive or renaming changes are what break the contract.
 
 ### Verify a custom template before a real run

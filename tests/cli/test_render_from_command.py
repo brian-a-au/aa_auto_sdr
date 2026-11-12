@@ -352,6 +352,26 @@ def test_template_fill_from_snapshot(tmp_path: Path) -> None:
     assert load_workbook(template)["Glossary"]["C2"].value == "Customer Org Placeholder"
 
 
+def test_template_with_merged_cell_exits_output(tmp_path: Path, capsys) -> None:
+    """A template contract break the writer reports as OutputError (here a
+    merged range over Glossary!C2) is exit 15 with one stderr line, not a
+    traceback."""
+    from openpyxl import load_workbook
+
+    from tests.output.writers.conftest import _build_template
+
+    template = _build_template(tmp_path / "template.xlsx")
+    wb = load_workbook(template)
+    wb["Glossary"].merge_cells("B2:D2")
+    wb.save(template)
+    snap = _write_envelope(document_to_envelope(_built_doc()), tmp_path / "snap.json")
+    out = tmp_path / "out"
+    rc = _rc(["--render-from", str(snap), "--template", str(template), "--output-dir", str(out)])
+    assert rc == 15
+    assert "merged range" in capsys.readouterr().err
+    assert not list(out.glob("*.xlsx"))
+
+
 def test_template_with_json_format_is_usage(tmp_path: Path, capsys) -> None:
     from tests.output.writers.conftest import _build_template
 

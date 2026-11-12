@@ -29,7 +29,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from aa_auto_sdr.core.exceptions import SdrPayloadError, SnapshotError, SnapshotResolveError
+from aa_auto_sdr.core.exceptions import OutputError, SdrPayloadError, SnapshotError, SnapshotResolveError
 from aa_auto_sdr.core.exit_codes import ExitCode
 from aa_auto_sdr.core.version import __version__
 
@@ -157,6 +157,9 @@ def _run_impl(
             message=f"output error: render write failed for rsid={rsid} at {output_dir}: {exc}",
             exit_code=ExitCode.OUTPUT.value,
         )
+    except OutputError as exc:
+        # A writer's own typed failure (e.g. a template contract break).
+        return _fail(is_pipe=False, exc=exc, message=f"output error: {exc}", exit_code=ExitCode.OUTPUT.value)
     for path in written:
         print(f"wrote: {path}")
     return ExitCode.OK.value

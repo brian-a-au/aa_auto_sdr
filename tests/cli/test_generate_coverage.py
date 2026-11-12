@@ -298,6 +298,48 @@ def test_generate_file_run_single_generic_error_returns_generic(
     assert "error:" in capsys.readouterr().err
 
 
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_generate_template_merged_cell_returns_output(
+    mock_client_cls,
+    env_creds,
+    tmp_path: Path,
+    capsys,
+) -> None:
+    """The template writer's merged-cell OutputError reaches the file path's
+    OutputError handler → OUTPUT (15) with the sheet and cell named, and no
+    workbook is written."""
+    from openpyxl import load_workbook
+
+    from tests.output.writers.conftest import _build_template
+
+    template = _build_template(tmp_path / "template.xlsx")
+    wb = load_workbook(template)
+    wb["Glossary"].merge_cells("B2:D2")
+    wb.save(template)
+
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    out_dir = tmp_path / "out"
+    try:
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=out_dir,
+            format_name="excel",
+            profile=None,
+            template_path=template,
+        )
+    finally:
+        from aa_auto_sdr.output import registry
+
+        tw = registry.get_writer("excel-template")
+        tw.template_path = None
+        tw.organization = None
+    assert rc == ExitCode.OUTPUT.value
+    err = capsys.readouterr().err
+    assert "output error: template sheet 'Glossary' cell C2 is inside a merged range" in err
+    assert not list(out_dir.glob("*.xlsx"))
+
+
 # ---------------------------------------------------------------------------
 # File-output auto-prune branches + open-after + quality gate
 # ---------------------------------------------------------------------------

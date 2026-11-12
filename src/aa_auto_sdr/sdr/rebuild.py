@@ -150,6 +150,12 @@ def _require_quality_parts(
     summary = quality.get("summary")
     if isinstance(summary, dict) and "by_severity" in summary and not isinstance(summary["by_severity"], dict):
         raise err(f"{label} 'quality.summary.by_severity' must be an object")
+    # The CSV writer calls string methods on these two values when they are
+    # truthy. A falsy value (null, "", 0, false) renders as "n/a" in every
+    # format and stays accepted.
+    for key in ("verdict", "policy_threshold"):
+        if isinstance(summary, dict) and summary.get(key) and not isinstance(summary[key], str):
+            raise err(f"{label} 'quality.summary.{key}' must be a string or null")
     for key in ("stale_components", "issues"):
         if key in quality:
             rows = quality[key]
