@@ -34,8 +34,10 @@ def _argv_summary(argv: list[str]) -> list[str]:
 
     Used as ``extra={"argv_summary": ...}`` on run_start. Positional values
     (RSIDs, file paths) are never included — they ride on their own
-    structured fields. See LOGGING_STYLE.md §message-style rules."""
-    return [a for a in argv if a.startswith("-")]
+    structured fields. A ``--opt=value`` token keeps only ``--opt``, so a
+    value such as a commit message never reaches the log. See
+    LOGGING_STYLE.md §message-style rules."""
+    return [a.split("=", 1)[0] if a.startswith("--") else a for a in argv if a.startswith("-")]
 
 
 def _derive_quiet_from_output_destination(ns: argparse.Namespace) -> None:
