@@ -81,3 +81,28 @@ def test_read_config_object_accepts_utf8_bom(tmp_path: Path) -> None:
     path = tmp_path / "config.json"
     path.write_bytes(b"\xef\xbb\xbf" + json.dumps({"org_id": "o"}).encode())
     assert profiles.read_config_object(path, "config.json") == {"org_id": "o"}
+
+
+@pytest.mark.parametrize(
+    ("name", "reason"),
+    [
+        ("", "empty"),
+        (".", "'.' or '..'"),
+        ("..", "'.' or '..'"),
+        ("a/b", "'/' or '\\'"),
+        ("../../escape", "'/' or '\\'"),
+        ("a\\b", "'/' or '\\'"),
+    ],
+)
+def test_validate_profile_name_rejects_unsafe_names(name: str, reason: str) -> None:
+    """A profile name is one folder under orgs/; anything else is refused."""
+    with pytest.raises(ConfigError) as exc_info:
+        profiles.validate_profile_name(name)
+    msg = str(exc_info.value)
+    assert msg.startswith(f"invalid profile name '{name}'")
+    assert reason in msg
+
+
+@pytest.mark.parametrize("name", ["prod", "default", "my-org_2", ".hidden", "a..b", "-x"])
+def test_validate_profile_name_accepts_plain_names(name: str) -> None:
+    profiles.validate_profile_name(name)  # no exception

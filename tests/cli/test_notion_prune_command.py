@@ -4,6 +4,7 @@ from unittest.mock import patch
 from aa_auto_sdr.cli.commands.notion_prune import run_notion_prune_orphans
 from aa_auto_sdr.output import notion_registry as reg
 from tests._notion_fakes import FakePruneClient as _FakeClient
+from tests._notion_fakes import failing_prune_client
 
 
 def _seed(tmp_path: Path) -> Path:
@@ -52,6 +53,50 @@ def test_apply_archives_and_clears_tombstones(tmp_path, capsys):
         exit_code = run_notion_prune_orphans(str(tmp_path), dry_run=False)
     out = capsys.readouterr().out
     assert "Archived 1 page(s)" in out
+    assert exit_code == 0
+    assert reg.load_registry(p)["rs1"]["superseded"] == []
+
+
+def _seed_two(tmp_path: Path) -> Path:
+    p = tmp_path / reg.REGISTRY_FILENAME
+    reg.store_page_id(p, "rs1", "a")
+    reg.store_page_id(p, "rs1", "b")  # tombstone a
+    reg.store_page_id(p, "rs1", "c")  # tombstone b
+    return p
+
+
+def test_apply_exits_output_when_every_archive_fails(tmp_path, capsys):
+    """Every archive call fails: exit OUTPUT (15) and keep the tombstones."""
+    p = _seed_two(tmp_path)
+    req_patch, creds_patch = _patch_notion(failing_prune_client())
+    with req_patch, creds_patch:
+        exit_code = run_notion_prune_orphans(str(tmp_path), dry_run=False)
+    out = capsys.readouterr().out
+    assert "Archived 0 page(s); 2 failed." in out
+    assert exit_code == 15
+    assert sorted(reg.load_registry(p)["rs1"]["superseded"]) == ["a", "b"]
+
+
+def test_apply_exits_output_when_one_archive_fails(tmp_path, capsys):
+    """One of two archive calls fails: exit OUTPUT (15), summary line unchanged."""
+    p = _seed_two(tmp_path)
+    req_patch, creds_patch = _patch_notion(failing_prune_client({"b"}))
+    with req_patch, creds_patch:
+        exit_code = run_notion_prune_orphans(str(tmp_path), dry_run=False)
+    out = capsys.readouterr().out
+    assert "Archived 1 page(s); 1 failed." in out
+    assert exit_code == 15
+    assert reg.load_registry(p)["rs1"]["superseded"] == ["b"]
+
+
+def test_apply_exits_ok_when_no_archive_fails(tmp_path, capsys):
+    """No archive call fails: exit OK (0)."""
+    p = _seed_two(tmp_path)
+    req_patch, creds_patch = _patch_notion(failing_prune_client(set()))
+    with req_patch, creds_patch:
+        exit_code = run_notion_prune_orphans(str(tmp_path), dry_run=False)
+    out = capsys.readouterr().out
+    assert "Archived 2 page(s); 0 failed." in out
     assert exit_code == 0
     assert reg.load_registry(p)["rs1"]["superseded"] == []
 

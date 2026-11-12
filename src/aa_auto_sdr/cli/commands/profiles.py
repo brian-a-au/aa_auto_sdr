@@ -167,6 +167,12 @@ def import_run(
     logger.info("command_start command=profile_import", extra={"command": "profile_import"})
     exit_code = ExitCode.GENERIC.value
     try:
+        try:
+            profiles.validate_profile_name(name)
+        except ConfigError as exc:
+            print(f"error: {exc}", flush=True, file=sys.stderr)
+            exit_code = ExitCode.CONFIG.value
+            return exit_code
         src = Path(file_path).expanduser()
         if not os.path.exists(src):
             print(f"error: file not found: {src}", flush=True, file=sys.stderr)
@@ -192,15 +198,11 @@ def import_run(
 
         target_dir = (base or profiles.default_base()) / "orgs" / name
         # A snapshot run with no --profile creates orgs/default/snapshots/
-        # alone; that folder is not a profile. So a plainly named directory
-        # with no config.json entry (lexists: a dangling link still counts)
-        # is free. Anything else at the target is still refused: a file, or
-        # the names that resolve to orgs/ itself or its parent.
-        snapshot_only_dir = (
-            name not in ("", ".", "..")
-            and os.path.isdir(target_dir)
-            and not os.path.lexists(target_dir / "config.json")
-        )
+        # alone; that folder is not a profile. So a directory with no
+        # config.json entry (lexists: a dangling link still counts) is free.
+        # A file at the target is still refused. The name check above has
+        # already refused names that resolve outside one folder under orgs/.
+        snapshot_only_dir = os.path.isdir(target_dir) and not os.path.lexists(target_dir / "config.json")
         if os.path.lexists(target_dir) and not snapshot_only_dir and not overwrite:
             print(
                 f"error: profile '{name}' already exists at {target_dir}. Pass --profile-overwrite to replace.",

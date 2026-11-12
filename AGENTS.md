@@ -33,6 +33,8 @@ export AA_PROFILE=<name>                    # set default
 
 Profiles stored in `~/.aa/orgs/<name>/`. Profile overrides env vars.
 
+`--profile-add` and `--profile-import` refuse a profile name that is empty, is `.` or `..`, or contains `/` or `\`. They exit `CONFIG` (10) with `error: invalid profile name '<name>'` and a short reason on stderr. `--profile-add` also exits `CONFIG` (10) when an answer is empty, and exits `130` with `cancelled; profile not written` on stderr when you press Ctrl+C. In each of these cases nothing is written.
+
 ---
 
 ## Command Reference
@@ -205,6 +207,8 @@ grammar as `[unparsed: <func>]`. See `docs/OUTPUT_FORMATS.md`
 - `fuzzy`: insensitive first; falls back to SequenceMatcher at threshold 0.85.
 
 Multi-match in `exact` / `fuzzy` mode raises `AmbiguousMatchError` with exit code 13 (`NOT_FOUND`); the candidate list is rendered to stderr. Under `--output -` (and `--agent-mode`) stderr carries the JSON error envelope instead, and its `message` lists the candidates as `rsid (name)`. `insensitive` mode returns all matches (the CLI then generates per-RSID).
+
+An identifier that starts with two hyphens (`--`) is rejected with exit code 2 before the tool reads credentials or calls Adobe. This usually means a flag and its value were quoted as one argument, as in `aa_auto_sdr "--completion bash"`. The check covers positional identifiers, `--batch` values, and the values of `--describe-reportsuite`, `--list-metrics`, `--list-dimensions`, `--list-segments`, `--list-calculated-metrics`, and `--list-classification-datasets`. The error is a plain `error:` line on stderr, or the JSON error envelope under `--output -` and `--agent-mode`. An identifier that starts with one hyphen is still accepted, because a report-suite name can start with one.
 
 ### Diff field shaping
 
@@ -451,7 +455,7 @@ Three maintenance modes operate without generating SDRs. All three default to **
 
 | Flag | Exit on success | What it does |
 |------|-----------------|--------------|
-| `--notion-prune-orphans` | `OK` (0) | Preview: print orphaned page ids. With `--yes`: archive each page in `.notion_pages.json`'s `superseded` list (Notion trash, recoverable). |
+| `--notion-prune-orphans` | `OK` (0) | Preview: print orphaned page ids. With `--yes`: archive each page in `.notion_pages.json`'s `superseded` list (Notion trash, recoverable). If any archive call fails, the run exits `OUTPUT` (15) and keeps that page's tombstone so the next run can retry it. |
 | `--notion-repair-database` | `OK` (0) | Preview: print missing and conflicting properties. With `--yes`: additively create missing properties in the registry database. Requires `NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`. |
 | `--notion-create-database` | `OK` (0) | Preview: print the planned title and parent page. With `--yes`: create the SDR Registry database with the full canonical schema under `NOTION_PARENT_PAGE_ID` and print the new database id. Requires `NOTION_TOKEN` and `NOTION_PARENT_PAGE_ID`. Standalone mode: exits `USAGE` (2) if combined with generation, `--batch`, `--push-to-notion`, `--diff`, `--watch`, `--notion-prune-orphans`, or `--notion-repair-database`. |
 | `--notion-database-title NAME` | — | Override the title of the database created by `--notion-create-database` (default: `AA SDR Registry`). Exits `USAGE` (2) without `--notion-create-database`. |
@@ -598,7 +602,7 @@ uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-last 20 --dry-run
 uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-since 30d --yes
 ```
 
-Standalone snapshot lifecycle commands (`--list-snapshots`, `--prune-snapshots`) require `--profile` or `--snapshot-dir` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. (Capture via `--snapshot` / `--auto-snapshot` differs: it falls back to the `default` store when neither is given.) Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise.
+Standalone snapshot lifecycle commands (`--list-snapshots`, `--prune-snapshots`) require `--profile` or `--snapshot-dir` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. (Capture via `--snapshot` / `--auto-snapshot` differs: it falls back to the `default` store when neither is given.) Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. The refusal message goes to stderr, so stdout stays empty.
 
 ### Diagnostics
 
@@ -729,6 +733,8 @@ stderr banner.
 ## VRS Fetch Degradation
 
 When Adobe's `/reportsuites/virtualreportsuites` endpoint fails (after the configured retry budget exhausts, or immediately on a permanent endpoint-shape error), `aa_auto_sdr` degrades gracefully: the SDR is generated with an empty VRS list and the snapshot envelope records the degradation. The structured `expansion_level` field carries `full` on the success INFO record and `exhausted` / `count_only` on the failure WARNING. There is no reduced-expansion fallback — the SDK's `extended_info=False` rows lack `parentRsid`, so a minimal call cannot be attributed to a report suite.
+
+**Listings with more than 1,000 rows.** Adobe returns the report suite list and the virtual report suite list in pages of 1,000. For an org with more than 1,000 report suites or more than 1,000 virtual report suites, a later page that comes back as an error is retried with the rest of the listing, under the same retry budget. If that page keeps failing, the run exits `12` for discovery listings and name resolution, and the VRS section is recorded as degraded for SDR generation. The tool no longer returns a short list as if it were complete. One limit remains: a page that comes back with fewer rows than it should, but not as an error, cannot be detected. This includes a page with no rows, which Adobe can return legitimately.
 
 **Snapshot signalling.** Degraded-fetch snapshots carry `degraded_components` markers in the envelope (`partial_components` remains in the schema and is still honored when reading snapshots written by earlier releases); the diff comparator suppresses sections with mismatched fetch quality rather than rendering false-modified VRS rows. Pre-`v2` snapshots load forward-compat as if all components were healthy.
 

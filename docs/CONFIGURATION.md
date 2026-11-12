@@ -94,6 +94,10 @@ Walks through prompts for ORG_ID / CLIENT_ID / SECRET / SCOPES and writes:
 
 Use with `--profile prod` on subsequent commands. Multi-org users create one profile per org.
 
+Every answer must have a value; an empty answer stops the command with exit 10. Press Ctrl+C to cancel; the command exits 130. In both cases no profile is written.
+
+A profile name is one folder under `~/.aa/orgs/`. `--profile-add` and `--profile-import` refuse a name that is empty, is `.` or `..`, or contains `/` or `\`, and exit 10 with `error: invalid profile name '<name>'`.
+
 ### Option 2 — Environment variables
 
 | Variable | Required | Notes |

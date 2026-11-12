@@ -673,6 +673,46 @@ def _validate_notion_modifiers(ns: argparse.Namespace) -> int:
     return int(ExitCode.OK)
 
 
+def _reject_flag_like_identifiers(ns: argparse.Namespace) -> int:
+    """Reject a report-suite identifier that starts with ``--``.
+
+    argparse reads a token with a space in it, like ``"--completion bash"``,
+    as a positional value even when it starts with ``--``. Without this check
+    the tool would resolve credentials, sign in, and look the token up as a
+    report-suite name. Two hyphens only: a real report-suite name can start
+    with one. Runs before any credential, client, or network work. Diff and
+    render-from tokens, file paths, and other flag values are not checked.
+    Returns OK or USAGE."""
+    candidates: list[str] = list(getattr(ns, "rsids", None) or [])
+    candidates.extend(getattr(ns, "batch", None) or [])
+    # Actions that take their report-suite identifier inline.
+    for attr in (
+        "describe_reportsuite",
+        "list_metrics",
+        "list_dimensions",
+        "list_segments",
+        "list_calculated_metrics",
+        "list_classification_datasets",
+    ):
+        value = getattr(ns, attr, None)
+        if isinstance(value, str):
+            candidates.append(value)
+    for value in candidates:
+        if value.startswith("--"):
+            message = (
+                f"identifier '{value}' looks like a flag; pass the flag and its value as "
+                "separate arguments (do not quote them together)"
+            )
+            if is_stdout_path(getattr(ns, "output", None)):
+                from aa_auto_sdr.output.error_envelope import emit_error_envelope
+
+                emit_error_envelope(ValueError(message), ExitCode.USAGE.value)
+            else:
+                print(f"error: {message}", file=sys.stderr, flush=True)
+            return ExitCode.USAGE.value
+    return ExitCode.OK.value
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -698,6 +738,11 @@ def run(argv: list[str]) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
     _apply_agent_mode_defaults(ns, argv, known_long_options=_configured_long_options(parser))
+
+    # A flag passed as one quoted token must not reach credential resolution.
+    rc = _reject_flag_like_identifiers(ns)
+    if rc != ExitCode.OK.value:
+        return rc
 
     # v1.10.0 — sampling flag mode-scoping. Uses raise SystemExit (not return)
     # so the exit happens before setup_logging/run_start fire — matches argparse's
@@ -962,7 +1007,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     _apply_quality_auto_enable(ns)
 
     # Profile/config actions
-    if ns.profile_add:
+    if ns.profile_add is not None:  # an empty name reaches the name check
         return config_cmd.profile_add(ns.profile_add)
     if ns.show_config:
         return config_cmd.show_config(profile=ns.profile)

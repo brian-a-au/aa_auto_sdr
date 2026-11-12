@@ -114,6 +114,19 @@ class TestProfileOverwrite:
         assert not (aa_base / "config.json").exists()
         assert not (aa_base / "orgs" / "config.json").exists()
 
+    @pytest.mark.parametrize("name", ["", ".", "..", "../../escape", "a/b", "a\\b"])
+    def test_import_rejects_an_unsafe_name(
+        self, aa_base: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], name: str
+    ) -> None:
+        """--profile-import uses the same name check as --profile-add: exit 10,
+        an "invalid profile name" error, and nothing written, even with
+        --profile-overwrite."""
+        src = _make_creds_file(tmp_path)
+        rc = cmd.import_run(name, str(src), base=aa_base, overwrite=True)
+        assert rc == ExitCode.CONFIG.value
+        assert f"error: invalid profile name '{name}'" in capsys.readouterr().err
+        assert sorted(p for p in tmp_path.rglob("config.json")) == []
+
     def test_import_still_refuses_dangling_config_symlink(self, aa_base: Path, tmp_path: Path) -> None:
         target_dir = aa_base / "orgs" / "linked"
         target_dir.mkdir(parents=True)

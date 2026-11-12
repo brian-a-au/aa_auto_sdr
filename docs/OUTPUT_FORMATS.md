@@ -344,7 +344,7 @@ The detail page remains the primary artifact: if the database upsert fails (inte
 
 ### Orphan pruning
 
-`--notion-prune-orphans` reads `.notion_pages.json` and archives (Notion trash, recoverable) every page in the `superseded` list, then removes the tombstones. Preview by default; `--yes` applies. A failed archive attempt leaves the tombstone in place and logs a `notion_page_archive_failed` WARNING — the remaining orphans can be retried on the next run.
+`--notion-prune-orphans` reads `.notion_pages.json` and archives (Notion trash, recoverable) every page in the `superseded` list, then removes the tombstones. Preview by default; `--yes` applies. A failed archive attempt leaves the tombstone in place and logs a `notion_page_archive_failed` WARNING — the remaining orphans can be retried on the next run. When any archive attempt fails, the command exits `15` (OUTPUT).
 
 Note a narrow gap: if a `--notion-force-new` create call fails after Notion creates the page but before the id is recorded locally, no tombstone is written and the unreferenced page is invisible to `--notion-prune-orphans`. Such pages can be found and deleted manually in Notion.
 
