@@ -187,6 +187,9 @@ _SAME_ROW_CASES = [
     {"rsid": "rs1", "name": "T", "timezone": float("nan"), "timezoneZoneinfo": "Europe/Paris"},
     {"rsid": "rs1", "name": "T", "timezone": "  ", "timezoneZoneinfo": "Asia/Tokyo", "parentRsid": ""},
     {"rsid": "rs1", "name": "T", "currency": float("nan"), "parentRsid": float("nan"), "timezone": float("nan")},
+    # JSON null next to string names: a one-row frame keeps None, a ragged
+    # multi-row frame may hold NaN. Both must fall back to the rsid.
+    {"rsid": "rs1", "name": None, "timezone": "UTC"},
 ]
 
 
@@ -207,6 +210,8 @@ def test_listing_row_and_filtered_call_build_the_same_model(row: dict) -> None:
     from_plain_sdk = fetch.fetch_report_suite(plain_client, "rs1")
     assert fetch.fetch_report_suite(plain_client, "rs1", preloaded_suites=[dict(row)]) == from_plain_sdk
     assert from_plain_sdk == from_sdk
+    # A name that is absent, null, or NaN falls back to the rsid on every path.
+    assert from_sdk.name == (row["name"] if isinstance(row.get("name"), str) else "rs1")
 
 
 def test_preloaded_row_with_nan_cells_matches_sdk_path() -> None:
@@ -219,3 +224,94 @@ def test_preloaded_row_with_nan_cells_matches_sdk_path() -> None:
     assert rs.parent_rsid is None
     assert rs.timezone is None
     assert rs == fetch.fetch_report_suite(client, "rs1")
+
+
+# ---------------------------------------------------------------------------
+# JSON null reads like an absent value: the name falls back to the id, the
+# rsid to the queried rsid, and no field holds the text "None" or "nan".
+# ---------------------------------------------------------------------------
+
+
+def _no_none_or_nan_text(model: object) -> None:
+    import dataclasses
+
+    for field in dataclasses.fields(model):
+        assert getattr(model, field.name) not in ("None", "nan"), field.name
+
+
+_SHAPES = [pytest.param(lambda rows: [dict(r) for r in rows], id="plain"), pytest.param(pd.DataFrame, id="frame")]
+
+
+@pytest.mark.parametrize("shape", _SHAPES)
+@pytest.mark.parametrize(
+    ("method", "fetcher", "row_id"),
+    [
+        pytest.param("getDimensions", fetch.fetch_dimensions, "evar1", id="dimension"),
+        pytest.param("getMetrics", fetch.fetch_metrics, "event1", id="metric"),
+        pytest.param("getSegments", fetch.fetch_segments, "s1", id="segment"),
+        pytest.param("getCalculatedMetrics", fetch.fetch_calculated_metrics, "cm1", id="calculated_metric"),
+    ],
+)
+def test_null_name_falls_back_to_the_id(method, fetcher, row_id, shape) -> None:
+    rows = [{"id": "other", "name": "Other", "type": "string"}, {"id": row_id, "name": None, "type": None}]
+    out = {m.id: m for m in fetcher(_client(**{method: shape(rows)}), "rs1")}
+    target = out[row_id]
+    assert target.name == row_id
+    _no_none_or_nan_text(target)
+    assert out["other"].name == "Other"
+
+
+def test_null_type_falls_back_to_the_default() -> None:
+    row = {"id": "x", "name": "X", "type": None}
+    assert fetch.fetch_dimensions(_client(getDimensions=[dict(row)]), "rs1")[0].type == "unknown"
+    assert fetch.fetch_metrics(_client(getMetrics=[dict(row)]), "rs1")[0].type == "unknown"
+    cm = fetch.fetch_calculated_metrics(
+        _client(getCalculatedMetrics=[{"id": "cm1", "polarity": None, "type": None}]), "rs1"
+    )[0]
+    assert (cm.polarity, cm.type) == ("positive", "decimal")
+
+
+@pytest.mark.parametrize("shape", _SHAPES)
+@pytest.mark.parametrize(
+    ("method", "fetcher", "row_id"),
+    [
+        pytest.param("getSegments", fetch.fetch_segments, "s1", id="segment"),
+        pytest.param("getCalculatedMetrics", fetch.fetch_calculated_metrics, "cm1", id="calculated_metric"),
+    ],
+)
+def test_null_rsid_falls_back_to_the_queried_rsid(method, fetcher, row_id, shape) -> None:
+    rows = [{"id": "other", "name": "Other", "rsid": "rs1"}, {"id": row_id, "name": "N", "rsid": None}]
+    out = {m.id: m for m in fetcher(_client(**{method: shape(rows)}), "rs1")}
+    assert out[row_id].rsid == "rs1"
+    _no_none_or_nan_text(out[row_id])
+
+
+@pytest.mark.parametrize("shape", _SHAPES)
+def test_vrs_null_name_falls_back_to_the_id(shape) -> None:
+    rows = [{"id": "v0", "name": "Named", "parentRsid": "rs1"}, {"id": "v1", "name": None, "parentRsid": "rs1"}]
+    out = {v.id: v for v in fetch.fetch_virtual_report_suites(_client(getVirtualReportSuites=shape(rows)), "rs1").data}
+    assert out["v1"].name == "v1"
+    _no_none_or_nan_text(out["v1"])
+
+
+@pytest.mark.parametrize("shape", _SHAPES)
+def test_report_suite_null_name_falls_back_to_the_rsid(shape) -> None:
+    rs = fetch.fetch_report_suite(_client(getReportSuites=shape([{"rsid": "rs1", "name": None}])), "rs1")
+    assert rs.name == "rs1"
+    _no_none_or_nan_text(rs)
+
+
+@pytest.mark.parametrize("shape", _SHAPES)
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [{"id": "ds0", "name": "Named", "rsid": "rs1"}, {"id": "ds1", "name": None, "rsid": None}],
+        [{"id": "ds0", "name": "Named", "rsid": "rs1"}, {"id": "ds1"}],  # ragged frame: NaN cells
+    ],
+    ids=["null", "missing"],
+)
+def test_classification_null_name_and_rsid_fall_back(rows, shape) -> None:
+    outcome = fetch.fetch_classification_datasets(_client(getClassificationDatasets=shape(rows)), "rs1")
+    target = next(c for c in outcome.data if c.id == "ds1")
+    assert (target.name, target.rsid) == ("ds1", "rs1")
+    _no_none_or_nan_text(target)

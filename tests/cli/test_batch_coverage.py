@@ -6,6 +6,7 @@ Test-only; no behavior change."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -69,7 +70,10 @@ def test_batch_run_summary_json_to_stdout(
     def fail_atomic_write(*args, **kwargs) -> None:
         raise AssertionError("stdout must not use atomic file output")
 
-    monkeypatch.setattr(batch_cmd, "atomic_write_text", fail_atomic_write)
+    # Batch writes the summary through generate's shared writer.
+    from aa_auto_sdr.cli.commands import generate as generate_cmd
+
+    monkeypatch.setattr(generate_cmd, "atomic_write_text", fail_atomic_write)
     rc = batch_cmd.run(
         rsids=["demo.prod"],
         output_dir=tmp_path,
@@ -80,6 +84,134 @@ def test_batch_run_summary_json_to_stdout(
     assert rc == ExitCode.OK.value
     payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert payload["rsids"][0]["rsid"] == "demo.prod"
+
+
+# The batch summary file before batch shared generate's writer: a frozen copy
+# of the old payload, so the shared writer must reproduce it byte for byte.
+# The old writer wrote the text with atomic_write_text (platform newlines), so
+# the frozen copy goes through the same call: on Windows both files end lines
+# with CRLF.
+def _legacy_batch_summary_bytes(*, started_at, finished_at, profile, per_rsid, source, path: Path) -> bytes:
+    from aa_auto_sdr.core.run_summary import RunSummary
+    from aa_auto_sdr.core.version import __version__
+
+    summary = RunSummary(
+        started_at=started_at.isoformat(),
+        finished_at=finished_at.isoformat(),
+        duration_seconds=(finished_at - started_at).total_seconds(),
+        tool_version=__version__,
+        profile=profile,
+        rsids=per_rsid,
+        timings=[],
+        sampled=source.sampled if source is not None else False,
+        sample_size=source.sample_size if source is not None else None,
+        sample_seed=source.sample_seed if source is not None else None,
+        sample_strategy=source.sample_strategy if source is not None else None,
+        total_available=source.total_available if source is not None else 0,
+    )
+    from aa_auto_sdr.core.atomic_io import atomic_write_text
+
+    atomic_write_text(path, json.dumps(summary.to_dict(), sort_keys=True, indent=2) + "\n")
+    return path.read_bytes()
+
+
+def _summary_sources():
+    from aa_auto_sdr.pipeline.batch import SampleOutcome
+    from aa_auto_sdr.pipeline.models import BatchResult
+
+    return [
+        ("no-sample", {}, None),
+        (
+            "batch-result-sampled",
+            {
+                "batch_result": BatchResult(
+                    sampled=True, sample_size=2, sample_seed=7, sample_strategy="stratified", total_available=5
+                )
+            },
+            "batch_result",
+        ),
+        ("batch-result-unsampled", {"batch_result": BatchResult(total_available=3)}, "batch_result"),
+        (
+            "dry-run-sample",
+            {
+                "sample": SampleOutcome(
+                    rsids=["a", "b"],
+                    total_available=4,
+                    sampled=True,
+                    sample_size=2,
+                    sample_seed=1,
+                    sample_strategy="random",
+                )
+            },
+            "sample",
+        ),
+    ]
+
+
+@pytest.mark.parametrize("case", _summary_sources(), ids=lambda c: c[0])
+def test_batch_run_summary_file_bytes_unchanged(case, tmp_path: Path, capsys) -> None:
+    from datetime import UTC, datetime
+
+    from aa_auto_sdr.core.run_summary import PerRsidResult
+
+    _name, kwargs, source_key = case
+    started = datetime(2026, 11, 11, 9, 0, 0, tzinfo=UTC)
+    finished = datetime(2026, 11, 11, 9, 0, 3, 250000, tzinfo=UTC)
+    per_rsid = [
+        PerRsidResult(rsid="demo.prod", name="Demo", succeeded=True, formats=["json"], output_paths=["/x/a.json"]),
+        PerRsidResult(rsid="demo.dev", name=None, succeeded=False, error="ApiError: boom"),
+    ]
+    target = tmp_path / "summary.json"
+    ok = batch_cmd._emit_run_summary(
+        run_summary_json=str(target),
+        started_at=started,
+        finished_at=finished,
+        profile="prod",
+        per_rsid=per_rsid,
+        show_timings=False,
+        **kwargs,
+    )
+    assert ok is True
+    expected = _legacy_batch_summary_bytes(
+        started_at=started,
+        finished_at=finished,
+        profile="prod",
+        per_rsid=per_rsid,
+        source=kwargs[source_key] if source_key else None,
+        path=tmp_path / "legacy.json",
+    )
+    assert target.read_bytes() == expected
+    captured = capsys.readouterr()
+    assert captured.out == f"wrote run summary: {target}\n"
+    assert captured.err == ""
+
+
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), reason="needs POSIX perms")
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_run_summary_write_failure_names_the_users_path(
+    mock_client_cls, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """Batch reports the path the user gave, not the hidden staging file, the
+    same way generate does."""
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    ro = tmp_path / "ro"
+    ro.mkdir()
+    target = str(ro / "summary.json")
+    os.chmod(ro, 0o500)
+    try:
+        rc = batch_cmd.run(
+            rsids=["demo.prod"],
+            output_dir=tmp_path / "out",
+            format_name="json",
+            profile=None,
+            run_summary_json=target,
+        )
+    finally:
+        os.chmod(ro, 0o700)
+    assert rc == ExitCode.OUTPUT.value
+    err_lines = capsys.readouterr().err.strip().splitlines()
+    assert f"error: could not write run summary {target}: Permission denied" in err_lines
+    assert ".summary." not in "\n".join(err_lines)
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +416,7 @@ def test_batch_auto_prune_without_policy_returns_config(
     tmp_path: Path,
     capsys,
 ) -> None:
-    """--auto-prune without --keep-last/--keep-since → CONFIG (10) after the run."""
+    """--auto-prune without --keep-last/--keep-since → CONFIG (10) before the run."""
     mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
     snap_dir = tmp_path / "snaps"
     rc = batch_cmd.run(
@@ -437,3 +569,90 @@ def test_batch_quality_fail_returns_quality_and_handles_banner_edges(
     assert rc == ExitCode.QUALITY.value
     out = capsys.readouterr().out
     assert "MB" in out
+
+
+@pytest.mark.parametrize(
+    ("keep_since", "message"),
+    [
+        (None, "error: --auto-prune requires --keep-last or --keep-since\n"),
+        ("0d", "error: --keep-since must be greater than zero (got '0d')\n"),
+    ],
+)
+def test_auto_prune_without_keep_rule_exits_10_before_any_fetch(
+    keep_since, message, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """A bad or empty retention policy fails before credentials are resolved,
+    with the same message and exit code the after-run check gives, and no
+    output is written."""
+    out_dir = tmp_path / "out"
+    with (
+        patch("aa_auto_sdr.cli.commands.batch.credentials.resolve") as mock_resolve,
+        patch("aa_auto_sdr.cli.commands.batch.AaClient") as mock_client_cls,
+    ):
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "demo.staging"],
+            output_dir=out_dir,
+            format_name="json",
+            profile=None,
+            snapshot=True,
+            auto_prune=True,
+            keep_since=keep_since,
+            snapshot_dir=tmp_path / "snaps",
+        )
+    assert rc == ExitCode.CONFIG.value
+    assert capsys.readouterr().err == message
+    mock_resolve.assert_not_called()
+    mock_client_cls.from_credentials.assert_not_called()
+    assert not out_dir.exists() or not any(out_dir.iterdir())
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_dry_run_auto_prune_without_keep_rule_is_not_checked_early(
+    mock_client_cls, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """A dry run never prunes, so the early policy check does not fire: the
+    batch lists what it would write and exits 0, as it did before the check."""
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        dry_run=True,
+        snapshot=True,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    out, err = capsys.readouterr()
+    assert rc == ExitCode.OK.value
+    assert "DRY RUN" in out
+    assert str(out_dir / "demo.prod.json") in out
+    assert str(out_dir / "demo.staging.json") in out
+    assert "--auto-prune" not in err
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_auto_prune_without_keep_rule_or_snapshot_stays_a_no_op(
+    mock_client_cls, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """With no snapshot flag, --auto-prune has nothing to prune and stays a
+    silent no-op even with no keep rule: exit 0 and every SDR is written."""
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    assert rc == ExitCode.OK.value
+    assert "--auto-prune" not in capsys.readouterr().err
+    assert (out_dir / "demo.prod.json").is_file()
+    assert (out_dir / "demo.staging.json").is_file()
+    assert not (tmp_path / "snaps").exists()

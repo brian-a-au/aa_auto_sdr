@@ -8,6 +8,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
@@ -30,6 +31,9 @@ from aa_auto_sdr.output import registry
 from aa_auto_sdr.pipeline import single
 from aa_auto_sdr.sdr.builder import build_sdr
 from aa_auto_sdr.sdr.quality import QualityRules
+
+if TYPE_CHECKING:
+    from aa_auto_sdr.snapshot.retention import RetentionPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +62,12 @@ def _write_run_summary(
     per_rsid: list[PerRsidResult],
     show_timings: bool,
     is_pipe: bool = False,
+    extra: dict[str, Any] | None = None,
 ) -> OSError | None:
     """Write the run summary. Returns the write error, naming the user's path
-    rather than the atomic-write staging file, or None on success."""
+    rather than the atomic-write staging file, or None on success.
+
+    `extra` sets further RunSummary fields; batch passes its sample fields."""
     if not run_summary_json:
         return None
     summary = RunSummary(
@@ -71,6 +78,7 @@ def _write_run_summary(
         profile=profile,
         rsids=per_rsid,
         timings=timings.report() if show_timings else [],
+        **(extra or {}),
     )
     if run_summary_json == "-":
         # Compact single-line JSON on stdout — easier to consume from scripts and
@@ -293,15 +301,27 @@ def _run_impl(
         dimensions_only=dimensions_only,
     )
 
+    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
+    if not save_required:
+        snapshot_dir = None
+
+    # Check the retention policy before sign-in, so a policy that the prune
+    # step below would reject fails before any fetch or write. Same condition,
+    # message, and exit code as that step, which stays as a guard. A dry run
+    # never reaches the prune step, so it is not checked here either.
+    if (
+        auto_prune
+        and snapshot_dir is not None
+        and not dry_run
+        and _resolve_prune_policy(is_pipe=is_pipe, keep_last=keep_last, keep_since=keep_since) is None
+    ):
+        return ExitCode.CONFIG.value
+
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         _emit_pipe_or_print(is_pipe=is_pipe, exc=e, message=f"error: {e}", exit_code=ExitCode.CONFIG.value)
         return ExitCode.CONFIG.value
-
-    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
-    if not save_required:
-        snapshot_dir = None
 
     try:
         formats = registry.resolve_formats(format_name)
@@ -593,6 +613,40 @@ def _run_impl(
         _sys.stdout.write(_json.dumps(payload, indent=2, default=str) + "\n")
         _sys.stdout.flush()
 
+        # Git step, after the document is on stdout, as the file path runs it
+        # after each snapshot save. A failure is one envelope on stderr.
+        if git_commit and snapshot_dir is not None:
+            from aa_auto_sdr.snapshot.git import git_commit_snapshot
+
+            for canonical_rsid in canonical_rsids:
+                with timings.Timer(f"git_commit:{canonical_rsid}"):
+                    git_op = git_commit_snapshot(
+                        snapshot_dir,
+                        rsid=canonical_rsid,
+                        message=git_message,
+                        push=git_push,
+                    )
+                if not git_op.ok:
+                    from aa_auto_sdr.core.exceptions import SnapshotError
+
+                    emit_error_envelope(
+                        SnapshotError(
+                            f"git {git_op.error_kind or 'operation'} failed: {git_op.error_message or '(no message)'}"
+                        ),
+                        ExitCode.SNAPSHOT.value,
+                    )
+                    _emit_run_summary(
+                        is_pipe=is_pipe,
+                        run_summary_json=run_summary_json,
+                        started_at=started_at,
+                        finished_at=datetime.now(UTC),
+                        profile=profile,
+                        per_rsid=pipe_per_rsid,
+                        show_timings=show_timings,
+                    )
+                    _emit_timings_if_enabled(show_timings=show_timings)
+                    return ExitCode.SNAPSHOT.value
+
         if auto_prune and snapshot_dir is not None:
             rc = _apply_auto_prune(
                 is_pipe=is_pipe,
@@ -856,19 +910,32 @@ def _apply_auto_prune(
 
     Returns ExitCode.OK on success, ExitCode.CONFIG on bad/empty policy.
     """
-    from aa_auto_sdr.snapshot.retention import parse_policy
     from aa_auto_sdr.snapshot.store import prune_snapshots
+
+    policy = _resolve_prune_policy(is_pipe=is_pipe, keep_last=keep_last, keep_since=keep_since)
+    if policy is None:
+        return ExitCode.CONFIG.value
+    for rs in rsids:
+        prune_snapshots(snapshot_dir, policy, rsid=rs)
+    return ExitCode.OK.value
+
+
+def _resolve_prune_policy(*, is_pipe: bool, keep_last: int | None, keep_since: str | None) -> RetentionPolicy | None:
+    """Parse the retention policy for --auto-prune.
+
+    Returns the active policy, or None after emitting the CONFIG error for a
+    bad value or for a policy with no keep rule.
+    """
+    from aa_auto_sdr.snapshot.retention import parse_policy
 
     try:
         policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
     except ConfigError as exc:
         msg = f"error: {exc}"
         _emit_pipe_or_print(is_pipe=is_pipe, exc=exc, message=msg, exit_code=ExitCode.CONFIG.value)
-        return ExitCode.CONFIG.value
+        return None
     if not policy.is_active():
         msg = "error: --auto-prune requires --keep-last or --keep-since"
         _emit_pipe_or_print(is_pipe=is_pipe, exc=None, message=msg, exit_code=ExitCode.CONFIG.value)
-        return ExitCode.CONFIG.value
-    for rs in rsids:
-        prune_snapshots(snapshot_dir, policy, rsid=rs)
-    return ExitCode.OK.value
+        return None
+    return policy

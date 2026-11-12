@@ -59,6 +59,27 @@ def test_run_emits_run_start_with_run_mode_and_argv_summary(caplog, tmp_path, mo
     assert "--show-config" in rec.argv_summary
 
 
+def test_argv_summary_drops_values_of_long_flags_given_with_equals():
+    """`--opt=value` tokens log the flag name only. Short flags and
+    positionals keep their existing treatment."""
+    from aa_auto_sdr.cli.main import _argv_summary
+
+    assert _argv_summary(["--profile=prod", "--git-message=Release for ACME", "-q", "rs1"]) == [
+        "--profile",
+        "--git-message",
+        "-q",
+    ]
+    assert _argv_summary(["--show-config", "-x=1", "--a=b=c"]) == ["--show-config", "-x=1", "--a"]
+
+
+def test_run_start_argv_summary_has_no_equals_value(caplog, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    caplog.set_level(logging.INFO)
+    run(["--log-level=INFO", "--show-config"])
+    rec = _records_with_event(caplog, "run_start")[0]
+    assert rec.argv_summary == ["--log-level", "--show-config"]
+
+
 def test_run_emits_run_complete_with_exit_code_and_duration_ms(caplog, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     caplog.set_level(logging.INFO)

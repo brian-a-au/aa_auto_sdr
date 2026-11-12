@@ -44,7 +44,7 @@ def test_select_by_index(
         handle=_build_handle(raw),
         company_id="testco",
     )
-    monkeypatch.setattr("builtins.input", lambda _: "1")
+    monkeypatch.setattr("builtins.input", lambda *_a: "1")
     rc = cmd.run(profile=None)
     assert rc == ExitCode.OK.value
     out = capsys.readouterr().out
@@ -64,7 +64,7 @@ def test_select_all(
         handle=_build_handle(raw),
         company_id="testco",
     )
-    monkeypatch.setattr("builtins.input", lambda _: "all")
+    monkeypatch.setattr("builtins.input", lambda *_a: "all")
     rc = cmd.run(profile=None)
     assert rc == ExitCode.OK.value
     out = capsys.readouterr().out
@@ -84,7 +84,7 @@ def test_invalid_selection(
         handle=_build_handle(raw),
         company_id="testco",
     )
-    monkeypatch.setattr("builtins.input", lambda _: "999")
+    monkeypatch.setattr("builtins.input", lambda *_a: "999")
     rc = cmd.run(profile=None)
     assert rc == ExitCode.USAGE.value
 
@@ -101,7 +101,7 @@ def test_keyboard_interrupt_returns_130(
         company_id="testco",
     )
 
-    def _interrupt(_):
+    def _interrupt(*_a):
         raise KeyboardInterrupt
 
     monkeypatch.setattr("builtins.input", _interrupt)
@@ -165,9 +165,68 @@ def test_eof_returns_130(
         company_id="testco",
     )
 
-    def _eof(_):
+    def _eof(*_a):
         raise EOFError
 
     monkeypatch.setattr("builtins.input", _eof)
     rc = cmd.run(profile=None)
     assert rc == 130
+
+
+# --- stdout discipline: real input(), no builtins.input mock ---------------
+
+
+def _stub_summaries(monkeypatch: pytest.MonkeyPatch, summaries: list) -> None:
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(cmd.credentials, "resolve", lambda **_k: object())
+    monkeypatch.setattr(cmd, "AaClient", MagicMock())
+    monkeypatch.setattr(
+        cmd.fetch,
+        "fetch_report_suite_summaries",
+        lambda _client: [SimpleNamespace(rsid=r, name=n) for r, n in summaries],
+    )
+
+
+def test_prompt_goes_to_stderr_stdout_holds_only_rsid(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`RSIDS=$(aa_auto_sdr --interactive)` must capture the chosen RSID only."""
+    import io
+
+    _stub_summaries(monkeypatch, [("demo.prod", "Demo"), ("demo.stage", "Stage")])
+    monkeypatch.setattr("sys.stdin", io.StringIO("1\n"))
+    rc = cmd.run(profile=None)
+    assert rc == ExitCode.OK.value
+    captured = capsys.readouterr()
+    assert captured.out == "demo.prod\n"
+    assert "Select index" in captured.err
+
+
+def test_empty_stdin_exits_130_with_empty_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import io
+
+    _stub_summaries(monkeypatch, [("demo.prod", "Demo")])
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    rc = cmd.run(profile=None)
+    assert rc == 130
+    assert capsys.readouterr().out == ""
+
+
+def test_no_suites_message_goes_to_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import io
+
+    _stub_summaries(monkeypatch, [])
+    monkeypatch.setattr("sys.stdin", io.StringIO("1\n"))
+    rc = cmd.run(profile=None)
+    assert rc == ExitCode.NOT_FOUND.value
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "no report suites visible" in captured.err

@@ -3,7 +3,8 @@
 Compact GFM with collapsible <details> blocks. Length-capped to fit GitHub's
 65,536-char comment limit (we cap at 60K to leave headroom for any envelope a
 caller adds). Truncation prefers to drop modified-component detail first
-(most verbose), then added/removed lists."""
+(most verbose), then added/removed lists. A block that is over the cap by
+itself keeps the whole items that fit instead of being dropped."""
 
 from __future__ import annotations
 
@@ -140,7 +141,7 @@ def _added_block(report: DiffReport) -> str:
         return ""
     lines = ["<details>", "<summary>➕ Added components</summary>", ""]  # noqa: RUF001
     for ctype, item in items:
-        lines.append(f"- `{item.id}` — {item.name} _({ctype})_")
+        lines.append(f"- `{item.id}` — {_one_line(item.name)} _({ctype})_")
     lines.append("</details>")
     return "\n".join(lines) + "\n"
 
@@ -151,7 +152,7 @@ def _removed_block(report: DiffReport) -> str:
         return ""
     lines = ["<details>", "<summary>➖ Removed components</summary>", ""]  # noqa: RUF001
     for ctype, item in items:
-        lines.append(f"- `{item.id}` — {item.name} _({ctype})_")
+        lines.append(f"- `{item.id}` — {_one_line(item.name)} _({ctype})_")
     lines.append("</details>")
     return "\n".join(lines) + "\n"
 
@@ -164,10 +165,17 @@ def _modified_block(report: DiffReport) -> str:
         return ""
     lines = ["<details>", "<summary>✏️ Modified components</summary>", ""]
     for ctype, item in rows:
-        lines.append(f"- `{item.id}` — {item.name} _({ctype})_")
+        lines.append(f"- `{item.id}` — {_one_line(item.name)} _({ctype})_")
         lines.extend(f"  - `{delta.field}`: {_short(delta.before)} → {_short(delta.after)}" for delta in item.deltas)
     lines.append("</details>")
     return "\n".join(lines) + "\n"
+
+
+def _one_line(value: object) -> str:
+    """`value` as text with each line break replaced by a space, so a component
+    name stays on its item line and cannot start a new Markdown or HTML block.
+    A non-string renders as the f-string did before (``None`` -> ``"None"``)."""
+    return str(value).replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
 
 
 def _short(value: object) -> str:
@@ -178,12 +186,71 @@ def _short(value: object) -> str:
     return inline_code(s) or "``"
 
 
+_OPEN_LINE = "<details>\n"
+_CLOSE_LINE = "</details>\n"
+
+
 def _enforce_cap(body: str) -> str:
     if len(body) <= LENGTH_CAP:
         return body
-    truncated = body[: LENGTH_CAP - 200]
+    budget = LENGTH_CAP - 200
+    banner = "\n\n*(truncated — additional changes not shown; pipe full diff to a file with `--format json`)*\n"
+    cut = _cut_oversized_block(body, budget)
+    if cut is not None:
+        return cut + banner
+    truncated = body[:budget]
     last_close = truncated.rfind("</details>")
     if last_close >= 0:
         truncated = truncated[: last_close + len("</details>")]
-    banner = "\n\n*(truncated — additional changes not shown; pipe full diff to a file with `--format json`)*\n"
     return truncated + banner
+
+
+def _cut_oversized_block(body: str, budget: int) -> str | None:
+    """When the cut at `budget` lands inside a block that is larger than
+    `budget` by itself, keep the whole items of that block that fit, then
+    close it. Returns None when the cut is not inside such a block or no item
+    fits; the caller then cuts at the last `</details>` as before.
+
+    Block tags are matched only as whole lines, so a `</details>` inside a
+    component name is not taken for one."""
+    start = _last_line_index(body, _OPEN_LINE, budget)
+    if start < 0 or _last_line_index(body, _CLOSE_LINE, budget) > start:
+        return None
+    end = _next_line_index(body, _CLOSE_LINE, start)
+    if end < 0 or end + len(_CLOSE_LINE) - start <= budget:
+        return None
+    # Lines: "<details>", "<summary>…</summary>", "", then the item lines.
+    lines = body[start:end].split("\n")[:-1]
+    head = "\n".join(lines[:3]) + "\n"
+    items: list[str] = []
+    for line in lines[3:]:
+        if line.startswith("- ") or not items:
+            items.append(line + "\n")
+        else:
+            # A modified item's delta lines stay with their item.
+            items[-1] += line + "\n"
+    kept = body[:start] + head
+    room = budget - len(kept) - len("</details>")
+    taken = 0
+    for item in items:
+        if len(item) > room:
+            break
+        kept += item
+        room -= len(item)
+        taken += 1
+    if taken == 0:
+        return None
+    return kept + "</details>"
+
+
+def _last_line_index(body: str, line: str, limit: int) -> int:
+    """Start of the last whole `line` in body[:limit], or -1. The body always
+    starts with the header, so a block line is never at index 0."""
+    i = body.rfind("\n" + line, 0, limit)
+    return i + 1 if i >= 0 else -1
+
+
+def _next_line_index(body: str, line: str, start: int) -> int:
+    """Start of the first whole `line` at or after `start`, or -1."""
+    i = body.find("\n" + line, start)
+    return i + 1 if i >= 0 else -1

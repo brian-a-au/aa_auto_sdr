@@ -50,15 +50,15 @@ production call site today. It exists for symmetry with
 the contract if stats grows an ``--output`` flag later. Per spec §4.2."""
 
 
-_STDOUT_ALIASES: frozenset[str] = frozenset({"-", "stdout"})
-"""Case-sensitive — matches the lowercase Unix convention. Anything else
-(``"STDOUT"``, ``"Stdout"``, ``"/dev/stdout"``) is treated as a file path."""
+_STDOUT_SENTINEL = "-"
+"""The one stdout sentinel, as in the Unix convention. Anything else
+(``"stdout"``, ``"/dev/stdout"``) is treated as a file path, which is how the
+writers treat it too."""
 
 
 def is_stdout_path(path: str | None) -> bool:
-    """Return whether *path* is the canonical stdout sentinel ``"-"`` or
-    ``"stdout"`` (case-sensitive)."""
-    return path in _STDOUT_ALIASES
+    """Return whether *path* is the stdout sentinel ``"-"``."""
+    return path == _STDOUT_SENTINEL
 
 
 @functools.cache

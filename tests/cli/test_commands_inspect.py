@@ -690,3 +690,121 @@ def test_describe_reportsuite_listing_failure_keeps_message_and_exit_code(
     assert rc == ExitCode.API.value
     assert capsys.readouterr().err == "api error: fetch failed: AttributeError: listing exploded\n"
     assert handle.getReportSuites.call_count == 1
+
+
+# --- one rsid column on a name that matches several suites ------------------
+
+_MULTI_SUITES = [
+    {"rsid": "rs-a", "name": "Shop"},
+    {"rsid": "rs-b", "name": "shop"},
+    {"rsid": "rs-c", "name": "Other"},
+]
+
+# (handler name, SDK method, component's own columns in order)
+_OWN_RSID_COMMANDS = [
+    (
+        "run_list_segments",
+        "getSegments",
+        [
+            "id",
+            "name",
+            "description",
+            "rsid",
+            "owner_id",
+            "definition",
+            "compatibility",
+            "tags",
+            "created",
+            "modified",
+            "extra",
+        ],
+    ),
+    (
+        "run_list_calculated_metrics",
+        "getCalculatedMetrics",
+        [
+            "id",
+            "name",
+            "description",
+            "rsid",
+            "owner_id",
+            "polarity",
+            "precision",
+            "type",
+            "definition",
+            "tags",
+            "categories",
+            "extra",
+        ],
+    ),
+    ("run_list_classification_datasets", "getClassificationDatasets", ["id", "name", "rsid", "extra"]),
+]
+
+
+def _multi_suite_client(monkeypatch, sdk_method: str, own_rsid: str | None):
+    """Real AaClient over a fake handle. Two suites (rs-a 'Shop', rs-b 'shop')
+    match the identifier 'shop'. Each component row is tagged with the suite it
+    was fetched for in its id; its own `rsid` field is `own_rsid`, or absent."""
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.resilience import RetryPolicy
+    from aa_auto_sdr.cli.commands import inspect as cmd
+
+    handle = MagicMock()
+    handle.getReportSuites.side_effect = lambda rsid_list=None, **_: (
+        [s for s in _MULTI_SUITES if s["rsid"] == rsid_list] if rsid_list else list(_MULTI_SUITES)
+    )
+
+    def rows(*_a, rsids_list=None, rsid=None, **_k):
+        queried = rsids_list[0] if rsids_list else rsid
+        row = {"id": f"c-{queried}", "name": f"N {queried}", "description": "d"}
+        if own_rsid is not None:
+            row["rsid"] = own_rsid
+        return [row]
+
+    getattr(handle, sdk_method).side_effect = rows
+    client = AaClient(handle=handle, company_id="co", retry_policy=RetryPolicy(max_retries=0))
+    monkeypatch.setattr(cmd.credentials, "resolve", lambda **_: object())
+    monkeypatch.setattr(cmd.AaClient, "from_credentials", lambda *_a, **_k: client)
+    return cmd
+
+
+_MULTI_KW = {"profile": None, "name_filter": None, "name_exclude": None, "sort_field": None, "limit": None}
+
+
+@pytest.mark.parametrize(("handler", "sdk_method", "own_cols"), _OWN_RSID_COMMANDS)
+def test_multimatch_csv_has_one_rsid_column(handler, sdk_method, own_cols, monkeypatch, capsys) -> None:
+    import csv
+    import io
+
+    cmd = _multi_suite_client(monkeypatch, sdk_method, own_rsid=None)
+    rc = getattr(cmd, handler)(identifier="shop", format_name="csv", output="-", **_MULTI_KW)
+    assert rc == 0
+    rows = list(csv.reader(io.StringIO(capsys.readouterr().out)))
+    header, body = rows[0], rows[1:]
+    assert header.count("rsid") == 1
+    assert header == ["rsid", *[c for c in own_cols if c != "rsid"]]
+    # The component's rsid defaults to the suite it was fetched for.
+    by_id = {r[header.index("id")]: r[header.index("rsid")] for r in body}
+    assert by_id == {"c-rs-a": "rs-a", "c-rs-b": "rs-b"}
+
+
+@pytest.mark.parametrize(("handler", "sdk_method", "own_cols"), _OWN_RSID_COMMANDS)
+def test_multimatch_table_has_one_rsid_column(handler, sdk_method, own_cols, monkeypatch, capsys) -> None:
+    cmd = _multi_suite_client(monkeypatch, sdk_method, own_rsid=None)
+    rc = getattr(cmd, handler)(identifier="shop", format_name=None, output=None, **_MULTI_KW)
+    assert rc == 0
+    header = capsys.readouterr().out.splitlines()[0].split()
+    assert header.count("rsid") == 1
+
+
+@pytest.mark.parametrize(("handler", "sdk_method", "own_cols"), _OWN_RSID_COMMANDS)
+def test_multimatch_json_shape_is_unchanged(handler, sdk_method, own_cols, monkeypatch, capsys) -> None:
+    """JSON already had one `rsid` key, first, holding the component's own
+    value. Pin that exact shape: key order and the component's own rsid
+    (a segment can carry an rsid other than the suite it was listed for)."""
+    cmd = _multi_suite_client(monkeypatch, sdk_method, own_rsid="OWN")
+    rc = getattr(cmd, handler)(identifier="shop", format_name="json", output="-", **_MULTI_KW)
+    assert rc == 0
+    parsed = json.loads(capsys.readouterr().out, object_pairs_hook=list)
+    assert [k for k, _ in parsed[0]] == ["rsid", *[c for c in own_cols if c != "rsid"]]
+    assert [(dict(r)["id"], dict(r)["rsid"]) for r in parsed] == [("c-rs-a", "OWN"), ("c-rs-b", "OWN")]
