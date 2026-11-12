@@ -31,13 +31,74 @@ from aa_auto_sdr.api.resilience import (
     with_retries,
 )
 from aa_auto_sdr.core.credentials import Credentials
-from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError
+from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError, TransientApiError
 
 logger = logging.getLogger(__name__)
 
 # The SDK indexes a str when the sign-in endpoint answers without an
 # access grant, so this is the one TypeError shape that means it did.
 _STRING_INDEXING_MESSAGE = "string indices must be integers"
+
+# The two listings the SDK pages in threads (`getReportSuites`,
+# `getVirtualReportSuites`). Above one page of rows it fetches pages 1..n in a
+# thread pool, keeps only the bodies that carry `content`, prints "Retrieved
+# data are partial" to stdout, and returns what it got as if it were complete.
+_PAGED_LISTING_PATHS = ("/collections/suites", "/reportsuites/virtualreportsuites")
+
+
+def _page_number(params: Any) -> int:
+    try:
+        return int((params or {}).get("page", 0))
+    except (AttributeError, TypeError, ValueError):
+        return 0
+
+
+class _ListingPageGuard:
+    """Read-only wrapper around the SDK handle's connector.
+
+    Everything is delegated to the real connector. The one addition: a GET to
+    one of the two thread-paged listings, for page 1 or later, whose body is
+    not a page of rows (a dict with a list under `content`) raises
+    `TransientApiError`. The SDK's `executor.map` re-raises it in our call,
+    before the SDK drops the page or prints anything, so the fetchers' retry
+    layer retries the whole listing and, if the page keeps failing, the
+    listing fails rather than coming back short.
+
+    Page 0 is never checked: the SDK indexes its `content` itself, and the
+    fetchers already classify that failure (including the VRS fast-fail).
+    An empty later page (`content == []`) passes through, since Adobe may
+    legitimately return one; the SDK still prints its partial-data warning
+    for it, as before.
+    """
+
+    __slots__ = ("_inner",)
+
+    def __init__(self, inner: Any) -> None:
+        object.__setattr__(self, "_inner", inner)
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "_inner":  # unset slot (copy/pickle): fail plainly, not by recursion
+            raise AttributeError(name)
+        return getattr(self._inner, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._inner, name, value)
+
+    def getData(self, endpoint: Any, params: Any = None, *args: Any, **kwargs: Any) -> Any:
+        res = self._inner.getData(endpoint, params, *args, **kwargs)
+        if isinstance(endpoint, str) and endpoint.endswith(_PAGED_LISTING_PATHS):
+            page = _page_number(params)
+            if page >= 1 and not (isinstance(res, dict) and isinstance(res.get("content"), list)):
+                listing = endpoint.rsplit("/", 1)[-1]
+                raise TransientApiError(f"listing page {page} of {listing} returned an error body instead of rows")
+        return res
+
+
+def install_listing_page_guard(handle: Any) -> None:
+    """Wrap `handle.connector` in `_ListingPageGuard` once. Idempotent."""
+    conn = getattr(handle, "connector", None)
+    if conn is not None and not isinstance(conn, _ListingPageGuard):
+        handle.connector = _ListingPageGuard(conn)
 
 
 @contextmanager
@@ -194,6 +255,7 @@ class AaClient:
 
         with _normalized("Analytics", token_exchange=True):
             handle = aanalytics2.Analytics(chosen)
+        install_listing_page_guard(handle)
         logger.info(
             "auth bootstrap ok company_id=%s source=%s",
             chosen,

@@ -487,7 +487,7 @@ For per-RSID API stability under flaky orgs or noisy CI:
 | `--retry-base-delay SECS` | Initial exponential-backoff delay (default `0.5`). |
 | `--retry-max-delay SECS` | Cap between retries (default `10.0`, at most `86400`). |
 
-Retries fire only on transient failures; permanent errors (auth, validation, unknown RSID) surface immediately. See "Note on stall budget" in [`AGENTS.md`](../AGENTS.md) for the worst-case request-count math.
+Retries fire only on transient failures; permanent errors (auth, validation, unknown RSID) surface immediately. When the report suite list or the virtual report suite list spans more than one page of 1,000 rows and a later page comes back as an error, the whole listing is retried; see "VRS Fetch Degradation" in [`AGENTS.md`](../AGENTS.md) for what happens when it keeps failing. See "Note on stall budget" in [`AGENTS.md`](../AGENTS.md) for the worst-case request-count math.
 
 ## Profile and config
 
