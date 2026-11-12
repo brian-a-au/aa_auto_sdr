@@ -64,6 +64,21 @@ def test_output_explanation_names_notion_request_failure() -> None:
     assert "NOTION_PARENT_PAGE_ID" in text
 
 
+def test_snapshot_explanation_covers_git_commit_and_push_failures() -> None:
+    """--git-commit / --git-push failures exit 16, so the explanation names
+    them as a cause and says what to try. The envelope hint (the first
+    remediation line) stays the path check for the existing causes."""
+    from aa_auto_sdr.output.error_envelope import _hint_for
+
+    text = EXPLANATIONS[ExitCode.SNAPSHOT]
+    causes, _, remedies = text.partition("What to try:")
+    assert "`--git-commit`" in causes
+    assert "`--git-push`" in causes
+    assert "git status" in remedies
+    assert "user.email" in remedies
+    assert _hint_for(ExitCode.SNAPSHOT.value) == "Verify the path with `ls`."
+
+
 def test_explanations_have_what_to_try_section_for_failures() -> None:
     """Failure codes (>=1) should include a 'What to try:' remediation block."""
     for code in ExitCode:
