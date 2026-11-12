@@ -227,14 +227,16 @@ def test_excel_serialization_failure_preserves_existing_workbook(doc, tmp_path: 
     target = tmp_path / "sdr.xlsx"
     ExcelWriter().write(doc, target)
     original_bytes = target.read_bytes()
-    original_to_excel = pd.DataFrame.to_excel
+    from xlsxwriter.workbook import Workbook as XlsxWorkbook
 
-    def fail_later_sheet(frame, writer, *, sheet_name, **kwargs):
-        if sheet_name == "Segments":
+    original_add_worksheet = XlsxWorkbook.add_worksheet
+
+    def fail_later_sheet(book, name=None, *args, **kwargs):
+        if name == "Segments":
             raise OSError("sheet write failed")
-        return original_to_excel(frame, writer, sheet_name=sheet_name, **kwargs)
+        return original_add_worksheet(book, name, *args, **kwargs)
 
-    monkeypatch.setattr(pd.DataFrame, "to_excel", fail_later_sheet)
+    monkeypatch.setattr(XlsxWorkbook, "add_worksheet", fail_later_sheet)
     with pytest.raises(OSError, match="sheet write failed"):
         ExcelWriter().write(doc, target)
     assert target.read_bytes() == original_bytes

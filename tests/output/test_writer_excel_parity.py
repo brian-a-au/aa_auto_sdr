@@ -10,9 +10,8 @@ timestamps, which xlsxwriter sets to the time of the write. No other member
 carries a time, a path, or a random value.
 
 The hashes are the same on every supported Python version and xlsxwriter
-version (checked on Python 3.11 to 3.15, xlsxwriter 3.2.9 and 3.3.1). The writer
-goes through pandas, and pandas 2.x gives header cells a bold, bordered style
-that pandas 3.x does not, so the comparison runs only with pandas 3.
+version (checked on Python 3.11 to 3.15, xlsxwriter 3.2.9 and 3.3.1). The
+reference was recorded from the earlier pandas-based writer under pandas 3.
 
 To record the reference again after an intended output change, run this test
 with `AA_RECORD_EXCEL_PARITY=1` and review the fixture diff."""
@@ -20,9 +19,10 @@ with `AA_RECORD_EXCEL_PARITY=1` and review the fixture diff."""
 from __future__ import annotations
 
 import hashlib
-import importlib.metadata
 import json
 import os
+import subprocess
+import sys
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -451,14 +451,6 @@ def _actual(tmp_path: Path) -> dict[str, dict[str, str]]:
     return out
 
 
-_PANDAS_MAJOR = int(importlib.metadata.version("pandas").split(".")[0])
-requires_pandas_3 = pytest.mark.skipif(
-    _PANDAS_MAJOR < 3,
-    reason="reference recorded with pandas 3; pandas 2.x styles the header row (bold, borders), so the hashes differ",
-)
-
-
-@requires_pandas_3
 @pytest.mark.filterwarnings("ignore:Cell contents too long:UserWarning")
 def test_workbook_parts_match_reference(tmp_path: Path) -> None:
     actual = _actual(tmp_path)
@@ -503,3 +495,66 @@ def test_only_core_xml_varies_between_writes(tmp_path: Path, monkeypatch: pytest
         assert sorted(a.namelist()) == sorted(b.namelist())
         differing = [name for name in a.namelist() if a.read(name) != b.read(name)]
     assert differing == ["docProps/core.xml"]
+
+
+def test_long_cell_warns_like_before(tmp_path: Path) -> None:
+    """A cell past 32,767 characters still raises the UserWarning pandas 3 raised."""
+    doc = _documents()["unaudited"]
+    with pytest.warns(UserWarning, match="Cell contents too long, truncated to 32767 characters"):
+        ExcelWriter().write(doc, tmp_path / "long.xlsx")
+
+
+def test_excel_module_and_write_do_not_import_pandas(tmp_path: Path) -> None:
+    """Importing the writer and writing a workbook leave pandas unloaded."""
+    script = f"""
+import sys, warnings
+warnings.simplefilter("ignore")
+sys.path.insert(0, {str(Path(__file__).parent)!r})
+import aa_auto_sdr.output.writers.excel as excel
+assert "pandas" not in sys.modules, "import loaded pandas"
+from test_writer_excel_parity import _documents
+for name, doc in _documents().items():
+    excel.ExcelWriter().write(doc, __import__("pathlib").Path({str(tmp_path)!r}) / (name + ".xlsx"))
+assert "xlsxwriter" in sys.modules
+assert "pandas" not in sys.modules, "write loaded pandas"
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    assert len(list(tmp_path.glob("*.xlsx"))) == 4
+
+
+class _RecordingSheet:
+    def __init__(self) -> None:
+        self.cells: dict[tuple[int, int], object] = {}
+
+    def write(self, row: int, col: int, value: object) -> None:
+        self.cells[(row, col)] = value
+
+
+def test_table_cells_follow_the_pandas_writer_rules() -> None:
+    """None and "" leave a cell empty, other values are written, and widths use str()."""
+    from aa_auto_sdr.output.writers import excel
+
+    ws = _RecordingSheet()
+    with pytest.warns(UserWarning, match="Cell contents too long"):
+        excel._write_cell(ws.write, 0, 0, "x" * 32_768)
+    excel._write_cell(ws.write, 0, 1, None)
+    excel._write_cell(ws.write, 0, 2, 7)
+    excel._write_cell(ws.write, 0, 3, "")
+    assert sorted(ws.cells) == [(0, 0), (0, 2)]
+
+    ws = _RecordingSheet()
+    longest = excel._write_table(ws, 2, ["a", "b"], [[None, 12345], ["", "xy"]])
+    assert ws.cells == {(2, 0): "a", (2, 1): "b", (3, 1): 12345, (4, 1): "xy"}
+    # None counts as "None" (4), as pandas' str() of an object cell did.
+    assert longest == [4, 5]
+
+
+def test_oversized_table_raises_like_pandas() -> None:
+    from aa_auto_sdr.output.writers import excel
+
+    excel._check_size(2**20, 2**14)
+    with pytest.raises(ValueError, match=r"This sheet is too large! Your sheet size is: 1048577, 1 "):
+        excel._check_size(2**20 + 1, 1)
+    with pytest.raises(ValueError, match="Max sheet size is: 1048576, 16384"):
+        excel._check_size(1, 2**14 + 1)
