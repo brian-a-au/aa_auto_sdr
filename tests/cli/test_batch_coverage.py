@@ -88,7 +88,10 @@ def test_batch_run_summary_json_to_stdout(
 
 # The batch summary file before batch shared generate's writer: a frozen copy
 # of the old payload, so the shared writer must reproduce it byte for byte.
-def _legacy_batch_summary_bytes(*, started_at, finished_at, profile, per_rsid, source) -> bytes:
+# The old writer wrote the text with atomic_write_text (platform newlines), so
+# the frozen copy goes through the same call: on Windows both files end lines
+# with CRLF.
+def _legacy_batch_summary_bytes(*, started_at, finished_at, profile, per_rsid, source, path: Path) -> bytes:
     from aa_auto_sdr.core.run_summary import RunSummary
     from aa_auto_sdr.core.version import __version__
 
@@ -106,7 +109,10 @@ def _legacy_batch_summary_bytes(*, started_at, finished_at, profile, per_rsid, s
         sample_strategy=source.sample_strategy if source is not None else None,
         total_available=source.total_available if source is not None else 0,
     )
-    return (json.dumps(summary.to_dict(), sort_keys=True, indent=2) + "\n").encode("utf-8")
+    from aa_auto_sdr.core.atomic_io import atomic_write_text
+
+    atomic_write_text(path, json.dumps(summary.to_dict(), sort_keys=True, indent=2) + "\n")
+    return path.read_bytes()
 
 
 def _summary_sources():
@@ -172,6 +178,7 @@ def test_batch_run_summary_file_bytes_unchanged(case, tmp_path: Path, capsys) ->
         profile="prod",
         per_rsid=per_rsid,
         source=kwargs[source_key] if source_key else None,
+        path=tmp_path / "legacy.json",
     )
     assert target.read_bytes() == expected
     captured = capsys.readouterr()
