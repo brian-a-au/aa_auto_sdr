@@ -140,7 +140,7 @@ def _added_block(report: DiffReport) -> str:
         return ""
     lines = ["<details>", "<summary>➕ Added components</summary>", ""]  # noqa: RUF001
     for ctype, item in items:
-        lines.append(f"- `{item.id}` — {item.name} _({ctype})_")
+        lines.append(f"- `{item.id}` — {_one_line(item.name)} _({ctype})_")
     lines.append("</details>")
     return "\n".join(lines) + "\n"
 
@@ -151,7 +151,7 @@ def _removed_block(report: DiffReport) -> str:
         return ""
     lines = ["<details>", "<summary>➖ Removed components</summary>", ""]  # noqa: RUF001
     for ctype, item in items:
-        lines.append(f"- `{item.id}` — {item.name} _({ctype})_")
+        lines.append(f"- `{item.id}` — {_one_line(item.name)} _({ctype})_")
     lines.append("</details>")
     return "\n".join(lines) + "\n"
 
@@ -164,10 +164,17 @@ def _modified_block(report: DiffReport) -> str:
         return ""
     lines = ["<details>", "<summary>✏️ Modified components</summary>", ""]
     for ctype, item in rows:
-        lines.append(f"- `{item.id}` — {item.name} _({ctype})_")
+        lines.append(f"- `{item.id}` — {_one_line(item.name)} _({ctype})_")
         lines.extend(f"  - `{delta.field}`: {_short(delta.before)} → {_short(delta.after)}" for delta in item.deltas)
     lines.append("</details>")
     return "\n".join(lines) + "\n"
+
+
+def _one_line(value: object) -> str:
+    """`value` as text with each line break replaced by a space, so a component
+    name stays on its item line and cannot start a new Markdown or HTML block.
+    A non-string renders as the f-string did before (``None`` -> ``"None"``)."""
+    return str(value).replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
 
 
 def _short(value: object) -> str:

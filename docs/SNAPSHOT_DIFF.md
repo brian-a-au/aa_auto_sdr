@@ -446,7 +446,7 @@ aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --summary
 aa_auto_sdr --diff a.json b.json --ignore-fields description,tags
 ```
 
-The `--format pr-comment` renderer produces compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub's comment limit is 65,536); when exceeded, truncates at the last `</details>` boundary with a banner line.
+The `--format pr-comment` renderer produces compact GFM with collapsible `<details>` blocks, optimized for pasting into a GitHub PR comment. Length-capped at 60K chars (GitHub's comment limit is 65,536); when exceeded, truncates at the last `</details>` boundary with a banner line. A line break in a component name is shown as a space, so each name stays on its own item line.
 
 ```bash
 aa_auto_sdr --diff RS1@previous RS1@latest --profile prod --format pr-comment | pbcopy
