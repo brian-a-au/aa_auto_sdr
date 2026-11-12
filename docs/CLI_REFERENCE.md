@@ -204,7 +204,7 @@ Quick component counts per RSID — no full SDR build, no metadata. Lighter than
 
 ### `aa_auto_sdr --interactive`
 
-Print a numbered menu of visible report suites to stderr, prompt for selection by index or `all` on stdin, emit the chosen RSID(s) to stdout. Designed for shell composition:
+Print a numbered menu of visible report suites and the selection prompt to stderr, read the selection (an index or `all`) from stdin, and print only the chosen RSID(s) to stdout. Designed for shell composition:
 
 ```bash
 RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot

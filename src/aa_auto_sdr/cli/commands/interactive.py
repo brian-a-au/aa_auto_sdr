@@ -1,8 +1,8 @@
 """--interactive handler: list visible report suites, prompt for selection,
 emit chosen RSID(s) to stdout space-separated for shell composition.
 
-The numbered list is printed to stderr so stdout is reserved for the chosen
-RSID(s) — that lets users pipe / capture cleanly:
+The numbered list and the prompt are printed to stderr so stdout is reserved
+for the chosen RSID(s) — that lets users pipe / capture cleanly:
 
     RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS
 """
@@ -57,7 +57,7 @@ def run(*, profile: str | None, retry_policy: RetryPolicy | None = None) -> int:
             return exit_code
 
         if not summaries:
-            print("(no report suites visible)", flush=True)
+            print("(no report suites visible)", flush=True, file=sys.stderr)
             exit_code = ExitCode.NOT_FOUND.value
             return exit_code
 
@@ -66,8 +66,10 @@ def run(*, profile: str | None, retry_policy: RetryPolicy | None = None) -> int:
         for i, s in enumerate(summaries, start=1):
             print(f"  [{i}] {s.rsid}  —  {s.name or ''}", file=sys.stderr)
 
+        # The prompt goes to stderr too; input("...") would write it to stdout.
+        print("Select index (1-N) or 'all': ", end="", file=sys.stderr, flush=True)
         try:
-            choice = input("Select index (1-N) or 'all': ").strip().lower()
+            choice = input().strip().lower()
         except KeyboardInterrupt:
             exit_code = 130
             return exit_code
