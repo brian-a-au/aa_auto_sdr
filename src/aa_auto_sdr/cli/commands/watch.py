@@ -286,6 +286,22 @@ def run(ns: argparse.Namespace, *, _injected: Any = None) -> int:
                 file=sys.stderr,
             )
             return int(ExitCode.USAGE)
+    # Generation flags the watch loop never applies: it always signs in and
+    # saves, never prunes, and writes no run summary. Reject rather than
+    # accept and then ignore them.
+    for attr, flag in (
+        ("dry_run", "--dry-run"),
+        ("auto_prune", "--auto-prune"),
+        ("keep_last", "--keep-last"),
+        ("keep_since", "--keep-since"),
+        ("run_summary_json", "--run-summary-json"),
+    ):
+        if getattr(ns, attr, None) not in (None, False):
+            print(
+                f"error: {flag} is not compatible with --watch (watch does not apply it)",
+                file=sys.stderr,
+            )
+            return int(ExitCode.USAGE)
 
     # --- 2. Parse --interval ----------------------------------------------
     try:

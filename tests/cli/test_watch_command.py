@@ -324,3 +324,65 @@ def test_watch_settings_only_change_emits_and_logs_settings(caplog) -> None:
     assert records[0].change_count == 0
     assert records[0].settings_changes == 1
     assert "settings_changes=1" in records[0].getMessage()
+
+
+class TestIgnoredGenerationFlags:
+    """Flags that watch never applies are rejected with USAGE before sign-in.
+    Flags watch does apply still reach the fetcher bootstrap."""
+
+    @staticmethod
+    def _run_cli(extra: list[str], tmp_path: Path, monkeypatch) -> tuple[int, list[str]]:
+        from aa_auto_sdr.cli import main as cli_main
+        from aa_auto_sdr.cli.commands import watch as watch_cmd
+        from aa_auto_sdr.core.exceptions import ConfigError
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("HOME", str(tmp_path / "home"))
+        for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
+            monkeypatch.delenv(var, raising=False)
+        called: list[str] = []
+
+        def fake_fetcher(ns):
+            called.append("bootstrap")
+            raise ConfigError("stub: stop before sign-in")
+
+        monkeypatch.setattr(watch_cmd, "_build_real_fetcher", fake_fetcher)
+        rc = cli_main.run(["rs1", "--watch", "--interval", "1h", "--snapshot-dir", str(tmp_path / "s"), *extra])
+        return rc, called
+
+    @pytest.mark.parametrize(
+        ("extra", "flag"),
+        [
+            (["--dry-run"], "--dry-run"),
+            (["--auto-prune", "--keep-last", "5"], "--auto-prune"),
+            (["--auto-prune", "--keep-since", "7d"], "--auto-prune"),
+            (["--keep-last", "5"], "--keep-last"),
+            (["--keep-since", "7d"], "--keep-since"),
+            (["--run-summary-json", "x.json"], "--run-summary-json"),
+        ],
+    )
+    def test_watch_rejects_flag_it_does_not_apply(self, extra, flag, tmp_path, monkeypatch, capsys) -> None:
+        rc, called = self._run_cli(extra, tmp_path, monkeypatch)
+        err_lines = capsys.readouterr().err.splitlines()
+        assert rc == ExitCode.USAGE
+        assert any(line.startswith(f"error: {flag} is not compatible with --watch") for line in err_lines)
+        assert called == []
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            ["--git-commit"],
+            ["--git-commit", "--git-push", "--git-message", "watch"],
+            ["--format", "notion"],
+            ["--profile", "prod"],
+            ["--max-retries", "2", "--retry-base-delay", "0.5", "--retry-max-delay", "5"],
+            ["--log-level", "DEBUG"],
+            ["--watch-threshold", "3"],
+        ],
+    )
+    def test_watch_still_accepts_flags_it_applies(self, extra, tmp_path, monkeypatch, capsys) -> None:
+        rc, called = self._run_cli(extra, tmp_path, monkeypatch)
+        capsys.readouterr()
+        # The stub bootstrap stops the run with CONFIG once it is reached.
+        assert rc == ExitCode.CONFIG
+        assert called == ["bootstrap"]

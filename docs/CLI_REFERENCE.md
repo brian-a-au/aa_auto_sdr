@@ -361,7 +361,7 @@ aa_auto_sdr <RSID> --watch --interval 1h --profile prod
 | `--interval Nh\|Nd\|Nw` | Required with `--watch`. |
 | `--watch-threshold N` | Minimum total component change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). A report-suite setting change always emits a `change` event, whatever the threshold. |
 
-Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit, so there is nothing to report), and `--metrics-only` / `--dimensions-only` (watch captures every component family) (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
+Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit, so there is nothing to report), `--metrics-only` / `--dimensions-only` (watch captures every component family), and `--dry-run`, `--auto-prune`, `--keep-last`, `--keep-since`, `--run-summary-json` (watch does not apply them) (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
 
 ## Quality severity engine
 
