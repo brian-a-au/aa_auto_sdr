@@ -310,6 +310,18 @@ def test_non_object_definition_is_an_api_error(fetcher, component_type, field, v
 
 
 @pytest.mark.parametrize("fetcher", _ROW_FETCHERS)
+def test_non_object_definition_is_permanent_not_retried(fetcher) -> None:
+    """A malformed row will be malformed on the next call too. It must be a
+    plain ApiError after one SDK call, not a transient error that spends the
+    retry budget."""
+    client = _FakeClient([{"id": "one", "definition": "not an object"}], max_retries=2)
+    with pytest.raises(ApiError) as excinfo:
+        fetcher(client, "rs")
+    assert type(excinfo.value) is ApiError
+    assert client.handle.calls == 1
+
+
+@pytest.mark.parametrize("fetcher", _ROW_FETCHERS)
 @pytest.mark.parametrize("value", [None, {}, ""], ids=["null", "empty_object", "empty_string"])
 def test_absent_or_empty_definition_still_reads_as_empty(fetcher, value) -> None:
     client = _FakeClient([{"id": "one", "definition": value}])
