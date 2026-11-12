@@ -600,7 +600,7 @@ uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-last 20 --dry-run
 uv run aa_auto_sdr --profile <name> --prune-snapshots --keep-since 30d --yes
 ```
 
-Standalone snapshot lifecycle commands (`--list-snapshots`, `--prune-snapshots`) require `--profile` or `--snapshot-dir` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. (Capture via `--snapshot` / `--auto-snapshot` differs: it falls back to the `default` store when neither is given.) Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise.
+Standalone snapshot lifecycle commands (`--list-snapshots`, `--prune-snapshots`) require `--profile` or `--snapshot-dir` — snapshots are stored under `~/.aa/orgs/<profile>/snapshots/`. (Capture via `--snapshot` / `--auto-snapshot` differs: it falls back to the `default` store when neither is given.) Per-RSID retention semantics. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. The refusal message goes to stderr, so stdout stays empty.
 
 ### Diagnostics
 
