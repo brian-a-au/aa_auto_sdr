@@ -86,6 +86,17 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `rule_id` | str | Quality rule ID (for example `dq.stale_keyword.v1`) on `quality_exception_unmatched`. |
 | `component_id` | str \| None | Component ID named by a policy exception; None when the exception targets a component type. |
 | `likely_cause` | str | VRS exhaust hint pointing at empty-tenant / permanent-endpoint shape error. Emitted on `vrs_unavailable` WARNING records only. |
+| `path` | str | A file or directory path: the repository on `git_init_repo`, the template on `template_load`, and the run summary file on `run_summary_write_failed`. |
+| `initial_commit` | str | `git_init_repo` — the SHA of the first commit in a new snapshot repository. |
+| `commit_sha` | str | `git_commit_complete` — the SHA of the snapshot commit. |
+| `pushed` | bool | `git_commit_complete` — whether the commit was pushed. |
+| `op` | str — `init`/`commit`/`push` | `git_op_failed` — the git operation that failed. |
+| `sheets` | int | `template_load` — the number of sheets in the template workbook. |
+| `rows_matched` | int | `template_sheet_filled` — rows whose ID matched an existing template row. |
+| `rows_appended` | int | `template_sheet_filled` — rows appended below the existing template rows. |
+| `rows_dropped` | int | `template_sheet_clipped` — rows kept out of the template sheet by the soft cap and sent to the Overflow sheet. |
+| `soft_cap` | int | `template_sheet_clipped` — the last row the writer may fill on the sheet (`max_row + 50`). |
+| `overflow_rows` | int | `template_overflow` — rows appended past the template's last existing row. |
 
 For the version each field was introduced, see [Appendix A — Event and field introductions](#appendix-a--event-and-field-introductions).
 
@@ -120,15 +131,16 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `output_write` — single output file written
 - `snapshot_save` — snapshot persisted to disk
 
-### Failure (3)
+### Failure (4)
 
 - `auth_failure` — credentials bootstrap failed
+- `creds_not_found` — ERROR. `core/credentials.py::resolve`. No credential source matched (profile, environment, `.env`, or `config.json`). Carries `error_class=ConfigError`.
 - `rsid_failure` — per-RSID processing failed (batch with `continue_on_error=True`)
 - `run_failure` — top-level exception bubbled past command dispatch
 
 ### Resilience (4)
 
-- `retry_attempt` — DEBUG. Emitted by `_log_retry_attempt` in `api/fetch.py` on every retry of a wrapped SDK call. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
+- `retry_attempt` — DEBUG. Emitted by `log_retry_attempt` in `api/resilience.py` on every retry of a wrapped SDK call, including the auth bootstrap retry in `api/client.py`. Carries `retry_attempt` (1-indexed retry count) and `error_class`, plus `rsid` and `component_type` when the wrapping call site supplies them. `max_attempts` and `delay_s` ride along the message string for human readability without being formally indexed.
 - `vrs_parent_filter` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the client-side `parentRsid == parent_rsid` filter drops at least one row from the SDK response. Carries `rsid`, `pulled`, `filtered`, `dropped_no_parent`, `dropped_other_parent`.
 - `vrs_rows_skipped` — DEBUG. `api/fetch.py::fetch_virtual_report_suites`. Fires only when the VRS listing holds rows that are not mappings or carry no id that can name a component, so they cannot be normalized. Dropped as the listing is read, before the parent filter and before any count, so `vrs_parent_filter` below describes the same row set whether or not a shared VrsSource is in play. Carries `rsid`, `component_type=virtual_report_suite`, and `count` (the number of rows skipped).
 - `vrs_unavailable` — WARNING. `api/fetch.py::fetch_virtual_report_suites`. Fires **additively** alongside the fetch-failed WARNING when the VRS fetch fails with a `VrsEndpointShapeError` (permanent shape error — typically an empty-tenant or endpoint envelope change). Carries `rsid`, `component_type=virtual_report_suite`, `likely_cause=empty_tenant_or_permanent_endpoint_shape_error`. Operators see two records: `expansion_level=exhausted error_class=VrsEndpointShapeError` (for log-aggregation queries) + this human-readable `vrs_unavailable`; on the count-only path the companion record carries `expansion_level=count_only`.
@@ -137,6 +149,12 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 
 - `duplicate_component_ids` — WARNING. `sdr/builder.py::_sorted_unique`. Fires once per family whose rows carry a repeated `id`, which no family is expected to do once the fetchers have normalized a response. The builder keeps the first row per id. Carries `rsid`, `component_type` (the family's singular name, as everywhere else), and `count` (the number of rows dropped).
 - `classification_pairs_collapsed` — DEBUG. `api/fetch.py::fetch_classification_datasets`. Fires when the classifications listing names one dataset more than once, which is its normal shape: the endpoint is `compatibilityMetrics`, one row per dataset-and-metric pair. The fetcher reports one row per dataset, keeping the passthrough keys every pair agrees on. DEBUG rather than WARNING because repeated pairs are expected. Carries `rsid`, `component_type=classification`, and `count` (the number of extra pair rows).
+
+### Batch run (3)
+
+- `parallel_batch_start` — INFO. `pipeline/workers.py::run_parallel`. Fires once when a parallel batch (`--workers 2` or more) starts. Carries `batch_id`, `count` (RSIDs in the batch), and `workers`.
+- `parallel_worker_cancelled` — DEBUG. `pipeline/workers.py::run_parallel`. Fires once per RSID whose queued work was cancelled before it ran. The RSID is recorded as a failure. Carries `rsid` and `batch_id`.
+- `batch_summary` — INFO. `pipeline/batch.py::_run_sequential` and `pipeline/workers.py::run_parallel`. Fires once when a batch finishes. Carries `batch_id`, `count` (RSIDs that succeeded), `count_failed`, and `duration_ms`.
 
 ### Batch sampling (1)
 
@@ -148,7 +166,7 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `quality_gate_evaluated` — INFO. `sdr/quality.py::run_audits`. Fires only when `--fail-on-quality` was passed. Carries `rsid`, `threshold` (the configured severity name) and `verdict` (`pass`, `fail`, or `n/a`).
 - `quality_auto_enabled` — INFO. `cli/main.py::_dispatch`. Fires when the tool turns an audit on for the user. Carries `audit_naming` (bool), `flag_stale` (bool), and `reason`: `quality_flags` when `--quality-report` or `--fail-on-quality` was passed without `--audit-naming` / `--flag-stale` (both audits are enabled), or `policy_naming` when the `--quality-policy` file has `naming` rules and `--audit-naming` was off (only the naming audit is enabled).
 - `quality_exception_unmatched` — WARNING. `sdr/quality.py::run_audits`. Fires once per policy exception that covered no finding of its rule in this report suite, which usually means a typo in `component_id` or `rule_id`. Silent when the exception's audit did not run. Not repeated on a validation-cache hit. Carries `rsid`, `rule_id`, `component_id`, and `component_type` (one of the last two is None).
-- `quality_policy_loaded` — INFO. `sdr/quality_policy.py`. Carries `policy_path`.
+- `quality_policy_loaded` — INFO. `cli/main.py::_dispatch`. Fires once when a `--quality-policy` file loads. Carries `policy_path`, `fail_on_quality`, and `quality_report`.
 
 ### Drift / trending windows (2)
 
@@ -167,6 +185,10 @@ Records intended for assertion tests use a stable verb-noun message prefix so `c
 - `watch_loop_start` — INFO. `cli/commands/watch.py::run`. Fires once at watch dispatch entry. Carries `rsids` (count), `interval` (str), `watch_threshold`.
 - `watch_cycle_complete` — INFO. `cli/commands/watch.py::_LoggingEmitter.emit`. Fires once per emitted `change` event on stdout (baseline / error events are observable via their stdout NDJSON and do not double-log). Carries `cycle`, `rsid`, `change_count`, `settings_changes`, `emitted`. A cycle with `change_count=0` and `settings_changes>0` fired on a report-suite setting change.
 - `watch_loop_stop` — INFO. `cli/commands/watch.py::run`. Fires once at loop termination (SIGINT/SIGTERM, max_cycles, or fatal). Carries `reason` (sigint|max_cycles|fatal), `cycles_completed`.
+
+### Run summary (1)
+
+- `run_summary_write_failed` — WARNING. `cli/commands/generate.py::_write_run_summary`. Fires when the `--run-summary-json` file cannot be written under `--output -`. Without `--output -` the failure prints an `error:` line instead. Carries `path` and `error_class`.
 
 ### Git integration
 
@@ -210,7 +232,7 @@ Approximate INFO record counts per run mode at `--log-level INFO` (default). Aut
 | `--profile-list` | 9 |
 | Fast-path (`--version`, `--help`, etc.) | 0 (skips `setup_logging`) |
 
-Each mode's total is the sum of the 5-record startup banner plus the lifecycle records (`run_start`, `command_start`, optional `creds_resolved`, `command_complete`, `run_complete`, plus optional `auth_bootstrap_ok`) plus per-component / per-write / per-command records that fire on that path. The batch budget grows linearly: per-RSID block × N RSIDs = `rsid_start` + 6 `component_fetch` + 1 `output_write` + `rsid_complete` = 9 each.
+Each mode's total is the sum of the 5-record startup banner plus the lifecycle records (`run_start`, `command_start`, optional `creds_resolved`, `command_complete`, `run_complete`, plus the optional auth bootstrap record, whose message starts `auth bootstrap ok`) plus per-component / per-write / per-command records that fire on that path. The batch budget grows linearly: per-RSID block × N RSIDs = `rsid_start` + 6 `component_fetch` + 1 `output_write` + `rsid_complete` = 9 each.
 
 For N=10 RSIDs: **102 records.** For N=50: **462 records** — within `RotatingFileHandler` 10 MB rotation comfort zone (each NDJSON record averaging 300–600 bytes).
 
@@ -249,7 +271,7 @@ Six per-component fetchers in `api/fetch.py` each emit one `component_fetch` INF
 
 Required extras on every `component_fetch` INFO record: `rsid`, `component_type`, `count`, `duration_ms`.
 
-Every SDK call in `api/fetch.py` is wrapped in either `_retry_and_normalize` (bubbling fetchers — dimensions, metrics, segments, calculated metrics, report-suite, report-suite-summaries, `resolve_rsid`) or `with_retries(_classify_transient_sdk_call(...))` inside the try/except envelope (graceful-degrade fetchers — VRS ladder, classifications, VRS-summary discovery). Each retry emits a `retry_attempt` DEBUG record.
+Every SDK call in `api/fetch.py` is wrapped in either `_retry_and_normalize` (bubbling fetchers — dimensions, metrics, segments, calculated metrics, report-suite, report-suite-summaries, `resolve_rsid`) or `with_retries(classify_transient_sdk_call(...))` inside the try/except envelope (graceful-degrade fetchers — VRS ladder, classifications, VRS-summary discovery). Each retry emits a `retry_attempt` DEBUG record.
 
 ## Output file write records
 
@@ -259,6 +281,12 @@ Each writer in `output/writers/*` emits one `output_write` INFO record on a succ
 
 Required extras on every `output_write` INFO record: `format`, `output_path`, `count`, `duration_ms`, `rsid`. For writers whose `write()` returns a list of N paths, `output_path` is `str(paths[0])` — abstracted so a future internal change to a writer's file shape doesn't break the contract.
 
+### Notion push event
+
+`--push-to-notion` publishes a saved SDR JSON file or snapshot envelope to Notion without running a writer, so it emits its own record instead of `output_write`. `--watch --format notion` uses the same path.
+
+- `push_to_notion` (INFO) — `cli/commands/push_to_notion.py::publish_payload_to_notion`. The detail page was written. Extras: `format=notion`, `notion_page_id`, `duration_ms`, `rsid`.
+
 ### Notion registry database events
 
 When the SDR Registry database is configured (`NOTION_REGISTRY_DATABASE_ID`), the Notion writer and the `--push-to-notion` path emit additional records after the page write. They are additive — the `output_write format=notion` record is unchanged.
@@ -267,17 +295,17 @@ When the SDR Registry database is configured (`NOTION_REGISTRY_DATABASE_ID`), th
 - `notion_registry_unavailable` (WARN) — the database upsert failed (auth, missing required property, 5xx). The detail page still wrote and the run continues.
 - `notion_registry_duplicate_rows` (WARN) — more than one row matched the `RSID` filter; the first is updated.
 - `notion_registry_multi_source` (WARNING) — the registry database has more than one data source; the tool uses the first and logs the database id and count. Emitted from `output/notion_database.py::_resolve_data_source`.
-- `notion_registry_property_missing` (DEBUG) — an optional registry property (e.g. `Company`) is absent from the live database schema; the field is silently skipped for this upsert. Emitted from `output/notion_database.py`. Extra: property name in the message string.
-- `notion_registry_skipped` (DEBUG) — no database id resolved for this run (`NOTION_REGISTRY_DATABASE_ID` unset and `--notion-registry-database` not passed); the registry upsert step is skipped. Emitted from `output/writers/notion.py`. Extra: `rsid`, `reason=no_database_id`.
+- `notion_registry_property_missing` (DEBUG) — an optional registry property (e.g. `Company`) is absent from the live database schema; the field is silently skipped for this upsert. Emitted from `output/notion_database.py`. No extras; the property name is in the message (`name=`).
+- `notion_registry_skipped` (DEBUG) — no database id resolved for this run (`NOTION_REGISTRY_DATABASE_ID` unset and `--notion-registry-database` not passed); the registry upsert step is skipped. Emitted from `output/writers/notion.py`. No extras; the message carries `rsid` and `reason=no_database_id`.
 
 ### Notion prune events
 
-Emitted by `--notion-prune-orphans` via `output/notion_prune.py`.
+Emitted by `--notion-prune-orphans`.
 
-- `notion_prune_planned` (INFO) — dry-run preview; reports how many orphaned pages were found. Extra: `count`.
-- `notion_page_archived` (INFO) — one page was successfully archived (or was already gone). Extras: `rsid`, page id in the message.
-- `notion_page_archive_failed` (WARNING) — the archive call raised an exception; the tombstone is kept for retry. Extras: `rsid`, page id and exception class name in the message.
-- `notion_prune_complete` (INFO) — prune run finished; reports archived and failed counts in the message.
+- `notion_prune_planned` (INFO) — dry-run preview from `cli/commands/notion_prune.py`; reports how many orphaned pages were found. Extra: `count`.
+- `notion_page_archived` (INFO) — `output/notion_prune.py`. One page was successfully archived (or was already gone). No extras; the message carries `rsid` and the page id.
+- `notion_page_archive_failed` (WARNING) — `output/notion_prune.py`. The archive call raised an exception; the tombstone is kept for retry. No extras; the message carries `rsid`, the page id, and the exception class name (`reason=`).
+- `notion_prune_complete` (INFO) — `output/notion_prune.py`. Prune run finished; reports archived and failed counts in the message.
 
 ### Notion repair events
 
@@ -309,7 +337,7 @@ Emitted by `--notion-create-database` via `cli/commands/notion_create.py`.
 
 ## Appendix A — Event and field introductions
 
-Most maintainers will not need this table. It records when each event and field was introduced into the logging surface. Note the scope of enforcement: the vocabulary meta-test only checks the modules in `INSTRUMENTED_MODULES` (`tests/core/test_logging_vocabulary.py`), which does **not** include the Notion writer or the `notion_*` commands. The Notion rows below (v1.20.0+) are therefore documented for history but are not enforced by the meta-test. For everyday use, the canonical-events and vocabulary sections above describe the *current* contract — every event listed there is active, regardless of when it landed.
+Most maintainers will not need this table. It records when each event and field was introduced into the logging surface. Note the scope of enforcement: the vocabulary meta-test only checks the modules in `INSTRUMENTED_MODULES` (`tests/core/test_logging_vocabulary.py`). Modules that log but are not checked are named in `EXEMPT_MODULES` in the same file. The Notion writer and every `notion_*` command except `notion_prune` are exempt. The Notion rows below (v1.20.0+) are therefore documented for history but are not enforced by the meta-test. For everyday use, the canonical-events and vocabulary sections above describe the *current* contract — every event listed there is active, regardless of when it landed.
 
 | Event / field | Introduced |
 |---|---|

@@ -194,8 +194,9 @@ def validate_envelope(env: dict[str, Any]) -> None:
         )
 
     # Validate all consumed containers before applying compatibility defaults.
-    # Missing optional sections remain supported; row identity is checked only
-    # at the watch comparison boundary, not by this shared reader.
+    # Missing optional sections remain supported. Each component row must carry
+    # a non-empty string `id`, but duplicate ids are not rejected here (see
+    # `_require_component_rows`).
     _require_container(env["components"], dict, "components")
     components = env["components"]
     if "report_suite" in components:

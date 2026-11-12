@@ -258,6 +258,21 @@ class TestRunCsv:
         assert parsed[1][:3] == ["rs1", "'=cmd", "3"]
         assert parsed[2][:3] == ["TOTAL", "", "3"]
 
+    def test_emit_csv_has_single_cr_on_windows_text_stream(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """csv.writer ends rows with CRLF; a Windows text stdout must not add another CR."""
+        import io
+
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="utf-8", newline="\r\n")
+        monkeypatch.setattr("sys.stdout", stream)
+        rows = [_row("rs1", dimensions=3), _row("rs2", dimensions=4)]
+        inv_command._emit_csv(rows, _aggregate(rows))
+        stream.flush()
+        data = raw.getvalue()
+        assert b"\r\r\n" not in data
+        assert data.count(b"\r\n") == 4  # header + 2 rows + TOTAL
+        assert data.startswith(b"rsid,name,dimensions,")
+
 
 class TestRunFormatRejection:
     @pytest.mark.parametrize("bad_format", ["excel", "html", "markdown", "all"])

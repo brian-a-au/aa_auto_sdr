@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 API = Path(__file__).parent.parent.parent / "src" / "aa_auto_sdr" / "api"
 
 # Known 1.4 endpoint substrings. Add to this list if more surface during review.
@@ -15,14 +17,36 @@ _LEGACY_PATTERNS = (
     "/admin/1.4/",
     "Report.Queue",
     "OmnitureReporting",
+    # The SDK's own 1.4 entry points and the 1.4 API host.
+    "LegacyAnalytics",
+    "aanalytics14",
+    "ReportBuilder14",
+    "api.omniture.com",
 )
+
+
+def _legacy_hits(text: str) -> list[str]:
+    return [pattern for pattern in _LEGACY_PATTERNS if pattern in text]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "aanalytics2.LegacyAnalytics(company_name=name)",
+        "from aanalytics2 import aanalytics14",
+        "ReportBuilder14()",
+        '"https://api.omniture.com/admin/x"',
+    ],
+)
+def test_legacy_patterns_catch_known_1_4_entry_points(line: str) -> None:
+    assert _legacy_hits(line), f"legacy pattern list misses a 1.4 entry point: {line!r}"
 
 
 def test_no_legacy_1_4_endpoint_strings() -> None:
     violations: list[str] = []
     for py in API.rglob("*.py"):
         text = py.read_text(encoding="utf-8")
-        violations.extend(f"{py.name}: {pattern!r}" for pattern in _LEGACY_PATTERNS if pattern in text)
+        violations.extend(f"{py.name}: {pattern!r}" for pattern in _legacy_hits(text))
     assert not violations, (
         f"1.4 API references in api/: {violations}\nUse only API 2.0; raise UnsupportedByApi20 for missing surface."
     )

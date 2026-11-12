@@ -77,16 +77,20 @@ def select_for_deletion(
     sorted_files = sorted(files)
     to_delete: set[Path] = set()
     if policy.keep_last is not None:
+        # Only timestamp-named files are counted or deleted. A file whose stem
+        # does not match _TS_RE is kept and does not take a keep slot, the
+        # same fail-closed default as the keep_since branch below.
+        dated = [f for f in sorted_files if _TS_RE.match(f.stem)]
         # Slice form, not a membership scan: `keep_last` is validated >= 1 by
         # every production entry point (parse_policy raises ConfigError for
         # keep_last < 1 before a RetentionPolicy is ever constructed), so
-        # `sorted_files[:-keep_last]` always drops exactly the oldest
-        # `len(sorted_files) - keep_last` files (or none, if keep_last >=
-        # len(sorted_files)). Even the degenerate keep_last=0 case (reachable
+        # `dated[:-keep_last]` always drops exactly the oldest
+        # `len(dated) - keep_last` files (or none, if keep_last >=
+        # len(dated)). Even the degenerate keep_last=0 case (reachable
         # only via direct RetentionPolicy() construction, not via the CLI)
-        # is safe here: `-0 == 0`, so the slice is `sorted_files[:0]` == [],
+        # is safe here: `-0 == 0`, so the slice is `dated[:0]` == [],
         # matching the old membership-scan behavior of deleting nothing.
-        to_delete.update(sorted_files[: -policy.keep_last])
+        to_delete.update(dated[: -policy.keep_last])
     if policy.keep_since is not None:
         cutoff = (now or datetime.now(UTC)) - policy.keep_since
         for f in sorted_files:

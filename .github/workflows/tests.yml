@@ -68,13 +68,16 @@ jobs:
         run: |
           # Coverage % from the `TOTAL` row of pytest-cov's term-missing
           # report (already in pytest-output.txt from the previous step).
-          COV=$(grep -E '^TOTAL' pytest-output.txt | awk '{print $NF}' | tr -d '%')
+          # `|| true` inside each substitution: the step runs as
+          # `bash -eo pipefail`, so a grep that finds nothing would end the
+          # step before it reaches the warning branch below.
+          COV=$(grep -E '^TOTAL' pytest-output.txt | awk '{print $NF}' | tr -d '%' || true)
           # Test count: pytest's `-q` + pytest-cov suppresses the "N passed
           # in X.XXs" summary in non-tty output, so we count via a separate
           # `--collect-only --no-cov` pass (no test execution; <1s wall time).
           # The summary line we grep for has the form `1089 tests collected
           # in 0.74s` and only appears with --collect-only.
-          TESTS=$(uv run --locked pytest --collect-only --no-cov 2>&1 | grep -oE '[0-9]+ tests collected' | head -1 | awk '{print $1}')
+          TESTS=$(uv run --locked pytest --collect-only --no-cov 2>&1 | grep -oE '[0-9]+ tests collected' | head -1 | awk '{print $1}' || true)
           if [ -z "$COV" ] || [ -z "$TESTS" ]; then
             echo "::warning::Could not parse coverage (got '$COV') or test count (got '$TESTS') — emitting placeholder summary"
             {

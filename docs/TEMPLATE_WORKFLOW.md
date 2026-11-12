@@ -66,13 +66,14 @@ Headers the writer doesn't recognize are silently skipped — your template can 
 
 The writer never touches these — change them however you like:
 
-- **Branding.** The `C1` brand banner on every sheet. Replace `Adobe Analytics` with your logo, your customer's name, anything — we never write to `C1` on data sheets.
+- **Branding.** The `C1` brand banner on every sheet. Replace `Adobe Analytics` with your customer's name or any other text — we never write to `C1` on data sheets. A logo image survives only when Pillow is installed (see below).
 - **Cross-sheet formulas.** The `=Glossary!C2` formula on `C2` of every data sheet is preserved. If you've added other cross-sheet refs (e.g. `=Glossary!C5` for a "Project Code"), they survive.
 - **Extra columns.** Add `Owner`, `JIRA Ticket`, `Approval Date`, `Sign-off`, anything. The writer skips columns it doesn't recognize.
 - **Extra rows.** The writer walks all data rows and matches by ID. Rows whose IDs aren't in the API response are left untouched — useful for pre-seeded "intent" rows the implementation team plans to fill manually.
 - **Extra sheets.** A `requirements` tab, a `reserved reporting` tab, a `change log` tab — anything not in the anchor list is ignored entirely.
 - **Cell styles.** Borders, fonts, alignment, number formats, conditional formatting — all preserved on existing rows. The writer's non-empty rule means it won't blank-overwrite a styled cell with `None`.
-- **Defined names, page setup, column widths, freeze panes, print areas, image embeds.** Preserved by openpyxl on save.
+- **Defined names, page setup, column widths, freeze panes, print areas.** Preserved by openpyxl on save.
+- **Images.** openpyxl keeps images only when Pillow is installed. Pillow is not a dependency of this tool, so by default the filled workbook has no images. If your template has a logo or other images, install Pillow in the same environment (for example `uv pip install pillow`).
 
 ### What breaks the contract
 
@@ -211,7 +212,7 @@ The `B` column ("ID") on every data sheet is **never written** — that's custom
 
 ## What rows fill, what rows stay
 
-Per-sheet fill strategy (the formal contract lives in the design spec under `docs/superpowers/specs/` — gitignored, local only):
+Per-sheet fill strategy:
 
 - **`eVars`, `props`, `custom events (metrics)`:** match-by-id with always-overwrite. The writer normalizes `variables/evar1` → `evar1` and `metrics/event1` → `event1` before matching, then case-insensitively matches against the template's existing rows. Matched rows are filled in place. Unmatched template-skeleton rows (e.g. `eVar37` when the RSID has only 12 eVars) are **untouched** — their pre-seeded Adobe example content survives. API IDs that don't appear in the template at all are **appended past `max_row`** (default styling, see "Style notes" below).
 
@@ -229,7 +230,7 @@ Adobe's template ships with example calc metrics and segments (Average Time Spen
 
 The writer appends up to two sheets after the template's own sheets. Neither touches a template region, so template formulas, styles, and defined names are unchanged.
 
-- **`Overflow`** is created only when some rows could not go into their template sheet: either a soft cap clipped them, or the template sheet meant for them was skipped (missing, renamed, unanchored, or without its ID column). Row 1 is a header. Each row is one component: `Template Sheet` (the template sheet it belongs in, by its expected name), `Reason` (`clipped`, `sheet missing or unanchored`, or `sheet has no id column`), `Component Type` (`Dimension`, `Metric`, `Calculated Metric`, or `Segment`), `Component ID` (the ID the writer matches on: the bare ID such as `evar120` for eVars, props, and events, and the AA ID for calculated metrics and segments), then one column per template column the sheet would have filled (for example `Variable Name`, `Name`, `Description`, `Format`). For a skipped sheet there is no header row to read, so every column the writer fills for that sheet is included. Every row the API supplied is in either its template sheet or `Overflow`. One limit applies: on `eVars`, `props`, and `custom events (metrics)`, IDs are matched without regard to case, so two components whose IDs differ only in case are treated as one and only the last of them is written.
+- **`Overflow`** is created only when some rows could not go into their template sheet: either a soft cap clipped them, or the template sheet meant for them was skipped (missing, renamed, unanchored, without its ID column, or with none of the expected columns). Row 1 is a header. Each row is one component: `Template Sheet` (the template sheet it belongs in, by its expected name), `Reason` (`clipped`, `sheet missing or unanchored`, `sheet has no id column`, or `sheet has none of the expected columns`), `Component Type` (`Dimension`, `Metric`, `Calculated Metric`, or `Segment`), `Component ID` (the ID the writer matches on: the bare ID such as `evar120` for eVars, props, and events, and the AA ID for calculated metrics and segments), then one column per template column the sheet would have filled (for example `Variable Name`, `Name`, `Description`, `Format`). For a skipped sheet there is no header row to read, so every column the writer fills for that sheet is included. Every row the API supplied is in either its template sheet or `Overflow`. One limit applies: on `eVars`, `props`, and `custom events (metrics)`, IDs are matched without regard to case, so two components whose IDs differ only in case are treated as one and only the last of them is written.
 - **`Template Coverage`** is always created. It has three blocks separated by a blank row: a `Measure` / `Value` summary (components, rows matched, rows appended, rows sent to Overflow split into rows clipped by the soft cap and rows from skipped sheets, the Overflow sheet name, sheets skipped, and the quality audit status; rows matched, appended, and sent to Overflow add up to the component count), one row per template sheet (status `filled` or `skipped`, the skip reason, how many components were meant for the sheet, rows matched, appended, and sent to overflow, template columns the writer cannot fill, and writer columns the template lacks), and one row per component family with the same coverage state the other report formats show (collected, excluded, degraded, partial, or unknown scope) plus the template sheets that family fills.
 
 If the template already has a sheet with either name, in any letter case, the writer leaves it alone and uses `Overflow (2)` or `Template Coverage (2)`.
@@ -324,5 +325,4 @@ Only one module imports `openpyxl` ([`output/writers/excel_template.py`](../src/
 - [Output Formats — `excel-template`](OUTPUT_FORMATS.md) — format key + alias routing
 - [Logging Style Guide](LOGGING_STYLE.md) — canonical event vocabulary, including the 6 template events
 - [`AGENTS.md`](../AGENTS.md) — unattended-run contract (template-fill section)
-- [`CHANGELOG.md`](../CHANGELOG.md) — v1.16.0 entry with dropped-flag rationale
-- [v1.16.0 design spec](superpowers/specs/2026-05-11-aa-auto-sdr-v1.16.0-design.md) — full design + spike findings (gitignored; local only)
+- [`CHANGELOG.md`](../CHANGELOG.md) — release history, including why flags were dropped
