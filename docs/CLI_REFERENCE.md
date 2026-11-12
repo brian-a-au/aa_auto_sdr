@@ -73,6 +73,8 @@ Default format: Excel. Output filename keys off the canonical RSID.
 
 Exit codes: `0`, `10`, `11`, `12`, `13`, `15`, `17` (when `--fail-on-quality` is set).
 
+An identifier that starts with two hyphens (`--`) exits with code 2 before any sign-in. This usually means a flag and its value were quoted as one argument, such as `"--completion bash"`. Pass them as two arguments instead. The same check applies to every report-suite identifier: positional identifiers for any command, `--batch` values, and the values of `--describe-reportsuite` and the `--list-*` inspection commands. An identifier that starts with one hyphen is still accepted.
+
 ### `aa_auto_sdr <RSID...> [<NAME>...]` — auto-batch
 
 Pass two or more identifiers and the tool automatically routes to batch mode — no `--batch` flag needed. **RSIDs and names may be mixed freely** in a single invocation; per-RSID name resolution happens inside the batch loop.
@@ -204,7 +206,7 @@ Quick component counts per RSID — no full SDR build, no metadata. Lighter than
 
 ### `aa_auto_sdr --interactive`
 
-Print a numbered menu of visible report suites to stderr, prompt for selection by index or `all` on stdin, emit the chosen RSID(s) to stdout. Designed for shell composition:
+Print a numbered menu of visible report suites and the selection prompt to stderr, read the selection (an index or `all`) from stdin, and print only the chosen RSID(s) to stdout. Designed for shell composition:
 
 ```bash
 RSIDS=$(aa_auto_sdr --interactive --profile prod) && aa_auto_sdr $RSIDS --auto-snapshot
@@ -254,7 +256,7 @@ uv run aa_auto_sdr --prune-snapshots --profile prod --keep-last 10 --dry-run
 uv run aa_auto_sdr --prune-snapshots RS1 --profile prod --keep-since 90d
 ```
 
-On non-interactive stdin without `--yes` the command refuses with exit code 2.
+On non-interactive stdin without `--yes` the command refuses with exit code 2. At a terminal, answering no at the prompt also exits 2. In both cases nothing is deleted and the refusal message goes to stderr.
 
 ## Git-versioned snapshots
 
@@ -493,12 +495,12 @@ Retries fire only on transient failures; permanent errors (auth, validation, unk
 
 | Command | Purpose |
 |---|---|
-| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. |
+| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. Exit 10 if the name is empty, is `.` or `..`, or contains `/` or `\`, or if an answer is empty. Exit 130 on Ctrl+C. In these cases nothing is written. |
 | `aa_auto_sdr --profile <name> …` | Use a named profile for credentials. |
 | `aa_auto_sdr --profile-list` | List profile names in `~/.aa/orgs/`. `--format json` for scripts. |
 | `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked and `secret` never shown. Includes snapshot count for the profile. Exit 10 if not found. |
 | `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure, 12 on an API failure (for example, an exhausted retry budget). |
-| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
+| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on an invalid profile name (the same rule as `--profile-add`), missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
 | `aa_auto_sdr --profile-overwrite` | Allow `--profile-import` to overwrite an existing profile. |
 
 ### Credential resolution diagnostics
@@ -606,7 +608,7 @@ aa_auto_sdr --notion-repair-database
 aa_auto_sdr --notion-repair-database --yes
 ```
 
-- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared.
+- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared. If any archive call fails, the command still prints the `Archived N page(s); M failed.` line, keeps the failed pages in the `superseded` list, and exits `15` (OUTPUT).
 - `--notion-repair-database` — compares the live registry database schema against the canonical layout (`--notion-print-database-schema`) and additively creates any missing properties. Never changes existing property types or deletes existing properties; type conflicts are reported and left untouched. Requires a database id (`NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`).
 - `--notion-create-database` — creates the SDR Registry database under `NOTION_PARENT_PAGE_ID`. See the flag table below.
 - `--yes` / `-y` — confirms the actions above. Without it, each mode only previews and changes nothing, on a tty or not.

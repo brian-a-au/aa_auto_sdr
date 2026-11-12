@@ -158,6 +158,27 @@ def test_snapshot_lifecycle_usage_errors_report_on_stderr(capsys) -> None:
     assert second.out == ""
 
 
+def test_prune_refusal_reports_on_stderr(tmp_path: Path, monkeypatch, capsys) -> None:
+    rs_dir = tmp_path / "RS1"
+    rs_dir.mkdir()
+    for day in ("25", "26"):
+        (rs_dir / f"2026-04-{day}T10-00-00+00-00.json").write_text("{}")
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False, raising=False)
+    rc = snapshots_cmd.prune_run(
+        profile=None,
+        rsid=None,
+        keep_last=1,
+        keep_since=None,
+        dry_run=False,
+        assume_yes=False,
+        snapshot_dir=tmp_path,
+    )
+    assert rc == ExitCode.USAGE.value
+    captured = capsys.readouterr()
+    assert "aborted" in captured.err
+    assert captured.out == ""
+
+
 def test_snapshot_list_bad_format_reports_on_stderr(tmp_path: Path, capsys) -> None:
     rc = snapshots_cmd.list_run(profile=None, rsid=None, format_name="yaml", snapshot_dir=tmp_path)
     assert rc == ExitCode.OUTPUT.value
