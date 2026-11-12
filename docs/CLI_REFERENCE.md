@@ -230,7 +230,7 @@ Like `--snapshot` but designed to be set as a default for every run. Combines wi
 
 ### `<RSID> --auto-prune --keep-last N | --keep-since DURATION`
 
-After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires exactly one of `--keep-last` or `--keep-since`; it prunes the same store the run snapshots to (profile store, or the `default` fallback). Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set.
+After auto-saving, apply a retention policy and delete older snapshots per RSID. Requires exactly one of `--keep-last` or `--keep-since`; it prunes the same store the run snapshots to (profile store, or the `default` fallback). Silent no-op if `--auto-snapshot` (or `--snapshot`) isn't also set. The policy is checked before sign-in: with no keep rule, or with a bad value, the run exits 10 before it fetches anything or writes any file. This check is skipped under `--dry-run`, because a dry run never prunes.
 
 - `--keep-last N` — keep the N most recent snapshots **per RSID**. The newest full capture (all component families collected) is always kept, even when older than the N most recent, so watch and `--compare-with-prev` still have a covering baseline.
 - `--keep-since DURATION` — keep snapshots newer than DURATION (`Nh|Nd|Nw`). Bad format → exit 10. The newest full capture is kept here too.
@@ -273,7 +273,7 @@ uv run aa_auto_sdr <RSID> --auto-snapshot --git-commit --profile prod
 uv run aa_auto_sdr <RSID> --watch --interval 1h --git-commit --git-push --profile prod
 ```
 
-Git timeouts and filesystem failures are reported through the same result path as nonzero Git exits. Single generation returns `SNAPSHOT` for a Git failure. A batch whose SDRs succeed but whose Git operations fail returns `PARTIAL_SUCCESS` (see `--exit-codes` for numeric values). Under `--watch`, the snapshot event emits before the Git `error` event and the loop continues. A confirmed commit retains any known SHA if a later operation fails.
+Git timeouts and filesystem failures are reported through the same result path as nonzero Git exits. Single generation returns `SNAPSHOT` for a Git failure. With `--output -`, the SDR JSON goes to stdout first and the commit runs after it; a Git failure there also returns `SNAPSHOT` and writes one JSON error envelope to stderr. A batch whose SDRs succeed but whose Git operations fail returns `PARTIAL_SUCCESS` (see `--exit-codes` for numeric values). Under `--watch`, the snapshot event emits before the Git `error` event and the loop continues. A confirmed commit retains any known SHA if a later operation fails.
 
 Snapshot commits include only the selected report suite directory; unrelated staged and unstaged files remain intact. Repository-probe failures do not trigger initialization.
 
@@ -363,7 +363,7 @@ aa_auto_sdr <RSID> --watch --interval 1h --profile prod
 | `--interval Nh\|Nd\|Nw` | Required with `--watch`. |
 | `--watch-threshold N` | Minimum total component change count to emit a `change` event (default `1`; `0` emits every cycle = heartbeat). A report-suite setting change always emits a `change` event, whatever the threshold. |
 
-Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit, so there is nothing to report), and `--metrics-only` / `--dimensions-only` (watch captures every component family) (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
+Rejected with `--watch`: any `--format` other than `json` or `notion` (those two are allowed — `json` is the NDJSON event stream, `notion` publishes on change), plus `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit, so there is nothing to report), `--metrics-only` / `--dimensions-only` (watch captures every component family), and `--dry-run`, `--auto-prune`, `--keep-last`, `--keep-since`, `--run-summary-json` (watch does not apply them) (exit 2). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected.
 
 ## Quality severity engine
 

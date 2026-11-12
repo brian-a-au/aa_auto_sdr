@@ -284,7 +284,7 @@ def test_batch_auto_prune_without_policy_returns_config(
     tmp_path: Path,
     capsys,
 ) -> None:
-    """--auto-prune without --keep-last/--keep-since → CONFIG (10) after the run."""
+    """--auto-prune without --keep-last/--keep-since → CONFIG (10) before the run."""
     mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
     snap_dir = tmp_path / "snaps"
     rc = batch_cmd.run(
@@ -437,3 +437,90 @@ def test_batch_quality_fail_returns_quality_and_handles_banner_edges(
     assert rc == ExitCode.QUALITY.value
     out = capsys.readouterr().out
     assert "MB" in out
+
+
+@pytest.mark.parametrize(
+    ("keep_since", "message"),
+    [
+        (None, "error: --auto-prune requires --keep-last or --keep-since\n"),
+        ("0d", "error: --keep-since must be greater than zero (got '0d')\n"),
+    ],
+)
+def test_auto_prune_without_keep_rule_exits_10_before_any_fetch(
+    keep_since, message, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """A bad or empty retention policy fails before credentials are resolved,
+    with the same message and exit code the after-run check gives, and no
+    output is written."""
+    out_dir = tmp_path / "out"
+    with (
+        patch("aa_auto_sdr.cli.commands.batch.credentials.resolve") as mock_resolve,
+        patch("aa_auto_sdr.cli.commands.batch.AaClient") as mock_client_cls,
+    ):
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+        rc = batch_cmd.run(
+            rsids=["demo.prod", "demo.staging"],
+            output_dir=out_dir,
+            format_name="json",
+            profile=None,
+            snapshot=True,
+            auto_prune=True,
+            keep_since=keep_since,
+            snapshot_dir=tmp_path / "snaps",
+        )
+    assert rc == ExitCode.CONFIG.value
+    assert capsys.readouterr().err == message
+    mock_resolve.assert_not_called()
+    mock_client_cls.from_credentials.assert_not_called()
+    assert not out_dir.exists() or not any(out_dir.iterdir())
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_dry_run_auto_prune_without_keep_rule_is_not_checked_early(
+    mock_client_cls, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """A dry run never prunes, so the early policy check does not fire: the
+    batch lists what it would write and exits 0, as it did before the check."""
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        dry_run=True,
+        snapshot=True,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    out, err = capsys.readouterr()
+    assert rc == ExitCode.OK.value
+    assert "DRY RUN" in out
+    assert str(out_dir / "demo.prod.json") in out
+    assert str(out_dir / "demo.staging.json") in out
+    assert "--auto-prune" not in err
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.batch.AaClient")
+def test_batch_auto_prune_without_keep_rule_or_snapshot_stays_a_no_op(
+    mock_client_cls, mock_handle, authed_env, tmp_path: Path, capsys
+) -> None:
+    """With no snapshot flag, --auto-prune has nothing to prune and stays a
+    silent no-op even with no keep rule: exit 0 and every SDR is written."""
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=mock_handle, company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = batch_cmd.run(
+        rsids=["demo.prod", "demo.staging"],
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    assert rc == ExitCode.OK.value
+    assert "--auto-prune" not in capsys.readouterr().err
+    assert (out_dir / "demo.prod.json").is_file()
+    assert (out_dir / "demo.staging.json").is_file()
+    assert not (tmp_path / "snaps").exists()

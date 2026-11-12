@@ -172,7 +172,8 @@ What to try:
 - For `--list-snapshots` / `--profile-list`, use `--format json` or `--format table`.
 - For Notion, check that the integration is shared with the page in
   `NOTION_PARENT_PAGE_ID` and that `NOTION_TOKEN` is current, then re-run.""",
-    ExitCode.SNAPSHOT: """A snapshot could not be resolved, parsed, or read from git.
+    ExitCode.SNAPSHOT: """A snapshot could not be resolved, parsed, or read from git, or a
+saved snapshot could not be committed or pushed with git.
 
 Likely causes:
 - Snapshot file path doesn't exist (or is a directory).
@@ -182,12 +183,19 @@ Likely causes:
 - `--render-from` input cannot be read (missing file, invalid JSON), or the
   snapshot envelope has malformed rows (missing `id`, duplicate ids,
   wrong-typed fields).
+- `--git-commit` or `--git-push` failed after the snapshot was saved: git is
+  not installed, git has no user name or email set, another git process holds
+  the repository lock, or the push was rejected or timed out.
 
 What to try:
 - Verify the path with `ls`.
 - For `<RSID>@latest` / `@previous`, ensure `--profile` is set and the profile's
   `~/.aa/orgs/<profile>/snapshots/<RSID>/` directory has at least one (or two,
-  for `@previous`) JSON files.""",
+  for `@previous`) JSON files.
+- For a git commit or push failure, read the git error in the message, then run
+  `git status` in the snapshot directory. Check that `git config user.name` and
+  `git config user.email` are set, and for a push, that the remote exists and
+  accepts your credentials. The snapshot file is already saved.""",
     ExitCode.QUALITY: """The build completed and the SDR document was emitted, but at least
 one quality issue was found at or above the severity threshold passed
 via --fail-on-quality. The SDR output and snapshot are still valid;

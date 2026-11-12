@@ -432,7 +432,7 @@ credentials Adobe rejects at sign-in), and `API` (12) for a network or SDK
 failure anywhere in the bootstrap. No NDJSON event is emitted, since the loop
 never ran.
 
-SIGINT / SIGTERM → exit 0. Rejected when paired with `--watch` (exit `USAGE` 2): `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit), and `--metrics-only` / `--dimensions-only` (watch captures every component family). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
+SIGINT / SIGTERM → exit 0. Rejected when paired with `--watch` (exit `USAGE` 2): `--quality-policy`, `--fail-on-quality`, `--quality-report` (watch runs no audit), `--metrics-only` / `--dimensions-only` (watch captures every component family), and `--dry-run`, `--auto-prune`, `--keep-last`, `--keep-since`, `--run-summary-json` (watch does not apply them). `--interval` or non-default `--watch-threshold` without `--watch` are also rejected (exit `USAGE` 2).
 
 `--watch --format notion` publishes baseline captures, changes meeting
 `total_changes >= max(--watch-threshold, 1)`, and any cycle with a report-suite
@@ -529,6 +529,11 @@ credentials or remotes.
   `--inventory-summary` is rejected (USAGE 2).
 - `--git-push` requires `--git-commit` (USAGE 2 otherwise).
 - `--git-message` requires `--git-commit` (USAGE 2 otherwise).
+
+**Pipe composition:** `--git-commit` also works with `--format json --output -`.
+The SDR JSON is written to stdout first, and then each snapshot is committed.
+Stdout holds only the SDR JSON. If a git step fails, the run exits `SNAPSHOT`
+(16) and writes one JSON error envelope to stderr.
 
 **Watch composition:** Each cycle that emits a `baseline` or `change`
 event also commits. NDJSON event payload gains an optional `git` block
