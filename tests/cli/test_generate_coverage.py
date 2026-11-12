@@ -351,7 +351,7 @@ def test_generate_file_auto_prune_without_policy_returns_config(
     env_creds,
     tmp_path: Path,
 ) -> None:
-    """File path + --auto-prune without policy → CONFIG (10) after the SDR writes."""
+    """File path + --auto-prune without policy → CONFIG (10) before any SDR write."""
     raw = json.loads(FIXTURE.read_text())
     mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
     snap_dir = tmp_path / "snaps"
@@ -456,3 +456,125 @@ def test_generate_quality_fail_returns_quality(
         fail_on_quality="MEDIUM",
     )
     assert rc == ExitCode.QUALITY.value
+
+
+# ---------------------------------------------------------------------------
+# Retention policy is checked before sign-in
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("keep_since", "message"),
+    [
+        (None, "error: --auto-prune requires --keep-last or --keep-since\n"),
+        ("0d", "error: --keep-since must be greater than zero (got '0d')\n"),
+    ],
+)
+def test_auto_prune_without_keep_rule_exits_10_before_any_fetch(
+    keep_since, message, env_creds, tmp_path: Path, capsys
+) -> None:
+    """A bad or empty retention policy fails before credentials are resolved,
+    with the same message and exit code the after-run check gives, and no
+    output is written."""
+    out_dir = tmp_path / "out"
+    with (
+        patch("aa_auto_sdr.cli.commands.generate.credentials.resolve") as mock_resolve,
+        patch("aa_auto_sdr.cli.commands.generate.AaClient") as mock_client_cls,
+    ):
+        raw = json.loads(FIXTURE.read_text())
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=out_dir,
+            format_name="json",
+            profile=None,
+            snapshot=True,
+            auto_prune=True,
+            keep_since=keep_since,
+            snapshot_dir=tmp_path / "snaps",
+        )
+    assert rc == ExitCode.CONFIG.value
+    assert capsys.readouterr().err == message
+    mock_resolve.assert_not_called()
+    mock_client_cls.from_credentials.assert_not_called()
+    assert not out_dir.exists() or not any(out_dir.iterdir())
+    assert not (tmp_path / "snaps").exists()
+
+
+def test_pipe_auto_prune_without_keep_rule_exits_10_before_any_fetch(env_creds, tmp_path: Path, capsys) -> None:
+    """Pipe path: the early check emits the same one-line envelope as the
+    after-run check, and stdout stays empty."""
+    with (
+        patch("aa_auto_sdr.cli.commands.generate.credentials.resolve") as mock_resolve,
+        patch("aa_auto_sdr.cli.commands.generate.AaClient") as mock_client_cls,
+    ):
+        raw = json.loads(FIXTURE.read_text())
+        mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+        rc = cmd.run(
+            rsid="demo.prod",
+            output_dir=Path("-"),
+            format_name="json",
+            profile=None,
+            snapshot=True,
+            auto_prune=True,
+            snapshot_dir=tmp_path / "snaps",
+        )
+    out, err = capsys.readouterr()
+    assert rc == ExitCode.CONFIG.value
+    assert out == ""
+    envelope = json.loads(err)
+    assert envelope["error"]["code"] == 10
+    assert envelope["error"]["type"] == "RuntimeError"
+    assert envelope["error"]["message"] == "error: --auto-prune requires --keep-last or --keep-since"
+    mock_resolve.assert_not_called()
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_dry_run_auto_prune_without_keep_rule_is_not_checked_early(
+    mock_client_cls, env_creds, tmp_path: Path, capsys
+) -> None:
+    """A dry run never prunes, so the early policy check does not fire: the
+    run lists what it would write and exits 0, as it did before the check."""
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        dry_run=True,
+        snapshot=True,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    out, err = capsys.readouterr()
+    assert rc == ExitCode.OK.value
+    assert "DRY RUN" in out
+    assert str(out_dir / "demo.prod.json") in out
+    assert "--auto-prune" not in err
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_auto_prune_without_keep_rule_or_snapshot_stays_a_no_op(
+    mock_client_cls, env_creds, tmp_path: Path, capsys
+) -> None:
+    """With no snapshot flag, --auto-prune has nothing to prune and stays a
+    silent no-op even with no keep rule: exit 0 and the SDR is written."""
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    assert rc == ExitCode.OK.value
+    assert "--auto-prune" not in capsys.readouterr().err
+    assert (out_dir / "demo.prod.json").is_file()
+    assert not (tmp_path / "snaps").exists()

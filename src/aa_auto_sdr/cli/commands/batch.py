@@ -19,6 +19,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.cache import ValidationCache
@@ -44,6 +45,9 @@ from aa_auto_sdr.pipeline._results import output_bytes
 from aa_auto_sdr.pipeline.batch import SampleOutcome
 from aa_auto_sdr.pipeline.models import BatchFailure, BatchResult
 from aa_auto_sdr.sdr.quality import QualityRules
+
+if TYPE_CHECKING:
+    from aa_auto_sdr.snapshot.retention import RetentionPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -283,15 +287,27 @@ def _run_impl(
         dimensions_only=dimensions_only,
     )
 
+    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
+    if not save_required:
+        snapshot_dir = None
+
+    # Check the retention policy before sign-in, so a policy that the prune
+    # step below would reject fails before any fetch or write. Same condition,
+    # message, and exit code as that step, which stays as a guard. A dry run
+    # never reaches the prune step, so it is not checked here either.
+    if (
+        auto_prune
+        and snapshot_dir is not None
+        and not dry_run
+        and _resolve_prune_policy(keep_last=keep_last, keep_since=keep_since) is None
+    ):
+        return ExitCode.CONFIG.value
+
     try:
         creds = credentials.resolve(profile=profile)
     except ConfigError as e:
         print(f"error: {e}", file=sys.stderr, flush=True)
         return ExitCode.CONFIG.value
-
-    save_required = snapshot or auto_snapshot or git_commit  # --git-commit implies snapshot
-    if not save_required:
-        snapshot_dir = None
 
     try:
         formats = registry.resolve_formats(format_name or "excel")
@@ -697,20 +713,10 @@ def _apply_auto_prune(
     Per-RSID prune failures log a warning but don't abort the batch.
     Returns ExitCode.OK on success, ExitCode.CONFIG on bad/empty policy.
     """
-    from aa_auto_sdr.snapshot.retention import parse_policy
     from aa_auto_sdr.snapshot.store import prune_snapshots
 
-    try:
-        policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
-    except ConfigError as exc:
-        print(f"error: {exc}", file=sys.stderr, flush=True)
-        return ExitCode.CONFIG.value
-    if not policy.is_active():
-        print(
-            "error: --auto-prune requires --keep-last or --keep-since",
-            file=sys.stderr,
-            flush=True,
-        )
+    policy = _resolve_prune_policy(keep_last=keep_last, keep_since=keep_since)
+    if policy is None:
         return ExitCode.CONFIG.value
     for rs in rsids:
         try:
@@ -784,3 +790,26 @@ def _humanize_bytes(n: int) -> str:
     if n < 1024 * 1024:
         return f"{n / 1024:.1f} KB"
     return f"{n / (1024 * 1024):.1f} MB"
+
+
+def _resolve_prune_policy(*, keep_last: int | None, keep_since: str | None) -> RetentionPolicy | None:
+    """Parse the retention policy for --auto-prune.
+
+    Returns the active policy, or None after printing the CONFIG error for a
+    bad value or for a policy with no keep rule.
+    """
+    from aa_auto_sdr.snapshot.retention import parse_policy
+
+    try:
+        policy = parse_policy(keep_last=keep_last, keep_since=keep_since)
+    except ConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr, flush=True)
+        return None
+    if not policy.is_active():
+        print(
+            "error: --auto-prune requires --keep-last or --keep-since",
+            file=sys.stderr,
+            flush=True,
+        )
+        return None
+    return policy
