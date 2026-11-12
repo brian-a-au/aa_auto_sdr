@@ -495,12 +495,12 @@ Retries fire only on transient failures; permanent errors (auth, validation, unk
 
 | Command | Purpose |
 |---|---|
-| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. |
+| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. Exit 10 if the name is empty, is `.` or `..`, or contains `/` or `\`, or if an answer is empty. Exit 130 on Ctrl+C. In these cases nothing is written. |
 | `aa_auto_sdr --profile <name> …` | Use a named profile for credentials. |
 | `aa_auto_sdr --profile-list` | List profile names in `~/.aa/orgs/`. `--format json` for scripts. |
 | `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked and `secret` never shown. Includes snapshot count for the profile. Exit 10 if not found. |
 | `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure, 12 on an API failure (for example, an exhausted retry budget). |
-| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
+| `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on an invalid profile name (the same rule as `--profile-add`), missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
 | `aa_auto_sdr --profile-overwrite` | Allow `--profile-import` to overwrite an existing profile. |
 
 ### Credential resolution diagnostics
@@ -608,7 +608,7 @@ aa_auto_sdr --notion-repair-database
 aa_auto_sdr --notion-repair-database --yes
 ```
 
-- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared.
+- `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared. If any archive call fails, the command still prints the `Archived N page(s); M failed.` line, keeps the failed pages in the `superseded` list, and exits `15` (OUTPUT).
 - `--notion-repair-database` — compares the live registry database schema against the canonical layout (`--notion-print-database-schema`) and additively creates any missing properties. Never changes existing property types or deletes existing properties; type conflicts are reported and left untouched. Requires a database id (`NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`).
 - `--notion-create-database` — creates the SDR Registry database under `NOTION_PARENT_PAGE_ID`. See the flag table below.
 - `--yes` / `-y` — confirms the actions above. Without it, each mode only previews and changes nothing, on a tty or not.
