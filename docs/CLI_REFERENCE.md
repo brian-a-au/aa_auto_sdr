@@ -254,7 +254,7 @@ uv run aa_auto_sdr --prune-snapshots --profile prod --keep-last 10 --dry-run
 uv run aa_auto_sdr --prune-snapshots RS1 --profile prod --keep-since 90d
 ```
 
-On non-interactive stdin without `--yes` the command refuses with exit code 2.
+On non-interactive stdin without `--yes` the command refuses with exit code 2. At a terminal, answering no at the prompt also exits 2. In both cases nothing is deleted and the refusal message goes to stderr.
 
 ## Git-versioned snapshots
 
