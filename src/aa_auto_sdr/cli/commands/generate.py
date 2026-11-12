@@ -8,6 +8,7 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.api import fetch
 from aa_auto_sdr.api.client import AaClient
@@ -58,9 +59,12 @@ def _write_run_summary(
     per_rsid: list[PerRsidResult],
     show_timings: bool,
     is_pipe: bool = False,
+    extra: dict[str, Any] | None = None,
 ) -> OSError | None:
     """Write the run summary. Returns the write error, naming the user's path
-    rather than the atomic-write staging file, or None on success."""
+    rather than the atomic-write staging file, or None on success.
+
+    `extra` sets further RunSummary fields; batch passes its sample fields."""
     if not run_summary_json:
         return None
     summary = RunSummary(
@@ -71,6 +75,7 @@ def _write_run_summary(
         profile=profile,
         rsids=per_rsid,
         timings=timings.report() if show_timings else [],
+        **(extra or {}),
     )
     if run_summary_json == "-":
         # Compact single-line JSON on stdout — easier to consume from scripts and
