@@ -17,7 +17,7 @@ import dataclasses
 import logging
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from copy import deepcopy
 from difflib import SequenceMatcher
 from typing import Any, Literal, TypeVar
@@ -154,18 +154,46 @@ def _reject_error_mapping(value: Any, *, rsid: str, id_keys: tuple[str, ...], co
     return value
 
 
-def _component_records(value: Any, *, rsid: str, component_type: str) -> list[dict[str, Any]]:
+def _component_records(
+    value: Any,
+    *,
+    rsid: str,
+    component_type: str,
+    object_fields: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
     """`_response_rows` plus the per-row id every inventory family needs.
 
     The id is the key every writer, snapshot, and diff uses, so a row
     without one cannot be normalized. Used by the fetchers whose rows become
     SDR inventory: dimensions, metrics, segments, and calculated metrics.
+
+    Each key in `object_fields` must hold a JSON object when it holds
+    anything: absent, null, NaN, and empty values read as an empty object in
+    `_object_field`, and anything else (a string or a list) cannot be read
+    as a definition. The message names the field, never its value.
     """
     rows = _response_rows(value, rsid=rsid, component_type=component_type)
     for index, row in enumerate(rows):
         if not isinstance(row, dict) or not isinstance(row.get("id"), str) or not row["id"].strip():
             raise ApiError(f"{component_type} fetch failed for {rsid}: row {index} requires a nonempty string id")
+        for key in object_fields:
+            val = _get(row, key)
+            if val and not isinstance(val, dict):
+                raise ApiError(f"{component_type} fetch failed for {rsid}: row {index} field {key!r} must be an object")
     return rows
+
+
+def _object_rows(rows: Iterable[Any], *, component_type: str, rsid: str | None = None) -> Iterator[dict[str, Any]]:
+    """Yield each listing row, raising ApiError at the first that is not a mapping.
+
+    Lazy on purpose: a scan that stops at its match still stops there, so a
+    response that worked before keeps working, and only the read that used to
+    fail on `.get` now fails with a typed error (exit 12)."""
+    where = f" for {rsid}" if rsid is not None else ""
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ApiError(f"{component_type} fetch failed{where}: row {index} is not an object")
+        yield row
 
 
 def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
@@ -179,6 +207,17 @@ def _get(d: dict[str, Any], key: str, default: Any = None) -> Any:
     if isinstance(val, float) and math.isnan(val):
         return default
     return val
+
+
+def _str_or(d: dict[str, Any], key: str, default: str) -> str:
+    """`str(value)`, or `default` when the value is absent, JSON null, or NaN.
+
+    `str(_get(d, key, default))` turns a JSON null into the text "None",
+    because `_get` returns a present None as is. A ragged DataFrame turns
+    the same null into NaN, so the two shapes of one response used to give
+    different text. Here both read as absent."""
+    val = _get(d, key)
+    return default if val is None else str(val)
 
 
 def _str_or_none(d: dict[str, Any], key: str) -> str | None:
@@ -202,6 +241,14 @@ def _int(d: dict[str, Any], key: str, default: int = 0) -> int:
         return int(val)
     except (TypeError, ValueError):
         return default
+
+
+def _object_field(d: dict[str, Any], key: str) -> dict[str, Any]:
+    """A copy of the JSON object at `key`, or {} when it is absent, null,
+    NaN, or empty. `_component_records(object_fields=...)` has already
+    rejected any other shape."""
+    val = _get(d, key)
+    return dict(val) if val else {}
 
 
 def _list(d: dict[str, Any], key: str) -> list[Any]:
@@ -234,7 +281,7 @@ def _report_suite_from_row(raw: dict[str, Any], rsid: str) -> models.ReportSuite
     filtered SDK call and the preloaded listing so both give the same model."""
     return models.ReportSuite(
         rsid=str(raw["rsid"]),
-        name=str(_get(raw, "name", rsid)),
+        name=_str_or(raw, "name", rsid),
         timezone=_str_or_none(raw, "timezone") or _str_or_none(raw, "timezoneZoneinfo"),
         currency=_str_or_none(raw, "currency"),
         parent_rsid=_str_or_none(raw, "parentRsid"),
@@ -293,7 +340,7 @@ def fetch_report_suite(
         duration_ms,
         extra={"rsid": rsid, "count": len(suites), "duration_ms": duration_ms},
     )
-    for raw in suites:
+    for raw in _object_rows(suites, component_type="report_suite", rsid=rsid):
         if raw.get("rsid") == rsid:
             return _report_suite_from_row(raw, rsid)
     logger.error(
@@ -318,7 +365,7 @@ def fetch_report_suite_summaries(client: AaClient) -> list[models.ReportSuiteSum
             rsid=rsid,
             name=_str_or_none(r, "name"),
         )
-        for r in raw
+        for r in _object_rows(raw, component_type="report_suite")
         if (rsid := _str_or_none(r, "rsid")) is not None
     ]
     duration_ms = int((time.monotonic() - started) * 1000)
@@ -403,11 +450,14 @@ def resolve_rsid(
     if index is not None:
         suites = index.rows
 
+    def rows() -> Iterator[dict[str, Any]]:
+        return _object_rows(suites, component_type="report_suite")
+
     # 1) Exact RSID match — RSIDs are distinct and case-sensitive
     id_matches = (
         identifier in index.rsids
         if index is not None and not index.scan_rsids
-        else any(raw.get("rsid") == identifier for raw in suites)
+        else any(raw.get("rsid") == identifier for raw in rows())
     )
     if id_matches:
         logger.debug(
@@ -420,32 +470,43 @@ def resolve_rsid(
 
     # 2) Name match — strategy-dependent
     name_matches: list[tuple[str, str]] = []  # (rsid, name)
+
+    def add_match(raw: dict[str, Any], name: Any) -> None:
+        # A row with no usable rsid cannot be resolved to a suite, so its
+        # name is not a match.
+        matched_rsid = _str_or_none(raw, "rsid")
+        if matched_rsid is not None:
+            name_matches.append((matched_rsid, str(name)))
+
     if index is not None and not index.scan_names:
         matches = (
             index.exact_names.get(identifier, [])
             if name_match == "exact"
             else index.folded_names.get(identifier.casefold(), [])
         )
-        name_matches = [(str(raw["rsid"]), str(raw["name"])) for raw in matches]
+        for raw in matches:
+            add_match(raw, raw["name"])
     elif name_match == "exact":
-        name_matches.extend((str(raw["rsid"]), str(raw["name"])) for raw in suites if raw.get("name") == identifier)
+        for raw in rows():
+            if raw.get("name") == identifier:
+                add_match(raw, raw["name"])
     else:  # insensitive or fuzzy
         target = identifier.casefold()
-        for raw in suites:
+        for raw in rows():
             n = _get(raw, "name")
             if n is not None and str(n).casefold() == target:
-                name_matches.append((str(raw["rsid"]), str(n)))
+                add_match(raw, n)
 
     # 2b) Fuzzy fallback when nothing matched insensitively
     if name_match == "fuzzy" and not name_matches:
         target = identifier.casefold()
-        for raw in suites:
+        for raw in rows():
             n = _get(raw, "name")
             if n is None:
                 continue
             ratio = SequenceMatcher(None, target, str(n).casefold()).ratio()
             if ratio >= _FUZZY_THRESHOLD:
-                name_matches.append((str(raw["rsid"]), str(n)))
+                add_match(raw, n)
 
     if not name_matches:
         raise ReportSuiteNotFoundError(
@@ -486,8 +547,8 @@ def fetch_dimensions(client: AaClient, rsid: str) -> list[models.Dimension]:
     out = [
         models.Dimension(
             id=str(r["id"]),
-            name=str(_get(r, "name", r["id"])),
-            type=str(_get(r, "type", "unknown")),
+            name=_str_or(r, "name", str(r["id"])),
+            type=_str_or(r, "type", "unknown"),
             category=_str_or_none(r, "category"),
             parent=str(_get(r, "parent") or ""),
             pathable=_bool(r, "pathable"),
@@ -539,8 +600,8 @@ def fetch_metrics(client: AaClient, rsid: str) -> list[models.Metric]:
     out = [
         models.Metric(
             id=str(r["id"]),
-            name=str(_get(r, "name", r["id"])),
-            type=str(_get(r, "type", "unknown")),
+            name=_str_or(r, "name", str(r["id"])),
+            type=_str_or(r, "type", "unknown"),
             category=_str_or_none(r, "category"),
             precision=_int(r, "precision"),
             segmentable=_bool(r, "segmentable"),
@@ -575,6 +636,7 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
             client.handle.getSegments(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             rsid=rsid,
             component_type="segment",
+            object_fields=("definition", "compatibility"),
         ),
         policy=client.retry_policy,
         rsid=rsid,
@@ -595,12 +657,12 @@ def fetch_segments(client: AaClient, rsid: str) -> list[models.Segment]:
     out = [
         models.Segment(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
+            name=_str_or(r, "name", str(r["id"])),
             description=_str_or_none(r, "description"),
-            rsid=str(r.get("rsid", rsid)),
+            rsid=_str_or(r, "rsid", rsid),
             owner_id=_owner_id(r),
-            definition=dict(r.get("definition") or {}),
-            compatibility=dict(r.get("compatibility") or {}),
+            definition=_object_field(r, "definition"),
+            compatibility=_object_field(r, "compatibility"),
             tags=_list(r, "tags"),
             created=_str_or_none(r, "created"),
             modified=_str_or_none(r, "modified"),
@@ -635,6 +697,7 @@ def fetch_calculated_metrics(
             client.handle.getCalculatedMetrics(rsids_list=[rsid], extended_info=True, format="raw", limit=1000),
             rsid=rsid,
             component_type="calculated_metric",
+            object_fields=("definition",),
         ),
         policy=client.retry_policy,
         rsid=rsid,
@@ -656,14 +719,14 @@ def fetch_calculated_metrics(
     out = [
         models.CalculatedMetric(
             id=str(r["id"]),
-            name=str(r.get("name", r["id"])),
+            name=_str_or(r, "name", str(r["id"])),
             description=_str_or_none(r, "description"),
-            rsid=str(r.get("rsid", rsid)),
+            rsid=_str_or(r, "rsid", rsid),
             owner_id=_owner_id(r),
-            polarity=str(r.get("polarity", "positive")),
+            polarity=_str_or(r, "polarity", "positive"),
             precision=_int(r, "precision"),
-            type=str(r.get("type", "decimal")),
-            definition=dict(r.get("definition") or {}),
+            type=_str_or(r, "type", "decimal"),
+            definition=_object_field(r, "definition"),
             tags=_list(r, "tags"),
             categories=_list(r, "categories"),
             extra=_extra(r, known),
@@ -734,7 +797,7 @@ def _finalize_vrs_fetch(
     out = [
         models.VirtualReportSuite(
             id=str(r["id"]),
-            name=str(_get(r, "name", r["id"])),
+            name=_str_or(r, "name", str(r["id"])),
             parent_rsid=str(r.get("parentRsid", "")),
             timezone=_str_or_none(r, "timezone") or _str_or_none(r, "timezoneZoneinfo"),
             description=_str_or_none(r, "description"),
@@ -937,20 +1000,25 @@ def fetch_virtual_report_suite_summaries(
     crashed the generate path."""
     started = time.monotonic()
     try:
-        raw = _records(
-            with_retries(
-                lambda: classify_transient_sdk_call(
-                    lambda: client.handle.getVirtualReportSuites(extended_info=True, limit=1000),
-                    component_type="virtual_report_suite",
+        raw = list(
+            _object_rows(
+                _records(
+                    with_retries(
+                        lambda: classify_transient_sdk_call(
+                            lambda: client.handle.getVirtualReportSuites(extended_info=True, limit=1000),
+                            component_type="virtual_report_suite",
+                        ),
+                        policy=client.retry_policy,
+                        on_attempt=lambda a, m, d, e: log_retry_attempt(
+                            a,
+                            m,
+                            d,
+                            e,
+                            component_type="virtual_report_suite",
+                        ),
+                    )
                 ),
-                policy=client.retry_policy,
-                on_attempt=lambda a, m, d, e: log_retry_attempt(
-                    a,
-                    m,
-                    d,
-                    e,
-                    component_type="virtual_report_suite",
-                ),
+                component_type="virtual_report_suite",
             )
         )
     except ApiError:
@@ -1066,26 +1134,34 @@ def fetch_classification_datasets(
     _ = count_only
     started = time.monotonic()
     try:
-        raws = _records(
-            with_retries(
-                lambda: classify_transient_sdk_call(
-                    lambda: _reject_error_mapping(
-                        client.handle.getClassificationDatasets(rsid=rsid),
-                        rsid=rsid,
-                        id_keys=_CLASSIFICATION_ID_KEYS,
-                        component_type="classification",
-                    ),
-                    component_type="classification",
+        # A row that is not an object raises here, inside the envelope, so it
+        # takes the same degrade path and log record as a failed call.
+        raws = list(
+            _object_rows(
+                _records(
+                    with_retries(
+                        lambda: classify_transient_sdk_call(
+                            lambda: _reject_error_mapping(
+                                client.handle.getClassificationDatasets(rsid=rsid),
+                                rsid=rsid,
+                                id_keys=_CLASSIFICATION_ID_KEYS,
+                                component_type="classification",
+                            ),
+                            component_type="classification",
+                        ),
+                        policy=client.retry_policy,
+                        on_attempt=lambda a, m, d, e: log_retry_attempt(
+                            a,
+                            m,
+                            d,
+                            e,
+                            rsid=rsid,
+                            component_type="classification",
+                        ),
+                    )
                 ),
-                policy=client.retry_policy,
-                on_attempt=lambda a, m, d, e: log_retry_attempt(
-                    a,
-                    m,
-                    d,
-                    e,
-                    rsid=rsid,
-                    component_type="classification",
-                ),
+                component_type="classification",
+                rsid=rsid,
             )
         )
     except Exception as e:  # wrapper raises various exception types
@@ -1120,7 +1196,7 @@ def fetch_classification_datasets(
         dataset = models.ClassificationDataset(
             id=ds_id,
             name=ds_name,
-            rsid=str(r.get("rsid", rsid)),
+            rsid=_str_or(r, "rsid", rsid),
             extra=_extra(r, known),
         )
         seen = by_id.get(ds_id)
