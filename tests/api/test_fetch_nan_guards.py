@@ -175,3 +175,47 @@ def test_vrs_summaries_missing_parent_and_id_are_not_nan() -> None:
     )
     summaries = fetch.fetch_virtual_report_suite_summaries(AaClient(handle=handle, company_id="c"))
     assert [(s.id, s.parent_rsid) for s in summaries] == [("vrs_a", "rs1"), ("vrs_b", "")]
+
+
+# The listing row and the rsid_list= response for the same suite must give the
+# same model: name falls back to the rsid, timezone falls back to
+# timezoneZoneinfo, and NaN cells (ragged DataFrame rows) become None.
+_SAME_ROW_CASES = [
+    {"rsid": "rs1", "name": "Target", "timezone": "UTC", "currency": "USD", "parentRsid": "p"},
+    {"rsid": "rs1"},
+    {"rsid": "rs1", "name": float("nan"), "timezone": float("nan"), "currency": float("nan")},
+    {"rsid": "rs1", "name": "T", "timezone": float("nan"), "timezoneZoneinfo": "Europe/Paris"},
+    {"rsid": "rs1", "name": "T", "timezone": "  ", "timezoneZoneinfo": "Asia/Tokyo", "parentRsid": ""},
+    {"rsid": "rs1", "name": "T", "currency": float("nan"), "parentRsid": float("nan"), "timezone": float("nan")},
+]
+
+
+@pytest.mark.parametrize("row", _SAME_ROW_CASES)
+def test_listing_row_and_filtered_call_build_the_same_model(row: dict) -> None:
+    other = {"rsid": "rs.other", "name": "Other", "timezone": "UTC", "currency": "USD", "parentRsid": "x"}
+    # SDK path: the filtered call returns just this row.
+    from_sdk = fetch.fetch_report_suite(_client(getReportSuites=pd.DataFrame([row])), "rs1")
+    # Listing path: the same row inside a ragged multi-row listing frame.
+    listing_client = _client(getReportSuites=pd.DataFrame([other, row]))
+    listing = fetch.fetch_report_suites_raw(listing_client)
+    listing_client.handle.getReportSuites.reset_mock()
+    from_listing = fetch.fetch_report_suite(listing_client, "rs1", preloaded_suites=listing)
+    listing_client.handle.getReportSuites.assert_not_called()
+    assert from_listing == from_sdk
+    # The same raw dict through both paths, with no DataFrame in between.
+    plain_client = _client(getReportSuites=[dict(row)])
+    from_plain_sdk = fetch.fetch_report_suite(plain_client, "rs1")
+    assert fetch.fetch_report_suite(plain_client, "rs1", preloaded_suites=[dict(row)]) == from_plain_sdk
+    assert from_plain_sdk == from_sdk
+
+
+def test_preloaded_row_with_nan_cells_matches_sdk_path() -> None:
+    nan = float("nan")
+    row = {"rsid": "rs1", "name": "Target", "currency": nan, "parentRsid": nan, "timezone": nan}
+    client = _client(getReportSuites=pd.DataFrame([row]))
+    rs = fetch.fetch_report_suite(client, "rs1", preloaded_suites=[row])
+    client.handle.getReportSuites.assert_not_called()
+    assert rs.currency is None
+    assert rs.parent_rsid is None
+    assert rs.timezone is None
+    assert rs == fetch.fetch_report_suite(client, "rs1")

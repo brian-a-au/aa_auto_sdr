@@ -351,8 +351,13 @@ def run_describe_reportsuite(
             exit_code = rc
             return exit_code
 
+        # resolve_rsid fills this with the listing it fetches, so each matched
+        # suite's metadata below comes from it instead of a second listing.
+        listing: list[dict[str, Any]] = []
         try:
-            canonical_rsids, _was_name = fetch.resolve_rsid(client, identifier, name_match=name_match)
+            canonical_rsids, _was_name = fetch.resolve_rsid(
+                client, identifier, name_match=name_match, listing_out=listing
+            )
         except AmbiguousMatchError as e:
             print(
                 f"error: identifier '{identifier}' is ambiguous; matched {len(e.candidates)} report suites:",
@@ -375,10 +380,18 @@ def run_describe_reportsuite(
             exit_code = ExitCode.API.value
             return exit_code
 
+        from aa_auto_sdr.api.vrs_source import VrsSource
+
+        # One VRS listing for every matched suite, as in stats and inventory.
+        # A single match has nothing to share and keeps the unshared call.
+        vrs_source = VrsSource(client) if len(canonical_rsids) > 1 else None
         records: list[dict[str, Any]] = []
         for canonical_rsid in canonical_rsids:
             try:
-                rs = fetch.fetch_report_suite(client, canonical_rsid)
+                if listing:
+                    rs = fetch.fetch_report_suite(client, canonical_rsid, preloaded_suites=listing)
+                else:
+                    rs = fetch.fetch_report_suite(client, canonical_rsid)
                 dims = fetch.fetch_dimensions(client, canonical_rsid)
                 mets = fetch.fetch_metrics(client, canonical_rsid)
                 segs = fetch.fetch_segments(client, canonical_rsid)
@@ -387,6 +400,7 @@ def run_describe_reportsuite(
                     client,
                     canonical_rsid,
                     count_only=True,
+                    source=vrs_source,
                 )
                 cls_outcome = fetch.fetch_classification_datasets(
                     client,

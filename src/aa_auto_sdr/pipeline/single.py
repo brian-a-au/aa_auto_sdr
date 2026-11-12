@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from aa_auto_sdr.api.client import AaClient
 from aa_auto_sdr.api.vrs_source import VrsSource
@@ -19,6 +19,7 @@ from aa_auto_sdr.snapshot.git import GitOpResult
 
 if TYPE_CHECKING:
     from aa_auto_sdr.api.cache import ValidationCache
+    from aa_auto_sdr.api.report_suite_index import ReportSuiteIndex
 
 
 def run_single(
@@ -38,6 +39,7 @@ def run_single(
     quality_rules: QualityRules | None = None,
     cache: ValidationCache | None = None,  # v1.12.0
     vrs_source: VrsSource | None = None,
+    report_suites: list[dict[str, Any]] | ReportSuiteIndex | None = None,
     # v1.15.0 — git integration
     git_commit: bool = False,
     git_push: bool = False,
@@ -96,6 +98,7 @@ def run_single(
             quality_rules=quality_rules,
             cache=cache,
             vrs_source=vrs_source,
+            report_suites=report_suites,
         )
     try:
         output_dir.mkdir(parents=True, exist_ok=True)

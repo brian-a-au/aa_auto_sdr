@@ -643,3 +643,50 @@ def test_describe_generic_error_during_component_fetch_returns_1(
         output=None,
     )
     assert rc == ExitCode.GENERIC.value
+
+
+# --- describe reuses the resolve listing for the report suite row ---
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_reportsuite_makes_one_get_report_suites_call(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from aa_auto_sdr.cli.commands import inspect as cmd
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+
+    rc = cmd.run_describe_reportsuite(identifier="Demo", profile=None, format_name="json", output=None)
+    assert rc == 0
+    assert handle.getReportSuites.call_count == 1
+    [record] = json.loads(capsys.readouterr().out)
+    assert (record["rsid"], record["name"], record["currency"], record["timezone"]) == (
+        "demo.prod",
+        "Demo",
+        "USD",
+        None,
+    )
+
+
+@patch("aa_auto_sdr.cli.commands.inspect.AaClient")
+def test_describe_reportsuite_listing_failure_keeps_message_and_exit_code(
+    mock_client_cls, env_creds, tmp_path: Path, monkeypatch, capsys
+) -> None:
+    from aa_auto_sdr.api.client import AaClient
+    from aa_auto_sdr.api.resilience import RetryPolicy
+    from aa_auto_sdr.cli.commands import inspect as cmd
+    from aa_auto_sdr.core.exit_codes import ExitCode
+
+    monkeypatch.chdir(tmp_path)
+    handle = _mock_handle_with_one_rs()
+    handle.getReportSuites.side_effect = AttributeError("listing exploded")
+    mock_client_cls.from_credentials.return_value = AaClient(
+        handle=handle, company_id="testco", retry_policy=RetryPolicy(max_retries=0)
+    )
+
+    rc = cmd.run_describe_reportsuite(identifier="demo.prod", profile=None, format_name="json", output=None)
+    assert rc == ExitCode.API.value
+    assert capsys.readouterr().err == "api error: fetch failed: AttributeError: listing exploded\n"
+    assert handle.getReportSuites.call_count == 1
