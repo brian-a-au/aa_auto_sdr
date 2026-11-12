@@ -483,7 +483,10 @@ def run_parallel(
                         # entry per input RSID, matching the sequential path.
                         for idx, rsid in rsid_iter:
                             _record_cancelled(submission_index=idx, rsid=rsid)
-            except KeyboardInterrupt:
+            except BaseException:
+                # Any exception that escapes the loop (KeyboardInterrupt, or a
+                # non-AaAutoSdrError such as SystemExit from a write-time guard)
+                # cancels the not-yet-started futures before re-raising.
                 for pf in pending_set:
                     pf.cancel()
                 raise
@@ -515,8 +518,12 @@ def run_parallel(
                         _record_failure(exc, submission_index=submission_index, rsid=rsid)
                     else:
                         _record_success(result, submission_index=submission_index, rsid=rsid)
-            except KeyboardInterrupt:
-                # Cancel all remaining pending futures and re-raise.
+            except BaseException:
+                # Any exception that escapes the loop (KeyboardInterrupt, or a
+                # non-AaAutoSdrError such as SystemExit from a write-time guard)
+                # cancels all remaining pending futures and re-raises. Without
+                # this the executor's shutdown would run every queued suite
+                # before the exception surfaced.
                 for pending_future in future_to_ctx:
                     pending_future.cancel()
                 raise

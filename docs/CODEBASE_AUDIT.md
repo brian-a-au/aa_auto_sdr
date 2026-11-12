@@ -87,11 +87,11 @@ nested JSON before read-only formatting. Benchmarks time complete writes,
 including local atomic replacement, on warm temporary storage. These are not
 end-to-end API speedups and do not measure peak memory.
 
-Reproducible synthetic benchmark:
-`uv run python benchmarks/audit_hotpaths.py --baseline-ref 7fe9676`.
-It compares seeded sample output and full CSV/Markdown/HTML file bytes, checks
-input immutability, and alternates before/after timing order. It excludes
-imports, fixture construction, and live API latency.
+The timings came from a synthetic benchmark that compared seeded sample output
+and full CSV/Markdown/HTML file bytes, checked input immutability, and
+alternated before/after timing order. It excluded imports, fixture
+construction, and live API latency. That script is no longer in the
+repository, because its pinned baseline commit stopped running.
 
 ## Retained candidates and limitations
 

@@ -119,3 +119,22 @@ class TestSampleRsidsStratified:
         result = sample_rsids(rsids, sample_size=4, seed=0, stratified=True)
         assert len(result) == 4
         assert set(result).issubset(set(rsids))
+
+
+# Fixed input for the golden vector: 97 RSIDs across three prefixes plus one
+# with no separator.
+_GOLDEN_PREFIXED = [f"{p}{s}{i}" for i in range(40) for p, s in (("acme", "."), ("beta", "_"), ("g", "-"))]
+_GOLDEN_RSIDS = [*_GOLDEN_PREFIXED[:97], "solo"]
+
+
+def test_seeded_sample_matches_golden_vector() -> None:
+    """`--sample-seed` must pick the same suites on every supported Python and
+    every release. A change here changes which suites a seeded run reports on."""
+    assert sample_rsids(_GOLDEN_RSIDS, sample_size=5, seed=7) == ["g-13", "beta_6", "g-16", "g-27", "acme.2"]
+    assert sample_rsids(_GOLDEN_RSIDS, sample_size=5, seed=7, stratified=True) == [
+        "acme.20",
+        "beta_9",
+        "g-25",
+        "solo",
+        "g-28",
+    ]

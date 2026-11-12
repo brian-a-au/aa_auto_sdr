@@ -10,6 +10,7 @@ import pytest
 from openpyxl import load_workbook
 
 from aa_auto_sdr.api import models
+from aa_auto_sdr.core.exceptions import OutputError
 from aa_auto_sdr.output import registry
 from aa_auto_sdr.output.writers.excel_template import ExcelTemplateWriter
 from aa_auto_sdr.sdr.document import SdrDocument
@@ -525,3 +526,51 @@ def test_pipeline_writer_instance_is_configured_via_attribute(
     finally:
         writer.template_path = None
         writer.organization = None
+
+
+def _merge_in_template(template: Path, sheet: str, cell_range: str) -> None:
+    wb = load_workbook(template)
+    wb[sheet].merge_cells(cell_range)
+    wb.save(template)
+
+
+def _assert_no_output_left(out_dir: Path) -> None:
+    """Neither the target `.xlsx` nor an atomic-write staging file remains."""
+    if not out_dir.exists():
+        return
+    leftovers = [p.name for p in out_dir.iterdir() if p.suffix == ".xlsx" or p.name.startswith(".")]
+    assert leftovers == []
+
+
+def test_merged_data_row_raises_output_error(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    """A merged range over a filled data cell (eVars E8, the description of
+    the pre-seeded evar2 row) is a typed OutputError, not an AttributeError."""
+    _merge_in_template(synthetic_template_path, "eVars", "D8:E8")
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out_dir = tmp_path / "out"
+    dims = [_dim("evar2", "Cart ID", "Active cart token")]
+    with pytest.raises(OutputError, match="merged range") as excinfo:
+        writer.write(_doc(dimensions=dims), out_dir / "out.xlsx")
+    assert "'eVars'" in str(excinfo.value)
+    assert "E8" in str(excinfo.value)
+    _assert_no_output_left(out_dir)
+
+
+def test_merged_glossary_c2_raises_output_error(
+    synthetic_template_path: Path,
+    tmp_path: Path,
+) -> None:
+    """Glossary!C2 inside a merged range that starts at B2 is a typed OutputError."""
+    _merge_in_template(synthetic_template_path, "Glossary", "B2:D2")
+    writer = ExcelTemplateWriter()
+    writer.template_path = synthetic_template_path
+    out_dir = tmp_path / "out"
+    with pytest.raises(OutputError, match="merged range") as excinfo:
+        writer.write(_doc(), out_dir / "out.xlsx")
+    assert "'Glossary'" in str(excinfo.value)
+    assert "C2" in str(excinfo.value)
+    _assert_no_output_left(out_dir)

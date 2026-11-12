@@ -485,7 +485,7 @@ For per-RSID API stability under flaky orgs or noisy CI:
 | `--retry-base-delay SECS` | Initial exponential-backoff delay (default `0.5`). |
 | `--retry-max-delay SECS` | Cap between retries (default `10.0`, at most `86400`). |
 
-Retries fire only on transient failures; permanent errors (auth, validation, unknown RSID) surface immediately. See [`AGENTS.md`](../AGENTS.md) "Retry Budget" for the worst-case request-count math.
+Retries fire only on transient failures; permanent errors (auth, validation, unknown RSID) surface immediately. See "Note on stall budget" in [`AGENTS.md`](../AGENTS.md) for the worst-case request-count math.
 
 ## Profile and config
 
@@ -497,7 +497,7 @@ Retries fire only on transient failures; permanent errors (auth, validation, unk
 | `aa_auto_sdr --profile <name> …` | Use a named profile for credentials. |
 | `aa_auto_sdr --profile-list` | List profile names in `~/.aa/orgs/`. `--format json` for scripts. |
 | `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked and `secret` never shown. Includes snapshot count for the profile. Exit 10 if not found. |
-| `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure. |
+| `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure, 12 on an API failure (for example, an exhausted retry budget). |
 | `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
 | `aa_auto_sdr --profile-overwrite` | Allow `--profile-import` to overwrite an existing profile. |
 
@@ -590,7 +590,7 @@ aa_auto_sdr examplersid1 --format notion --notion-company "Acme Corp"
 
 ### Notion maintenance modes
 
-Two standalone modes maintain the Notion integration without generating SDRs. Both default to **preview** (no changes) and require `--yes` to apply.
+Three standalone modes maintain the Notion integration without generating SDRs. All three default to **preview** (no changes) and require `--yes` to apply.
 
 ```bash
 # Preview which orphaned pages would be archived
@@ -608,7 +608,8 @@ aa_auto_sdr --notion-repair-database --yes
 
 - `--notion-prune-orphans` — reads `.notion_pages.json` and archives every page recorded in a per-RSID `superseded` list. Pages land in Notion trash and can be recovered. Use after `--notion-force-new` runs accumulate old pages you want cleared.
 - `--notion-repair-database` — compares the live registry database schema against the canonical layout (`--notion-print-database-schema`) and additively creates any missing properties. Never changes existing property types or deletes existing properties; type conflicts are reported and left untouched. Requires a database id (`NOTION_REGISTRY_DATABASE_ID` or `--notion-registry-database`).
-- `--yes` / `-y` — confirms the two destructive actions above. Required for non-tty stdin; refuses with `USAGE` (2) otherwise.
+- `--notion-create-database` — creates the SDR Registry database under `NOTION_PARENT_PAGE_ID`. See the flag table below.
+- `--yes` / `-y` — confirms the actions above. Without it, each mode only previews and changes nothing, on a tty or not.
 
 ### Watch with Notion
 
@@ -664,7 +665,7 @@ These complete in <100ms with no `pandas` / `aanalytics2` import:
 | Command | Purpose |
 |---|---|
 | `aa_auto_sdr -V` / `--version` | Print the version. |
-| `aa_auto_sdr -h` / `--help` | Print a curated usage summary. It highlights common flags and does not list every option (e.g. `--format`, `--output`, `--output-dir`, `--dry-run`, `--open` are omitted) — this reference is the complete flag inventory. |
+| `aa_auto_sdr -h` / `--help` | Print a usage summary that lists every flag the parser accepts. This reference explains each flag in more detail. |
 | `aa_auto_sdr --exit-codes` | List every exit code with a one-line meaning. |
 | `aa_auto_sdr --explain-exit-code <CODE>` | Paragraph explanation: meaning, likely causes, "What to try". |
 | `aa_auto_sdr --completion {bash,zsh,fish}` | Emit a static shell-completion script. Redirect to your shell's completion dir. |

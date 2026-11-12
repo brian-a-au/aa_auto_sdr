@@ -91,12 +91,18 @@ def _run_git(
     Centralizes subprocess invocation so timeouts and capture defaults are
     consistent across write operations. Caller decides whether returncode != 0
     means failure or just "nothing to do" (e.g. `git diff --cached --quiet`).
+
+    Output is decoded as UTF-8, which is what git prints paths in: text=True
+    alone would use the locale encoding (cp1252 on Windows) and misread a
+    non-ASCII repo path, so the root probe would never match.
     """
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=check,
         timeout=timeout_s,
         env=env,
