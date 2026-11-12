@@ -528,3 +528,53 @@ def test_pipe_auto_prune_without_keep_rule_exits_10_before_any_fetch(env_creds, 
     assert envelope["error"]["message"] == "error: --auto-prune requires --keep-last or --keep-since"
     mock_resolve.assert_not_called()
     assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_dry_run_auto_prune_without_keep_rule_is_not_checked_early(
+    mock_client_cls, env_creds, tmp_path: Path, capsys
+) -> None:
+    """A dry run never prunes, so the early policy check does not fire: the
+    run lists what it would write and exits 0, as it did before the check."""
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        dry_run=True,
+        snapshot=True,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    out, err = capsys.readouterr()
+    assert rc == ExitCode.OK.value
+    assert "DRY RUN" in out
+    assert str(out_dir / "demo.prod.json") in out
+    assert "--auto-prune" not in err
+    assert not (tmp_path / "snaps").exists()
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_auto_prune_without_keep_rule_or_snapshot_stays_a_no_op(
+    mock_client_cls, env_creds, tmp_path: Path, capsys
+) -> None:
+    """With no snapshot flag, --auto-prune has nothing to prune and stays a
+    silent no-op even with no keep rule: exit 0 and the SDR is written."""
+    raw = json.loads(FIXTURE.read_text())
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=_build_handle(raw), company_id="testco")
+    out_dir = tmp_path / "out"
+    rc = cmd.run(
+        rsid="demo.prod",
+        output_dir=out_dir,
+        format_name="json",
+        profile=None,
+        auto_prune=True,
+        snapshot_dir=tmp_path / "snaps",
+    )
+    assert rc == ExitCode.OK.value
+    assert "--auto-prune" not in capsys.readouterr().err
+    assert (out_dir / "demo.prod.json").is_file()
+    assert not (tmp_path / "snaps").exists()

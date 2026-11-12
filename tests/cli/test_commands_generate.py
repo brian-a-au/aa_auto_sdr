@@ -974,3 +974,53 @@ def test_pipe_path_git_message_is_used(mock_client_cls, env_creds, tmp_path: Pat
     assert rc == 0
     assert json.loads(capsys.readouterr().out)["report_suite"]["rsid"] == "demo.prod"
     mock_commit.assert_called_once_with(snap, rsid="demo.prod", message="nightly SDR", push=True)
+
+
+@patch("aa_auto_sdr.cli.commands.generate.AaClient")
+def test_pipe_path_git_commit_commits_each_matched_suite(
+    mock_client_cls, env_creds, git_identity, tmp_path: Path, capsys
+) -> None:
+    """A name that matches two report suites gets one snapshot commit per
+    suite on the pipe path, and the snapshot repo is left clean."""
+    import subprocess
+
+    import pandas as pd
+
+    raw = json.loads(FIXTURE.read_text())
+    handle = _build_handle(raw)
+    handle.getReportSuites.return_value = pd.DataFrame(
+        [
+            {"rsid": "demo.prod", "name": "Shared Name"},
+            {"rsid": "demo.dev", "name": "Shared Name"},
+        ]
+    )
+    mock_client_cls.from_credentials.return_value = MagicMock(handle=handle, company_id="testco")
+    snap = tmp_path / "snaps"
+
+    rc = cmd.run(
+        rsid="Shared Name",
+        output_dir=Path("-"),
+        format_name="json",
+        profile=None,
+        snapshot=True,
+        git_commit=True,
+        snapshot_dir=snap,
+    )
+
+    out, _err = capsys.readouterr()
+    assert rc == 0
+    assert [d["report_suite"]["rsid"] for d in json.loads(out)] == ["demo.prod", "demo.dev"]
+    log = subprocess.run(
+        ["git", "log", "--format=%s"], cwd=snap, capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+    # The initial README commit plus one snapshot commit per suite.
+    assert len(log) == 3
+    for rsid in ("demo.prod", "demo.dev"):
+        tracked = subprocess.run(
+            ["git", "ls-files", rsid], cwd=snap, capture_output=True, text=True, check=True
+        ).stdout.split()
+        assert len(tracked) == 1
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=snap, capture_output=True, text=True, check=True
+    ).stdout
+    assert status == ""
