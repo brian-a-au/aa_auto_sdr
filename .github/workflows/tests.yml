@@ -19,9 +19,29 @@ jobs:
       fail-fast: false
       # Every supported Python on every OS. Keep this list in sync with the
       # pyproject classifiers; tests/meta/test_python_version_matrix.py checks it.
+      #
+      # Pull requests run a trimmed matrix: every Python on Linux, and only
+      # the floor and ceiling on macOS and Windows (9 jobs, not 15). Those
+      # runners are the slow ones and most of the minutes. Pushes to main
+      # still run the full matrix, so a version-specific break on macOS or
+      # Windows shows up on main right after the merge. On a push the os
+      # value below is 'none', which matches no matrix cell.
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        exclude:
+          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'none' }}
+            python-version: "3.12"
+          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'none' }}
+            python-version: "3.13"
+          - os: ${{ github.event_name == 'pull_request' && 'macos-latest' || 'none' }}
+            python-version: "3.14"
+          - os: ${{ github.event_name == 'pull_request' && 'windows-latest' || 'none' }}
+            python-version: "3.12"
+          - os: ${{ github.event_name == 'pull_request' && 'windows-latest' || 'none' }}
+            python-version: "3.13"
+          - os: ${{ github.event_name == 'pull_request' && 'windows-latest' || 'none' }}
+            python-version: "3.14"
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
