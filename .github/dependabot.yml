@@ -3,7 +3,7 @@
 # Dependabot bumps the SHA and the trailing version comment together.
 #
 # Groups cut the weekly PR count: every uv PR changes uv.lock, which runs the
-# full 15-job matrix and invalidates the uv caches. A package joins the first
+# 9-job PR test matrix and invalidates the uv caches. A package joins the first
 # group it matches, and major updates match no group, so each still gets its
 # own PR.
 version: 2

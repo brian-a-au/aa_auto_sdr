@@ -54,8 +54,9 @@ jobs:
       - name: Check version sync
         run: uv run --no-project python scripts/check_version_sync.py
 
-      # The tests workflow runs the full matrix on every PR. This run is the
-      # last check on the exact commit that gets released.
+      # The tests workflow runs every Python and OS on each push to main (PRs
+      # run a trimmed matrix). This run is the last check on the exact commit
+      # that gets released.
       - name: Test
         run: uv run --locked pytest -q -n auto
 
