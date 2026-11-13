@@ -62,9 +62,8 @@ def plan_deletions(
         elif (pull := _PULL_REF.fullmatch(ref)) is not None:
             if not pr_is_open(int(pull.group(1))):
                 doomed.append((cache, "pull request closed"))
-        elif (branch := _BRANCH_REF.fullmatch(ref)) is not None:
-            if not branch_exists(branch.group(1)):
-                doomed.append((cache, "branch deleted"))
+        elif (branch := _BRANCH_REF.fullmatch(ref)) is not None and not branch_exists(branch.group(1)):
+            doomed.append((cache, "branch deleted"))
     return doomed
 
 
