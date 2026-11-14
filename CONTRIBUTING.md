@@ -36,8 +36,8 @@ uv run ruff check src/ tests/ scripts/
 uv run ruff format --check src/ tests/ scripts/
 ```
 
-CI runs the tests on Python 3.11 through 3.15, on Linux, macOS, and Windows.
-Do not use syntax or standard library features newer than Python 3.11.
+CI runs the tests on Python 3.11 through 3.15 on Linux. It also runs them on
+macOS and Windows with the oldest and newest of those versions. Do not use syntax or standard library features newer than Python 3.11.
 
 ## Rules every change must follow
 
