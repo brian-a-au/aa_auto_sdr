@@ -513,6 +513,9 @@ aa_auto_sdr/
 ├── uv.lock
 ├── README.md                  # this file
 ├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
 ├── LICENSE
 ├── config.json.example
 └── .env.example
@@ -524,3 +527,26 @@ aa_auto_sdr/
 - [`aanalytics2` Python wrapper](https://github.com/pitchmuc/adobe-analytics-api-2.0) — the underlying SDK
 - [`uv` package manager](https://github.com/astral-sh/uv)
 - [Counterpart project: `cja_auto_sdr`](https://github.com/brian-a-au/cja_auto_sdr) — Customer Journey Analytics equivalent
+
+## Community
+
+Contributions are welcome within the project's narrow scope. Read
+[`CONTRIBUTING.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/CONTRIBUTING.md)
+before you open a pull request. Report security issues privately as described
+in [`SECURITY.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/SECURITY.md).
+Do not put a vulnerability, Adobe credentials, or report suite data in a public
+issue. Everyone who takes part is expected to follow the
+[`CODE_OF_CONDUCT.md`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/CODE_OF_CONDUCT.md).
+
+## License
+
+MIT. See [`LICENSE`](https://github.com/brian-a-au/aa_auto_sdr/blob/main/LICENSE).
+
+## Trademarks
+
+aa_auto_sdr is an independent project. It is not affiliated with, endorsed by,
+sponsored by, or supported by Adobe Inc. Adobe and Adobe Analytics are
+trademarks or registered trademarks of Adobe Inc. in the United States and
+other countries. This project uses those names only to say which product it
+reads data from. For help with an Adobe product, contact Adobe. For help with
+this tool, open an issue in this repository.
