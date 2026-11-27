@@ -62,14 +62,16 @@ def _is_one_folder_under_orgs(name: str, base: Path | None) -> bool:
 def check_profile_name(name: str, *, base: Path | None = None) -> None:
     """Check a profile name before any path is built from it.
 
-    Every command that reads or writes a profile calls this. A name that
-    breaks the name rule raises ConfigError. One exception keeps profiles
-    working that were created before the rule: a name that is one plain
-    folder name and already has a profile is accepted, with one warning."""
+    Every command that reads or writes a profile, or its snapshot folder,
+    calls this. A name that breaks the name rule raises ConfigError. One
+    exception keeps profiles working that were created before the rule: a
+    name that is one plain folder name and already has a folder under orgs/
+    is accepted, with one warning. A name with a path separator, or `.` or
+    `..`, is always refused, so it never reaches a path."""
     try:
         validate_profile_name(name)
     except ConfigError:
-        if not _is_one_folder_under_orgs(name, base) or not os.path.exists(_profile_dir(name, base) / "config.json"):
+        if not _is_one_folder_under_orgs(name, base) or not os.path.isdir(_profile_dir(name, base)):
             raise
         notices.say(
             "warning",
@@ -81,6 +83,15 @@ def check_profile_name(name: str, *, base: Path | None = None) -> None:
 
 def _profile_dir(name: str, base: Path | None) -> Path:
     return (base or default_base()) / "orgs" / name
+
+
+def snapshot_dir(name: str, *, base: Path | None = None) -> Path:
+    """The snapshot folder of a profile: `<base>/orgs/<name>/snapshots`.
+
+    Checks the name first, so a name cannot point outside the profiles folder.
+    Raises ConfigError (exit 10) for an invalid name."""
+    check_profile_name(name, base=base)
+    return _profile_dir(name, base) / "snapshots"
 
 
 def profile_config_path(name: str, *, base: Path | None = None) -> Path:

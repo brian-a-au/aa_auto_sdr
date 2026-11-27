@@ -503,3 +503,96 @@ def test_no_company_message_is_the_same_in_every_command() -> None:
         "Sign-in worked, but this credential sees no Analytics company. In the Adobe Admin Console, "
         "add the credential's technical account to an Analytics product profile."
     )
+
+
+# --- the profile name and per-profile folders ------------------------------
+
+_UNSAFE_NAMES = ["../x", "..", ".", "a/b", "a\\b", "/etc/passwd"]
+
+
+@pytest.mark.parametrize("name", _UNSAFE_NAMES)
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["--list-snapshots"],
+        ["--prune-snapshots", "--keep-last", "1", "--dry-run"],
+        ["--diff", "rs1@latest", "rs1@previous"],
+        ["rs1", "--trending-window", "30d"],
+        ["rs1", "--compare-with-prev"],
+        ["--render-from", "rs1@latest"],
+        ["rs1", "--snapshot"],
+        ["rs1", "--watch", "--interval", "1h"],
+        ["--batch", "rs1", "rs2", "--auto-snapshot"],
+    ],
+    ids=" ".join,
+)
+def test_unsafe_profile_name_never_reaches_a_snapshot_path(
+    home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str], command: list[str], name: str
+) -> None:
+    code, out, err = _cli([*command, "--profile", name], capsys)
+    assert code == ExitCode.CONFIG.value
+    assert out == ""
+    assert f"error: invalid profile name '{name}'" in err
+    assert not (tmp_path / "home").exists(), "a folder was created from the name"
+    assert [p.name for p in tmp_path.iterdir()] == ["work"]
+
+
+@pytest.mark.parametrize("name", [*_UNSAFE_NAMES, "", "my store", ".hidden"])
+def test_snapshot_dir_refuses_an_invalid_name(home: Path, name: str) -> None:
+    from aa_auto_sdr.cli.commands import diff, render_from, snapshots, trending
+    from aa_auto_sdr.cli.commands._shared import resolve_snapshot_dir
+    from aa_auto_sdr.core import profiles
+    from aa_auto_sdr.core.exceptions import ConfigError
+
+    with pytest.raises(ConfigError, match="invalid profile name"):
+        profiles.snapshot_dir(name)
+    if not name:
+        return  # an empty --profile means "no profile" to the commands below
+    import argparse
+
+    calls = [
+        lambda: resolve_snapshot_dir(argparse.Namespace(snapshot_dir=None, profile=name)),
+        lambda: snapshots.list_run(profile=name, rsid=None, format_name=None, snapshot_dir=None),
+        lambda: trending._resolve_snapshot_dir(snapshot_dir=None, profile=name),
+        lambda: diff.compute_report(
+            a="rs1@latest",
+            b="rs1@previous",
+            profile=name,
+            snapshot_dir=None,
+            reverse=False,
+            ignore_fields=frozenset(),
+            extended_fields=False,
+        ),
+        lambda: render_from._load_token("rs1@latest", profile=name, snapshot_dir=None),
+    ]
+    for call in calls:
+        with pytest.raises(ConfigError, match="invalid profile name"):
+            call()
+
+
+def test_snapshot_folder_under_an_old_style_name_still_works_with_one_warning(
+    home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from aa_auto_sdr.core import profiles
+
+    store = tmp_path / "home" / ".aa" / "orgs" / "my store" / "snapshots"
+    store.mkdir(parents=True)
+    code, _, err = _cli(["--list-snapshots", "--profile", "my store"], capsys)
+    assert code == ExitCode.OK.value
+    assert err.count("\n") == 1
+    assert err.startswith("warning: profile name 'my store' breaks the profile name rule")
+    assert profiles.snapshot_dir("my store") == store
+
+
+def test_valid_profile_name_with_no_folder_is_accepted_for_snapshots(
+    home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code, _, err = _cli(["--list-snapshots", "--profile", "prod"], capsys)
+    assert code == ExitCode.OK.value
+    assert err == ""
+
+
+def test_config_check_reports_an_invalid_name_as_json(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code, out, _ = _cli(["--config-status", "--format", "json", "--profile", "../x"], capsys)
+    assert code == ExitCode.CONFIG.value
+    assert [p["code"] for p in json.loads(out)["problems"]] == ["invalid_profile_name"]

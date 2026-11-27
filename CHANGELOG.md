@@ -50,6 +50,8 @@ installed, two situations now give a different credential, because
   with a path in it, e.g., `../other`, and now exit 10. A profile that
   already exists under a name that breaks the rule still works, and the tool
   prints one warning.
+  The name is also checked before the tool builds a snapshot folder path from
+  `--profile`, so `--profile ../other --list-snapshots` now exits 10.
 - The client ID is now masked the same way everywhere: the first 4
   characters, `****`, and the last 4 characters, e.g., `aaaa****4444`. A
   client ID of 8 characters or fewer is shown as `****`. `--show-config`,

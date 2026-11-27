@@ -186,7 +186,7 @@ def show_run(name: str, *, base: Path | None = None) -> int:
             print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        snap_dir = (base or profiles.default_base()) / "orgs" / name / "snapshots"
+        snap_dir = profiles.snapshot_dir(name, base=base)
         snap_count = len(list_snapshots(snap_dir))
         # str(): a hand-written config.json can hold null or a number here.
         cid = "" if data.get("client_id") is None else str(data["client_id"])

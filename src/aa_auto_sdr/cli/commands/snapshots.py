@@ -8,9 +8,9 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.core import profiles
 from aa_auto_sdr.core.exceptions import ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
-from aa_auto_sdr.core.profiles import default_base
 from aa_auto_sdr.snapshot.retention import parse_policy
 from aa_auto_sdr.snapshot.store import (
     filename_to_captured_at,
@@ -45,7 +45,7 @@ def list_run(
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        snap_dir = snapshot_dir or default_base() / "orgs" / profile / "snapshots"
+        snap_dir = snapshot_dir or profiles.snapshot_dir(profile)
         files = list_snapshots(snap_dir, rsid=rsid)
         fmt = format_name or "table"
         if fmt == "json":
@@ -126,7 +126,7 @@ def prune_run(
             )
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        snap_dir = snapshot_dir or default_base() / "orgs" / profile / "snapshots"
+        snap_dir = snapshot_dir or profiles.snapshot_dir(profile)
 
         if not dry_run:
             from aa_auto_sdr.core._confirm import confirm

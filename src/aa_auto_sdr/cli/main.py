@@ -771,6 +771,19 @@ def run(argv: list[str]) -> int:
 
     credentials.set_config_path(ns.config)
 
+    # The profile name also selects the snapshot folder, so it is checked
+    # before any command builds a path from it. The two config check commands
+    # are left out: they report an invalid name themselves, also as JSON.
+    if ns.profile is not None and not (ns.show_config or ns.config_status):
+        from aa_auto_sdr.core import profiles
+        from aa_auto_sdr.core.exceptions import ConfigError
+
+        try:
+            profiles.check_profile_name(ns.profile)
+        except ConfigError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return ExitCode.CONFIG.value
+
     # v1.10.0 — sampling flag mode-scoping. Uses raise SystemExit (not return)
     # so the exit happens before setup_logging/run_start fire — matches argparse's
     # own behavior on usage errors and keeps stderr-only output for these failures.

@@ -24,7 +24,6 @@ def resolve_snapshot_dir(ns: argparse.Namespace) -> Path:
     explicit = getattr(ns, "snapshot_dir", None)
     if explicit:
         return Path(explicit)
-    from aa_auto_sdr.core.profiles import default_base
+    from aa_auto_sdr.core import profiles
 
-    profile = getattr(ns, "profile", None) or "default"
-    return default_base() / "orgs" / profile / "snapshots"
+    return profiles.snapshot_dir(getattr(ns, "profile", None) or "default")

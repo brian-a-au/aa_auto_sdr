@@ -25,7 +25,7 @@
     },
     {
       "rule": "L1.4",
-      "summary": "A name that breaks the rule is refused for a new profile. A profile that already exists under such a name is still read and written, with one warning, when the name is one plain folder name. A name that could point outside the profiles folder is always refused."
+      "summary": "A name that breaks the rule is refused for a new profile. A profile or a snapshot folder that already exists under such a name is still read and written, with one warning, when the name is one plain folder name. A name that could point outside the profiles folder is always refused."
     },
     {
       "rule": "L2.5",
