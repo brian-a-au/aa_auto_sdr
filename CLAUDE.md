@@ -40,7 +40,7 @@ Mirror the sister project so users moving between AA and CJA see the same surfac
 | Trending | `--trending-window <DURATION>`, `--compare-with-prev` | Drift / cross-snapshot rollup |
 | Watch | `--watch --interval <DURATION>` | Foreground monitoring loop, NDJSON events |
 | Quality | `--quality-report`, `--quality-policy`, `--fail-on-quality` | Severity-tagged audit gate |
-| Config | `--profile`, `--profile-add`, `--config-status`, `--show-config` | Profiles in `~/.aa/orgs/<name>/` |
+| Config | `--profile`, `--config`, `--profile-add`, `--config-status`, `--show-config` | Profiles in `~/.aa/orgs/<name>/` |
 
 Format aliases (`excel`, `csv`, `json`, `html`, `markdown`, `all`, `reports`, `data`, `ci`) and shared flags (`--filter`, `--exclude`, `--sort`, `--limit`, `--output -`, `--output-dir`) match the CJA tool exactly.
 
