@@ -125,11 +125,11 @@ If you hit problems, the usual causes are:
 
 ## Optional extras
 
-Three optional extras enable extra features. They are not required for core SDR generation.
+Two optional extras enable extra features. A third, `env`, is kept so that older install commands still work. They are not required for core SDR generation.
 
 | Extra | Package | Enables |
 |-------|---------|---------|
-| `env` | `python-dotenv` | Reading credentials from a `.env` file in the working directory |
+| `env` | none | Nothing. `python-dotenv` is a required dependency, so the tool reads a `.env` file on every install. The empty extra stays so that `pip install aa-auto-sdr[env]` still works. |
 | `completion` | `argcomplete` | Nothing yet. The tool does not use `argcomplete`. Shell completion comes from the static script that `--completion` prints, with or without this extra. |
 | `notion` | `notion-client` | Publishing SDRs to Notion (`--format notion`, `--push-to-notion`, the SDR Registry) |
 
@@ -156,9 +156,10 @@ Core dependencies, installed automatically:
 | `pandas` | Reading the tables the Adobe Analytics SDK returns |
 | `openpyxl` | Reading/filling Excel templates |
 | `xlsxwriter` | Writing Excel workbooks from scratch |
-| `requests` | Transient-failure classification in the resilience layer |
+| `requests` | Transient-failure classification in the resilience layer, and the sign-in request of `--profile-test` |
+| `python-dotenv` | Reading credentials from a `.env` file in the working directory |
 
-Optional dependencies map to the extras above (`python-dotenv`, `argcomplete`, `notion-client`).
+Optional dependencies map to the extras above (`argcomplete`, `notion-client`).
 
 ## Verify the installation
 

@@ -30,8 +30,14 @@ from aa_auto_sdr.api.resilience import (
     log_retry_attempt,
     with_retries,
 )
-from aa_auto_sdr.core.credentials import Credentials
-from aa_auto_sdr.core.exceptions import AaAutoSdrError, ApiError, AuthError, TransientApiError
+from aa_auto_sdr.core.credentials import Credentials, mask_client_id
+from aa_auto_sdr.core.exceptions import (
+    AaAutoSdrError,
+    ApiError,
+    AuthError,
+    NoCompanyAccessError,
+    TransientApiError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,10 +198,11 @@ class AaClient:
         config = credentials_to_aanalytics2_config(creds)
         with _normalized("configure"):
             aanalytics2.configure(**config)
+        masked_client_id = mask_client_id(creds.client_id)
         logger.debug(
-            "aanalytics2 configured client_id_prefix=%s",
-            creds.client_id[:8],
-            extra={"client_id_prefix": creds.client_id[:8]},
+            "aanalytics2 configured client_id_masked=%s",
+            masked_client_id,
+            extra={"client_id_masked": masked_client_id},
         )
 
         policy = retry_policy or DEFAULT_RETRY_POLICY
@@ -240,9 +247,9 @@ class AaClient:
                     "auth_failure reason=no_companies",
                     extra={"error_class": "AuthError", "reason": "no_companies"},
                 )
-                raise AuthError(
-                    "No companies visible to these credentials. Verify the integration "
-                    "is added to an Adobe Analytics Product Profile in Admin Console.",
+                raise NoCompanyAccessError(
+                    "Sign-in worked, but this credential sees no Analytics company. In the Adobe Admin "
+                    "Console, add the credential's technical account to an Analytics product profile.",
                 )
 
             chosen = company_id or companies[0].get("globalCompanyId")

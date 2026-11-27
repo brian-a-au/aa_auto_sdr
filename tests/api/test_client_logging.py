@@ -43,9 +43,10 @@ def test_from_credentials_logs_debug_after_configure(caplog):
     debug_recs = [r for r in caplog.records if r.levelno == logging.DEBUG]
     # Two DEBUG records: post-configure, post-getCompanyId.
     assert len(debug_recs) >= 2
-    # The first DEBUG carries client_id_prefix (first 8 chars only).
-    configure_rec = next(r for r in debug_recs if hasattr(r, "client_id_prefix"))
-    assert configure_rec.client_id_prefix == "abcdef12"
+    # The first DEBUG carries the masked client ID (first 4 and last 4 characters).
+    configure_rec = next(r for r in debug_recs if hasattr(r, "client_id_masked"))
+    assert configure_rec.client_id_masked == "abcd****7890"
+    assert "abcdef1234567890" not in caplog.text
 
 
 def test_from_credentials_logs_info_on_bootstrap_success(caplog):

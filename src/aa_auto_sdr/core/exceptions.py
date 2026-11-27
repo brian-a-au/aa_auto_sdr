@@ -13,11 +13,22 @@ class AaAutoSdrError(Exception):
 
 
 class ConfigError(AaAutoSdrError):
-    """Bad config or missing credentials."""
+    """Bad config or missing credentials.
+
+    `code` is an error code of the Adobe credentials standard when the lookup
+    can name one, e.g. `profile_not_found`. `missing` lists the credential
+    fields a partial source lacks."""
+
+    code: str | None = None
+    missing: tuple[str, ...] = ()
 
 
 class AuthError(AaAutoSdrError):
     """OAuth Server-to-Server failure."""
+
+
+class NoCompanyAccessError(AuthError):
+    """Sign-in worked and the credential sees no Analytics company."""
 
 
 class ApiError(AaAutoSdrError):

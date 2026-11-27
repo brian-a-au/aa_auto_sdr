@@ -325,7 +325,7 @@ def test_dispatch_profile_test(monkeypatch: pytest.MonkeyPatch) -> None:
 
     captured: dict[str, object] = {}
 
-    def _stub(name: object, *, retry_policy: object) -> int:
+    def _stub(name: object, *, retry_policy: object, format_name: object) -> int:
         captured["name"] = name
         return 0
 

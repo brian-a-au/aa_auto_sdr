@@ -7,10 +7,12 @@ import logging
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.core import credentials, profiles
 from aa_auto_sdr.core.exceptions import ConfigError
 from aa_auto_sdr.core.exit_codes import ExitCode
+from aa_auto_sdr.core.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,7 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
     exit_code = ExitCode.GENERIC.value
     try:
         try:
-            profiles.validate_profile_name(name)
+            profiles.check_profile_name(name, base=base)
         except ConfigError as exc:
             print(f"error: {exc}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
@@ -78,22 +80,77 @@ def profile_add(name: str, *, base: Path | None = None) -> int:
         )
 
 
-def show_config(*, profile: str | None, profiles_base: Path | None = None) -> int:
-    """Print which credential source resolves first, without exposing secrets."""
+CONFIG_CHECK_SCHEMA = "adobe-credentials/v1/config-check"
+TOOL_NAME = "aa_auto_sdr"
+PRODUCT = "aa"
+
+
+def config_check_payload(found: credentials.Lookup) -> dict[str, Any]:
+    """The config check as JSON, in the shape every Adobe tool shares.
+
+    The secret is reported as `secret_set` only, and the client ID is masked."""
+    creds = found.creds
+    return {
+        "schema": CONFIG_CHECK_SCHEMA,
+        "tool": TOOL_NAME,
+        "tool_version": __version__,
+        "product": PRODUCT,
+        "ok": creds is not None and not found.problems,
+        "profile": found.profile,
+        "sources": [source.as_dict() for source in found.sources],
+        "credential": {
+            "org_id": creds.org_id if creds else None,
+            "client_id": credentials.mask_client_id(creds.client_id) if creds else None,
+            "secret_set": bool(creds and creds.secret),
+            "scopes": creds.scopes if creds else None,
+        },
+        "problems": [problem.as_dict() for problem in found.problems],
+        "notices": [notice.as_dict() for notice in found.notices],
+        "warnings": [warning.as_dict() for warning in found.warnings],
+    }
+
+
+def _print_config_check_json(found: credentials.Lookup) -> None:
+    sys.stdout.write(json.dumps(config_check_payload(found), indent=2) + "\n")
+
+
+def _source_label(found: credentials.Lookup, creds: credentials.Credentials) -> str:
+    """The winning source with its file path, e.g. `config.json (/work/config.json)`."""
+    used = found.used
+    if used is None or not used.path or used.kind == "flag_config":  # a --config label already holds the path
+        return creds.source
+    return f"{creds.source} ({used.path})"
+
+
+def show_config(
+    *,
+    profile: str | None,
+    profiles_base: Path | None = None,
+    format_name: str | None = None,
+) -> int:
+    """Print which credential source resolves first, without exposing secrets.
+
+    `format_name="json"` prints the config check as JSON instead."""
     started_ms = time.monotonic()
     logger.info("command_start command=show_config", extra={"command": "show_config"})
     exit_code = ExitCode.GENERIC.value
     try:
-        try:
-            creds = credentials.resolve(profile=profile, profiles_base=profiles_base)
-        except ConfigError as e:
-            print(f"error: {e}", flush=True, file=sys.stderr)
+        as_json = format_name == "json"
+        found = credentials.lookup(profile=profile, profiles_base=profiles_base, scan_all=as_json)
+        found.announce()
+        if as_json:
+            _print_config_check_json(found)
+        if found.creds is None:
+            print(f"error: {found.error}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
-
-        print(f"source:    {creds.source}")
-        print(f"org_id:    {creds.org_id}")
-        print(f"client_id: {creds.client_id[:4]}…{creds.client_id[-4:] if len(creds.client_id) > 8 else ''}")
+        if not as_json:
+            creds = found.creds
+            print(f"source:    {creds.source}")
+            print(f"org_id:    {creds.org_id}")
+            print(f"client_id: {credentials.mask_client_id(creds.client_id)}")
+            print(f"secret:    {credentials.mask_secret(creds.secret)}")
+            print(f"scopes:    {creds.scopes}")
         exit_code = ExitCode.OK.value
         return exit_code
     finally:
@@ -168,30 +225,43 @@ def validate_config(*, profile: str | None) -> int:
         )
 
 
-def config_status(*, profile: str | None) -> int:
-    """Print full credential resolution chain — every source checked, which won."""
+def config_status(*, profile: str | None, format_name: str | None = None) -> int:
+    """Print full credential resolution chain — every source checked, which won.
+
+    This is the config check. It makes no network call. `format_name="json"`
+    prints it as JSON instead."""
     started_ms = time.monotonic()
     logger.info("command_start command=config_status", extra={"command": "config_status"})
     exit_code = ExitCode.GENERIC.value
     try:
-        chain = credentials.resolution_chain(profile=profile)
+        found = credentials.lookup(profile=profile, scan_all=True)
+        found.announce()
+        if format_name == "json":
+            _print_config_check_json(found)
+            if found.creds is None:
+                print(f"resolution failed: {found.error}", flush=True, file=sys.stderr)
+                exit_code = ExitCode.CONFIG.value
+                return exit_code
+            exit_code = ExitCode.OK.value
+            return exit_code
         print("Resolution chain (highest precedence first):")
-        for entry in chain:
+        for entry in credentials.chain_of(found, profile=profile):
             marker = "✓" if entry.matched else "⊘"
             note = "MATCHED" if entry.matched else "skipped"
+            if entry.missing:
+                note = f"skipped (partial, missing: {', '.join(entry.missing)})"
             print(f"  {entry.priority}. {entry.source:<28}  {marker} {note}")
         print()
-        try:
-            creds = credentials.resolve(profile=profile)
-        except ConfigError as exc:
-            print(f"resolution failed: {exc}", flush=True, file=sys.stderr)
+        if found.creds is None:
+            print(f"resolution failed: {found.error}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
+        creds = found.creds
         print("Resolved values (sensitive fields masked):")
-        cid = creds.client_id
-        masked = f"{cid[:4]}…{cid[-4:]}" if len(cid) > 8 else cid
+        print(f"  source:    {_source_label(found, creds)}")
         print(f"  org_id:    {creds.org_id}")
-        print(f"  client_id: {masked}")
+        print(f"  client_id: {credentials.mask_client_id(creds.client_id)}")
+        print(f"  secret:    {credentials.mask_secret(creds.secret)}")
         # Render scopes in the canonical no-space comma form (see docs/CONFIGURATION.md),
         # regardless of how they were entered.
         canonical_scopes = ",".join(s.strip() for s in creds.scopes.split(",") if s.strip())

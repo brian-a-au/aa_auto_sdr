@@ -42,7 +42,7 @@ VOCAB = {
     "retry_attempt",
     "company_id",
     "company_id_source",
-    "client_id_prefix",
+    "client_id_masked",
     "reason",
     "exit_code",
     "count_failed",
@@ -280,7 +280,7 @@ def _message_string(call: ast.Call) -> str | None:
 
 @pytest.mark.parametrize("module_path", INSTRUMENTED_MODULES, ids=lambda p: p.name)
 def test_logger_calls_use_canonical_vocabulary(module_path):
-    src = module_path.read_text()
+    src = (_REPO / module_path).read_text()
     tree = ast.parse(src)
     for call in _logger_calls(tree):
         msg = _message_string(call)
@@ -316,7 +316,7 @@ def test_canonical_event_calls_carry_required_extras(module_path):
     a space or end-of-string, so a comment-style substring (e.g. ``"see
     component_fetch in fetch.py"``) doesn't trigger.
     """
-    src = module_path.read_text()
+    src = (_REPO / module_path).read_text()
     tree = ast.parse(src)
     for call in _logger_calls(tree):
         msg = _message_string(call)

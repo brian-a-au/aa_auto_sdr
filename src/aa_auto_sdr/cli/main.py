@@ -467,6 +467,7 @@ _RENDER_FROM_CONFLICTS: tuple[tuple[str, str], ...] = (
     ("run_summary_json", "--run-summary-json"),
     ("profile_overwrite", "--profile-overwrite"),
     ("yes", "--yes"),
+    ("config", "--config"),
     ("push_to_notion", "--push-to-notion"),
     ("notion_force_new", "--notion-force-new"),
     ("notion_registry_database", "--notion-registry-database"),
@@ -717,6 +718,19 @@ def _reject_flag_like_identifiers(ns: argparse.Namespace) -> int:
     return ExitCode.OK.value
 
 
+def _explicit_format(ns: argparse.Namespace, argv: list[str]) -> str | None:
+    """The `--format` value for --show-config, --config-status and --profile-test.
+
+    These commands print JSON only when `--format json` is on the command
+    line. The `--agent-mode` preset alone does not switch them to JSON, so
+    their text output stays as it was for runs that already use the preset."""
+    from aa_auto_sdr.cli.agent_output import _option_was_explicit
+
+    if getattr(ns, "agent_mode", False) and not _option_was_explicit("--format", argv):
+        return None
+    return ns.format
+
+
 def run(argv: list[str]) -> int:
     """CLI entry point.
 
@@ -747,6 +761,15 @@ def run(argv: list[str]) -> int:
     rc = _reject_flag_like_identifiers(ns)
     if rc != ExitCode.OK.value:
         return rc
+
+    # --config and --profile both name the credential, so giving both is an
+    # error. Checked before any command so that no lookup runs with both set.
+    if ns.config and ns.profile:
+        print("error: --profile and --config cannot be used together. Give one of them.", file=sys.stderr)
+        return ExitCode.USAGE.value
+    from aa_auto_sdr.core import credentials
+
+    credentials.set_config_path(ns.config)
 
     # v1.10.0 — sampling flag mode-scoping. Uses raise SystemExit (not return)
     # so the exit happens before setup_logging/run_start fire — matches argparse's
@@ -1030,11 +1053,11 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.profile_add is not None:  # an empty name reaches the name check
         return config_cmd.profile_add(ns.profile_add)
     if ns.show_config:
-        return config_cmd.show_config(profile=ns.profile)
+        return config_cmd.show_config(profile=ns.profile, format_name=_explicit_format(ns, argv))
 
     # v1.2 — config introspection actions (no auth required)
     if ns.config_status:
-        return config_cmd.config_status(profile=ns.profile)
+        return config_cmd.config_status(profile=ns.profile, format_name=_explicit_format(ns, argv))
     if ns.validate_config:
         return config_cmd.validate_config(profile=ns.profile)
     if ns.sample_config:
@@ -1184,7 +1207,7 @@ def _dispatch(ns: argparse.Namespace, parser: argparse.ArgumentParser, argv: lis
     if ns.profile_test:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 
-        return prof_cmd.test_run(ns.profile_test, retry_policy=ns.retry_policy)
+        return prof_cmd.test_run(ns.profile_test, retry_policy=ns.retry_policy, format_name=_explicit_format(ns, argv))
     if ns.profile_show:
         from aa_auto_sdr.cli.commands import profiles as prof_cmd
 

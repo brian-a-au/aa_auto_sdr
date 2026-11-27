@@ -29,11 +29,12 @@ See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for the canonical no-space 
 uv run aa_auto_sdr --profile-add <name>     # create interactively
 uv run aa_auto_sdr --profile <name> ...     # use profile
 export AA_PROFILE=<name>                    # set default
+uv run aa_auto_sdr --config <path> ...      # credential from a JSON file (not with --profile)
 ```
 
 Profiles stored in `~/.aa/orgs/<name>/`. Profile overrides env vars.
 
-`--profile-add` and `--profile-import` refuse a profile name that is empty, is `.` or `..`, or contains `/` or `\`. They exit `CONFIG` (10) with `error: invalid profile name '<name>'` and a short reason on stderr. `--profile-add` also exits `CONFIG` (10) when an answer is empty, and exits `130` with `cancelled; profile not written` on stderr when you press Ctrl+C. In each of these cases nothing is written.
+A profile name holds letters, digits, dots, underscores and hyphens only, starts with a letter or a digit, and is 64 characters or fewer. Every command that reads or writes a profile checks the name first. A name that breaks the rule exits `CONFIG` (10) with `error: invalid profile name '<name>'` and a short reason on stderr. A profile that already exists under such a name still works, with one warning on stderr. `--profile-add` also exits `CONFIG` (10) when an answer is empty, and exits `130` with `cancelled; profile not written` on stderr when you press Ctrl+C. In each of these cases nothing is written.
 
 ---
 
@@ -625,8 +626,14 @@ uv run aa_auto_sdr --notion-print-database-schema  # Notion registry schema (no 
 # Shape-only validation, no Adobe API call
 uv run aa_auto_sdr --validate-config
 
-# Full credential resolution chain (text output)
+# Full credential resolution chain (text output), no Adobe API call
 uv run aa_auto_sdr --config-status
+
+# The same check as JSON on stdout (schema adobe-credentials/v1/config-check)
+uv run aa_auto_sdr --config-status --format json
+
+# Live test of a profile as JSON (schema adobe-credentials/v1/live-test)
+uv run aa_auto_sdr --profile-test <name> --format json
 
 # Full-pipeline auth-and-resolve dry run (requires <RSID>)
 uv run aa_auto_sdr <RSID> --dry-run
@@ -815,7 +822,7 @@ uv run aa_auto_sdr --config-status                       # full credential resol
 | Discovery / Inspection    | ✅              | JSON or CSV on stdout; prefer exact RSIDs for unattended inspection. |
 | Diff Family               | ✅              | JSON on stdout for `--diff` (the only stdout-capable diff format under the agent contract). PR-comment markdown (`--format pr-comment`) also writes to stdout when `--output PATH` is omitted — the agent-mode preset's implicit `--output -` does not suppress this, since `output=None` and `output="-"` follow the same stdout-write code path in the diff command. Agents using `--format pr-comment` should pipe to a file, pass an explicit `--output PATH`, or use `$GITHUB_STEP_SUMMARY` (auto-append on CI). |
 | Stats                     | ✅              | JSON on stdout (`--format json`). |
-| Validation / Preflight    | Partial        | Both `--config-status` (text) and `--validate-config` are exit-code driven. No JSON output mode today; use exit codes for branching. |
+| Validation / Preflight    | Partial        | `--config-status`, `--show-config` and `--profile-test` print JSON on stdout only when `--format json` is on the command line. The `--agent-mode` preset alone leaves their text output as it is. `--validate-config` is exit-code driven. Notices and warnings about the credential lookup are single lines on stderr that start with `notice:` or `warning:`. They never change the exit code. |
 | Fast-Path Flags           | Partial        | `--version`, `--exit-codes`, `--explain-exit-code`, `--completion {bash,zsh,fish}`, and `--notion-print-database-schema` work with the full parser in supported argument orders. Exact standalone forms use the lightweight fast path. `--version` and `--help`, when first on argv, take that fast path even if extra arguments follow; other diagnostic flags with extra arguments use normal parsing and validation. The agent-mode preset does not change their output contract. |
 | Snapshots (list / prune)  | Partial        | `--profile <name> --list-snapshots --format json` emits JSON to stdout (no `--output` flag is needed). Standalone lifecycle commands require `--profile` or `--snapshot-dir`. `--prune-snapshots` requires `--yes` for non-tty stdin (or `--dry-run`); refuses with `USAGE` (2) otherwise. |
 

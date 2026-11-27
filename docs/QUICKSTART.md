@@ -172,7 +172,7 @@ This command:
 - Installs all required packages, including the `aanalytics2` Adobe Analytics SDK
 - Installs the `aa_auto_sdr` command
 
-> **Optional extras:** `uv sync --all-extras` additionally installs `python-dotenv` (so the tool reads a `.env` file) and the Notion publishing integration. Use it if you plan to use either feature.
+> **Optional extras:** `uv sync --all-extras` additionally installs the Notion publishing integration. Use it if you plan to publish to Notion.
 
 ### 2.4 Verify Installation
 
@@ -254,7 +254,7 @@ $Env:SCOPES = "openid,AdobeID,additional_info.projectedProductContext"
 
 ### Option C: `.env` File
 
-If `python-dotenv` is installed (via `uv sync --all-extras`), the tool reads a `.env` file in the working directory:
+The tool reads a `.env` file in the working directory:
 
 ```env
 ORG_ID=YOUR_ORG_ID@AdobeOrg
@@ -748,7 +748,7 @@ auth error: ...
 1. Double-check your `client_id` and `secret` — no extra spaces or quotes
 2. Verify the integration is active in Adobe Developer Console
 3. Confirm `SCOPES` includes the three required scopes (see [Step 1.4](#14-configure-authentication))
-4. Run `uv run aa_auto_sdr --profile-test <name>` to test OAuth live (PASS/FAIL)
+4. Run `uv run aa_auto_sdr --profile-test <name>` to test the profile live. It reports sign-in and the company check separately, with a code that names what Adobe rejected
 
 ### `--list-reportsuites` returns empty (but auth succeeded)
 

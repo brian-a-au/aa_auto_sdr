@@ -161,7 +161,7 @@ def test_no_companies_is_still_an_auth_error(aa_module: MagicMock) -> None:
     """The typed AuthError raised while reading the shape has to survive the
     normalizer that now wraps that block."""
     aa_module.Login.return_value.getCompanyId.return_value = []
-    with pytest.raises(AuthError, match="Product Profile"):
+    with pytest.raises(AuthError, match="Analytics product profile"):
         AaClient.from_credentials(_creds(), retry_policy=_NO_RETRIES)
 
 

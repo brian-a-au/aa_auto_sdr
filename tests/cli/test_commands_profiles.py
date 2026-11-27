@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from aa_auto_sdr.api.sign_in import StepResult
 from aa_auto_sdr.cli.commands import profiles as cmd
 from aa_auto_sdr.core.exceptions import AuthError
 from aa_auto_sdr.core.exit_codes import ExitCode
@@ -72,11 +73,12 @@ class TestProfileShow:
         rc = cmd.show_run("prod", base=aa_base)
         assert rc == ExitCode.OK.value
         out = capsys.readouterr().out
-        assert "abcd…5678" in out
+        assert "abcd****5678" in out
+        assert "secret:     ****\n" in out
         assert "supersecret" not in out
         assert "sandbox" not in out.lower()  # v1.2.2: sandbox printer line dropped
 
-    @pytest.mark.parametrize(("client_id", "shown"), [(None, "client_id:  \n"), (12345678901, "1234…8901")])
+    @pytest.mark.parametrize(("client_id", "shown"), [(None, "client_id:  \n"), (12345678901, "1234****8901")])
     def test_show_tolerates_non_string_client_id(
         self,
         aa_base: Path,
@@ -196,6 +198,7 @@ class TestProfileTest:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         _seed_profile(aa_base, "prod")
+        monkeypatch.setattr(cmd, "request_token", lambda _creds: StepResult(ok=True))
         from aa_auto_sdr.api import client as api_client
 
         class _StubClient:
@@ -220,6 +223,7 @@ class TestProfileTest:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         _seed_profile(aa_base, "prod")
+        monkeypatch.setattr(cmd, "request_token", lambda _creds: StepResult(ok=True))
         from aa_auto_sdr.api import client as api_client
 
         def _raise(cls, creds, *, company_id=None, retry_policy=None):

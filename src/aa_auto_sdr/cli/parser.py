@@ -208,7 +208,7 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--show-config",
         action="store_true",
-        help="Print which credential source resolved and exit",
+        help="Print which credential source resolved and exit (--format json for the config check as JSON)",
     )
     actions.add_argument(
         "--list-snapshots",
@@ -233,13 +233,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--profile-test",
         metavar="NAME",
         default=None,
-        help="Authenticate the named profile (OAuth + getCompanyId), print PASS/FAIL",
+        help=(
+            "Test the named profile against Adobe: sign-in, then the company check (getCompanyId). "
+            "Prints both results and PASS/FAIL (--format json for JSON)"
+        ),
     )
     actions.add_argument(
         "--profile-show",
         metavar="NAME",
         default=None,
-        help="Show profile fields with masked client_id (no secret)",
+        help="Show profile fields with masked client_id (the secret is shown as ****)",
     )
     actions.add_argument(
         "--profile-import",
@@ -290,7 +293,10 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--config-status",
         action="store_true",
-        help="Print full credential resolution chain (more verbose than --show-config)",
+        help=(
+            "Print full credential resolution chain (more verbose than --show-config). "
+            "Makes no network call (--format json for the config check as JSON)"
+        ),
     )
     actions.add_argument(
         "--validate-config",
@@ -355,7 +361,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Generate: excel|csv|json|html|markdown|all|reports|data|ci. "
             "(--template auto-routes 'excel' to 'excel-template'.) "
             "List/inspect: json|csv (default = fixed-width table to stdout). "
-            "Diff: console|json|markdown|pr-comment."
+            "Diff: console|json|markdown|pr-comment. "
+            "--show-config, --config-status, --profile-test: json."
         ),
     )
 
@@ -378,6 +385,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--profile",
         default=None,
         help="Use a named credentials profile from ~/.aa/orgs/<name>/",
+    )
+    p.add_argument(
+        "--config",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Read the credential from this JSON file (org_id, client_id, secret, scopes). "
+            "It is an error to give --config together with --profile"
+        ),
     )
 
     # Snapshot persistence (v0.7)

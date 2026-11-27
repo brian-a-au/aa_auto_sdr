@@ -39,6 +39,8 @@ dependencies = [
     "aanalytics2>=0.5.5",
     "openpyxl>=3.1.0",
     "pandas>=2.3.3,<4",
+    # Reads a `.env` file in the working folder as a credential source.
+    "python-dotenv>=1.0.0",
     # `requests` is imported directly by api/resilience.py (`is_retryable`
     # checks `ConnectionError` / `Timeout` subclasses). aanalytics2 already
     # brings it transitively; declared here to keep the import surface
@@ -61,7 +63,9 @@ aa_auto_sdr = "aa_auto_sdr.__main__:main"
 "aa-auto-sdr" = "aa_auto_sdr.__main__:main"
 
 [project.optional-dependencies]
-env = ["python-dotenv>=1.0.0"]
+# python-dotenv is a required dependency now. The empty extra stays so that
+# `pip install aa-auto-sdr[env]` still works.
+env = []
 completion = ["argcomplete>=3.0.0"]
 notion = ["notion-client>=3.0.0"]
 
@@ -84,7 +88,6 @@ dev = [
     "pytest-cov>=4.1.0",
     "ruff>=0.9.0",
     "notion-client>=3.0.0",
-    "python-dotenv>=1.0.0",
     "pytest-xdist>=3.6",
 ]
 

@@ -42,6 +42,33 @@ def _clear_notion_data_source_cache() -> None:
         pass  # module not yet imported — nothing to clear
 
 
+_CREDENTIAL_VARIABLES = ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE")
+
+
+@pytest.fixture(autouse=True)
+def _hide_developer_credentials(monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Keep the developer's own credentials out of every test.
+
+    The credential variables are cleared, and HOME points at an empty
+    temporary folder, so no test reads a real profile under ``~/.aa``. The
+    ``--config`` path and the printed-once notices are reset too, because
+    tests share one process. A test that needs a source sets it itself.
+    """
+    from aa_auto_sdr.core import credentials, notices
+
+    for name in _CREDENTIAL_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    home = tmp_path_factory.mktemp("home")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.chdir(tmp_path_factory.mktemp("work"))
+    credentials.set_config_path(None)
+    notices.reset()
+    yield
+    credentials.set_config_path(None)
+    notices.reset()
+
+
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 

@@ -36,7 +36,7 @@ Every record that touches one of these concepts MUST pass it via `extra={...}` e
 | `count_failed` | int | Batch summary records — count of RSIDs that failed (paired with `count` for successes). |
 | `company_id` | str | `api/client.py` bootstrap-success record — the resolved AA `globalCompanyId`. |
 | `company_id_source` | str — `explicit`/`first_of_n` | `api/client.py` bootstrap-success record — provenance of the chosen company id. |
-| `client_id_prefix` | str (8 chars) | `api/client.py` post-configure DEBUG record — first 8 chars of the OAuth client id; full client id is never logged. |
+| `client_id_masked` | str | `api/client.py` post-configure DEBUG record — the OAuth client id masked as its first 4 characters, `****`, and its last 4 characters; full client id is never logged. |
 | `not_compared` | list[str] — component family names | `diff_scope_mismatch` — families one capture collected and the other did not. |
 | `not_compared_fields` | list[str] — component field names | `diff_legacy_capture_fields` — dimension and metric fields an older capture did not collect. |
 | `sheet` | str — workbook sheet name | Template-fill records. On `template_overflow_sheet_written` it is the name of the appended Overflow sheet; on the other `template_*` events it is the template sheet being filled. |

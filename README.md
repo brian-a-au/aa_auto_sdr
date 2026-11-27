@@ -114,7 +114,7 @@ pip install aa-auto-sdr
 Optional features ship as extras:
 
 ```bash
-uv tool install "aa-auto-sdr[env,notion]"   # .env support + Notion export
+uv tool install "aa-auto-sdr[notion]"   # Notion export
 ```
 
 Verify with `aa-auto-sdr --version`, then skip ahead to [Configure Credentials](#3-configure-credentials-adobe-analytics-api-20-oauth-server-to-server) — installed from PyPI you run `aa-auto-sdr` directly, so the `uv run` prefix in the numbered steps below is only for the from-source path.
@@ -191,7 +191,7 @@ In the **Adobe Admin Console**, add the integration to an Adobe Analytics **Prod
 
 #### d. Save credentials
 
-Pick **one** of the four sources (resolution precedence: `--profile` → env vars → `.env` → `config.json`):
+Pick **one** of the four sources (resolution precedence: `--profile` or `--config` → `AA_PROFILE` → env vars → `.env` → `config.json`):
 
 **Option 1 — Named profile (recommended for daily use):**
 
@@ -237,7 +237,9 @@ cp config.json.example config.json
 # Edit config.json — already gitignored
 ```
 
-**Option 4 — `.env` file** (requires `python-dotenv`, an optional extra): same fields as env vars, in a `.env` file in the working directory.
+**Option 4 — `.env` file**: same fields as env vars, in a `.env` file in the working directory. When `.env` and `config.json` hold different credentials, the tool uses `.env` and prints a notice.
+
+You can also pass a credential file at any path with `--config <path>`. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md#credential-storage) for the full lookup order.
 
 ### 4. Verify Setup & Run
 
@@ -462,6 +464,7 @@ aa_auto_sdr/
 │       ├── api/               # aanalytics2 wrapper, auth, fetchers, normalized models
 │       │   ├── client.py      # the only file that imports aanalytics2
 │       │   ├── auth.py
+│       │   ├── sign_in.py     # the sign-in request of --profile-test
 │       │   ├── fetch.py       # per-component fetchers; coerces SDK shapes
 │       │   └── models.py      # normalized dataclasses (boundary types)
 │       ├── cli/               # argparse + dispatch
@@ -476,6 +479,7 @@ aa_auto_sdr/
 │       │   ├── colors.py      # ANSI helpers (auto-disabled for non-TTY / NO_COLOR)
 │       │   ├── credentials.py # OAuth credential resolution + precedence
 │       │   ├── profiles.py    # ~/.aa/orgs/<name>/ profile CRUD
+│       │   ├── notices.py     # one-line notices and warnings on stderr
 │       │   ├── constants.py   # BANNER_WIDTH, etc.
 │       │   └── json_io.py     # atomic JSON read/write
 │       ├── output/            # format writers + diff renderers + error envelope

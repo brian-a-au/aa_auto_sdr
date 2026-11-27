@@ -1,0 +1,35 @@
+{
+  "spec": "adobe-credentials/v1",
+  "tool": "aa_auto_sdr",
+  "tool_version": "1.26.0",
+  "not_applicable": [
+    {
+      "rule": "L1.1",
+      "reason": "The part of the rule about a worker or a child process does not apply. The tool runs batch workers as threads in its own process, and the only child process it starts is git, which gets no credential. Case mask-009 is skipped. The rest of the rule applies and is met."
+    }
+  ],
+  "differences": [
+    {
+      "rule": "L3.2",
+      "cases": [
+        "partial-001",
+        "partial-002",
+        "partial-004"
+      ],
+      "summary": "A partial set of environment variables or a partial .env file is skipped with the notice partial_source_skipped, and the lookup goes on to the next source. The four fields are never mixed between sources.",
+      "planned": "2.0.0"
+    },
+    {
+      "rule": "L3.1",
+      "summary": "The credential lookup reads only the .env file in the working folder, as a source of its own. The Notion commands are different: they load a .env file into the environment with python-dotenv, which also searches parent folders, to read the Notion variables. This happens after the credential lookup has run, so it does not change the credential of the run."
+    },
+    {
+      "rule": "L1.4",
+      "summary": "A name that breaks the rule is refused for a new profile. A profile that already exists under such a name is still read and written, with one warning, when the name is one plain folder name. A name that could point outside the profiles folder is always refused."
+    },
+    {
+      "rule": "L2.5",
+      "summary": "The live test is --profile-test NAME, so it tests a named profile only. It cannot test a credential from the environment variables, a .env file or a config file."
+    }
+  ]
+}

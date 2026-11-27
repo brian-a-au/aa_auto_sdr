@@ -36,6 +36,7 @@ Every flag and what it does. For onboarding, see [`QUICKSTART.md`](QUICKSTART.md
 | `--exclude STR` | list/inspect | Case-insensitive substring exclusion on `name`. |
 | `--sort FIELD` | list/inspect | Sort by allowlisted field per command. |
 | `--limit N` | list/inspect | Cap output to N records. |
+| `--config PATH` | all (when needed) | Read the credential from this JSON file (`org_id`, `client_id`, `secret`, `scopes`). It beats `AA_PROFILE`, the environment variables, `.env` and `config.json`. Giving it together with `--profile` is an error (exit 2). |
 | `--profile NAME` | all (when needed) | Use named profile for credentials. Also selects the snapshot store for `--snapshot` and `<rsid>@<spec>` diff tokens (both fall back to the `default` store without it); standalone `--list-snapshots` / `--prune-snapshots` require it or `--snapshot-dir`. |
 | `--yes` / `-y` | destructive actions | Skip confirmation prompts. Non-tty stdin refuses to prompt and aborts safely without `--yes`. |
 
@@ -495,11 +496,11 @@ Retries fire only on transient failures; permanent errors (auth, validation, unk
 
 | Command | Purpose |
 |---|---|
-| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json`. Exit 10 if the name is empty, is `.` or `..`, or contains `/` or `\`, or if an answer is empty. Exit 130 on Ctrl+C. In these cases nothing is written. |
+| `aa_auto_sdr --profile-add <name>` | Interactive prompt; writes `~/.aa/orgs/<name>/config.json` with mode 0600, in a folder created with mode 0700. Exit 10 if the name breaks the profile name rule (letters, digits, dots, underscores and hyphens, starting with a letter or a digit, 64 characters or fewer), or if an answer is empty. Exit 130 on Ctrl+C. In these cases nothing is written. |
 | `aa_auto_sdr --profile <name> …` | Use a named profile for credentials. |
 | `aa_auto_sdr --profile-list` | List profile names in `~/.aa/orgs/`. `--format json` for scripts. |
-| `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked and `secret` never shown. Includes snapshot count for the profile. Exit 10 if not found. |
-| `aa_auto_sdr --profile-test <NAME>` | Live OAuth + `getCompanyId()`. PASS/FAIL. Exit 0 on PASS, 10 on config error, 11 on auth failure, 12 on an API failure (for example, an exhausted retry budget). |
+| `aa_auto_sdr --profile-show <NAME>` | Print profile fields with `client_id` masked (first 4 characters, `****`, last 4) and `secret` shown as `****`. Includes snapshot count for the profile. Exit 10 if not found or if the name is invalid. |
+| `aa_auto_sdr --profile-test <NAME> [--format json]` | Live test with two results: sign-in (one token request), then the company check (`getCompanyId()`), which runs only when sign-in worked. Prints one line per result and then PASS/FAIL. A failed result has a code, e.g., `bad_secret`. `--format json` prints the `adobe-credentials/v1/live-test` JSON. Exit 0 on PASS, 10 on config error, 11 on auth failure, 12 on an API or network failure (for example, an exhausted retry budget). See [`CONFIGURATION.md`](CONFIGURATION.md#test-a-profile-against-adobe) for the codes. |
 | `aa_auto_sdr --profile-import <NAME> <FILE>` | Import a JSON config as a profile. Exit 10 on an invalid profile name (the same rule as `--profile-add`), missing file, bad JSON, missing required fields, or if profile already exists (use `--profile-overwrite`). |
 | `aa_auto_sdr --profile-overwrite` | Allow `--profile-import` to overwrite an existing profile. |
 
@@ -507,8 +508,8 @@ Retries fire only on transient failures; permanent errors (auth, validation, unk
 
 | Command | Purpose |
 |---|---|
-| `aa_auto_sdr --show-config` | Show which credential source resolved (env / profile / .env / config.json) without exposing secrets. |
-| `aa_auto_sdr --config-status` | Print the full credential resolution chain — every source checked, which one matched. Verbose. |
+| `aa_auto_sdr --show-config [--format json]` | Show which credential source resolved (env / profile / `--config` file / .env / config.json), the masked client ID, the secret as `****`, and the scopes. `--format json` prints the `adobe-credentials/v1/config-check` JSON. |
+| `aa_auto_sdr --config-status [--format json]` | Print the full credential resolution chain, with every source checked, which one matched, and the missing fields of a source skipped as partial. Makes no network call. `--format json` prints the `adobe-credentials/v1/config-check` JSON. Exit 0 when a credential was found, 10 when not. |
 | `aa_auto_sdr --validate-config` | Resolve and validate credential shape **without** calling Adobe. Exit 0 on valid, 10 on missing fields or malformed `org_id`. |
 | `aa_auto_sdr --sample-config` | Emit a `config.json` template to stdout. |
 

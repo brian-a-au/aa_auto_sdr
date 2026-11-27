@@ -161,15 +161,14 @@ def test_legacy_sandbox_key_in_config_is_ignored(tmp_path: Path) -> None:
     assert not hasattr(creds, "sandbox")
 
 
-def test_from_dotenv_returns_none_when_python_dotenv_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """When python-dotenv is not installed, `_from_dotenv` swallows the
-    ImportError and returns None so resolution falls through to the next source."""
-    import sys
+def test_python_dotenv_is_a_required_dependency() -> None:
+    """`.env` is read on every install, so python-dotenv is required. The
+    `env` extra stays as an empty extra, so `aa-auto-sdr[env]` still installs."""
+    import tomllib
 
-    # Force `from dotenv import dotenv_values` to raise ImportError.
-    monkeypatch.setitem(sys.modules, "dotenv", None)
-    (tmp_path / ".env").write_text("ORG_ID=O\n")
-    assert credentials._from_dotenv(tmp_path) is None
+    project = tomllib.loads((Path(__file__).parents[2] / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert any(dep.startswith("python-dotenv") for dep in project["dependencies"])
+    assert project["optional-dependencies"]["env"] == []
 
 
 def test_resolution_chain_reports_unmatched_profile_entry(tmp_path: Path) -> None:
@@ -207,17 +206,23 @@ def test_unreadable_config_json_raises_config_error(monkeypatch: pytest.MonkeyPa
 
 
 @pytest.mark.skipif(os.name != "posix" or os.geteuid() == 0, reason="needs POSIX permissions and a non-root user")
-def test_unreadable_dotenv_raises_config_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
-        monkeypatch.delenv(var, raising=False)
+def test_unreadable_dotenv_is_skipped_with_a_warning(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     dotenv = tmp_path / ".env"
     dotenv.write_text("ORG_ID=x\n")
     dotenv.chmod(0)
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"org_id": "F@AdobeOrg", "client_id": "Fc", "secret": "Fs", "scopes": "Fx"}))
+    config.chmod(0o600)
     try:
-        with pytest.raises(ConfigError, match="could not read"):
-            credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+        creds = credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
     finally:
         dotenv.chmod(0o600)
+    assert creds.source == "config.json"
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err.count("\n") == 1
+    assert captured.err.startswith("warning: .env: could not read")
+    assert "The file was skipped." in captured.err
 
 
 def test_damaged_profile_raises_config_error(tmp_path: Path) -> None:
@@ -228,12 +233,14 @@ def test_damaged_profile_raises_config_error(tmp_path: Path) -> None:
         credentials.resolve(profile="bad", profiles_base=tmp_path, working_dir=tmp_path)
 
 
-def test_non_utf8_dotenv_raises_config_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    for var in ("ORG_ID", "CLIENT_ID", "SECRET", "SCOPES", "AA_PROFILE"):
-        monkeypatch.delenv(var, raising=False)
+def test_non_utf8_dotenv_is_skipped_with_a_warning(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / ".env").write_bytes(b"ORG_ID=\xff\xfe\n")
-    with pytest.raises(ConfigError, match="not valid UTF-8"):
+    # With no other source the run still stops, now with the no-credential error.
+    with pytest.raises(ConfigError, match="No credentials found"):
         credentials.resolve(profile=None, profiles_base=tmp_path, working_dir=tmp_path)
+    err = capsys.readouterr().err
+    assert err.startswith("warning: .env:")
+    assert "is not valid UTF-8" in err
 
 
 def test_null_credential_value_counts_as_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
