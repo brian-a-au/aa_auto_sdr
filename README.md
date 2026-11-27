@@ -239,7 +239,7 @@ cp config.json.example config.json
 
 **Option 4 — `.env` file**: same fields as env vars, in a `.env` file in the working directory. When `.env` and `config.json` hold different credentials, the tool uses `.env` and prints a notice.
 
-You can also pass a credential file at any path with `--config <path>`. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md#credential-storage) for the full lookup order.
+You can also pass a credential file at any path with `--config <path>`. See [the configuration guide](https://github.com/brian-a-au/aa_auto_sdr/blob/main/docs/CONFIGURATION.md#credential-storage) for the full lookup order.
 
 ### 4. Verify Setup & Run
 

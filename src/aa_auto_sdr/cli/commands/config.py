@@ -149,7 +149,8 @@ def show_config(
             print(f"source:    {creds.source}")
             print(f"org_id:    {creds.org_id}")
             print(f"client_id: {credentials.mask_client_id(creds.client_id)}")
-            print(f"secret:    {credentials.mask_secret(creds.secret)}")
+            # A resolved credential always has a secret, so the line is the fixed mask.
+            print(f"secret:    {credentials.MASK}")
             print(f"scopes:    {creds.scopes}")
         exit_code = ExitCode.OK.value
         return exit_code
@@ -261,7 +262,7 @@ def config_status(*, profile: str | None, format_name: str | None = None) -> int
         print(f"  source:    {_source_label(found, creds)}")
         print(f"  org_id:    {creds.org_id}")
         print(f"  client_id: {credentials.mask_client_id(creds.client_id)}")
-        print(f"  secret:    {credentials.mask_secret(creds.secret)}")
+        print(f"  secret:    {credentials.MASK}")
         # Render scopes in the canonical no-space comma form (see docs/CONFIGURATION.md),
         # regardless of how they were entered.
         canonical_scopes = ",".join(s.strip() for s in creds.scopes.split(",") if s.strip())

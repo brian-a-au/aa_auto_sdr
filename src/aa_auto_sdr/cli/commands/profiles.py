@@ -201,7 +201,8 @@ def show_run(name: str, *, base: Path | None = None) -> int:
         print(f"profile:    {name}")
         print(f"org_id:     {data.get('org_id', '')}")
         print(f"client_id:  {masked}")
-        print(f"secret:     {credentials.mask_secret('' if data.get('secret') is None else str(data['secret']))}")
+        secret_is_set = data.get("secret") not in (None, "")
+        print(f"secret:     {credentials.MASK if secret_is_set else ''}")
         print(f"scopes:     {data.get('scopes', '')}")
         print(f"snapshots:  {snap_count}")
         exit_code = ExitCode.OK.value
