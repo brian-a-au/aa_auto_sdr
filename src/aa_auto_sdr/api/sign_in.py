@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from aa_auto_sdr.core.credentials import MASK, Credentials
+from aa_auto_sdr.core.credentials import MASK, Credentials, mask_client_id
 
 IMS_SIGN_IN_URL = "https://ims-na1.adobelogin.com/ims/token/v3"
 # Seconds to wait for a connection, and then for the answer.
@@ -66,11 +66,15 @@ def _post(url: str, data: dict[str, str]) -> Any:
 
 
 def _without_secret(text: str, creds: Credentials) -> str:
-    """Adobe's text with any copy of the secret removed, cut to MESSAGE_LIMIT characters."""
+    """Adobe's text with any copy of the secret removed, cut to MESSAGE_LIMIT characters.
+
+    A copy of the client ID is shown masked, as everywhere else."""
     from aa_auto_sdr.core.logging import redact_text
 
     if creds.secret:
         text = text.replace(creds.secret, MASK)
+    if creds.client_id:
+        text = text.replace(creds.client_id, mask_client_id(creds.client_id))
     return redact_text(text)[:MESSAGE_LIMIT]
 
 

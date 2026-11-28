@@ -348,6 +348,13 @@ def test_adobe_message_is_cut_and_holds_no_secret(monkeypatch: pytest.MonkeyPatc
     assert result.message.startswith("Adobe answered HTTP 400: client_secret=**** was refused for ****.")
 
 
+def test_adobe_message_shows_the_client_id_masked(monkeypatch: pytest.MonkeyPatch) -> None:
+    description = f"client {A['client_id']} is disabled"
+    _answer(monkeypatch, 400, {"error": "other", "error_description": description})
+    result = sign_in.request_token(_creds())
+    assert result.message == "Adobe answered HTTP 400: client aaaa****4444 is disabled"
+
+
 @pytest.mark.parametrize(("body", "detail"), [({"error": "access_denied"}, "error access_denied"), ({}, "no message")])
 def test_adobe_answer_without_a_description(monkeypatch: pytest.MonkeyPatch, body: Any, detail: str) -> None:
     _answer(monkeypatch, 403, body)
