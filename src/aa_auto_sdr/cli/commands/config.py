@@ -114,12 +114,33 @@ def _print_config_check_json(found: credentials.Lookup) -> None:
     sys.stdout.write(json.dumps(config_check_payload(found), indent=2) + "\n")
 
 
-def _source_label(found: credentials.Lookup, creds: credentials.Credentials) -> str:
+def _source_label(used: credentials.SourceReport | None, source: str) -> str:
     """The winning source with its file path, e.g. `config.json (/work/config.json)`."""
-    used = found.used
     if used is None or not used.path or used.kind == "flag_config":  # a --config label already holds the path
-        return creds.source
-    return f"{creds.source} ({used.path})"
+        return source
+    return f"{source} ({used.path})"
+
+
+def _print_show_config(shown: credentials.ShownCredential) -> None:
+    """The text output of --show-config. It gets no secret, only the fixed mask."""
+    print(f"source:    {shown.source}")
+    print(f"org_id:    {shown.org_id}")
+    print(f"client_id: {shown.client_id}")
+    print(f"secret:    {shown.secret}")
+    print(f"scopes:    {shown.scopes}")
+
+
+def _print_resolved_values(shown: credentials.ShownCredential, source_label: str) -> None:
+    """The "Resolved values" block of --config-status. It gets no secret, only the fixed mask."""
+    print("Resolved values (sensitive fields masked):")
+    print(f"  source:    {source_label}")
+    print(f"  org_id:    {shown.org_id}")
+    print(f"  client_id: {shown.client_id}")
+    print(f"  secret:    {shown.secret}")
+    # Render scopes in the canonical no-space comma form (see docs/CONFIGURATION.md),
+    # regardless of how they were entered.
+    canonical_scopes = ",".join(s.strip() for s in shown.scopes.split(",") if s.strip())
+    print(f"  scopes:    {canonical_scopes}")
 
 
 def show_config(
@@ -145,13 +166,7 @@ def show_config(
             exit_code = ExitCode.CONFIG.value
             return exit_code
         if not as_json:
-            creds = found.creds
-            print(f"source:    {creds.source}")
-            print(f"org_id:    {creds.org_id}")
-            print(f"client_id: {credentials.mask_client_id(creds.client_id)}")
-            # A resolved credential always has a secret, so the line is the fixed mask.
-            print(f"secret:    {credentials.MASK}")
-            print(f"scopes:    {creds.scopes}")
+            _print_show_config(found.creds.shown())
         exit_code = ExitCode.OK.value
         return exit_code
     finally:
@@ -257,16 +272,8 @@ def config_status(*, profile: str | None, format_name: str | None = None) -> int
             print(f"resolution failed: {found.error}", flush=True, file=sys.stderr)
             exit_code = ExitCode.CONFIG.value
             return exit_code
-        creds = found.creds
-        print("Resolved values (sensitive fields masked):")
-        print(f"  source:    {_source_label(found, creds)}")
-        print(f"  org_id:    {creds.org_id}")
-        print(f"  client_id: {credentials.mask_client_id(creds.client_id)}")
-        print(f"  secret:    {credentials.MASK}")
-        # Render scopes in the canonical no-space comma form (see docs/CONFIGURATION.md),
-        # regardless of how they were entered.
-        canonical_scopes = ",".join(s.strip() for s in creds.scopes.split(",") if s.strip())
-        print(f"  scopes:    {canonical_scopes}")
+        shown = found.creds.shown()
+        _print_resolved_values(shown, _source_label(found.used, shown.source))
         exit_code = ExitCode.OK.value
         return exit_code
     finally:

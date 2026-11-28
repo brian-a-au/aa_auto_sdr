@@ -8,6 +8,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from aa_auto_sdr.api.resilience import RetryPolicy
 from aa_auto_sdr.api.sign_in import NOT_RUN, StepResult, request_token
@@ -174,6 +175,21 @@ def test_run(
         )
 
 
+def _shown_profile(data: dict[str, Any]) -> dict[str, str]:
+    """The profile fields as --profile-show prints them. The result holds no secret.
+
+    The client ID is masked, and the secret is `****` when set and empty when not."""
+    # str(): a hand-written config.json can hold null or a number here.
+    client_id = "" if data.get("client_id") is None else str(data["client_id"])
+    secret_is_set = data.get("secret") not in (None, "")
+    return {
+        "org_id": str(data.get("org_id", "")),
+        "client_id": credentials.mask_client_id(client_id) if client_id else "",
+        "secret": credentials.MASK if secret_is_set else "",
+        "scopes": str(data.get("scopes", "")),
+    }
+
+
 def show_run(name: str, *, base: Path | None = None) -> int:
     """Print profile fields with masked client_id and no secret."""
     started_ms = time.monotonic()
@@ -188,9 +204,7 @@ def show_run(name: str, *, base: Path | None = None) -> int:
             return exit_code
         snap_dir = profiles.snapshot_dir(name, base=base)
         snap_count = len(list_snapshots(snap_dir))
-        # str(): a hand-written config.json can hold null or a number here.
-        cid = "" if data.get("client_id") is None else str(data["client_id"])
-        masked = credentials.mask_client_id(cid) if cid else ""
+        shown = _shown_profile(data)
         path = profiles.profile_config_path(name, base=base)
         if profiles.readable_by_others(path):
             notices.say(
@@ -199,11 +213,10 @@ def show_run(name: str, *, base: Path | None = None) -> int:
                 f'To fix this, run: chmod 600 "{path}"',
             )
         print(f"profile:    {name}")
-        print(f"org_id:     {data.get('org_id', '')}")
-        print(f"client_id:  {masked}")
-        secret_is_set = data.get("secret") not in (None, "")
-        print(f"secret:     {credentials.MASK if secret_is_set else ''}")
-        print(f"scopes:     {data.get('scopes', '')}")
+        print(f"org_id:     {shown['org_id']}")
+        print(f"client_id:  {shown['client_id']}")
+        print(f"secret:     {shown['secret']}")
+        print(f"scopes:     {shown['scopes']}")
         print(f"snapshots:  {snap_count}")
         exit_code = ExitCode.OK.value
         return exit_code

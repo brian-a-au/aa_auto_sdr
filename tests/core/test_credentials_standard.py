@@ -419,3 +419,22 @@ def test_mask_client_id(client_id: str, shown: str) -> None:
 def test_mask_secret_never_shows_a_character_or_the_length() -> None:
     assert credentials.mask_secret("abc") == credentials.mask_secret("a" * 80) == "****"
     assert credentials.mask_secret("") == ""
+
+
+def test_shown_credential_holds_no_secret() -> None:
+    creds = credentials.Credentials(
+        org_id="A1B2C3D4E5F6A7B8C9D0E1F2@AdobeOrg",
+        client_id="aaaa1111bbbb2222cccc3333dddd4444",
+        secret="fake-secret-A-not-a-credential-0001",
+        scopes="openid,AdobeID",
+        source="env",
+    )
+    shown = creds.shown()
+    assert shown == credentials.ShownCredential(
+        source="env",
+        org_id="A1B2C3D4E5F6A7B8C9D0E1F2@AdobeOrg",
+        client_id="aaaa****4444",
+        secret="****",
+        scopes="openid,AdobeID",
+    )
+    assert creds.secret not in repr(shown)

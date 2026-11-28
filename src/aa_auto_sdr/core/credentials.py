@@ -65,6 +65,29 @@ class Credentials:
             error.missing = tuple(missing)
             raise error
 
+    def shown(self) -> ShownCredential:
+        """The parts of this credential that a command may print."""
+        return ShownCredential(
+            source=self.source,
+            org_id=self.org_id,
+            client_id=mask_client_id(self.client_id),
+            secret=mask_secret(self.secret),
+            scopes=self.scopes,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ShownCredential:
+    """A credential as a command prints it. It never holds the secret.
+
+    `client_id` is masked, and `secret` is `****` or an empty string."""
+
+    source: str
+    org_id: str
+    client_id: str
+    secret: str
+    scopes: str
+
 
 def _missing_fields(c: Credentials) -> list[str]:
     return [f for f in _REQUIRED_FIELDS if not getattr(c, f).strip()]
