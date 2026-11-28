@@ -772,6 +772,10 @@ def run(argv: list[str]) -> int:
     if ns.config and ns.profile:
         print("error: --profile and --config cannot be used together. Give one of them.", file=sys.stderr)
         return ExitCode.USAGE.value
+    # --profile-test names a profile too, so the message names the option the person typed.
+    if ns.config and ns.profile_test:
+        print("error: --profile-test and --config cannot be used together. Give one of them.", file=sys.stderr)
+        return ExitCode.USAGE.value
     from aa_auto_sdr.core import credentials
 
     credentials.set_config_path(ns.config)

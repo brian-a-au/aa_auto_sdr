@@ -95,6 +95,17 @@ def test_config_flag_with_profile_is_a_usage_error(
         assert err == "error: --profile and --config cannot be used together. Give one of them.\n"
 
 
+def test_config_flag_with_profile_test_is_a_usage_error_that_names_profile_test(
+    home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write(tmp_path / "cred.json", A)
+    _profile(tmp_path, "prod", B)
+    code, out, err = _cli(["--profile-test", "prod", "--config", str(path)], capsys)
+    assert code == ExitCode.USAGE.value
+    assert out == ""
+    assert err == "error: --profile-test and --config cannot be used together. Give one of them.\n"
+
+
 def test_config_flag_beats_the_profile_variable(
     home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

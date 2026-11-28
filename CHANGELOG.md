@@ -82,7 +82,8 @@ installed, two situations now give a different credential, because
 ### Added
 - `--config <path>` reads the credential from a JSON file at any path. It
   beats `AA_PROFILE`, the environment variables, `.env` and `config.json`.
-  Giving `--config` together with `--profile` is an error (exit 2).
+  Giving `--config` together with `--profile` or `--profile-test` is an error
+  (exit 2).
 - `--format json` on `--show-config` and `--config-status` prints the config
   check as JSON, with `"schema": "adobe-credentials/v1/config-check"`. It
   lists every source that held a value, the masked client ID, `secret_set`,

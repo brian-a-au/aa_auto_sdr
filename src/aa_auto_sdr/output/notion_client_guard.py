@@ -13,14 +13,10 @@ from typing import Any
 
 
 def _maybe_load_dotenv() -> None:
-    """Load a ``.env`` file if ``python-dotenv`` is installed; silently skip otherwise."""
-    try:
-        from dotenv import load_dotenv
+    """Load a ``.env`` file. ``python-dotenv`` is a required dependency."""
+    from dotenv import load_dotenv
 
-        load_dotenv()
-    except ImportError:
-        # python-dotenv is optional, so a missing package is not an error.
-        pass
+    load_dotenv()
 
 
 def _require_notion_client() -> Any:
@@ -52,8 +48,7 @@ def notion_request_errors() -> tuple[type[BaseException], ...]:
 def resolve_notion_token() -> str:
     """Return ``NOTION_TOKEN``, or exit 1 if missing.
 
-    Resolution order: environment variable → ``.env`` file (if
-    ``python-dotenv`` is installed) → hard failure.
+    Resolution order: environment variable → ``.env`` file → hard failure.
 
     Use this for commands that need a Notion token but do NOT create pages
     (e.g. ``--notion-repair-database``, ``--notion-prune-orphans``), which
@@ -75,8 +70,7 @@ def resolve_notion_token() -> str:
 def resolve_notion_credentials() -> tuple[str, str]:
     """Return ``(NOTION_TOKEN, NOTION_PARENT_PAGE_ID)``, or exit 1 if missing.
 
-    Resolution order: environment variable → ``.env`` file (if
-    ``python-dotenv`` is installed) → hard failure.
+    Resolution order: environment variable → ``.env`` file → hard failure.
     """
     token = resolve_notion_token()
 
