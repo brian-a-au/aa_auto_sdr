@@ -126,7 +126,8 @@ def _print_show_config(shown: credentials.ShownCredential) -> None:
     print(f"source:    {shown.source}")
     print(f"org_id:    {shown.org_id}")
     print(f"client_id: {shown.client_id}")
-    print(f"secret:    {shown.secret}")
+    # A resolved credential always has a secret, so the line is the fixed mask.
+    print(f"secret:    {credentials.MASK}")
     print(f"scopes:    {shown.scopes}")
 
 
@@ -136,7 +137,7 @@ def _print_resolved_values(shown: credentials.ShownCredential, source_label: str
     print(f"  source:    {source_label}")
     print(f"  org_id:    {shown.org_id}")
     print(f"  client_id: {shown.client_id}")
-    print(f"  secret:    {shown.secret}")
+    print(f"  secret:    {credentials.MASK}")
     # Render scopes in the canonical no-space comma form (see docs/CONFIGURATION.md),
     # regardless of how they were entered.
     canonical_scopes = ",".join(s.strip() for s in shown.scopes.split(",") if s.strip())

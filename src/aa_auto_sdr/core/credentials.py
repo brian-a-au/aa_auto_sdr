@@ -71,21 +71,19 @@ class Credentials:
             source=self.source,
             org_id=self.org_id,
             client_id=mask_client_id(self.client_id),
-            secret=mask_secret(self.secret),
             scopes=self.scopes,
         )
 
 
 @dataclass(frozen=True, slots=True)
 class ShownCredential:
-    """A credential as a command prints it. It never holds the secret.
+    """A credential as a command prints it. It holds no secret and nothing made from it.
 
-    `client_id` is masked, and `secret` is `****` or an empty string."""
+    `client_id` is masked. A command prints the fixed `MASK` on the secret line."""
 
     source: str
     org_id: str
     client_id: str
-    secret: str
     scopes: str
 
 

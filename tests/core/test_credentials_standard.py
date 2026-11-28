@@ -434,7 +434,7 @@ def test_shown_credential_holds_no_secret() -> None:
         source="env",
         org_id="A1B2C3D4E5F6A7B8C9D0E1F2@AdobeOrg",
         client_id="aaaa****4444",
-        secret="****",
         scopes="openid,AdobeID",
     )
     assert creds.secret not in repr(shown)
+    assert not hasattr(shown, "secret")

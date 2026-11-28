@@ -175,19 +175,19 @@ def test_run(
         )
 
 
-def _shown_profile(data: dict[str, Any]) -> dict[str, str]:
-    """The profile fields as --profile-show prints them. The result holds no secret.
+def _shown_profile(data: dict[str, Any]) -> tuple[str, str, str, str]:
+    """The four lines of --profile-show: org_id, client ID, mask, scopes. None holds the secret.
 
-    The client ID is masked, and the secret is `****` when set and empty when not."""
+    The client ID is masked. The mask is the fixed `****` when a secret is set, and empty when not."""
     # str(): a hand-written config.json can hold null or a number here.
     client_id = "" if data.get("client_id") is None else str(data["client_id"])
-    secret_is_set = data.get("secret") not in (None, "")
-    return {
-        "org_id": str(data.get("org_id", "")),
-        "client_id": credentials.mask_client_id(client_id) if client_id else "",
-        "secret": credentials.MASK if secret_is_set else "",
-        "scopes": str(data.get("scopes", "")),
-    }
+    mask = credentials.MASK if data.get("secret") not in (None, "") else ""
+    return (
+        str(data.get("org_id", "")),
+        credentials.mask_client_id(client_id) if client_id else "",
+        mask,
+        str(data.get("scopes", "")),
+    )
 
 
 def show_run(name: str, *, base: Path | None = None) -> int:
@@ -204,7 +204,7 @@ def show_run(name: str, *, base: Path | None = None) -> int:
             return exit_code
         snap_dir = profiles.snapshot_dir(name, base=base)
         snap_count = len(list_snapshots(snap_dir))
-        shown = _shown_profile(data)
+        org_id, masked_client_id, mask, scopes = _shown_profile(data)
         path = profiles.profile_config_path(name, base=base)
         if profiles.readable_by_others(path):
             notices.say(
@@ -213,10 +213,10 @@ def show_run(name: str, *, base: Path | None = None) -> int:
                 f'To fix this, run: chmod 600 "{path}"',
             )
         print(f"profile:    {name}")
-        print(f"org_id:     {shown['org_id']}")
-        print(f"client_id:  {shown['client_id']}")
-        print(f"secret:     {shown['secret']}")
-        print(f"scopes:     {shown['scopes']}")
+        print(f"org_id:     {org_id}")
+        print(f"client_id:  {masked_client_id}")
+        print(f"secret:     {mask}")
+        print(f"scopes:     {scopes}")
         print(f"snapshots:  {snap_count}")
         exit_code = ExitCode.OK.value
         return exit_code
