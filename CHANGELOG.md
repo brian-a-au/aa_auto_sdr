@@ -2,6 +2,136 @@
 
 All notable changes to this project will be documented in this file. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+This change brings the tool to Levels 1 and 2 of the Adobe credentials
+standard, version 1. The standard is shared by the Adobe Analytics and
+Customer Journey Analytics tools. It says how a tool finds, checks, shows and
+protects an OAuth Server-to-Server credential. The tool now prints a notice
+where a later major release will act differently. `known-differences.json`
+in the repository root lists the rules the tool does not meet yet.
+
+The lookup order is the same as before. If you did not have the `env` extra
+installed, two situations now give a different credential, because
+`python-dotenv` is now a required dependency. They are listed first under
+"Behavior changes".
+
+### Behavior changes
+- `python-dotenv` is now a required dependency, so the tool reads a `.env`
+  file in the working directory on every install. Before, it read the file
+  only when you had installed the `env` extra. If you did not have the extra,
+  the tool now uses a credential in a different way in these situations:
+  - You have no profile selected and no complete set of environment
+    variables, and the working directory holds a complete `.env` and a
+    complete `config.json` with different values. The tool used
+    `config.json`. It now uses `.env`, as it already did with the extra, and
+    prints a notice that says so. To keep using `config.json`, remove the
+    four credential lines from `.env` or pass `--config config.json`.
+  - The same situation with a complete `.env` and no complete `config.json`.
+    The run used to stop with exit 10. It now uses `.env`.
+  The `env` extra is now empty and stays, so `pip install aa-auto-sdr[env]`
+  still works.
+- A Notion run (`--format notion`, `--push-to-notion` and the other
+  `--notion-*` commands) now reads `NOTION_TOKEN` and the other Notion
+  variables from a `.env` file on every install. Before, it did so only with
+  the `env` extra, and without it such a run stopped when the variables were
+  only in `.env`. The file is loaded into the environment after the Adobe
+  credential lookup has run, so it does not change which Adobe credential the
+  run uses.
+- A `.env` file that cannot be read, or that is not UTF-8, used to stop the
+  run with exit 10 when the `env` extra was installed. The tool now prints a
+  warning, skips the file, and goes on to `config.json`.
+- A profile name now holds letters, digits, dots, underscores and hyphens
+  only. It starts with a letter or a digit, and it is 64 characters or fewer.
+  Every command that reads or writes a profile checks the name first.
+  `--profile-add` and `--profile-import` used to accept other names, e.g.,
+  a name with a space, and now refuse them for a new profile. `--profile`,
+  `AA_PROFILE`, `--profile-test` and `--profile-show` used to accept a name
+  with a path in it, e.g., `../other`, and now exit 10. A profile that
+  already exists under a name that breaks the rule still works, and the tool
+  prints one warning.
+  The name is also checked before the tool builds a snapshot folder path from
+  `--profile`, so `--profile ../other --list-snapshots` now exits 10.
+- The client ID is now masked the same way everywhere: the first 4
+  characters, `****`, and the last 4 characters, e.g., `aaaa****4444`. A
+  client ID of 8 characters or fewer is shown as `****`. `--show-config`,
+  `--config-status` and `--profile-show` used to print `aaaa…4444`, and they
+  printed a short client ID in full. The debug log used to hold the first 8
+  characters under `client_id_prefix`. It now holds the masked form under
+  `client_id_masked`.
+- `--show-config`, `--config-status` and `--profile-show` now print a
+  `secret:` line that shows `****` when the secret is set. `--show-config`
+  also prints the scopes. `--config-status` also prints the source with its
+  file path, and the missing fields of a source it skipped as partial.
+- `--profile-test` now prints two more lines before `PASS` or `FAIL`: one
+  for sign-in and one for the company check. It makes its own token request
+  to Adobe's sign-in service first, and runs the company check only when
+  sign-in worked. The `PASS` and `FAIL [config]`, `FAIL [auth]` and
+  `FAIL [api]` lines and the exit codes are as before.
+- When the credential sees no Analytics company, every command now prints
+  the same message: "Sign-in worked, but this credential sees no Analytics
+  company. In the Adobe Admin Console, add the credential's technical account
+  to an Analytics product profile." The exit code is still 11.
+- When no credential is found and a source held some of the four fields,
+  the error now also names that source and its missing fields.
+- A new profile folder is created with mode 0700. This covers `~/.aa`,
+  `~/.aa/orgs` and the profile folder, when the tool creates them. A folder
+  that already exists keeps its mode. The profile file was already written
+  with mode 0600.
+
+### Added
+- `--config <path>` reads the credential from a JSON file at any path. It
+  beats `AA_PROFILE`, the environment variables, `.env` and `config.json`.
+  Giving `--config` together with `--profile` or `--profile-test` is an error
+  (exit 2).
+- `--format json` on `--show-config` and `--config-status` prints the config
+  check as JSON, with `"schema": "adobe-credentials/v1/config-check"`. It
+  lists every source that held a value, the masked client ID, `secret_set`,
+  the scopes, the problems, the notices and the warnings. There is no
+  `secret` key. These commands had no JSON output before. They print JSON
+  only when `--format json` is on the command line, so `--agent-mode` alone
+  leaves their text output as it is.
+- `--format json` on `--profile-test` prints the live test as JSON, with
+  `"schema": "adobe-credentials/v1/live-test"`. It holds a `sign_in` result
+  and a `product_access` result. A failed result has one of these codes:
+  - `bad_client_id`
+  - `bad_secret`
+  - `scopes_rejected`
+  - `sign_in_failed`
+  - `no_product_access`
+  - `unreachable`
+- Notices and warnings about the credential lookup. Each is one line on
+  stderr that starts with `notice:` or `warning:`. Each is printed once per
+  run, never goes to stdout, and never changes the exit code.
+  - A notice when `.env` and `config.json` in the working directory hold
+    different complete credentials. The run uses `.env`.
+  - A notice when the environment variables, `.env` or `config.json` hold
+    some of the four fields and are skipped. The notice names the missing
+    fields. A later major release will stop with an error here.
+  - A warning when a credential file can be read by the group or by other
+    users, with the `chmod 600` command that fixes it. The check is skipped
+    on Windows.
+- A debug log line for each key in a JSON credential file that the tool
+  does not know. `sandbox` is accepted and ignored.
+- `--config` is in `--help` and in the bash, zsh and fish completions.
+
+### Fixed
+- `.env.example` said that `AA_PROFILE` overrides `--profile`. The flag has
+  always beaten the variable, and the file now says so. It also no longer
+  says that you must install `python-dotenv`.
+
+### Tests
+- The shared cases of the Adobe credentials standard are copied into
+  `tests/standard_cases/` and run by `tests/test_standard_cases.py`. The
+  cases listed in `known-differences.json` must fail, and every other case
+  must pass.
+- `tests/core/test_credentials_lookup_pins.py` pins which source wins the
+  lookup. It was written before the lookup code changed and passes
+  unchanged after it.
+- Every test now runs with the credential variables cleared, and with a
+  temporary home and working folder, so no test reads a real profile or a
+  real `config.json`.
+
 ## [1.25.0] — 2026-11-11
 
 This minor release ships the fixes from the repository review that change

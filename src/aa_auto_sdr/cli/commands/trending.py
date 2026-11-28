@@ -188,9 +188,9 @@ def _resolve_snapshot_dir(*, snapshot_dir: Path | None, profile: str | None) -> 
     if snapshot_dir is not None:
         return snapshot_dir
     if profile is not None:
-        from aa_auto_sdr.core.profiles import default_base
+        from aa_auto_sdr.core import profiles
 
-        return default_base() / "orgs" / profile / "snapshots"
+        return profiles.snapshot_dir(profile)
     return None
 
 

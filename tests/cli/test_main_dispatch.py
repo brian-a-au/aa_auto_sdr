@@ -446,7 +446,7 @@ class TestV12Dispatch:
 
         captured: dict[str, object] = {}
 
-        def _stub(*, profile):
+        def _stub(*, profile, format_name):
             captured["profile"] = profile
             return 0
 

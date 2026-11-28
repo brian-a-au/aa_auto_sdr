@@ -71,14 +71,68 @@ The tool resolves the accessible Analytics company context internally before mak
 
 ## Credential storage
 
-Pick one of four sources. Resolution precedence (highest wins):
+Pick one source. Resolution precedence (highest wins):
 
-1. `--profile <name>` flag (or `AA_PROFILE` env var pointing at a named profile)
-2. Environment variables already in the shell
-3. `.env` file in the working directory (only if `python-dotenv` is installed via `uv sync --all-extras`)
-4. `config.json` in the working directory
+1. `--profile <name>` or `--config <path>`. Giving both is an error (exit 2).
+2. The `AA_PROFILE` env var, which names a profile
+3. Environment variables already in the shell
+4. `.env` file in the working directory
+5. `config.json` in the working directory
+
+The four fields always come from one source. The tool does not take some fields from one source and the rest from another.
 
 Run `aa_auto_sdr --show-config` to see which source resolved for a given invocation.
+
+### How the lookup treats each source
+
+- **A profile or a `--config` file** must hold all four fields. If the profile is missing, or a field is missing, the run stops with exit 10. It does not fall back to another source.
+- **The environment variables, `.env` and `config.json`** are skipped when they hold some of the four fields and not all of them. The tool prints a notice on stderr that names the missing fields, and goes on to the next source. A later major release will stop with an error here.
+- **`.env` beats `config.json`.** When both files in the working directory hold a complete credential and the two differ, the tool uses `.env` and prints a notice that says so.
+- **A `.env` file that cannot be read**, e.g., because of its permissions or because it is not UTF-8, is skipped with a warning on stderr.
+- **Unknown keys** in a JSON credential file are ignored. With `--log-level DEBUG` the log names each one. `sandbox` is accepted and ignored.
+
+A notice or a warning is one line on stderr that starts with `notice:` or `warning:`. It is printed once per run. It never goes to stdout and never changes the exit code.
+
+### File permissions
+
+The tool writes a profile file with mode 0600 and creates new profile folders with mode 0700. A folder that already exists keeps its mode.
+
+When the tool reads a credential file that the group or other users can read, it prints one warning with the fix, e.g., `chmod 600 config.json`. The check follows a symlink to its target. It is skipped on Windows.
+
+### Check the configuration without calling Adobe
+
+`aa_auto_sdr --config-status` reports how the tool finds the credential. It makes no network call. It shows:
+
+- Every source in order, and which one matched.
+- A source that was skipped because it is partial, with the missing fields.
+- The file path of the source that matched.
+- The client ID, masked as the first 4 characters, `****`, and the last 4 characters.
+- The secret as `****` when it is set. The tool never prints any character of the secret.
+- The scopes.
+
+Add `--format json` to `--config-status` or `--show-config` for JSON on stdout. The JSON has `"schema": "adobe-credentials/v1/config-check"` and reports the secret as `secret_set: true` or `false`. It lists the sources, the problems, the notices and the warnings. The exit code is 0 when a credential was found and 10 when not.
+
+### Test a profile against Adobe
+
+`aa_auto_sdr --profile-test <name>` reports two results, because one can pass while the other fails:
+
+- **Sign-in.** The tool asks Adobe's sign-in service for a token.
+- **Company check.** The tool asks Adobe Analytics which companies the credential sees. This runs only when sign-in worked.
+
+A failed result has a code:
+
+| Code | Result | Meaning |
+|------|--------|---------|
+| `bad_client_id` | sign-in | Adobe does not know the client ID. |
+| `bad_secret` | sign-in | Adobe knows the client ID and rejected the secret. |
+| `scopes_rejected` | sign-in | Adobe rejected one or more scopes. |
+| `sign_in_failed` | sign-in | Sign-in failed for another reason. The message holds Adobe's own text, cut to 200 characters. |
+| `no_product_access` | company check | Sign-in worked and the credential sees no Analytics company. Add the credential's technical account to an Analytics product profile in the Admin Console. |
+| `unreachable` | either | The tool could not reach Adobe, or the answer did not come from Adobe. |
+
+Add `--format json` for JSON on stdout with `"schema": "adobe-credentials/v1/live-test"`.
+
+The shared rules behind these commands are the Adobe credentials standard, version 1. `known-differences.json` in the repository root lists the rules this tool does not meet yet.
 
 ### Option 1 — Named profile (recommended for daily use)
 
@@ -96,7 +150,17 @@ Use with `--profile prod` on subsequent commands. Multi-org users create one pro
 
 Every answer must have a value; an empty answer stops the command with exit 10. Press Ctrl+C to cancel; the command exits 130. In both cases no profile is written.
 
-A profile name is one folder under `~/.aa/orgs/`. `--profile-add` and `--profile-import` refuse a name that is empty, is `.` or `..`, or contains `/` or `\`, and exit 10 with `error: invalid profile name '<name>'`.
+A profile name is one folder under `~/.aa/orgs/`. A name holds letters, digits, dots, underscores and hyphens only. It starts with a letter or a digit, and it is 64 characters or fewer. Every command that reads or writes a profile checks the name first and exits 10 with `error: invalid profile name '<name>'` when the name breaks the rule.
+
+A profile that already exists under a name that breaks the rule, e.g., a name with a space, still works. The tool prints one warning. A name that could point outside `~/.aa/orgs/`, e.g., `../other`, is always refused.
+
+### A credential file at any path
+
+```bash
+uv run aa_auto_sdr --list-reportsuites --config /path/to/credential.json
+```
+
+`--config <path>` reads the four fields from a JSON file with the same keys as a profile. You cannot give `--config` together with `--profile`.
 
 ### Option 2 — Environment variables
 
@@ -106,7 +170,7 @@ A profile name is one folder under `~/.aa/orgs/`. `--profile-add` and `--profile
 | `CLIENT_ID` | yes | from Developer Console |
 | `SECRET` | yes | the OAuth client secret |
 | `SCOPES` | yes | comma-separated list (see above). Write it without spaces after the commas. The tool passes the value to Adobe as written. |
-| `AA_PROFILE` | no | shorthand to set `--profile` |
+| `AA_PROFILE` | no | names the profile to use when neither `--profile` nor `--config` is given |
 | `LOG_LEVEL` | no | honored by the CLI's logging |
 | `NO_COLOR` | no | when set to a non-empty value, disables ANSI colors in console output (per [no-color.org](https://no-color.org/)) |
 | `GITHUB_STEP_SUMMARY` | no | when set (GitHub Actions sets it per job), `--diff` also appends a markdown render to that file |
@@ -153,7 +217,7 @@ cp config.json.example config.json
 
 ### Option 4 — `.env` file
 
-If `python-dotenv` is installed (it's an optional extra), the tool also reads `.env` from the working directory:
+The tool also reads `.env` from the working directory. It reads the file as a source of its own, and it does not search parent folders:
 
 ```env
 ORG_ID=...@AdobeOrg
@@ -221,7 +285,7 @@ uv pip install 'aa-auto-sdr[notion]'
 | `NOTION_REGISTRY_DATABASE_ID` | Optional. Database ID for the SDR Registry. When set, `--format notion` and `--push-to-notion` runs also upsert one row per RSID into the named Notion database after writing the detail page. Unset = byte-identical page-only behavior. The integration must also be invited to the database. The database should have a single data source; if more than one is found, the tool uses the first and logs a `notion_registry_multi_source` warning. |
 | `NOTION_REGISTRY_COMPANY` | Optional. Company name written to the `Company` column of the registry row. When set, the registry row key becomes `(Company, RSID)` instead of RSID alone — required when one registry database holds multiple Adobe Analytics organizations. Precedence: `--notion-company` flag → this env var → the resolved Adobe global company id (generate path only); the push path uses the flag or this env var only. Unset leaves the `Company` property blank and keeps RSID-only keying. |
 
-Credentials are env vars only — they are **not** stored in profile `config.json`. The `.env` file is honored if `python-dotenv` is installed (already the `[env]` extra). A single `.env` file can hold both the Adobe keys and the Notion keys, because the variable names do not overlap. See [`CLI_REFERENCE.md`](CLI_REFERENCE.md#notion-integration) for usage examples.
+Credentials are env vars only — they are **not** stored in profile `config.json`. The Notion commands also read these variables from a `.env` file. For these variables the file is loaded into the environment, and parent folders are searched. This happens after the Adobe credential lookup, so it does not change which Adobe credential a run uses. A single `.env` file can hold both the Adobe keys and the Notion keys, because the variable names do not overlap. See [`CLI_REFERENCE.md`](CLI_REFERENCE.md#notion-integration) for usage examples.
 
 ## See also
 

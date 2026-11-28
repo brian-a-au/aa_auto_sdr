@@ -103,6 +103,6 @@ def test_validate_profile_name_rejects_unsafe_names(name: str, reason: str) -> N
     assert reason in msg
 
 
-@pytest.mark.parametrize("name", ["prod", "default", "my-org_2", ".hidden", "a..b", "-x"])
+@pytest.mark.parametrize("name", ["prod", "default", "my-org_2", "a..b", "client-a.eu_west", "9lives"])
 def test_validate_profile_name_accepts_plain_names(name: str) -> None:
     profiles.validate_profile_name(name)  # no exception

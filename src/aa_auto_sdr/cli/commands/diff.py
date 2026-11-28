@@ -10,10 +10,10 @@ import sys
 import time
 from pathlib import Path
 
+from aa_auto_sdr.core import profiles
 from aa_auto_sdr.core.atomic_io import atomic_write_text
 from aa_auto_sdr.core.exceptions import SnapshotError
 from aa_auto_sdr.core.exit_codes import ExitCode
-from aa_auto_sdr.core.profiles import default_base
 from aa_auto_sdr.output.diff_renderers._filters import filter_for_render
 from aa_auto_sdr.output.diff_renderers.console import render_console
 from aa_auto_sdr.output.diff_renderers.json import render_json
@@ -175,7 +175,7 @@ def compute_report(
     With `covering_rsid` (used by --compare-with-prev), `a` / `b` are ignored:
     the latest snapshot is compared against the newest earlier snapshot whose
     scope covers it, and the skipped snapshots land in `baseline_skipped`."""
-    directory = snapshot_dir or (default_base() / "orgs" / profile / "snapshots" if profile else None)
+    directory = snapshot_dir or (profiles.snapshot_dir(profile) if profile else None)
     if covering_rsid is not None:
         from dataclasses import replace
 

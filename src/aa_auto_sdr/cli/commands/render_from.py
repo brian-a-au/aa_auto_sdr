@@ -193,7 +193,7 @@ def _load_token(token: str, *, profile: str | None, snapshot_dir: Path | None) -
 
     directory = snapshot_dir
     if directory is None and profile:
-        from aa_auto_sdr.core.profiles import default_base
+        from aa_auto_sdr.core import profiles
 
-        directory = default_base() / "orgs" / profile / "snapshots"
+        directory = profiles.snapshot_dir(profile)
     return resolve_snapshot(token, profile_snapshot_dir=directory, repo_root=Path.cwd())

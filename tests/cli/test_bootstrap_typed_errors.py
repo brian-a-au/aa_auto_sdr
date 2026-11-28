@@ -163,10 +163,18 @@ def test_profile_test_bootstrap_api_failure_reports_fail(exc, authed_env, tmp_pa
         json.dumps({"org_id": "id@AdobeOrg", "client_id": "C", "secret": "S", "scopes": "X"}),
         encoding="utf-8",
     )
-    with patch("aa_auto_sdr.api.client.AaClient") as mock_client_cls:
+    from aa_auto_sdr.api.sign_in import StepResult
+
+    with (
+        patch("aa_auto_sdr.cli.commands.profiles.request_token", return_value=StepResult(ok=True)),
+        patch("aa_auto_sdr.api.client.AaClient") as mock_client_cls,
+    ):
         mock_client_cls.from_credentials.side_effect = exc
         assert profiles.test_run("prod", base=tmp_path) == ExitCode.API.value
-    assert "FAIL [api]" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "sign-in: ok" in out
+    assert "company check: FAIL [unreachable]" in out
+    assert "FAIL [api]" in out
 
 
 # --- watch ----------------------------------------------------------------
