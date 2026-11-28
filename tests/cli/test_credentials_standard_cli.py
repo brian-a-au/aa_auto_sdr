@@ -592,6 +592,43 @@ def test_valid_profile_name_with_no_folder_is_accepted_for_snapshots(
     assert err == ""
 
 
+@pytest.mark.parametrize("command", [["--validate-config"], ["--show-config"], ["--config-status"]], ids=" ".join)
+def test_empty_profile_flag_means_no_profile(
+    home: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], command: list[str]
+) -> None:
+    # e.g. `--profile "$NAME"` with NAME unset. The lookup goes on to the other sources, as before.
+    for name, value in A.items():
+        monkeypatch.setenv(name.upper(), value)
+    code, _, err = _cli([*command, "--profile", ""], capsys)
+    assert code == ExitCode.OK.value
+    assert err == ""
+
+
+def test_empty_profile_flag_falls_back_to_the_profile_variable(
+    home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _profile(tmp_path, "prod", B)
+    monkeypatch.setenv("AA_PROFILE", "prod")
+    code, out, _ = _cli(["--show-config", "--profile", ""], capsys)
+    assert code == ExitCode.OK.value
+    assert out.startswith("source:    profile:prod\n")
+
+
+def test_empty_profile_flag_with_a_config_file_is_not_an_error(
+    home: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write(tmp_path / "cred.json", A)
+    code, out, _ = _cli(["--show-config", "--profile", "", "--config", str(path)], capsys)
+    assert code == ExitCode.OK.value
+    assert out.startswith(f"source:    config:{path}\n")
+
+
+def test_empty_profile_flag_uses_the_default_snapshot_folder(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    code, _, err = _cli(["--list-snapshots", "--profile", ""], capsys)
+    assert code == ExitCode.CONFIG.value
+    assert err == "error: --list-snapshots requires --profile or --snapshot-dir\n"
+
+
 def test_config_check_reports_an_invalid_name_as_json(home: Path, capsys: pytest.CaptureFixture[str]) -> None:
     code, out, _ = _cli(["--config-status", "--format", "json", "--profile", "../x"], capsys)
     assert code == ExitCode.CONFIG.value

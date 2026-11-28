@@ -762,6 +762,11 @@ def run(argv: list[str]) -> int:
     if rc != ExitCode.OK.value:
         return rc
 
+    # An empty --profile, e.g. from an unset shell variable, has always meant
+    # "no profile": the lookup goes on to AA_PROFILE and the other sources.
+    if ns.profile == "":
+        ns.profile = None
+
     # --config and --profile both name the credential, so giving both is an
     # error. Checked before any command so that no lookup runs with both set.
     if ns.config and ns.profile:
